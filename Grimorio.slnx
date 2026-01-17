@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Grimorio.API/Grimorio.API.csproj" />
+  <Project Path="Grimorio.Application/Grimorio.Application.csproj" />
+  <Project Path="Grimorio.Domain/Grimorio.Domain.csproj" />
+  <Project Path="Grimorio.Infrastructure/Grimorio.Infrastructure.csproj" />
+  <Project Path="Grimorio.SharedKernel/Grimorio.SharedKernel.csproj" />
+</Solution>
