@@ -168,3 +168,53 @@ public class EmployeeAvailabilityConfiguration : IEntityTypeConfiguration<Employ
             .HasFilter("\"IsDeleted\" = false");
     }
 }
+
+public class ScheduleConfigurationConfiguration : IEntityTypeConfiguration<ScheduleConfiguration>
+{
+    public void Configure(EntityTypeBuilder<ScheduleConfiguration> builder)
+    {
+        builder.ToTable("ScheduleConfigurations", "scheduling");
+        
+        builder.Property(x => x.MinHoursPerMonth)
+            .HasPrecision(5, 2)
+            .HasDefaultValue(160m);
+        
+        builder.Property(x => x.MaxHoursPerMonth)
+            .HasPrecision(5, 2)
+            .HasDefaultValue(220m);
+        
+        builder.Property(x => x.HoursMondayThursday)
+            .HasPrecision(4, 2)
+            .HasDefaultValue(8.5m);
+        
+        builder.Property(x => x.HoursFridaySaturday)
+            .HasPrecision(5, 2)
+            .HasDefaultValue(12.5m);
+        
+        builder.Property(x => x.HoursSunday)
+            .HasPrecision(4, 2)
+            .HasDefaultValue(10m);
+        
+        builder.Property(x => x.FreeDaysParrillero)
+            .HasDefaultValue(1);
+        
+        builder.Property(x => x.FreeDaysOtherRoles)
+            .HasDefaultValue(6);
+        
+        builder.Property(x => x.MinStaffCocina)
+            .HasDefaultValue(2);
+        
+        builder.Property(x => x.MinStaffCaja)
+            .HasDefaultValue(1);
+        
+        builder.Property(x => x.MinStaffMesas)
+            .HasDefaultValue(3);
+        
+        builder.Property(x => x.MinStaffBar)
+            .HasDefaultValue(1);
+        
+        builder.HasIndex(x => x.BranchId)
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = false");
+    }
+}

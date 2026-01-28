@@ -245,4 +245,34 @@ public class SchedulingController : ControllerBase
         var result = await _mediator.Send(command);
         return Ok(result);
     }
+
+    // ======================== Schedule Configuration Endpoints ========================
+
+    [HttpGet("configuration")]
+    public async Task<IActionResult> GetScheduleConfiguration([FromQuery] Guid branchId)
+    {
+        var result = await _mediator.Send(new GetScheduleConfigurationQuery { BranchId = branchId });
+        return Ok(result);
+    }
+
+    [HttpPost("configuration")]
+    public async Task<IActionResult> CreateScheduleConfiguration([FromBody] CreateScheduleConfigurationCommand command)
+    {
+        var branchClaim = User.FindFirst("BranchId")?.Value;
+        if (branchClaim == null || !Guid.TryParse(branchClaim, out var branchId))
+            return Unauthorized("BranchId no válido en el token.");
+
+        command.BranchId = branchId;
+        var result = await _mediator.Send(command);
+        return CreatedAtAction(nameof(GetScheduleConfiguration), new { branchId = result.BranchId }, result);
+    }
+
+    [HttpPut("configuration/{id}")]
+    public async Task<IActionResult> UpdateScheduleConfiguration(Guid id, [FromBody] UpdateScheduleConfigurationCommand command)
+    {
+        command.Id = id;
+        var result = await _mediator.Send(command);
+        return Ok(result);
+    }
 }
+

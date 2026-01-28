@@ -82,3 +82,10 @@ public class GetEmployeeAvailabilityQuery : IRequest<List<EmployeeAvailabilityDt
     public int? Month { get; set; }
     public int? Year { get; set; }
 }
+
+// ======================== Schedule Configuration Queries ========================
+
+public class GetScheduleConfigurationQuery : IRequest<ScheduleConfigurationDto?>
+{
+    public Guid BranchId { get; set; }
+}

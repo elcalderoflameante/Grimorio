@@ -105,3 +105,30 @@ public class EmployeeAvailability : Grimorio.SharedKernel.BaseEntity
     // Navegación
     public virtual Organization.Employee? Employee { get; set; }
 }
+/// <summary>
+/// Configuración de horarios por sucursal
+/// Define parámetros para generación automática de turnos
+/// </summary>
+public class ScheduleConfiguration : Grimorio.SharedKernel.BaseEntity
+{
+    public Guid BranchId { get; set; }
+    
+    // Horas mensuales
+    public decimal MinHoursPerMonth { get; set; } = 160m; // Horas mínimas al mes
+    public decimal MaxHoursPerMonth { get; set; } = 220m; // Horas máximas al mes
+    
+    // Horarios semanales por día (horas)
+    public decimal HoursMondayThursday { get; set; } = 8.5m; // 14:00-22:30
+    public decimal HoursFridaySaturday { get; set; } = 12.5m; // 11:30-23:30
+    public decimal HoursSunday { get; set; } = 10m; // 11:30-21:30
+    
+    // Descansos (días libres por mes)
+    public int FreeDaysParrillero { get; set; } = 1;
+    public int FreeDaysOtherRoles { get; set; } = 6;
+    
+    // Staffing mínimo los fines de semana
+    public int MinStaffCocina { get; set; } = 2;
+    public int MinStaffCaja { get; set; } = 1;
+    public int MinStaffMesas { get; set; } = 3;
+    public int MinStaffBar { get; set; } = 1;
+}

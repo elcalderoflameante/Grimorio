@@ -402,3 +402,36 @@ public class GetEmployeeAvailabilityQueryHandler : IRequestHandler<GetEmployeeAv
             }).ToListAsync(cancellationToken);
     }
 }
+
+public class GetScheduleConfigurationQueryHandler : IRequestHandler<GetScheduleConfigurationQuery, ScheduleConfigurationDto?>
+{
+    private readonly GrimorioDbContext _context;
+
+    public GetScheduleConfigurationQueryHandler(GrimorioDbContext context) => _context = context;
+
+    public async Task<ScheduleConfigurationDto?> Handle(GetScheduleConfigurationQuery request, CancellationToken cancellationToken)
+    {
+        var config = await _context.ScheduleConfigurations
+            .FirstOrDefaultAsync(sc => sc.BranchId == request.BranchId && !sc.IsDeleted, cancellationToken);
+
+        if (config == null)
+            return null;
+
+        return new ScheduleConfigurationDto
+        {
+            Id = config.Id,
+            BranchId = config.BranchId,
+            MinHoursPerMonth = config.MinHoursPerMonth,
+            MaxHoursPerMonth = config.MaxHoursPerMonth,
+            HoursMondayThursday = config.HoursMondayThursday,
+            HoursFridaySaturday = config.HoursFridaySaturday,
+            HoursSunday = config.HoursSunday,
+            FreeDaysParrillero = config.FreeDaysParrillero,
+            FreeDaysOtherRoles = config.FreeDaysOtherRoles,
+            MinStaffCocina = config.MinStaffCocina,
+            MinStaffCaja = config.MinStaffCaja,
+            MinStaffMesas = config.MinStaffMesas,
+            MinStaffBar = config.MinStaffBar
+        };
+    }
+}

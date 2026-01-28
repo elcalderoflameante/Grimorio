@@ -424,3 +424,113 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         return new List<ShiftAssignmentDto>();
     }
 }
+
+// ======================== ScheduleConfiguration Commands ========================
+
+public class CreateScheduleConfigurationCommandHandler : IRequestHandler<CreateScheduleConfigurationCommand, ScheduleConfigurationDto>
+{
+    private readonly GrimorioDbContext _context;
+
+    public CreateScheduleConfigurationCommandHandler(GrimorioDbContext context) => _context = context;
+
+    public async Task<ScheduleConfigurationDto> Handle(CreateScheduleConfigurationCommand request, CancellationToken cancellationToken)
+    {
+        // Verificar si ya existe configuración para esta sucursal
+        var existingConfig = await _context.ScheduleConfigurations
+            .FirstOrDefaultAsync(sc => sc.BranchId == request.BranchId && !sc.IsDeleted, cancellationToken);
+
+        if (existingConfig != null)
+            throw new InvalidOperationException("Ya existe una configuración de horarios para esta sucursal.");
+
+        var config = new ScheduleConfiguration
+        {
+            Id = Guid.NewGuid(),
+            BranchId = request.BranchId,
+            MinHoursPerMonth = request.MinHoursPerMonth,
+            MaxHoursPerMonth = request.MaxHoursPerMonth,
+            HoursMondayThursday = request.HoursMondayThursday,
+            HoursFridaySaturday = request.HoursFridaySaturday,
+            HoursSunday = request.HoursSunday,
+            FreeDaysParrillero = request.FreeDaysParrillero,
+            FreeDaysOtherRoles = request.FreeDaysOtherRoles,
+            MinStaffCocina = request.MinStaffCocina,
+            MinStaffCaja = request.MinStaffCaja,
+            MinStaffMesas = request.MinStaffMesas,
+            MinStaffBar = request.MinStaffBar,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = Guid.Empty
+        };
+
+        _context.ScheduleConfigurations.Add(config);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return MapToDto(config);
+    }
+
+    private static ScheduleConfigurationDto MapToDto(ScheduleConfiguration config) => new()
+    {
+        Id = config.Id,
+        BranchId = config.BranchId,
+        MinHoursPerMonth = config.MinHoursPerMonth,
+        MaxHoursPerMonth = config.MaxHoursPerMonth,
+        HoursMondayThursday = config.HoursMondayThursday,
+        HoursFridaySaturday = config.HoursFridaySaturday,
+        HoursSunday = config.HoursSunday,
+        FreeDaysParrillero = config.FreeDaysParrillero,
+        FreeDaysOtherRoles = config.FreeDaysOtherRoles,
+        MinStaffCocina = config.MinStaffCocina,
+        MinStaffCaja = config.MinStaffCaja,
+        MinStaffMesas = config.MinStaffMesas,
+        MinStaffBar = config.MinStaffBar
+    };
+}
+
+public class UpdateScheduleConfigurationCommandHandler : IRequestHandler<UpdateScheduleConfigurationCommand, ScheduleConfigurationDto>
+{
+    private readonly GrimorioDbContext _context;
+
+    public UpdateScheduleConfigurationCommandHandler(GrimorioDbContext context) => _context = context;
+
+    public async Task<ScheduleConfigurationDto> Handle(UpdateScheduleConfigurationCommand request, CancellationToken cancellationToken)
+    {
+        var config = await _context.ScheduleConfigurations
+            .FirstOrDefaultAsync(sc => sc.Id == request.Id && !sc.IsDeleted, cancellationToken);
+
+        if (config == null)
+            throw new InvalidOperationException("Configuración de horarios no encontrada.");
+
+        config.MinHoursPerMonth = request.MinHoursPerMonth;
+        config.MaxHoursPerMonth = request.MaxHoursPerMonth;
+        config.HoursMondayThursday = request.HoursMondayThursday;
+        config.HoursFridaySaturday = request.HoursFridaySaturday;
+        config.HoursSunday = request.HoursSunday;
+        config.FreeDaysParrillero = request.FreeDaysParrillero;
+        config.FreeDaysOtherRoles = request.FreeDaysOtherRoles;
+        config.MinStaffCocina = request.MinStaffCocina;
+        config.MinStaffCaja = request.MinStaffCaja;
+        config.MinStaffMesas = request.MinStaffMesas;
+        config.MinStaffBar = request.MinStaffBar;
+        config.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return MapToDto(config);
+    }
+
+    private static ScheduleConfigurationDto MapToDto(ScheduleConfiguration config) => new()
+    {
+        Id = config.Id,
+        BranchId = config.BranchId,
+        MinHoursPerMonth = config.MinHoursPerMonth,
+        MaxHoursPerMonth = config.MaxHoursPerMonth,
+        HoursMondayThursday = config.HoursMondayThursday,
+        HoursFridaySaturday = config.HoursFridaySaturday,
+        HoursSunday = config.HoursSunday,
+        FreeDaysParrillero = config.FreeDaysParrillero,
+        FreeDaysOtherRoles = config.FreeDaysOtherRoles,
+        MinStaffCocina = config.MinStaffCocina,
+        MinStaffCaja = config.MinStaffCaja,
+        MinStaffMesas = config.MinStaffMesas,
+        MinStaffBar = config.MinStaffBar
+    };
+}

@@ -148,3 +148,37 @@ public class GenerateMonthlyShiftsCommand : IRequest<List<ShiftAssignmentDto>>
     public int Year { get; set; }
     public int Month { get; set; }
 }
+
+// ======================== Schedule Configuration Commands ========================
+
+public class CreateScheduleConfigurationCommand : IRequest<ScheduleConfigurationDto>
+{
+    public Guid BranchId { get; set; }
+    public decimal MinHoursPerMonth { get; set; }
+    public decimal MaxHoursPerMonth { get; set; }
+    public decimal HoursMondayThursday { get; set; }
+    public decimal HoursFridaySaturday { get; set; }
+    public decimal HoursSunday { get; set; }
+    public int FreeDaysParrillero { get; set; }
+    public int FreeDaysOtherRoles { get; set; }
+    public int MinStaffCocina { get; set; }
+    public int MinStaffCaja { get; set; }
+    public int MinStaffMesas { get; set; }
+    public int MinStaffBar { get; set; }
+}
+
+public class UpdateScheduleConfigurationCommand : IRequest<ScheduleConfigurationDto>
+{
+    public Guid Id { get; set; }
+    public decimal MinHoursPerMonth { get; set; }
+    public decimal MaxHoursPerMonth { get; set; }
+    public decimal HoursMondayThursday { get; set; }
+    public decimal HoursFridaySaturday { get; set; }
+    public decimal HoursSunday { get; set; }
+    public int FreeDaysParrillero { get; set; }
+    public int FreeDaysOtherRoles { get; set; }
+    public int MinStaffCocina { get; set; }
+    public int MinStaffCaja { get; set; }
+    public int MinStaffMesas { get; set; }
+    public int MinStaffBar { get; set; }
+}

@@ -95,3 +95,31 @@ public class EmployeeAvailabilityDto
     public DateTime UnavailableDate { get; set; }
     public string? Reason { get; set; }
 }
+
+/// <summary>
+/// DTO para Configuración de Horarios por Sucursal
+/// </summary>
+public class ScheduleConfigurationDto
+{
+    public Guid Id { get; set; }
+    public Guid BranchId { get; set; }
+    
+    // Horas mensuales
+    public decimal MinHoursPerMonth { get; set; }
+    public decimal MaxHoursPerMonth { get; set; }
+    
+    // Horarios por día (horas)
+    public decimal HoursMondayThursday { get; set; }
+    public decimal HoursFridaySaturday { get; set; }
+    public decimal HoursSunday { get; set; }
+    
+    // Días libres por mes
+    public int FreeDaysParrillero { get; set; }
+    public int FreeDaysOtherRoles { get; set; }
+    
+    // Staffing mínimo (fines de semana)
+    public int MinStaffCocina { get; set; }
+    public int MinStaffCaja { get; set; }
+    public int MinStaffMesas { get; set; }
+    public int MinStaffBar { get; set; }
+}
