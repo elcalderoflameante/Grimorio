@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Grimorio.Domain.Entities.Auth;
 using Grimorio.Domain.Entities.Organization;
+using Grimorio.Domain.Entities.Scheduling;
 
 namespace Grimorio.Infrastructure.Persistence;
 
@@ -28,6 +29,14 @@ public class GrimorioDbContext : DbContext
     public DbSet<Employee> Employees { get; set; } = null!;
     public DbSet<EmployeeShift> EmployeeShifts { get; set; } = null!;
     public DbSet<EmployeeClocking> EmployeeClockings { get; set; } = null!;
+
+    // === Scheduling ===
+    public DbSet<WorkArea> WorkAreas { get; set; } = null!;
+    public DbSet<WorkRole> WorkRoles { get; set; } = null!;
+    public DbSet<EmployeeWorkRole> EmployeeWorkRoles { get; set; } = null!;
+    public DbSet<ShiftTemplate> ShiftTemplates { get; set; } = null!;
+    public DbSet<ShiftAssignment> ShiftAssignments { get; set; } = null!;
+    public DbSet<EmployeeAvailability> EmployeeAvailability { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
