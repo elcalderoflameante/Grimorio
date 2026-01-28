@@ -16,7 +16,10 @@ import type {
   CreatePositionDto,
   UpdatePositionDto,
   AuthResponse,
-  PaginatedResult
+  PaginatedResult,
+  ScheduleConfigurationDto,
+  CreateScheduleConfigurationDto,
+  UpdateScheduleConfigurationDto
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5186/api';
@@ -139,6 +142,17 @@ export const positionService = {
     apiClient.put<PositionDto>(`/positions/${id}`, data),
   delete: (id: string): Promise<AxiosResponse<void>> => 
     apiClient.delete<void>(`/positions/${id}`),
+};
+
+// ======================== Scheduling API ========================
+
+export const scheduleConfigurationApi = {
+  get: (branchId: string): Promise<AxiosResponse<ScheduleConfigurationDto>> => 
+    apiClient.get<ScheduleConfigurationDto>('/scheduling/configuration', { params: { branchId } }),
+  create: (data: CreateScheduleConfigurationDto): Promise<AxiosResponse<ScheduleConfigurationDto>> => 
+    apiClient.post<ScheduleConfigurationDto>('/scheduling/configuration', data),
+  update: (id: string, data: UpdateScheduleConfigurationDto): Promise<AxiosResponse<ScheduleConfigurationDto>> => 
+    apiClient.put<ScheduleConfigurationDto>(`/scheduling/configuration/${id}`, data),
 };
 
 export default apiClient;

@@ -145,3 +145,49 @@ export interface PaginatedResult<T> {
   totalCount: number;
   totalPages: number;
 }
+
+// ======================== Scheduling DTOs ========================
+
+export interface ScheduleConfigurationDto {
+  id: string;
+  branchId: string;
+  minHoursPerMonth: number;
+  maxHoursPerMonth: number;
+  hoursMondayThursday: number;
+  hoursFridaySaturday: number;
+  hoursSunday: number;
+  freeDaysParrillero: number;
+  freeDaysOtherRoles: number;
+  minStaffCocina: number;
+  minStaffCaja: number;
+  minStaffMesas: number;
+  minStaffBar: number;
+}
+
+export interface CreateScheduleConfigurationDto {
+  minHoursPerMonth: number;
+  maxHoursPerMonth: number;
+  hoursMondayThursday: number;
+  hoursFridaySaturday: number;
+  hoursSunday: number;
+  freeDaysParrillero: number;
+  freeDaysOtherRoles: number;
+  minStaffCocina: number;
+  minStaffCaja: number;
+  minStaffMesas: number;
+  minStaffBar: number;
+}
+
+export interface UpdateScheduleConfigurationDto {
+  minHoursPerMonth: number;
+  maxHoursPerMonth: number;
+  hoursMondayThursday: number;
+  hoursFridaySaturday: number;
+  hoursSunday: number;
+  freeDaysParrillero: number;
+  freeDaysOtherRoles: number;
+  minStaffCocina: number;
+  minStaffCaja: number;
+  minStaffMesas: number;
+  minStaffBar: number;
+}

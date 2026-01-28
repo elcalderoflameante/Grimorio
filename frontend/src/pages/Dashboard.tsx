@@ -8,6 +8,7 @@ import PositionList from '../components/Positions/PositionList.tsx';
 import UserList from '../components/Users/UserList.tsx';
 import RoleList from '../components/Roles/RoleList.tsx';
 import PermissionList from '../components/Permissions/PermissionList.tsx';
+import { ScheduleConfigurationForm } from '../components/Scheduling';
 import type { MenuProps } from 'antd';
 
 const { Header, Content, Sider } = Layout;
@@ -37,6 +38,14 @@ export default function Dashboard() {
         ],
       },
     ] : []),
+    // Scheduling
+    {
+      key: 'scheduling',
+      label: 'Horarios',
+      children: [
+        { key: 'schedule-config', label: 'Configuración' },
+      ],
+    },
     // Admin visible si tiene acceso
     {
       key: 'admin',
@@ -77,6 +86,8 @@ export default function Dashboard() {
         return <RoleList />;
       case 'permissions':
         return <PermissionList />;
+      case 'schedule-config':
+        return <ScheduleConfigurationForm branchId={user?.branchId || ''} />;
       default:
         return <EmployeeList />;
     }
