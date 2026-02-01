@@ -15,6 +15,10 @@ public class Branch : BaseEntity
     public string Email { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
 
+    // Ubicación geográfica
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
+
     // Relaciones
     public ICollection<Position> Positions { get; set; } = new List<Position>();
     public ICollection<Employee> Employees { get; set; } = new List<Employee>();

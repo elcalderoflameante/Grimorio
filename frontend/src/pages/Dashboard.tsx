@@ -102,7 +102,7 @@ export default function Dashboard() {
     navigate('/login');
   };
 
-  const menuItems: MenuItem[] = [
+  const menuItems: MenuItem[] = useMemo(() => [
     // Inicio
     {
       key: 'welcome',
@@ -145,7 +145,7 @@ export default function Dashboard() {
         ],
       },
     ] : []),
-  ];
+  ], [hasPermission]);
 
   const userMenu: MenuProps['items'] = [
     {
@@ -201,7 +201,7 @@ export default function Dashboard() {
     const path = findBreadcrumbs(menuItems, selectedMenu);
     const titles = path.length > 0 ? path : ['Inicio'];
     return titles.map((title) => ({ title }));
-  }, [menuItems, selectedMenu]);
+  }, [selectedMenu, menuItems]);
 
   return (
     <Layout style={{ minHeight: '100vh' }}>

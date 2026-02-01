@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { EmployeeWorkRoleAssignment, EmployeeAvailabilityForm } from '../Scheduling';
 import type { EmployeeDto, PositionDto, CreateEmployeeDto, UpdateEmployeeDto } from '../../types';
 import dayjs, { type Dayjs } from 'dayjs';
-import { isValidEcuadorCedula, isValidEcuadorCell, isValidEcuadorRuc } from '../../utils/ecuadorValidators';
+import { isValidEcuadorCedula, isValidEcuadorCell } from '../../utils/ecuadorValidators';
 
 interface EmployeeFormValues {
   firstName: string;

@@ -131,6 +131,8 @@ export interface BranchDto {
   phone: string;
   email: string;
   isActive: boolean;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface UpdateBranchDto {
@@ -140,6 +142,8 @@ export interface UpdateBranchDto {
   phone: string;
   email: string;
   isActive: boolean;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface LoginRequest {

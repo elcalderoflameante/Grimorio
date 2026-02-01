@@ -6,7 +6,7 @@ import 'dayjs/locale/es';
 import { scheduleShiftApi, scheduleConfigurationApi } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { formatError } from '../../utils/errorHandler';
-import type { ShiftAssignmentDto, EmployeeDto, ScheduleConfigurationDto, ShiftGenerationWarningDto } from '../../types';
+import type { ShiftAssignmentDto, EmployeeDto, ScheduleConfigurationDto } from '../../types';
 
 dayjs.extend(isoWeek);
 dayjs.locale('es');
@@ -104,7 +104,7 @@ export const MonthlySchedule = () => {
       const year = selectedMonth.year();
       const monthNumber = selectedMonth.month() + 1;
       const result = await scheduleShiftApi.generate(year, monthNumber);
-      const { assignments, warnings, totalShiftsGenerated, totalShiftsNotCovered } = result.data;
+      const { warnings, totalShiftsGenerated, totalShiftsNotCovered } = result.data;
       
       if (warnings && warnings.length > 0) {
         Modal.warning({
@@ -236,7 +236,7 @@ export const MonthlySchedule = () => {
 
     for (let i = 0; i < maxShiftsPerDay; i++) {
       const row: any = { key: `shift-${i}` };
-      weekShifts.forEach(({ date, dayName, dayShifts }) => {
+      weekShifts.forEach(({ date, dayShifts }) => {
         const shift = dayShifts[i];
         const startTime = shift?.startTime?.substring(0, 5) || '--:--';
         const endTime = shift?.endTime?.substring(0, 5) || '--:--';

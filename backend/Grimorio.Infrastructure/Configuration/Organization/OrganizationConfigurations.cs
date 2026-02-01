@@ -32,6 +32,15 @@ public class BranchConfiguration : BaseEntityConfiguration<Branch>
         builder.Property(s => s.IsActive)
             .HasDefaultValue(true);
 
+        // Ubicación geográfica
+        builder.Property(b => b.Latitude)
+            .HasPrecision(9, 6)
+            .IsRequired(false);
+
+        builder.Property(b => b.Longitude)
+            .HasPrecision(9, 6)
+            .IsRequired(false);
+
         // Índices
         builder.HasIndex(s => s.Code).IsUnique();
         builder.HasIndex(s => s.IsActive);

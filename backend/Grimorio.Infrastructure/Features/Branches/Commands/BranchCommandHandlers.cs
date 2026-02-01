@@ -35,6 +35,8 @@ public class UpdateBranchCommandHandler : IRequestHandler<UpdateBranchCommand, B
         branch.Phone = request.Phone;
         branch.Email = request.Email;
         branch.IsActive = request.IsActive;
+        branch.Latitude = request.Latitude;
+        branch.Longitude = request.Longitude;
         branch.UpdatedAt = DateTime.UtcNow;
         branch.UpdatedBy = Guid.Empty; // En producción, usar UserId del token
 

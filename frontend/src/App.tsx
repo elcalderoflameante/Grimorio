@@ -4,7 +4,7 @@ import esES from 'antd/locale/es_ES';
 import { useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 interface ProtectedRouteProps {
   children: ReactNode;
