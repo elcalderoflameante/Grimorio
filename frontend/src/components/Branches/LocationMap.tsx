@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import type { LatLngTuple, LeafletMouseEvent } from 'leaflet';
 import L from 'leaflet';
@@ -29,6 +29,13 @@ const LocationMarker = ({ latitude, longitude, onLocationChange }: LocationMarke
   const [position, setPosition] = useState<LatLngTuple | null>(
     latitude && longitude ? [latitude, longitude] : null
   );
+
+  // Actualizar posición cuando los props cambian (ej: al cargar datos guardados)
+  useEffect(() => {
+    if (latitude && longitude) {
+      setPosition([latitude, longitude]);
+    }
+  }, [latitude, longitude]);
 
   useMapEvents({
     click(e: LeafletMouseEvent) {
