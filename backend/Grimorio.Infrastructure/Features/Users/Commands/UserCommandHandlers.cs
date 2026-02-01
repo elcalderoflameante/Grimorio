@@ -190,3 +190,42 @@ public class AssignRolesToUserCommandHandler : IRequestHandler<AssignRolesToUser
         }
     }
 }
+
+public class ChangePasswordCommandHandler : IRequestHandler<ChangePasswordCommand, bool>
+{
+    private readonly GrimorioDbContext _context;
+    private readonly IPasswordHashingService _passwordHashingService;
+
+    public ChangePasswordCommandHandler(GrimorioDbContext context, IPasswordHashingService passwordHashingService)
+    {
+        _context = context;
+        _passwordHashingService = passwordHashingService;
+    }
+
+    public async Task<bool> Handle(ChangePasswordCommand request, CancellationToken cancellationToken)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Id == request.UserId && !u.IsDeleted, cancellationToken);
+
+        if (user == null)
+            throw new InvalidOperationException("Usuario no encontrado.");
+
+        // Verificar que la contraseña actual sea correcta
+        if (!_passwordHashingService.VerifyPassword(request.CurrentPassword, user.PasswordHash))
+            throw new InvalidOperationException("La contraseña actual es incorrecta.");
+
+        // Validar que la nueva contraseña sea diferente
+        if (request.NewPassword == request.CurrentPassword)
+            throw new InvalidOperationException("La nueva contraseña debe ser diferente a la actual.");
+
+        // Actualizar la contraseña
+        user.PasswordHash = _passwordHashingService.HashPassword(request.NewPassword);
+        user.UpdatedAt = DateTime.UtcNow;
+
+        _context.Users.Update(user);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return true;
+    }
+}
+

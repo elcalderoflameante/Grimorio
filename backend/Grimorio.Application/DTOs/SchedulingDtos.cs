@@ -76,6 +76,7 @@ public class ShiftAssignmentDto
     public TimeSpan? LunchDuration { get; set; }
     public Guid WorkAreaId { get; set; }
     public string WorkAreaName { get; set; } = string.Empty;
+    public string WorkAreaColor { get; set; } = string.Empty;
     public Guid WorkRoleId { get; set; }
     public string WorkRoleName { get; set; } = string.Empty;
     public decimal WorkedHours { get; set; }
@@ -113,13 +114,37 @@ public class ScheduleConfigurationDto
     public decimal HoursFridaySaturday { get; set; }
     public decimal HoursSunday { get; set; }
     
-    // Días libres por mes
-    public int FreeDaysParrillero { get; set; }
-    public int FreeDaysOtherRoles { get; set; }
-    
     // Staffing mínimo (fines de semana)
     public int MinStaffCocina { get; set; }
     public int MinStaffCaja { get; set; }
     public int MinStaffMesas { get; set; }
     public int MinStaffBar { get; set; }
+    
+    // UI: Color para empleados con día libre
+    public string FreeDayColor { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Resultado de la generación de turnos con advertencias
+/// </summary>
+public class ShiftGenerationResultDto
+{
+    public List<ShiftAssignmentDto> Assignments { get; set; } = new();
+    public List<ShiftGenerationWarningDto> Warnings { get; set; } = new();
+    public int TotalShiftsGenerated { get; set; }
+    public int TotalShiftsNotCovered { get; set; }
+}
+
+/// <summary>
+/// Advertencia sobre turnos no cubiertos
+/// </summary>
+public class ShiftGenerationWarningDto
+{
+    public DateTime Date { get; set; }
+    public DayOfWeek DayOfWeek { get; set; }
+    public string WorkAreaName { get; set; } = string.Empty;
+    public string WorkRoleName { get; set; } = string.Empty;
+    public int RequiredCount { get; set; }
+    public int AssignedCount { get; set; }
+    public string Reason { get; set; } = string.Empty;
 }

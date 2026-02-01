@@ -15,6 +15,10 @@ public class AuthController : ControllerBase
 {
     private readonly IMediator _mediator;
 
+    /// <summary>
+    /// Inicializa una nueva instancia del controlador de autenticación.
+    /// </summary>
+    /// <param name="mediator">Instancia de MediatR para enviar comandos.</param>
     public AuthController(IMediator mediator)
     {
         _mediator = mediator;
@@ -23,6 +27,12 @@ public class AuthController : ControllerBase
     /// <summary>
     /// Autentica un usuario y devuelve JWT + refresh token.
     /// </summary>
+    /// <param name="request">Solicitud de login con email y contraseña.</param>
+    /// <returns>AuthResponse con tokens y datos del usuario.</returns>
+    /// <response code="200">Autenticación exitosa, devuelve JWT y refresh token.</response>
+    /// <response code="400">Solicitud inválida (ModelState no válido).</response>
+    /// <response code="401">Credenciales inválidas o usuario inactivo.</response>
+    /// <response code="500">Error interno del servidor al procesar login.</response>
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
@@ -53,7 +63,13 @@ public class AuthController : ControllerBase
     /// <summary>
     /// Refresca el JWT usando un refresh token.
     /// Nota: Por ahora no implementado completamente.
+    /// El refresh token debe ser incluido en el body de la solicitud.
     /// </summary>
+    /// <param name="request">Solicitud con refresh token válido.</param>
+    /// <returns>AuthResponse con nuevo JWT.</returns>
+    /// <response code="200">Refresh exitoso, devuelve nuevo JWT.</response>
+    /// <response code="400">Solicitud inválida (ModelState no válido).</response>
+    /// <response code="500">Error al refrescar token (refresh token inválido o expirado).</response>
     [HttpPost("refresh")]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
     {

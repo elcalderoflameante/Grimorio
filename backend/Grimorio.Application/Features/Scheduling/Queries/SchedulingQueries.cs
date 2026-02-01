@@ -83,9 +83,24 @@ public class GetEmployeeAvailabilityQuery : IRequest<List<EmployeeAvailabilityDt
     public int? Year { get; set; }
 }
 
+// ======================== Schedulable Employees Query ========================
+
+public class GetSchedulableEmployeesQuery : IRequest<List<EmployeeDto>>
+{
+    public Guid BranchId { get; set; }
+}
+
 // ======================== Schedule Configuration Queries ========================
 
 public class GetScheduleConfigurationQuery : IRequest<ScheduleConfigurationDto?>
 {
     public Guid BranchId { get; set; }
+}
+
+// ======================== Free Employees Query ========================
+
+public class GetFreeEmployeesByDateQuery : IRequest<List<EmployeeDto>>
+{
+    public Guid BranchId { get; set; }
+    public DateTime Date { get; set; }
 }

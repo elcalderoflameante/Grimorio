@@ -4,6 +4,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { positionService } from '../../services/api';
 import type { PositionDto, CreatePositionDto, UpdatePositionDto } from '../../types';
+import { formatError } from '../../utils/errorHandler';
 
 interface PositionFormValues {
   name: string;
@@ -27,7 +28,7 @@ export default function PositionList() {
       const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
       setPositions(items);
     } catch (error) {
-      message.error('Error al cargar posiciones');
+      message.error(formatError(error));
     } finally {
       setLoading(false);
     }
@@ -62,7 +63,7 @@ export default function PositionList() {
       setEditingId(null);
       loadPositions();
     } catch (error: any) {
-      message.error(error.response?.data?.message || 'Error al guardar');
+      message.error(formatError(error));
     }
   };
 
@@ -73,7 +74,7 @@ export default function PositionList() {
       message.success('Posición eliminada');
       loadPositions();
     } catch (error) {
-      message.error('Error al eliminar');
+      message.error(formatError(error));
     }
   };
 

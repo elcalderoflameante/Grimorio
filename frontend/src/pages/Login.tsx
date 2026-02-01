@@ -5,6 +5,7 @@ import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { authService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { jwtDecode } from 'jwt-decode';
+import { formatError } from '../utils/errorHandler';
 
 interface DecodedToken {
   BranchId?: string;
@@ -39,8 +40,7 @@ export default function Login() {
       message.success('¡Bienvenido!');
       navigate('/dashboard');
     } catch (error: any) {
-      const errorMsg = error.response?.data?.message || 'Error al iniciar sesión';
-      message.error(errorMsg);
+      message.error(formatError(error));
     } finally {
       setLoading(false);
     }

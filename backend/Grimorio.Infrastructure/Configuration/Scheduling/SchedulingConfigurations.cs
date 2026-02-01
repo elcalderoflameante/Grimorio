@@ -195,12 +195,6 @@ public class ScheduleConfigurationConfiguration : IEntityTypeConfiguration<Sched
             .HasPrecision(4, 2)
             .HasDefaultValue(10m);
         
-        builder.Property(x => x.FreeDaysParrillero)
-            .HasDefaultValue(1);
-        
-        builder.Property(x => x.FreeDaysOtherRoles)
-            .HasDefaultValue(6);
-        
         builder.Property(x => x.MinStaffCocina)
             .HasDefaultValue(2);
         

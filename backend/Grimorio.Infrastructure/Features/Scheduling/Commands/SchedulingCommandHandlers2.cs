@@ -292,6 +292,7 @@ public class CreateShiftAssignmentCommandHandler : IRequestHandler<CreateShiftAs
             LunchDuration = shiftAssignment.LunchDuration,
             WorkAreaId = shiftAssignment.WorkAreaId,
             WorkAreaName = workArea.Name,
+            WorkAreaColor = workArea.Color,
             WorkRoleId = shiftAssignment.WorkRoleId,
             WorkRoleName = workRole.Name,
             WorkedHours = shiftAssignment.WorkedHours,
@@ -397,7 +398,7 @@ public class RemoveEmployeeAvailabilityCommandHandler : IRequestHandler<RemoveEm
     public async Task<bool> Handle(RemoveEmployeeAvailabilityCommand request, CancellationToken cancellationToken)
     {
         var employeeAvailability = await _context.EmployeeAvailability
-            .FirstOrDefaultAsync(ea => ea.Id == request.Id && !ea.IsDeleted, cancellationToken);
+            .FirstOrDefaultAsync(ea => ea.Id == request.Id && ea.EmployeeId == request.EmployeeId && !ea.IsDeleted, cancellationToken);
 
         if (employeeAvailability == null)
             throw new InvalidOperationException("Disponibilidad no encontrada.");
@@ -411,17 +412,304 @@ public class RemoveEmployeeAvailabilityCommandHandler : IRequestHandler<RemoveEm
     }
 }
 
-public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonthlyShiftsCommand, List<ShiftAssignmentDto>>
+public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonthlyShiftsCommand, ShiftGenerationResultDto>
 {
     private readonly GrimorioDbContext _context;
 
     public GenerateMonthlyShiftsCommandHandler(GrimorioDbContext context) => _context = context;
 
-    public async Task<List<ShiftAssignmentDto>> Handle(GenerateMonthlyShiftsCommand request, CancellationToken cancellationToken)
+    public async Task<ShiftGenerationResultDto> Handle(GenerateMonthlyShiftsCommand request, CancellationToken cancellationToken)
     {
-        // TODO: Implementar algoritmo greedy de generación de horarios
-        // Por ahora retorna lista vacía
-        return new List<ShiftAssignmentDto>();
+        if (request.Month < 1 || request.Month > 12)
+            throw new InvalidOperationException("Mes inválido.");
+
+        if (request.Year < 2000)
+            throw new InvalidOperationException("Año inválido.");
+
+        var startDate = new DateTime(request.Year, request.Month, 1);
+        var endDate = startDate.AddMonths(1).AddDays(-1);
+        var daysInMonth = DateTime.DaysInMonth(request.Year, request.Month);
+
+        // Cargar configuración (para límites de horas)
+        var config = await _context.ScheduleConfigurations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(sc => sc.BranchId == request.BranchId && !sc.IsDeleted, cancellationToken);
+
+        // Cargar plantillas de turno
+        var shiftTemplates = await _context.ShiftTemplates
+            .Where(st => st.BranchId == request.BranchId && !st.IsDeleted)
+            .Include(st => st.WorkArea)
+            .Include(st => st.WorkRole)
+            .ToListAsync(cancellationToken);
+
+        if (!shiftTemplates.Any())
+            throw new InvalidOperationException("No existen plantillas de turno para esta sucursal.");
+
+        // Cargar roles asignados a empleados (con roles y empleados)
+        var employeeWorkRoles = await _context.EmployeeWorkRoles
+            .Where(ewr => !ewr.IsDeleted)
+            .Include(ewr => ewr.Employee)
+            .Include(ewr => ewr.WorkRole)
+            .Where(ewr => ewr.Employee != null && ewr.Employee.IsActive && ewr.Employee.BranchId == request.BranchId)
+            .ToListAsync(cancellationToken);
+
+        if (!employeeWorkRoles.Any())
+            throw new InvalidOperationException("No hay empleados elegibles con roles asignados.");
+
+        // Disponibilidad (días no disponibles)
+        var availability = await _context.EmployeeAvailability
+            .Where(ea => !ea.IsDeleted && ea.UnavailableDate >= startDate && ea.UnavailableDate <= endDate)
+            .ToListAsync(cancellationToken);
+
+        var availabilityByEmployee = availability
+            .GroupBy(a => a.EmployeeId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(a => a.UnavailableDate.Date).ToHashSet()
+            );
+
+        // Limpiar asignaciones existentes del mes (soft delete)
+        var existingAssignments = await _context.ShiftAssignments
+            .Where(sa => sa.BranchId == request.BranchId && sa.Date >= startDate && sa.Date <= endDate && !sa.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        foreach (var assignment in existingAssignments)
+        {
+            assignment.IsDeleted = true;
+            assignment.DeletedAt = DateTime.UtcNow;
+            assignment.DeletedBy = Guid.Empty;
+        }
+
+        // Preparar estructuras de control
+        var assignedDatesByEmployee = new Dictionary<Guid, HashSet<DateTime>>();
+        var hoursByEmployee = new Dictionary<Guid, decimal>();
+        var assignmentsToCreate = new List<ShiftAssignment>();
+        var warnings = new List<ShiftGenerationWarningDto>();
+
+        // Agrupar roles por WorkRoleId para asignación rápida
+        var roleCandidates = employeeWorkRoles
+            .GroupBy(ewr => ewr.WorkRoleId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        for (var day = 0; day < daysInMonth; day++)
+        {
+            var currentDate = startDate.AddDays(day);
+            var dayOfWeek = currentDate.DayOfWeek;
+
+            var templatesForDay = shiftTemplates
+                .Where(t => t.DayOfWeek == dayOfWeek)
+                .ToList();
+
+            foreach (var template in templatesForDay)
+            {
+                var assignedForTemplate = 0;
+                
+                if (!roleCandidates.TryGetValue(template.WorkRoleId, out var candidatesForRole))
+                {
+                    // No hay empleados con este rol
+                    warnings.Add(new ShiftGenerationWarningDto
+                    {
+                        Date = currentDate,
+                        DayOfWeek = dayOfWeek,
+                        WorkAreaName = template.WorkArea?.Name ?? "Desconocida",
+                        WorkRoleName = template.WorkRole?.Name ?? "Desconocido",
+                        RequiredCount = template.RequiredCount,
+                        AssignedCount = 0,
+                        Reason = "No hay empleados con este rol asignado"
+                    });
+                    continue;
+                }
+
+                for (var i = 0; i < template.RequiredCount; i++)
+                {
+                    var eligibleCandidates = candidatesForRole
+                        .Where(c => c.Employee != null)
+                        .Where(c => IsEmployeeAvailable(c.Employee!.Id, currentDate, availabilityByEmployee))
+                        .Where(c => !IsEmployeeAlreadyAssigned(c.Employee!.Id, currentDate, assignedDatesByEmployee))
+                        .Where(c => CanAssignByFreeDays(c, daysInMonth, assignedDatesByEmployee))
+                        .Where(c => CanAssignByHours(c.Employee!.Id, template, hoursByEmployee, config))
+                        .OrderByDescending(c => c.IsPrimary)
+                        .ThenBy(c => c.Priority)
+                        .ThenBy(c => GetEmployeeHours(c.Employee!.Id, hoursByEmployee))
+                        .ThenBy(c => GetEmployeeAssignedDays(c.Employee!.Id, assignedDatesByEmployee))
+                        .ToList();
+
+                    var selected = eligibleCandidates.FirstOrDefault();
+                    if (selected == null)
+                    {
+                        // No se pudo asignar este turno
+                        var reason = candidatesForRole.All(c => c.Employee == null) 
+                            ? "No hay empleados disponibles"
+                            : candidatesForRole.Any(c => c.Employee != null && !IsEmployeeAvailable(c.Employee.Id, currentDate, availabilityByEmployee))
+                            ? "Empleados no disponibles o ya asignados"
+                            : "Límite de horas o días libres alcanzado";
+                        
+                        continue; // Registraremos la advertencia después del loop
+                    }
+
+                    var employeeId = selected.Employee!.Id;
+                    var workedHours = CalculateWorkedHours(template);
+
+                    assignmentsToCreate.Add(new ShiftAssignment
+                    {
+                        Id = Guid.NewGuid(),
+                        BranchId = request.BranchId,
+                        EmployeeId = employeeId,
+                        Date = currentDate,
+                        StartTime = template.StartTime,
+                        EndTime = template.EndTime,
+                        BreakDuration = template.BreakDuration,
+                        LunchDuration = template.LunchDuration,
+                        WorkAreaId = template.WorkAreaId,
+                        WorkRoleId = template.WorkRoleId,
+                        WorkedHours = workedHours,
+                        Notes = template.Notes,
+                        IsApproved = false,
+                        CreatedAt = DateTime.UtcNow,
+                        CreatedBy = Guid.Empty
+                    });
+
+                    assignedForTemplate++;
+                    TrackAssignment(employeeId, currentDate, workedHours, assignedDatesByEmployee, hoursByEmployee);
+                }
+                
+                // Si no se cubrieron todos los turnos requeridos, agregar advertencia
+                if (assignedForTemplate < template.RequiredCount)
+                {
+                    warnings.Add(new ShiftGenerationWarningDto
+                    {
+                        Date = currentDate,
+                        DayOfWeek = dayOfWeek,
+                        WorkAreaName = template.WorkArea?.Name ?? "Desconocida",
+                        WorkRoleName = template.WorkRole?.Name ?? "Desconocido",
+                        RequiredCount = template.RequiredCount,
+                        AssignedCount = assignedForTemplate,
+                        Reason = assignedForTemplate == 0 
+                            ? "No hay empleados disponibles con este rol" 
+                            : "No hay suficientes empleados disponibles"
+                    });
+                }
+            }
+        }
+
+        _context.ShiftAssignments.AddRange(assignmentsToCreate);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // Mapear a DTO
+        var employeeNames = employeeWorkRoles
+            .Where(ewr => ewr.Employee != null)
+            .Select(ewr => ewr.Employee!)
+            .GroupBy(e => e.Id)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var assignments = assignmentsToCreate
+            .OrderBy(a => a.Date)
+            .ThenBy(a => a.StartTime)
+            .Select(a => new ShiftAssignmentDto
+            {
+                Id = a.Id,
+                EmployeeId = a.EmployeeId,
+                EmployeeName = employeeNames.TryGetValue(a.EmployeeId, out var emp)
+                    ? $"{emp.FirstName} {emp.LastName}"
+                    : string.Empty,
+                Date = a.Date,
+                StartTime = a.StartTime,
+                EndTime = a.EndTime,
+                BreakDuration = a.BreakDuration,
+                LunchDuration = a.LunchDuration,
+                WorkAreaId = a.WorkAreaId,
+                WorkAreaName = shiftTemplates.First(t => t.WorkAreaId == a.WorkAreaId).WorkArea?.Name ?? string.Empty,
+                WorkAreaColor = shiftTemplates.First(t => t.WorkAreaId == a.WorkAreaId).WorkArea?.Color ?? "#808080",
+                WorkRoleId = a.WorkRoleId,
+                WorkRoleName = shiftTemplates.First(t => t.WorkRoleId == a.WorkRoleId).WorkRole?.Name ?? string.Empty,
+                WorkedHours = a.WorkedHours,
+                Notes = a.Notes,
+                IsApproved = a.IsApproved,
+                ApprovedBy = a.ApprovedBy,
+                ApprovedAt = a.ApprovedAt
+            })
+            .ToList();
+
+        return new ShiftGenerationResultDto
+        {
+            Assignments = assignments,
+            Warnings = warnings,
+            TotalShiftsGenerated = assignments.Count,
+            TotalShiftsNotCovered = warnings.Sum(w => w.RequiredCount - w.AssignedCount)
+        };
+    }
+
+    private static bool IsEmployeeAvailable(Guid employeeId, DateTime date, Dictionary<Guid, HashSet<DateTime>> availabilityByEmployee)
+    {
+        if (!availabilityByEmployee.TryGetValue(employeeId, out var unavailableDates))
+            return true;
+
+        return !unavailableDates.Contains(date.Date);
+    }
+
+    private static bool IsEmployeeAlreadyAssigned(Guid employeeId, DateTime date, Dictionary<Guid, HashSet<DateTime>> assignedDatesByEmployee)
+    {
+        if (!assignedDatesByEmployee.TryGetValue(employeeId, out var dates))
+            return false;
+
+        return dates.Contains(date.Date);
+    }
+
+    private static bool CanAssignByFreeDays(EmployeeWorkRole ewr, int daysInMonth, Dictionary<Guid, HashSet<DateTime>> assignedDatesByEmployee)
+    {
+        var maxWorkingDays = Math.Max(0, daysInMonth - (ewr.WorkRole?.FreeDaysPerMonth ?? 0));
+        var assignedDays = GetEmployeeAssignedDays(ewr.EmployeeId, assignedDatesByEmployee);
+        return assignedDays < maxWorkingDays;
+    }
+
+    private static bool CanAssignByHours(Guid employeeId, ShiftTemplate template, Dictionary<Guid, decimal> hoursByEmployee, ScheduleConfiguration? config)
+    {
+        if (config == null)
+            return true;
+
+        var maxHours = config.MaxHoursPerMonth;
+        var currentHours = GetEmployeeHours(employeeId, hoursByEmployee);
+        var workedHours = CalculateWorkedHours(template);
+        return currentHours + workedHours <= maxHours;
+    }
+
+    private static void TrackAssignment(
+        Guid employeeId,
+        DateTime date,
+        decimal workedHours,
+        Dictionary<Guid, HashSet<DateTime>> assignedDatesByEmployee,
+        Dictionary<Guid, decimal> hoursByEmployee)
+    {
+        if (!assignedDatesByEmployee.TryGetValue(employeeId, out var dates))
+        {
+            dates = new HashSet<DateTime>();
+            assignedDatesByEmployee[employeeId] = dates;
+        }
+
+        dates.Add(date.Date);
+
+        if (!hoursByEmployee.ContainsKey(employeeId))
+            hoursByEmployee[employeeId] = 0m;
+
+        hoursByEmployee[employeeId] += workedHours;
+    }
+
+    private static decimal CalculateWorkedHours(ShiftTemplate template)
+    {
+        var breakMinutes = template.BreakDuration?.TotalMinutes ?? 0;
+        var lunchMinutes = template.LunchDuration?.TotalMinutes ?? 0;
+        var totalMinutes = (template.EndTime - template.StartTime).TotalMinutes - breakMinutes - lunchMinutes;
+        return (decimal)(totalMinutes / 60.0);
+    }
+
+    private static decimal GetEmployeeHours(Guid employeeId, Dictionary<Guid, decimal> hoursByEmployee)
+    {
+        return hoursByEmployee.TryGetValue(employeeId, out var hours) ? hours : 0m;
+    }
+
+    private static int GetEmployeeAssignedDays(Guid employeeId, Dictionary<Guid, HashSet<DateTime>> assignedDatesByEmployee)
+    {
+        return assignedDatesByEmployee.TryGetValue(employeeId, out var dates) ? dates.Count : 0;
     }
 }
 
@@ -451,12 +739,11 @@ public class CreateScheduleConfigurationCommandHandler : IRequestHandler<CreateS
             HoursMondayThursday = request.HoursMondayThursday,
             HoursFridaySaturday = request.HoursFridaySaturday,
             HoursSunday = request.HoursSunday,
-            FreeDaysParrillero = request.FreeDaysParrillero,
-            FreeDaysOtherRoles = request.FreeDaysOtherRoles,
             MinStaffCocina = request.MinStaffCocina,
             MinStaffCaja = request.MinStaffCaja,
             MinStaffMesas = request.MinStaffMesas,
             MinStaffBar = request.MinStaffBar,
+            FreeDayColor = string.IsNullOrWhiteSpace(request.FreeDayColor) ? "#E8E8E8" : request.FreeDayColor,
             CreatedAt = DateTime.UtcNow,
             CreatedBy = Guid.Empty
         };
@@ -476,12 +763,11 @@ public class CreateScheduleConfigurationCommandHandler : IRequestHandler<CreateS
         HoursMondayThursday = config.HoursMondayThursday,
         HoursFridaySaturday = config.HoursFridaySaturday,
         HoursSunday = config.HoursSunday,
-        FreeDaysParrillero = config.FreeDaysParrillero,
-        FreeDaysOtherRoles = config.FreeDaysOtherRoles,
         MinStaffCocina = config.MinStaffCocina,
         MinStaffCaja = config.MinStaffCaja,
         MinStaffMesas = config.MinStaffMesas,
-        MinStaffBar = config.MinStaffBar
+        MinStaffBar = config.MinStaffBar,
+        FreeDayColor = string.IsNullOrWhiteSpace(config.FreeDayColor) ? "#E8E8E8" : config.FreeDayColor
     };
 }
 
@@ -504,12 +790,11 @@ public class UpdateScheduleConfigurationCommandHandler : IRequestHandler<UpdateS
         config.HoursMondayThursday = request.HoursMondayThursday;
         config.HoursFridaySaturday = request.HoursFridaySaturday;
         config.HoursSunday = request.HoursSunday;
-        config.FreeDaysParrillero = request.FreeDaysParrillero;
-        config.FreeDaysOtherRoles = request.FreeDaysOtherRoles;
         config.MinStaffCocina = request.MinStaffCocina;
         config.MinStaffCaja = request.MinStaffCaja;
         config.MinStaffMesas = request.MinStaffMesas;
         config.MinStaffBar = request.MinStaffBar;
+        config.FreeDayColor = string.IsNullOrWhiteSpace(request.FreeDayColor) ? "#E8E8E8" : request.FreeDayColor;
         config.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -526,11 +811,10 @@ public class UpdateScheduleConfigurationCommandHandler : IRequestHandler<UpdateS
         HoursMondayThursday = config.HoursMondayThursday,
         HoursFridaySaturday = config.HoursFridaySaturday,
         HoursSunday = config.HoursSunday,
-        FreeDaysParrillero = config.FreeDaysParrillero,
-        FreeDaysOtherRoles = config.FreeDaysOtherRoles,
         MinStaffCocina = config.MinStaffCocina,
         MinStaffCaja = config.MinStaffCaja,
         MinStaffMesas = config.MinStaffMesas,
-        MinStaffBar = config.MinStaffBar
+        MinStaffBar = config.MinStaffBar,
+        FreeDayColor = string.IsNullOrWhiteSpace(config.FreeDayColor) ? "#E8E8E8" : config.FreeDayColor
     };
 }

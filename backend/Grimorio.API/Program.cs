@@ -182,6 +182,13 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+
+    // Seed scheduling data
+    using (var scope = app.Services.CreateScope())
+    {
+        var dbContext = scope.ServiceProvider.GetRequiredService<GrimorioDbContext>();
+        await SchedulingSeeder.SeedSchedulingDataAsync(dbContext);
+    }
 }
 
 app.UseHttpsRedirection();

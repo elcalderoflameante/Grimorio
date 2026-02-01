@@ -96,6 +96,7 @@ public class UpdateEmployeeCommandHandler : IRequestHandler<UpdateEmployeeComman
         employee.LastName = request.LastName;
         employee.Email = request.Email;
         employee.Phone = request.Phone;
+        employee.IdentificationNumber = request.IdentificationNumber;
         employee.PositionId = request.PositionId;
         employee.TerminationDate = request.TerminationDate;
         employee.IsActive = request.IsActive;

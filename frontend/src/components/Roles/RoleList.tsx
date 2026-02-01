@@ -4,6 +4,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, LockOutlined } from '@ant-d
 import type { ColumnsType } from 'antd/es/table';
 import { roleService, permissionService } from '../../services/api';
 import type { RoleDto, PermissionDto, CreateRoleDto, UpdateRoleDto } from '../../types';
+import { formatError } from '../../utils/errorHandler';
 
 interface RoleFormValues {
   name: string;
@@ -32,7 +33,7 @@ export default function RoleList() {
       const response = await roleService.getAll();
       setRoles(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      message.error('Error al cargar roles');
+      message.error(formatError(error));
     } finally {
       setLoading(false);
     }
@@ -43,7 +44,7 @@ export default function RoleList() {
       const response = await permissionService.getAll();
       setPermissions(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      message.error('Error al cargar permisos');
+      message.error(formatError(error));
     }
   };
 
@@ -76,13 +77,13 @@ export default function RoleList() {
       setEditingId(null);
       loadRoles();
     } catch (error: any) {
-      message.error(error.response?.data?.message || 'Error al guardar');
+      message.error(formatError(error));
     }
   };
 
   const handleAssignPermissions = async (values: AssignFormValues) => {
     if (!assigningRoleId) return;
-    
+
     try {
       await roleService.assignPermissions(assigningRoleId, values.permissionIds);
       message.success('Permisos asignados');
@@ -91,7 +92,7 @@ export default function RoleList() {
       setAssigningRoleId(null);
       loadRoles();
     } catch (error: any) {
-      message.error(error.response?.data?.message || 'Error al asignar permisos');
+      message.error(formatError(error));
     }
   };
 
@@ -101,7 +102,7 @@ export default function RoleList() {
       message.success('Rol eliminado');
       loadRoles();
     } catch (error) {
-      message.error('Error al eliminar');
+      message.error(formatError(error));
     }
   };
 
@@ -237,6 +238,8 @@ export default function RoleList() {
             <Select
               mode="multiple"
               placeholder="Selecciona permisos"
+              showSearch
+              optionFilterProp="label"
               options={permissions.map(p => ({
                 label: `${p.code} - ${p.description}`,
                 value: p.id,

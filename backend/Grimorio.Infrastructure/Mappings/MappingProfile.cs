@@ -17,5 +17,8 @@ public class MappingProfile : Profile
 
         // Position mappings
         CreateMap<Position, PositionDto>();
+
+        // Branch mappings
+        CreateMap<Branch, BranchDto>();
     }
 }

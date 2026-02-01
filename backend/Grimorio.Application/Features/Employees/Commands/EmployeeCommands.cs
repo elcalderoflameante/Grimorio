@@ -29,6 +29,7 @@ public class UpdateEmployeeCommand : IRequest<EmployeeDto>
     public string LastName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
+    public string IdentificationNumber { get; set; } = string.Empty;
     public Guid PositionId { get; set; }
     public DateTime? TerminationDate { get; set; }
     public bool IsActive { get; set; }

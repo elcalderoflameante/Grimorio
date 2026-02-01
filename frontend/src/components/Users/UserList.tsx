@@ -4,7 +4,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, LockOutlined } from '@ant-d
 import type { ColumnsType } from 'antd/es/table';
 import { userService, roleService } from '../../services/api';
 import type { UserDto, RoleDto, CreateUserDto, UpdateUserDto } from '../../types';
-
+import { formatError } from '../../utils/errorHandler';
 interface UserFormValues {
   firstName: string;
   lastName: string;
@@ -34,7 +34,7 @@ export default function UserList() {
       const response = await userService.getAll();
       setUsers(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      message.error('Error al cargar usuarios');
+      message.error(formatError(error));
     } finally {
       setLoading(false);
     }
@@ -45,7 +45,7 @@ export default function UserList() {
       const response = await roleService.getAll();
       setRoles(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      message.error('Error al cargar roles');
+      message.error(formatError(error));
     }
   };
 
@@ -80,7 +80,7 @@ export default function UserList() {
       setEditingId(null);
       loadUsers();
     } catch (error: any) {
-      message.error(error.response?.data?.message || 'Error al guardar');
+      message.error(formatError(error));
     }
   };
 
@@ -97,7 +97,7 @@ export default function UserList() {
       loadUsers();
     } catch (error: any) {
       console.error('Error al asignar roles:', error);
-      message.error(error.response?.data?.message || 'Error al asignar roles');
+      message.error(formatError(error));
     }
   };
 
@@ -107,7 +107,7 @@ export default function UserList() {
       message.success('Usuario eliminado');
       loadUsers();
     } catch (error) {
-      message.error('Error al eliminar');
+      message.error(formatError(error));
     }
   };
 
@@ -272,6 +272,8 @@ export default function UserList() {
             <Select
               mode="multiple"
               placeholder="Selecciona roles"
+              showSearch
+              optionFilterProp="label"
               options={roles.map(r => ({
                 label: r.name,
                 value: r.id,

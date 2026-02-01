@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, DatePicker, message, Popconfirm } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Modal, Form, Input, Select, DatePicker, message, Popconfirm, Drawer, Row, Col } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, TeamOutlined, CalendarOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { employeeService, positionService } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { EmployeeWorkRoleAssignment, EmployeeAvailabilityForm } from '../Scheduling';
 import type { EmployeeDto, PositionDto, CreateEmployeeDto, UpdateEmployeeDto } from '../../types';
 import dayjs, { type Dayjs } from 'dayjs';
 import { isValidEcuadorCedula, isValidEcuadorCell, isValidEcuadorRuc } from '../../utils/ecuadorValidators';
@@ -27,6 +28,9 @@ export default function EmployeeList() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form] = Form.useForm<EmployeeFormValues>();
   const { hasPermission } = useAuth();
+  const [rolesDrawerVisible, setRolesDrawerVisible] = useState(false);
+  const [availabilityDrawerVisible, setAvailabilityDrawerVisible] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<EmployeeDto | null>(null);
 
   // Cargar empleados
   const loadEmployees = async (pageNumber = 1, pageSize = 10) => {
@@ -69,26 +73,29 @@ export default function EmployeeList() {
   // Crear o actualizar
   const handleSave = async (values: EmployeeFormValues) => {
     try {
-      const basePayload = {
-        firstName: values.firstName,
-        lastName: values.lastName,
-        email: values.email,
-        phone: values.phone || '',
-        identificationNumber: values.identificationNumber,
-        positionId: values.positionId,
-        hireDate: values.hireDate.toISOString(),
-      };
-
       if (editingId) {
         const updateData: UpdateEmployeeDto = {
-          ...basePayload,
+          firstName: values.firstName,
+          lastName: values.lastName,
+          email: values.email,
+          phone: values.phone || '',
+          identificationNumber: values.identificationNumber,
+          positionId: values.positionId,
           isActive: true,
           terminationDate: undefined,
         };
         await employeeService.update(editingId, updateData);
         message.success('Empleado actualizado');
       } else {
-        const createData: CreateEmployeeDto = basePayload;
+        const createData: CreateEmployeeDto = {
+          firstName: values.firstName,
+          lastName: values.lastName,
+          email: values.email,
+          phone: values.phone || '',
+          identificationNumber: values.identificationNumber,
+          positionId: values.positionId,
+          hireDate: values.hireDate.toISOString(),
+        };
         await employeeService.create(createData);
         message.success('Empleado creado');
       }
@@ -161,6 +168,22 @@ export default function EmployeeList() {
               onClick={() => handleEdit(record)}
             />
           )}
+          <Button
+            icon={<TeamOutlined />}
+            title="Asignar Roles"
+            onClick={() => {
+              setSelectedEmployee(record);
+              setRolesDrawerVisible(true);
+            }}
+          />
+          <Button
+            icon={<CalendarOutlined />}
+            title="Disponibilidad"
+            onClick={() => {
+              setSelectedEmployee(record);
+              setAvailabilityDrawerVisible(true);
+            }}
+          />
           {hasPermission('RRHH.DeleteEmployees') && (
             <Popconfirm
               title="¿Eliminar empleado?"
@@ -219,92 +242,144 @@ export default function EmployeeList() {
           layout="vertical"
           onFinish={handleSave}
         >
-          <Form.Item
-            label="Nombre"
-            name="firstName"
-            rules={[{ required: true }]}
-          >
-            <Input />
-          </Form.Item>
+          <Row gutter={16}>
+            <Col xs={24} sm={12}>
+              <Form.Item
+                label="Nombre"
+                name="firstName"
+                rules={[{ required: true }]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
 
-          <Form.Item
-            label="Apellido"
-            name="lastName"
-            rules={[{ required: true }]}
-          >
-            <Input />
-          </Form.Item>
+            <Col xs={24} sm={12}>
+              <Form.Item
+                label="Apellido"
+                name="lastName"
+                rules={[{ required: true }]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
 
-          <Form.Item
-            label="Email"
-            name="email"
-            rules={[{ required: true, type: 'email' }]}
-          >
-            <Input />
-          </Form.Item>
+          <Row gutter={16}>
+            <Col xs={24} sm={12}>
+              <Form.Item
+                label="Email"
+                name="email"
+                rules={[{ required: true, type: 'email' }]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
 
-          <Form.Item
-            label="Teléfono"
-            name="phone"
-            rules={[
-              {
-                validator: (_, value) => {
-                  if (!value) return Promise.resolve(); // opcional
-                  return isValidEcuadorCell(value)
-                    ? Promise.resolve()
-                    : Promise.reject('Teléfono celular inválido (Ecuador, debe iniciar con 09)');
-                },
-              },
-            ]}
-          >
-            <Input placeholder="09xxxxxxxx" />
-          </Form.Item>
+            <Col xs={24} sm={12}>
+              <Form.Item
+                label="Teléfono"
+                name="phone"
+                rules={[
+                  {
+                    validator: (_, value) => {
+                      if (!value) return Promise.resolve(); // opcional
+                      return isValidEcuadorCell(value)
+                        ? Promise.resolve()
+                        : Promise.reject('Teléfono celular inválido (Ecuador, debe iniciar con 09)');
+                    },
+                  },
+                ]}
+              >
+                <Input placeholder="09xxxxxxxx" />
+              </Form.Item>
+            </Col>
+          </Row>
 
-          <Form.Item
-            label="Cédula"
-            name="identificationNumber"
-            rules={[
-              { required: true, message: 'La cédula es requerida' },
-              {
-                validator: (_, value) => {
-                  if (!value) return Promise.reject('La cédula es requerida');
-                  return isValidEcuadorCedula(value)
-                    ? Promise.resolve()
-                    : Promise.reject('Cédula inválida (Ecuador)');
-                },
-              },
-            ]}
-          >
-            <Input />
-          </Form.Item>
+          <Row gutter={16}>
+            <Col xs={24} sm={12}>
+              <Form.Item
+                label="Cédula"
+                name="identificationNumber"
+                rules={[
+                  { required: true, message: 'La cédula es requerida' },
+                  {
+                    validator: (_, value) => {
+                      if (!value) return Promise.reject('La cédula es requerida');
+                      return isValidEcuadorCedula(value)
+                        ? Promise.resolve()
+                        : Promise.reject('Cédula inválida (Ecuador)');
+                    },
+                  },
+                ]}
+              >
+                <Input />
+              </Form.Item>
+            </Col>
 
-          <Form.Item
-            label="Posición"
-            name="positionId"
-            rules={[{ required: true }]}
-          >
-            <Select
-              placeholder="Selecciona una posición"
-              showSearch
-              filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-              }
-              options={positions.map(p => ({
-                label: p.name || p.description || p.id,
-                value: p.id,
-              }))}
-            />
-          </Form.Item>
+            <Col xs={24} sm={12}>
+              <Form.Item
+                label="Posición"
+                name="positionId"
+                rules={[{ required: true }]}
+              >
+                <Select
+                  placeholder="Selecciona una posición"
+                  showSearch
+                  optionFilterProp="label"
+                  options={positions.map(p => ({
+                    label: p.name || p.description || p.id,
+                    value: p.id,
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
 
-          <Form.Item
-            label="Fecha de Contratación"
-            name="hireDate"
-            rules={[{ required: true }]}
-          >
-            <DatePicker />
-          </Form.Item>
+          <Row gutter={16}>
+            <Col xs={24} sm={12}>
+              <Form.Item
+                label="Fecha de Contratación"
+                name="hireDate"
+                rules={[{ required: true }]}
+              >
+                <DatePicker style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
         </Form>
       </Modal>
+
+      {/* Drawer para asignar roles */}
+      <Drawer
+        title="Asignar Roles"
+        placement="right"
+        width={800}
+        onClose={() => setRolesDrawerVisible(false)}
+        open={rolesDrawerVisible}
+      >
+        {selectedEmployee && (
+          <EmployeeWorkRoleAssignment
+            employee={selectedEmployee}
+            onClose={() => setRolesDrawerVisible(false)}
+          />
+        )}
+      </Drawer>
+
+      {/* Drawer para disponibilidad */}
+      <Drawer
+        title="Disponibilidad"
+        placement="right"
+        width={800}
+        onClose={() => setAvailabilityDrawerVisible(false)}
+        open={availabilityDrawerVisible}
+      >
+        {selectedEmployee && (
+          <EmployeeAvailabilityForm
+            employee={selectedEmployee}
+            onClose={() => setAvailabilityDrawerVisible(false)}
+          />
+        )}
+      </Drawer>
     </div>
   );
 }

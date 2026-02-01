@@ -138,11 +138,12 @@ public class AddEmployeeAvailabilityCommand : IRequest<EmployeeAvailabilityDto>
 public class RemoveEmployeeAvailabilityCommand : IRequest<bool>
 {
     public Guid Id { get; set; }
+    public Guid EmployeeId { get; set; }
 }
 
 // ======================== Shift Generation Command ========================
 
-public class GenerateMonthlyShiftsCommand : IRequest<List<ShiftAssignmentDto>>
+public class GenerateMonthlyShiftsCommand : IRequest<ShiftGenerationResultDto>
 {
     public Guid BranchId { get; set; }
     public int Year { get; set; }
@@ -159,12 +160,11 @@ public class CreateScheduleConfigurationCommand : IRequest<ScheduleConfiguration
     public decimal HoursMondayThursday { get; set; }
     public decimal HoursFridaySaturday { get; set; }
     public decimal HoursSunday { get; set; }
-    public int FreeDaysParrillero { get; set; }
-    public int FreeDaysOtherRoles { get; set; }
     public int MinStaffCocina { get; set; }
     public int MinStaffCaja { get; set; }
     public int MinStaffMesas { get; set; }
     public int MinStaffBar { get; set; }
+    public string FreeDayColor { get; set; } = "#E8E8E8";
 }
 
 public class UpdateScheduleConfigurationCommand : IRequest<ScheduleConfigurationDto>
@@ -175,10 +175,9 @@ public class UpdateScheduleConfigurationCommand : IRequest<ScheduleConfiguration
     public decimal HoursMondayThursday { get; set; }
     public decimal HoursFridaySaturday { get; set; }
     public decimal HoursSunday { get; set; }
-    public int FreeDaysParrillero { get; set; }
-    public int FreeDaysOtherRoles { get; set; }
     public int MinStaffCocina { get; set; }
     public int MinStaffCaja { get; set; }
     public int MinStaffMesas { get; set; }
     public int MinStaffBar { get; set; }
+    public string FreeDayColor { get; set; } = "#E8E8E8";
 }

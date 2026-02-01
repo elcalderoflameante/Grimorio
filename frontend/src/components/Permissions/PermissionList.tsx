@@ -4,6 +4,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { permissionService } from '../../services/api';
 import type { PermissionDto, CreatePermissionDto, UpdatePermissionDto } from '../../types';
+import { formatError } from '../../utils/errorHandler';
 
 interface PermissionFormValues {
   code: string;
@@ -24,7 +25,7 @@ export default function PermissionList() {
       const response = await permissionService.getAll();
       setPermissions(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      message.error('Error al cargar permisos');
+      message.error(formatError(error));
     } finally {
       setLoading(false);
     }
@@ -57,7 +58,7 @@ export default function PermissionList() {
       setEditingId(null);
       loadPermissions();
     } catch (error: any) {
-      message.error(error.response?.data?.message || 'Error al guardar');
+      message.error(formatError(error));
     }
   };
 
@@ -67,7 +68,7 @@ export default function PermissionList() {
       message.success('Permiso eliminado');
       loadPermissions();
     } catch (error) {
-      message.error('Error al eliminar');
+      message.error(formatError(error));
     }
   };
 

@@ -99,6 +99,7 @@ export interface UpdateEmployeeDto {
   lastName: string;
   email: string;
   phone?: string;
+  identificationNumber: string;
   positionId: string;
   terminationDate?: string;
   isActive: boolean;
@@ -119,6 +120,25 @@ export interface CreatePositionDto {
 export interface UpdatePositionDto {
   name: string;
   description: string;
+  isActive: boolean;
+}
+
+export interface BranchDto {
+  id: string;
+  name: string;
+  code: string;
+  address: string;
+  phone: string;
+  email: string;
+  isActive: boolean;
+}
+
+export interface UpdateBranchDto {
+  name: string;
+  code: string;
+  address: string;
+  phone: string;
+  email: string;
   isActive: boolean;
 }
 
@@ -148,6 +168,84 @@ export interface PaginatedResult<T> {
 
 // ======================== Scheduling DTOs ========================
 
+export interface WorkAreaDto {
+  id: string;
+  name: string;
+  description?: string;
+  color: string;
+  displayOrder: number;
+  branchId: string;
+  workRoles?: WorkRoleDto[];
+}
+
+export interface CreateWorkAreaDto {
+  name: string;
+  description?: string;
+  color: string;
+  displayOrder: number;
+}
+
+export interface UpdateWorkAreaDto {
+  name: string;
+  description?: string;
+  color: string;
+  displayOrder: number;
+}
+
+export interface WorkRoleDto {
+  id: string;
+  name: string;
+  description?: string;
+  workAreaId: string;
+  workAreaName?: string;
+  freeDaysPerMonth: number;
+  dailyHoursTarget: number;
+}
+
+export interface CreateWorkRoleDto {
+  name: string;
+  description?: string;
+  workAreaId: string;
+  freeDaysPerMonth: number;
+  dailyHoursTarget: number;
+}
+
+export interface UpdateWorkRoleDto {
+  name: string;
+  description?: string;
+  workAreaId: string;
+  freeDaysPerMonth: number;
+  dailyHoursTarget: number;
+}
+
+export interface EmployeeWorkRoleDto {
+  id: string;
+  employeeId: string;
+  employeeName?: string;
+  workRoleId: string;
+  workRoleName?: string;
+  isPrimary: boolean;
+  priority: number;
+}
+
+export interface AssignWorkRolesDto {
+  employeeId: string;
+  workRoleIds: string[];
+}
+
+export interface EmployeeAvailabilityDto {
+  id: string;
+  employeeId: string;
+  unavailableDate: string; // ISO date string
+  reason?: string;
+}
+
+export interface CreateEmployeeAvailabilityDto {
+  employeeId: string;
+  unavailableDate: string; // ISO date string
+  reason?: string;
+}
+
 export interface ScheduleConfigurationDto {
   id: string;
   branchId: string;
@@ -156,12 +254,85 @@ export interface ScheduleConfigurationDto {
   hoursMondayThursday: number;
   hoursFridaySaturday: number;
   hoursSunday: number;
-  freeDaysParrillero: number;
-  freeDaysOtherRoles: number;
   minStaffCocina: number;
   minStaffCaja: number;
   minStaffMesas: number;
   minStaffBar: number;
+  freeDayColor: string;
+}
+
+export interface ShiftAssignmentDto {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  breakDuration?: string;
+  lunchDuration?: string;
+  workAreaId: string;
+  workAreaName: string;
+  workAreaColor: string;
+  workRoleId: string;
+  workRoleName: string;
+  workedHours: number;
+  notes?: string;
+  isApproved: boolean;
+  approvedBy?: string;
+  approvedAt?: string;
+}
+
+export interface ShiftTemplateDto {
+  id: string;
+  branchId: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  breakDuration?: string;
+  lunchDuration?: string;
+  workAreaId: string;
+  workAreaName: string;
+  workRoleId: string;
+  workRoleName: string;
+  requiredCount: number;
+  notes?: string;
+}
+
+export interface CreateShiftTemplateDto {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  breakDuration?: string;
+  lunchDuration?: string;
+  workAreaId: string;
+  workRoleId: string;
+  requiredCount: number;
+  notes?: string;
+}
+export interface ShiftGenerationResultDto {
+  assignments: ShiftAssignmentDto[];
+  warnings: ShiftGenerationWarningDto[];
+  totalShiftsGenerated: number;
+  totalShiftsNotCovered: number;
+}
+
+export interface ShiftGenerationWarningDto {
+  date: string;
+  dayOfWeek: number;
+  workAreaName: string;
+  workRoleName: string;
+  requiredCount: number;
+  assignedCount: number;
+  reason: string;
+}
+export interface UpdateShiftTemplateDto {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  breakDuration?: string;
+  lunchDuration?: string;
+  requiredCount: number;
+  notes?: string;
 }
 
 export interface CreateScheduleConfigurationDto {
@@ -170,12 +341,11 @@ export interface CreateScheduleConfigurationDto {
   hoursMondayThursday: number;
   hoursFridaySaturday: number;
   hoursSunday: number;
-  freeDaysParrillero: number;
-  freeDaysOtherRoles: number;
   minStaffCocina: number;
   minStaffCaja: number;
   minStaffMesas: number;
   minStaffBar: number;
+  freeDayColor: string;
 }
 
 export interface UpdateScheduleConfigurationDto {
@@ -184,10 +354,9 @@ export interface UpdateScheduleConfigurationDto {
   hoursMondayThursday: number;
   hoursFridaySaturday: number;
   hoursSunday: number;
-  freeDaysParrillero: number;
-  freeDaysOtherRoles: number;
   minStaffCocina: number;
   minStaffCaja: number;
   minStaffMesas: number;
   minStaffBar: number;
+  freeDayColor: string;
 }

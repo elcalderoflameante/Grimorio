@@ -249,6 +249,7 @@ public class GetMonthlyShiftsQueryHandler : IRequestHandler<GetMonthlyShiftsQuer
                 LunchDuration = sa.LunchDuration,
                 WorkAreaId = sa.WorkAreaId,
                 WorkAreaName = sa.WorkArea!.Name,
+                WorkAreaColor = sa.WorkArea!.Color,
                 WorkRoleId = sa.WorkRoleId,
                 WorkRoleName = sa.WorkRole!.Name,
                 WorkedHours = sa.WorkedHours,
@@ -289,6 +290,7 @@ public class GetEmployeeMonthlyShiftsQueryHandler : IRequestHandler<GetEmployeeM
                 LunchDuration = sa.LunchDuration,
                 WorkAreaId = sa.WorkAreaId,
                 WorkAreaName = sa.WorkArea!.Name,
+                WorkAreaColor = sa.WorkArea!.Color,
                 WorkRoleId = sa.WorkRoleId,
                 WorkRoleName = sa.WorkRole!.Name,
                 WorkedHours = sa.WorkedHours,
@@ -325,6 +327,7 @@ public class GetShiftAssignmentByIdQueryHandler : IRequestHandler<GetShiftAssign
                 LunchDuration = sa.LunchDuration,
                 WorkAreaId = sa.WorkAreaId,
                 WorkAreaName = sa.WorkArea!.Name,
+                WorkAreaColor = sa.WorkArea!.Color,
                 WorkRoleId = sa.WorkRoleId,
                 WorkRoleName = sa.WorkRole!.Name,
                 WorkedHours = sa.WorkedHours,
@@ -362,6 +365,7 @@ public class GetShiftAssignmentsByDateQueryHandler : IRequestHandler<GetShiftAss
                 LunchDuration = sa.LunchDuration,
                 WorkAreaId = sa.WorkAreaId,
                 WorkAreaName = sa.WorkArea!.Name,
+                WorkAreaColor = sa.WorkArea!.Color,
                 WorkRoleId = sa.WorkRoleId,
                 WorkRoleName = sa.WorkRole!.Name,
                 WorkedHours = sa.WorkedHours,
@@ -426,12 +430,92 @@ public class GetScheduleConfigurationQueryHandler : IRequestHandler<GetScheduleC
             HoursMondayThursday = config.HoursMondayThursday,
             HoursFridaySaturday = config.HoursFridaySaturday,
             HoursSunday = config.HoursSunday,
-            FreeDaysParrillero = config.FreeDaysParrillero,
-            FreeDaysOtherRoles = config.FreeDaysOtherRoles,
             MinStaffCocina = config.MinStaffCocina,
             MinStaffCaja = config.MinStaffCaja,
             MinStaffMesas = config.MinStaffMesas,
-            MinStaffBar = config.MinStaffBar
+            MinStaffBar = config.MinStaffBar,
+            FreeDayColor = string.IsNullOrWhiteSpace(config.FreeDayColor) ? "#E8E8E8" : config.FreeDayColor
         };
+    }
+}
+
+public class GetSchedulableEmployeesQueryHandler : IRequestHandler<GetSchedulableEmployeesQuery, List<EmployeeDto>>
+{
+    private readonly GrimorioDbContext _context;
+
+    public GetSchedulableEmployeesQueryHandler(GrimorioDbContext context) => _context = context;
+
+    public async Task<List<EmployeeDto>> Handle(GetSchedulableEmployeesQuery request, CancellationToken cancellationToken)
+    {
+        return await _context.Employees
+            .AsNoTracking()
+            .Where(e => e.BranchId == request.BranchId && e.IsActive)
+            .Where(e => _context.EmployeeWorkRoles.Any(ewr => ewr.EmployeeId == e.Id && !ewr.IsDeleted))
+            .Include(e => e.Position)
+            .OrderBy(e => e.FirstName)
+            .Select(e => new EmployeeDto
+            {
+                Id = e.Id,
+                BranchId = e.BranchId,
+                FirstName = e.FirstName,
+                LastName = e.LastName,
+                Email = e.Email,
+                Phone = e.Phone,
+                IdentificationNumber = e.IdentificationNumber,
+                PositionId = e.PositionId,
+                PositionName = e.Position != null ? e.Position.Name : string.Empty,
+                HireDate = e.HireDate,
+                TerminationDate = e.TerminationDate,
+                IsActive = e.IsActive
+            })
+            .ToListAsync(cancellationToken);
+    }
+}
+
+public class GetFreeEmployeesByDateQueryHandler : IRequestHandler<GetFreeEmployeesByDateQuery, List<EmployeeDto>>
+{
+    private readonly GrimorioDbContext _context;
+
+    public GetFreeEmployeesByDateQueryHandler(GrimorioDbContext context) => _context = context;
+
+    public async Task<List<EmployeeDto>> Handle(GetFreeEmployeesByDateQuery request, CancellationToken cancellationToken)
+    {
+        // Obtener todos los empleados activos de la sucursal con roles asignados
+        var allEmployees = await _context.Employees
+            .AsNoTracking()
+            .Where(e => e.BranchId == request.BranchId && e.IsActive)
+            .Where(e => _context.EmployeeWorkRoles.Any(ewr => ewr.EmployeeId == e.Id && !ewr.IsDeleted))
+            .Include(e => e.Position)
+            .ToListAsync(cancellationToken);
+
+        // Obtener empleados que tienen turno ese día
+        var employeesWithShift = await _context.ShiftAssignments
+            .Where(sa => sa.Date.Date == request.Date.Date && !sa.IsDeleted)
+            .Select(sa => sa.EmployeeId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        // Filtrar empleados que NO tienen turno
+        var freeEmployees = allEmployees
+            .Where(e => !employeesWithShift.Contains(e.Id))
+            .OrderBy(e => e.FirstName)
+            .Select(e => new EmployeeDto
+            {
+                Id = e.Id,
+                BranchId = e.BranchId,
+                FirstName = e.FirstName,
+                LastName = e.LastName,
+                Email = e.Email,
+                Phone = e.Phone,
+                IdentificationNumber = e.IdentificationNumber,
+                PositionId = e.PositionId,
+                PositionName = e.Position != null ? e.Position.Name : string.Empty,
+                HireDate = e.HireDate,
+                TerminationDate = e.TerminationDate,
+                IsActive = e.IsActive
+            })
+            .ToList();
+
+        return freeEmployees;
     }
 }

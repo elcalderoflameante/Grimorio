@@ -122,13 +122,12 @@ public class ScheduleConfiguration : Grimorio.SharedKernel.BaseEntity
     public decimal HoursFridaySaturday { get; set; } = 12.5m; // 11:30-23:30
     public decimal HoursSunday { get; set; } = 10m; // 11:30-21:30
     
-    // Descansos (días libres por mes)
-    public int FreeDaysParrillero { get; set; } = 1;
-    public int FreeDaysOtherRoles { get; set; } = 6;
-    
     // Staffing mínimo los fines de semana
     public int MinStaffCocina { get; set; } = 2;
     public int MinStaffCaja { get; set; } = 1;
     public int MinStaffMesas { get; set; } = 3;
     public int MinStaffBar { get; set; } = 1;
+    
+    // UI: Color para empleados con día libre
+    public string FreeDayColor { get; set; } = "#E8E8E8"; // Gris claro por defecto
 }

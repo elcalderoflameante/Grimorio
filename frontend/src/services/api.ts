@@ -15,12 +15,30 @@ import type {
   PositionDto,
   CreatePositionDto,
   UpdatePositionDto,
+  BranchDto,
+  UpdateBranchDto,
   AuthResponse,
   PaginatedResult,
+  WorkAreaDto,
+  CreateWorkAreaDto,
+  UpdateWorkAreaDto,
+  WorkRoleDto,
+  CreateWorkRoleDto,
+  UpdateWorkRoleDto,
+  EmployeeWorkRoleDto,
+  AssignWorkRolesDto,
+  EmployeeAvailabilityDto,
+  CreateEmployeeAvailabilityDto,
   ScheduleConfigurationDto,
   CreateScheduleConfigurationDto,
-  UpdateScheduleConfigurationDto
+  UpdateScheduleConfigurationDto,
+  ShiftAssignmentDto,
+  ShiftTemplateDto,
+  CreateShiftTemplateDto,
+  UpdateShiftTemplateDto,
+  ShiftGenerationResultDto
 } from '../types';
+import { getDetailedError } from '../utils/errorHandler';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5186/api';
 
@@ -60,6 +78,12 @@ apiClient.interceptors.response.use(
         window.location.href = '/login';
       }
     }
+    
+    // Log detallado para debugging (solo en desarrollo)
+    if (import.meta.env.DEV) {
+      console.error('[API Error]', getDetailedError(error));
+    }
+    
     return Promise.reject(error);
   }
 );
@@ -68,6 +92,14 @@ apiClient.interceptors.response.use(
 export const authService = {
   login: (email: string, password: string): Promise<AxiosResponse<AuthResponse>> =>
     apiClient.post<AuthResponse>('/auth/login', { email, password }),
+};
+
+// ======== BRANCHES ========
+export const branchApi = {
+  getCurrent: (): Promise<AxiosResponse<BranchDto>> =>
+    apiClient.get<BranchDto>('/branches/current'),
+  updateCurrent: (data: UpdateBranchDto): Promise<AxiosResponse<BranchDto>> =>
+    apiClient.put<BranchDto>('/branches/current', data),
 };
 
 // ======== USERS ========
@@ -84,6 +116,8 @@ export const userService = {
     apiClient.delete<void>(`/users/${id}`),
   assignRoles: (id: string, roleIds: string[]): Promise<AxiosResponse<void>> => 
     apiClient.post<void>(`/users/${id}/roles`, { roleIds }),
+  changePassword: (id: string, currentPassword: string, newPassword: string): Promise<AxiosResponse<{ success: boolean; message: string }>> =>
+    apiClient.post<{ success: boolean; message: string }>(`/users/${id}/change-password`, { currentPassword, newPassword }),
 };
 
 // ======== ROLES ========
@@ -146,6 +180,50 @@ export const positionService = {
 
 // ======================== Scheduling API ========================
 
+export const workAreaApi = {
+  getAll: (branchId: string): Promise<AxiosResponse<WorkAreaDto[]>> => 
+    apiClient.get<WorkAreaDto[]>('/scheduling/work-areas', { params: { branchId } }),
+  getById: (id: string): Promise<AxiosResponse<WorkAreaDto>> => 
+    apiClient.get<WorkAreaDto>(`/scheduling/work-areas/${id}`),
+  create: (data: CreateWorkAreaDto): Promise<AxiosResponse<WorkAreaDto>> => 
+    apiClient.post<WorkAreaDto>('/scheduling/work-areas', data),
+  update: (id: string, data: UpdateWorkAreaDto): Promise<AxiosResponse<WorkAreaDto>> => 
+    apiClient.put<WorkAreaDto>(`/scheduling/work-areas/${id}`, data),
+  delete: (id: string): Promise<AxiosResponse<void>> => 
+    apiClient.delete<void>(`/scheduling/work-areas/${id}`),
+};
+
+export const workRoleApi = {
+  getAll: (workAreaId?: string): Promise<AxiosResponse<WorkRoleDto[]>> => 
+    apiClient.get<WorkRoleDto[]>('/scheduling/work-roles', { params: { workAreaId } }),
+  getById: (id: string): Promise<AxiosResponse<WorkRoleDto>> => 
+    apiClient.get<WorkRoleDto>(`/scheduling/work-roles/${id}`),
+  create: (data: CreateWorkRoleDto): Promise<AxiosResponse<WorkRoleDto>> => 
+    apiClient.post<WorkRoleDto>('/scheduling/work-roles', data),
+  update: (id: string, data: UpdateWorkRoleDto): Promise<AxiosResponse<WorkRoleDto>> => 
+    apiClient.put<WorkRoleDto>(`/scheduling/work-roles/${id}`, data),
+  delete: (id: string): Promise<AxiosResponse<void>> => 
+    apiClient.delete<void>(`/scheduling/work-roles/${id}`),
+};
+
+export const employeeWorkRoleApi = {
+  getByEmployee: (employeeId: string): Promise<AxiosResponse<EmployeeWorkRoleDto[]>> => 
+    apiClient.get<EmployeeWorkRoleDto[]>(`/scheduling/employees/${employeeId}/work-roles`),
+  assign: (data: AssignWorkRolesDto): Promise<AxiosResponse<EmployeeWorkRoleDto[]>> => 
+    apiClient.post<EmployeeWorkRoleDto[]>(`/scheduling/employees/${data.employeeId}/work-roles`, data),
+  remove: (employeeId: string, workRoleId: string): Promise<AxiosResponse<void>> => 
+    apiClient.delete<void>(`/scheduling/employees/${employeeId}/work-roles/${workRoleId}`),
+};
+
+export const employeeAvailabilityApi = {
+  getByEmployee: (employeeId: string, month?: number, year?: number): Promise<AxiosResponse<EmployeeAvailabilityDto[]>> => 
+    apiClient.get<EmployeeAvailabilityDto[]>(`/scheduling/employees/${employeeId}/availability`, { params: { month, year } }),
+  add: (data: CreateEmployeeAvailabilityDto): Promise<AxiosResponse<EmployeeAvailabilityDto>> => 
+    apiClient.post<EmployeeAvailabilityDto>(`/scheduling/employees/${data.employeeId}/availability`, data),
+  remove: (employeeId: string, id: string): Promise<AxiosResponse<void>> => 
+    apiClient.delete<void>(`/scheduling/employees/${employeeId}/availability/${id}`),
+};
+
 export const scheduleConfigurationApi = {
   get: (branchId: string): Promise<AxiosResponse<ScheduleConfigurationDto>> => 
     apiClient.get<ScheduleConfigurationDto>('/scheduling/configuration', { params: { branchId } }),
@@ -155,4 +233,27 @@ export const scheduleConfigurationApi = {
     apiClient.put<ScheduleConfigurationDto>(`/scheduling/configuration/${id}`, data),
 };
 
+export const scheduleShiftApi = {
+  getMonthly: (branchId: string, year: number, month: number): Promise<AxiosResponse<ShiftAssignmentDto[]>> =>
+    apiClient.get<ShiftAssignmentDto[]>('/scheduling/shifts', { params: { branchId, year, month } }),
+  getByDate: (branchId: string, date: string): Promise<AxiosResponse<ShiftAssignmentDto[]>> =>
+    apiClient.get<ShiftAssignmentDto[]>('/scheduling/shifts/by-date', { params: { branchId, date } }),
+  getByEmployee: (employeeId: string, year: number, month: number): Promise<AxiosResponse<ShiftAssignmentDto[]>> =>
+    apiClient.get<ShiftAssignmentDto[]>(`/scheduling/employees/${employeeId}/shifts`, { params: { year, month } }),
+  generate: (year: number, month: number): Promise<AxiosResponse<ShiftGenerationResultDto>> =>
+    apiClient.post<ShiftGenerationResultDto>('/scheduling/shifts/generate', { year, month }),
+  getFreeEmployees: (branchId: string, date: string): Promise<AxiosResponse<EmployeeDto[]>> =>
+    apiClient.get<EmployeeDto[]>('/scheduling/shifts/free-employees', { params: { branchId, date } }),
+};
+
+export const shiftTemplateApi = {
+  getAll: (branchId: string, dayOfWeek?: number): Promise<AxiosResponse<ShiftTemplateDto[]>> =>
+    apiClient.get<ShiftTemplateDto[]>('/scheduling/shift-templates', { params: { branchId, dayOfWeek } }),
+  create: (data: CreateShiftTemplateDto): Promise<AxiosResponse<ShiftTemplateDto>> =>
+    apiClient.post<ShiftTemplateDto>('/scheduling/shift-templates', data),
+  update: (id: string, data: UpdateShiftTemplateDto): Promise<AxiosResponse<ShiftTemplateDto>> =>
+    apiClient.put<ShiftTemplateDto>(`/scheduling/shift-templates/${id}`, data),
+  delete: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/scheduling/shift-templates/${id}`),
+};
 export default apiClient;

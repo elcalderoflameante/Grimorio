@@ -41,7 +41,7 @@ public class PositionsController : ControllerBase
 
         var result = await _mediator.Send(query);
         if (result == null)
-            return NotFound();
+            return NotFound(new { message = "Posición no encontrada." });
 
         return Ok(result);
     }

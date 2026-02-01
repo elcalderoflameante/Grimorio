@@ -43,7 +43,7 @@ public class EmployeesController : ControllerBase
 
         var result = await _mediator.Send(query);
         if (result == null)
-            return NotFound();
+            return NotFound(new { message = "Empleado no encontrado." });
 
         return Ok(result);
     }
@@ -136,6 +136,7 @@ public class EmployeesController : ControllerBase
             LastName = dto.LastName,
             Email = dto.Email,
             Phone = dto.Phone,
+            IdentificationNumber = dto.IdentificationNumber,
             PositionId = dto.PositionId,
             TerminationDate = dto.TerminationDate,
             IsActive = dto.IsActive

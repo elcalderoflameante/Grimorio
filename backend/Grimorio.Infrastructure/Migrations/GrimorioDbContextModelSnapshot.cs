@@ -859,15 +859,9 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid?>("DeletedBy")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("FreeDaysOtherRoles")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(6);
-
-                    b.Property<int>("FreeDaysParrillero")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(1);
+                    b.Property<string>("FreeDayColor")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<decimal>("HoursFridaySaturday")
                         .ValueGeneratedOnAdd()
