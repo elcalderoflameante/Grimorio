@@ -78,7 +78,9 @@ public class BranchesController : ControllerBase
                 Address = dto.Address,
                 Phone = dto.Phone,
                 Email = dto.Email,
-                IsActive = dto.IsActive
+                IsActive = dto.IsActive,
+                Latitude = dto.Latitude,
+                Longitude = dto.Longitude
             };
 
             var result = await _mediator.Send(command);

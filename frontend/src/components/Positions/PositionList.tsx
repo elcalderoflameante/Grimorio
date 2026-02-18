@@ -12,6 +12,21 @@ interface PositionFormValues {
   isActive?: boolean;
 }
 
+const extractPositionItems = (value: unknown): PositionDto[] => {
+  if (Array.isArray(value)) {
+    return value as PositionDto[];
+  }
+
+  if (value && typeof value === 'object') {
+    const items = (value as { items?: unknown }).items;
+    if (Array.isArray(items)) {
+      return items as PositionDto[];
+    }
+  }
+
+  return [];
+};
+
 export default function PositionList() {
   const [positions, setPositions] = useState<PositionDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -24,9 +39,7 @@ export default function PositionList() {
     setLoading(true);
     try {
       const response = await positionService.getAll();
-      const data = response.data as any;
-      const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
-      setPositions(items);
+      setPositions(extractPositionItems(response.data));
     } catch (error) {
       message.error(formatError(error));
     } finally {
@@ -62,7 +75,7 @@ export default function PositionList() {
       form.resetFields();
       setEditingId(null);
       loadPositions();
-    } catch (error: any) {
+    } catch (error: unknown) {
       message.error(formatError(error));
     }
   };

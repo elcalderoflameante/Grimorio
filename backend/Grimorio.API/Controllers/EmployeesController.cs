@@ -54,7 +54,7 @@ public class EmployeesController : ControllerBase
     /// </summary>
     [HttpGet]
     [Authorize(Policy = "RRHH.ViewEmployees")]
-    public async Task<IActionResult> GetEmployees([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
+    public async Task<IActionResult> GetEmployees([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10, [FromQuery] bool onlyActive = true)
     {
         var branchId = User.FindFirst("BranchId");
         if (branchId == null || !Guid.TryParse(branchId.Value, out var parsedBranchId))
@@ -63,7 +63,7 @@ public class EmployeesController : ControllerBase
         var query = new GetEmployeesQuery
         {
             BranchId = parsedBranchId,
-            OnlyActive = true,
+            OnlyActive = onlyActive,
             PageNumber = pageNumber,
             PageSize = pageSize
         };
@@ -96,7 +96,11 @@ public class EmployeesController : ControllerBase
             Phone = dto.Phone,
             IdentificationNumber = dto.IdentificationNumber,
             PositionId = dto.PositionId,
-            HireDate = dto.HireDate
+            HireDate = dto.HireDate,
+            ContractType = dto.ContractType,
+            WeeklyMinHours = dto.WeeklyMinHours,
+            WeeklyMaxHours = dto.WeeklyMaxHours,
+            FreeDaysPerMonth = dto.FreeDaysPerMonth
         };
 
         try
@@ -139,7 +143,11 @@ public class EmployeesController : ControllerBase
             IdentificationNumber = dto.IdentificationNumber,
             PositionId = dto.PositionId,
             TerminationDate = dto.TerminationDate,
-            IsActive = dto.IsActive
+            IsActive = dto.IsActive,
+            ContractType = dto.ContractType,
+            WeeklyMinHours = dto.WeeklyMinHours,
+            WeeklyMaxHours = dto.WeeklyMaxHours,
+            FreeDaysPerMonth = dto.FreeDaysPerMonth
         };
 
         try

@@ -259,12 +259,22 @@ public class SchedulingController : ControllerBase
     // ======================== ShiftTemplate Endpoints ========================
 
     /// <summary>
-    /// Obtiene las plantillas de turno por sucursal y opcionalmente por día de semana.
+    /// Obtiene las plantillas de turno por sucursal y opcionalmente por día de semana, mes y año.
     /// </summary>
     [HttpGet("shift-templates")]
-    public async Task<IActionResult> GetShiftTemplates([FromQuery] Guid branchId, [FromQuery] DayOfWeek? dayOfWeek = null)
+    public async Task<IActionResult> GetShiftTemplates(
+        [FromQuery] Guid branchId, 
+        [FromQuery] DayOfWeek? dayOfWeek = null,
+        [FromQuery] int? month = null,
+        [FromQuery] int? year = null)
     {
-        var result = await _mediator.Send(new GetShiftTemplatesQuery { BranchId = branchId, DayOfWeek = dayOfWeek });
+        var result = await _mediator.Send(new GetShiftTemplatesQuery 
+        { 
+            BranchId = branchId, 
+            DayOfWeek = dayOfWeek,
+            Month = month,
+            Year = year
+        });
         return Ok(result);
     }
 
@@ -421,6 +431,28 @@ public class SchedulingController : ControllerBase
         catch (Exception ex)
         {
             return StatusCode(500, new { message = "Error al crear asignación de turno.", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Actualiza una asignación de turno.
+    /// </summary>
+    [HttpPut("shifts/{id}")]
+    public async Task<IActionResult> UpdateShiftAssignment(Guid id, [FromBody] UpdateShiftAssignmentCommand command)
+    {
+        command.Id = id;
+        try
+        {
+            var result = await _mediator.Send(command);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error al actualizar asignación de turno.", error = ex.Message });
         }
     }
 
@@ -603,5 +635,215 @@ public class SchedulingController : ControllerBase
             return StatusCode(500, new { message = "Error al actualizar configuración de horarios.", error = ex.Message });
         }
     }
-}
 
+    // ======================== SpecialDate Endpoints ========================
+
+    /// <summary>
+    /// Obtiene todos los días especiales de una sucursal.
+    /// </summary>
+    [HttpGet("special-dates")]
+    public async Task<IActionResult> GetSpecialDates([FromQuery] Guid branchId)
+    {
+        try
+        {
+            var result = await _mediator.Send(new GetSpecialDatesQuery { BranchId = branchId });
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error al obtener días especiales.", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Obtiene un día especial por ID.
+    /// </summary>
+    [HttpGet("special-dates/{id}")]
+    public async Task<IActionResult> GetSpecialDateById(Guid id)
+    {
+        try
+        {
+            var result = await _mediator.Send(new GetSpecialDateByIdQuery { Id = id });
+            if (result == null)
+                return NotFound();
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error al obtener día especial.", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Crea un nuevo día especial.
+    /// </summary>
+    [HttpPost("special-dates")]
+    public async Task<IActionResult> CreateSpecialDate([FromBody] CreateSpecialDateCommand command)
+    {
+        var branchClaim = User.FindFirst("BranchId")?.Value;
+        if (branchClaim == null || !Guid.TryParse(branchClaim, out var branchId))
+            return Unauthorized("BranchId no válido en el token.");
+
+        command.BranchId = branchId;
+        try
+        {
+            var result = await _mediator.Send(command);
+            return CreatedAtAction(nameof(GetSpecialDateById), new { id = result.Id }, result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error al crear día especial.", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Actualiza un día especial.
+    /// </summary>
+    [HttpPut("special-dates/{id}")]
+    public async Task<IActionResult> UpdateSpecialDate(Guid id, [FromBody] UpdateSpecialDateCommand command)
+    {
+        command.Id = id;
+        try
+        {
+            var result = await _mediator.Send(command);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error al actualizar día especial.", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Elimina un día especial.
+    /// </summary>
+    [HttpDelete("special-dates/{id}")]
+    public async Task<IActionResult> DeleteSpecialDate(Guid id)
+    {
+        try
+        {
+            await _mediator.Send(new DeleteSpecialDateCommand { Id = id });
+            return Ok(new { message = "Día especial eliminado correctamente." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error al eliminar día especial.", error = ex.Message });
+        }
+    }
+
+    // ======================== SpecialDateTemplate Endpoints ========================
+
+    /// <summary>
+    /// Obtiene todas las plantillas de un día especial.
+    /// </summary>
+    [HttpGet("special-dates/{specialDateId}/templates")]
+    public async Task<IActionResult> GetSpecialDateTemplates(Guid specialDateId)
+    {
+        try
+        {
+            var templates = await _mediator.Send(new GetSpecialDateTemplatesQuery { SpecialDateId = specialDateId });
+            return Ok(templates);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error al obtener plantillas de día especial.", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Obtiene una plantilla de día especial por su ID.
+    /// </summary>
+    [HttpGet("special-date-templates/{id}")]
+    public async Task<IActionResult> GetSpecialDateTemplateById(Guid id)
+    {
+        try
+        {
+            var template = await _mediator.Send(new GetSpecialDateTemplateByIdQuery { Id = id });
+            if (template == null)
+                return NotFound(new { message = "Plantilla de día especial no encontrada." });
+            return Ok(template);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error al obtener plantilla de día especial.", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Crea una nueva plantilla para un día especial.
+    /// </summary>
+    [HttpPost("special-date-templates")]
+    public async Task<IActionResult> CreateSpecialDateTemplate([FromBody] CreateSpecialDateTemplateCommand command)
+    {
+        try
+        {
+            var result = await _mediator.Send(command);
+            return CreatedAtAction(nameof(GetSpecialDateTemplateById), new { id = result.Id }, result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error al crear plantilla de día especial.", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Actualiza una plantilla de día especial existente.
+    /// </summary>
+    [HttpPut("special-date-templates/{id}")]
+    public async Task<IActionResult> UpdateSpecialDateTemplate(Guid id, [FromBody] UpdateSpecialDateTemplateCommand command)
+    {
+        if (id != command.Id)
+            return BadRequest("El ID de la URL no coincide con el ID del comando.");
+
+        try
+        {
+            var result = await _mediator.Send(command);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error al actualizar plantilla de día especial.", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Elimina una plantilla de día especial.
+    /// </summary>
+    [HttpDelete("special-date-templates/{id}")]
+    public async Task<IActionResult> DeleteSpecialDateTemplate(Guid id)
+    {
+        try
+        {
+            await _mediator.Send(new DeleteSpecialDateTemplateCommand { Id = id });
+            return Ok(new { message = "Plantilla de día especial eliminada correctamente." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error al eliminar plantilla de día especial.", error = ex.Message });
+        }
+    }
+}

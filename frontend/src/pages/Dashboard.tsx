@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Layout, Menu, Dropdown, Avatar, Space, Drawer, Button, Breadcrumb, message } from 'antd';
+import { Layout, Menu, Dropdown, Avatar, Space, Drawer, Button, Breadcrumb, message, Grid } from 'antd';
 import {
   UserOutlined,
   LogoutOutlined,
@@ -12,10 +12,9 @@ import {
   FolderOutlined,
   CalendarOutlined,
   ToolOutlined,
-  AppstoreOutlined,
-  UsergroupAddOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  MenuOutlined,
   ShopOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -31,16 +30,14 @@ import RoleList from '../components/Roles/RoleList.tsx';
 import PermissionList from '../components/Permissions/PermissionList.tsx';
 import Profile from '../components/Profile/Profile';
 import {
-  ScheduleConfigurationForm,
-  WorkAreaList,
-  WorkRoleList,
   MonthlySchedule,
-  ShiftTemplateList,
+  SchedulingSettings,
 } from '../components/Scheduling';
 import { BranchConfigurationForm } from '../components/Branches/BranchConfigurationForm';
 import type { MenuProps } from 'antd';
 
 const { Header, Content, Sider } = Layout;
+const { useBreakpoint } = Grid;
 
 type MenuItem = Required<MenuProps>['items'][number];
 
@@ -81,6 +78,17 @@ export default function Dashboard() {
   const [branch, setBranch] = useState<BranchDto | null>(null);
   const navigate = useNavigate();
   const { user, logout, hasPermission, branchId } = useAuth();
+  const screens = useBreakpoint();
+  const isMobile = !screens.lg;
+
+  useEffect(() => {
+    if (isMobile) {
+      setCollapsed(true);
+      return;
+    }
+
+    setCollapsed(false);
+  }, [isMobile]);
 
   useEffect(() => {
     if (!branchId) return;
@@ -136,10 +144,7 @@ export default function Dashboard() {
             icon: <CalendarOutlined />,
             children: [
               { key: 'monthly-shifts', label: 'Turnos', icon: <CalendarOutlined /> },
-              { key: 'shift-templates', label: 'Plantillas', icon: <ToolOutlined /> },
-              { key: 'schedule-config', label: 'Configuración', icon: <ToolOutlined /> },
-              { key: 'work-areas', label: 'Áreas de Trabajo', icon: <AppstoreOutlined /> },
-              { key: 'work-roles', label: 'Roles de Trabajo', icon: <UsergroupAddOutlined /> },
+              { key: 'scheduling-settings', label: 'Configuraciones', icon: <ToolOutlined /> },
             ],
           },
         ],
@@ -184,14 +189,8 @@ export default function Dashboard() {
         return <BranchConfigurationForm />;
       case 'monthly-shifts':
         return <MonthlySchedule />;
-      case 'shift-templates':
-        return <ShiftTemplateList branchId={branchId || ''} />;
-      case 'schedule-config':
-          return <ScheduleConfigurationForm branchId={branchId || ''} />;
-      case 'work-areas':
-          return <WorkAreaList branchId={branchId || ''} />;
-      case 'work-roles':
-          return <WorkRoleList branchId={branchId || ''} />;
+      case 'scheduling-settings':
+        return <SchedulingSettings branchId={branchId || ''} />;
       default:
         return <Welcome />;
     }
@@ -204,24 +203,25 @@ export default function Dashboard() {
   }, [selectedMenu, menuItems]);
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100vh', width: '100%', overflowX: 'hidden' }}>
       {/* Sider (menú lateral) */}
       <Sider
         trigger={null}
         collapsible
         collapsed={collapsed}
         breakpoint="lg"
-        collapsedWidth={80}
+        collapsedWidth={isMobile ? 0 : 80}
         width={250}
         style={{
           overflow: 'hidden',
           height: '100vh',
-          position: 'fixed',
+          position: isMobile ? 'absolute' : 'fixed',
           left: 0,
           top: 0,
           bottom: 0,
           display: 'flex',
           flexDirection: 'column',
+          zIndex: 1000,
         }}
       >
         <div
@@ -267,9 +267,15 @@ export default function Dashboard() {
       </Sider>
 
       {/* Layout principal */}
-      <Layout style={{ marginLeft: collapsed ? 80 : 250, transition: 'margin-left 0.2s' }}>
+        <Layout
+          style={{
+            marginLeft: isMobile ? 0 : collapsed ? 80 : 250,
+            transition: 'margin-left 0.2s',
+            minWidth: 0,
+          }}
+        >
         {/* Header */}
-        <Header
+          <Header
           style={{
             background: '#fff',
             padding: '0 24px',
@@ -277,30 +283,46 @@ export default function Dashboard() {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+              flexWrap: 'wrap',
+              rowGap: 8,
           }}
         >
-          <Space>
-            <ShopOutlined />
-            <span>Sucursal: {branch?.name || '—'}</span>
-          </Space>
-          <Dropdown menu={{ items: userMenu }} placement="bottomRight">
-            <Space style={{ cursor: 'pointer' }}>
-              <Avatar icon={<UserOutlined />} />
-              <span>{user?.firstName || 'Usuario'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {isMobile && (
+              <Button
+                type="text"
+                icon={<MenuOutlined />}
+                onClick={() => setDrawerVisible(true)}
+              />
+            )}
+            <Breadcrumb items={breadcrumbItems} />
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+            <Space>
+              <ShopOutlined />
+              <span>Sucursal: {branch?.name || '—'}</span>
             </Space>
-          </Dropdown>
+            <Dropdown menu={{ items: userMenu }} placement="bottomRight">
+              <Space style={{ cursor: 'pointer' }}>
+                <Avatar icon={<UserOutlined />} />
+                <span>{user?.firstName || 'Usuario'}</span>
+              </Space>
+            </Dropdown>
+          </div>
         </Header>
 
         {/* Contenido */}
         <Content
           style={{
-            margin: '24px 16px',
-            padding: 24,
+            margin: isMobile ? '16px 8px' : '24px 16px',
+            padding: isMobile ? 16 : 24,
             background: '#fff',
             borderRadius: '8px',
+            overflowX: 'auto',
+            maxWidth: '100%',
           }}
         >
-          <Breadcrumb items={breadcrumbItems} style={{ marginBottom: 16 }} />
           {renderContent()}
         </Content>
       </Layout>

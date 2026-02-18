@@ -86,15 +86,26 @@ export const EmployeeWorkRoleAssignment = ({ employee, onClose }: EmployeeWorkRo
       key: 'workRoleName',
     },
     {
-      title: 'Principal',
-      dataIndex: 'isPrimary',
-      key: 'isPrimary',
-      render: (isPrimary: boolean) => isPrimary ? '✓' : '—',
-    },
-    {
       title: 'Prioridad',
       dataIndex: 'priority',
       key: 'priority',
+      width: 100,
+      render: (priority: number) => {
+        const priorityLabels = ['Principal', '2do', '3ro'];
+        const priorityColors: { [key: number]: string } = {
+          1: '#52c41a',
+          2: '#faad14',
+          3: '#f5222d',
+        };
+        return (
+          <span style={{
+            color: priorityColors[priority] || '#666',
+            fontWeight: priority === 1 ? 'bold' : 'normal',
+          }}>
+            {priorityLabels[priority - 1] || `P${priority}`}
+          </span>
+        );
+      },
     },
     {
       title: 'Acciones',
@@ -151,15 +162,31 @@ export const EmployeeWorkRoleAssignment = ({ employee, onClose }: EmployeeWorkRo
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           <Form.Item
-            label="Selecciona los roles que puede desempeñar"
+            label="Selecciona los roles que puede desempeñar (máximo 3)"
             name="workRoleIds"
+            rules={[
+              {
+                required: true,
+                message: 'Debes asignar al menos un rol',
+              },
+              {
+                validator: (_, value) => {
+                  if (value && value.length > 3) {
+                    return Promise.reject('Máximo 3 roles permitidos');
+                  }
+                  return Promise.resolve();
+                },
+              },
+            ]}
           >
             <Select
               mode="multiple"
-              placeholder="Selecciona uno o más roles"
+              placeholder="Selecciona uno o más roles (máximo 3)"
               optionLabelProp="label"
               showSearch
               optionFilterProp="label"
+              maxTagCount="responsive"
+              notFoundContent="Sin roles disponibles"
             >
               {workRoles.map((role) => (
                 <Select.Option key={role.id} value={role.id} label={role.name}>
@@ -173,6 +200,16 @@ export const EmployeeWorkRoleAssignment = ({ employee, onClose }: EmployeeWorkRo
               ))}
             </Select>
           </Form.Item>
+          <div style={{ 
+            padding: '8px 12px', 
+            backgroundColor: '#f0f2f5', 
+            borderRadius: '4px',
+            fontSize: '12px',
+            color: '#666',
+            marginTop: '-8px'
+          }}>
+            <strong>Nota:</strong> El orden de selección determina la prioridad. El primer rol será el principal (mayor prioridad).
+          </div>
         </Form>
       </Modal>
     </div>

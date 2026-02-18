@@ -33,6 +33,8 @@ import type {
   CreateScheduleConfigurationDto,
   UpdateScheduleConfigurationDto,
   ShiftAssignmentDto,
+  CreateShiftAssignmentDto,
+  UpdateShiftAssignmentDto,
   ShiftTemplateDto,
   CreateShiftTemplateDto,
   UpdateShiftTemplateDto,
@@ -152,8 +154,8 @@ export const permissionService = {
 
 // ======== EMPLOYEES ========
 export const employeeService = {
-  getAll: (pageNumber = 1, pageSize = 10): Promise<AxiosResponse<EmployeeDto[]>> =>
-    apiClient.get<EmployeeDto[]>('/employees', { params: { pageNumber, pageSize } }),
+  getAll: (pageNumber = 1, pageSize = 10, onlyActive = true): Promise<AxiosResponse<EmployeeDto[]>> =>
+    apiClient.get<EmployeeDto[]>('/employees', { params: { pageNumber, pageSize, onlyActive } }),
   getById: (id: string): Promise<AxiosResponse<EmployeeDto>> =>
     apiClient.get<EmployeeDto>(`/employees/${id}`),
   create: (data: CreateEmployeeDto): Promise<AxiosResponse<EmployeeDto>> =>
@@ -244,6 +246,14 @@ export const scheduleShiftApi = {
     apiClient.post<ShiftGenerationResultDto>('/scheduling/shifts/generate', { year, month }),
   getFreeEmployees: (branchId: string, date: string): Promise<AxiosResponse<EmployeeDto[]>> =>
     apiClient.get<EmployeeDto[]>('/scheduling/shifts/free-employees', { params: { branchId, date } }),
+  create: (data: CreateShiftAssignmentDto): Promise<AxiosResponse<ShiftAssignmentDto>> =>
+    apiClient.post<ShiftAssignmentDto>('/scheduling/shifts', data),
+  getEligibleEmployees: (): Promise<AxiosResponse<EmployeeDto[]>> =>
+    apiClient.get<EmployeeDto[]>('/scheduling/employees/eligible'),
+  update: (id: string, data: UpdateShiftAssignmentDto): Promise<AxiosResponse<ShiftAssignmentDto>> =>
+    apiClient.put<ShiftAssignmentDto>(`/scheduling/shifts/${id}`, data),
+  delete: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/scheduling/shifts/${id}`),
 };
 
 export const shiftTemplateApi = {
@@ -256,4 +266,8 @@ export const shiftTemplateApi = {
   delete: (id: string): Promise<AxiosResponse<void>> =>
     apiClient.delete<void>(`/scheduling/shift-templates/${id}`),
 };
+
+// Export the external specialDateTemplateApi service
+export { specialDateTemplateApi } from './specialDateTemplateApi';
+
 export default apiClient;

@@ -10,7 +10,7 @@ import { formatError } from '../utils/errorHandler';
 interface DecodedToken {
   BranchId?: string;
   branchId?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface LoginFormValues {
@@ -39,7 +39,7 @@ export default function Login() {
 
       message.success('¡Bienvenido!');
       navigate('/dashboard');
-    } catch (error: any) {
+    } catch (error: unknown) {
       message.error(formatError(error));
     } finally {
       setLoading(false);

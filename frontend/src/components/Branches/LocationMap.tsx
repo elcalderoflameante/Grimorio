@@ -3,9 +3,11 @@ import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import type { LatLngTuple, LeafletMouseEvent } from 'leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { getAddressFromCoordinates } from '../../utils/geocoding';
 
 // Solucionar problema de iconos en React Leaflet
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+const iconPrototype = L.Icon.Default.prototype as { _getIconUrl?: unknown };
+delete iconPrototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
@@ -15,14 +17,14 @@ L.Icon.Default.mergeOptions({
 interface LocationMapProps {
   latitude?: number;
   longitude?: number;
-  onLocationChange: (lat: number, lng: number) => void;
+  onLocationChange: (lat: number, lng: number, address?: string) => void;
   height?: string;
 }
 
 interface LocationMarkerProps {
   latitude?: number;
   longitude?: number;
-  onLocationChange: (lat: number, lng: number) => void;
+  onLocationChange: (lat: number, lng: number, address?: string) => void;
 }
 
 const LocationMarker = ({ latitude, longitude, onLocationChange }: LocationMarkerProps) => {
@@ -41,7 +43,11 @@ const LocationMarker = ({ latitude, longitude, onLocationChange }: LocationMarke
     click(e: LeafletMouseEvent) {
       const { lat, lng } = e.latlng;
       setPosition([lat, lng]);
-      onLocationChange(lat, lng);
+      
+      // Obtener dirección de las coordenadas
+      getAddressFromCoordinates(lat, lng).then((address) => {
+        onLocationChange(lat, lng, address);
+      });
     },
   });
 

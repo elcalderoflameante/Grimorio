@@ -1,4 +1,5 @@
 using Grimorio.SharedKernel;
+using Grimorio.Domain.Enums;
 
 namespace Grimorio.Domain.Entities.Organization;
 
@@ -61,8 +62,13 @@ public class Employee : BaseEntity
     public Guid PositionId { get; set; }
     public Position? Position { get; set; }
 
-    public Guid BranchIdAssigned { get; set; } // Rama (sucursal) donde trabaja
-    public Branch? BranchAssigned { get; set; }
+    public Branch? Branch { get; set; }
+    
+    // Configuración de contrato del empleado
+    public ContractType ContractType { get; set; } = ContractType.FullTime;
+    public decimal WeeklyMinHours { get; set; } = 40m; // Horas mínimas por semana (required)
+    public decimal WeeklyMaxHours { get; set; } = 40m; // Horas máximas por semana (required)
+    public int FreeDaysPerMonth { get; set; } = 6; // Días libres que debe tener al mes
 
     // Relación inversa
     public ICollection<EmployeeShift> EmployeeShifts { get; set; } = new List<EmployeeShift>();

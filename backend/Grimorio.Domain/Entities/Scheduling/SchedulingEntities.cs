@@ -9,7 +9,6 @@ public class WorkArea : Grimorio.SharedKernel.BaseEntity
     public string? Description { get; set; }
     public string Color { get; set; } = "#808080"; // Color para UI (hex)
     public int DisplayOrder { get; set; }
-    public Guid BranchId { get; set; }
     
     // Navegación
     public virtual ICollection<WorkRole> WorkRoles { get; set; } = new List<WorkRole>();
@@ -24,8 +23,6 @@ public class WorkRole : Grimorio.SharedKernel.BaseEntity
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public Guid WorkAreaId { get; set; }
-    public int FreeDaysPerMonth { get; set; } = 6; // Días libres por defecto
-    public decimal DailyHoursTarget { get; set; } = 8.0m; // Horas objetivo por día
     
     // Navegación
     public virtual WorkArea? WorkArea { get; set; }
@@ -49,10 +46,10 @@ public class EmployeeWorkRole : Grimorio.SharedKernel.BaseEntity
 
 /// <summary>
 /// Plantilla de turno: define necesidades por día de semana y franja horaria
+/// Plantillas generales para días normales (lunes, martes, etc.)
 /// </summary>
 public class ShiftTemplate : Grimorio.SharedKernel.BaseEntity
 {
-    public Guid BranchId { get; set; }
     public DayOfWeek DayOfWeek { get; set; }
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }
@@ -111,22 +108,8 @@ public class EmployeeAvailability : Grimorio.SharedKernel.BaseEntity
 /// </summary>
 public class ScheduleConfiguration : Grimorio.SharedKernel.BaseEntity
 {
-    public Guid BranchId { get; set; }
-    
-    // Horas mensuales
-    public decimal MinHoursPerMonth { get; set; } = 160m; // Horas mínimas al mes
-    public decimal MaxHoursPerMonth { get; set; } = 220m; // Horas máximas al mes
-    
-    // Horarios semanales por día (horas)
-    public decimal HoursMondayThursday { get; set; } = 8.5m; // 14:00-22:30
-    public decimal HoursFridaySaturday { get; set; } = 12.5m; // 11:30-23:30
-    public decimal HoursSunday { get; set; } = 10m; // 11:30-21:30
-    
-    // Staffing mínimo los fines de semana
-    public int MinStaffCocina { get; set; } = 2;
-    public int MinStaffCaja { get; set; } = 1;
-    public int MinStaffMesas { get; set; } = 3;
-    public int MinStaffBar { get; set; } = 1;
+    // Horas diarias (se usa para calcular requerimientos)
+    public decimal HoursPerDay { get; set; } = 8.0m; // Horas de trabajo por día
     
     // UI: Color para empleados con día libre
     public string FreeDayColor { get; set; } = "#E8E8E8"; // Gris claro por defecto

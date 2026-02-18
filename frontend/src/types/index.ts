@@ -70,6 +70,15 @@ export interface UpdatePermissionDto {
   isActive: boolean;
 }
 
+export const ContractType = {
+  FullTime: 1,
+  PartTime: 2,
+  Temporary: 3,
+  Seasonal: 4,
+} as const;
+
+export type ContractTypeValue = (typeof ContractType)[keyof typeof ContractType];
+
 export interface EmployeeDto {
   id: string;
   firstName: string;
@@ -82,6 +91,10 @@ export interface EmployeeDto {
   hireDate: string;
   terminationDate?: string;
   isActive: boolean;
+  contractType: ContractTypeValue;
+  weeklyMinHours: number;
+  weeklyMaxHours: number;
+  freeDaysPerMonth: number;
 }
 
 export interface CreateEmployeeDto {
@@ -92,6 +105,10 @@ export interface CreateEmployeeDto {
   identificationNumber: string;
   positionId: string;
   hireDate: string;
+  contractType: ContractTypeValue;
+  weeklyMinHours: number;
+  weeklyMaxHours: number;
+  freeDaysPerMonth?: number;
 }
 
 export interface UpdateEmployeeDto {
@@ -103,6 +120,10 @@ export interface UpdateEmployeeDto {
   positionId: string;
   terminationDate?: string;
   isActive: boolean;
+  contractType: ContractTypeValue;
+  weeklyMinHours: number;
+  weeklyMaxHours: number;
+  freeDaysPerMonth: number;
 }
 
 export interface PositionDto {
@@ -253,15 +274,7 @@ export interface CreateEmployeeAvailabilityDto {
 export interface ScheduleConfigurationDto {
   id: string;
   branchId: string;
-  minHoursPerMonth: number;
-  maxHoursPerMonth: number;
-  hoursMondayThursday: number;
-  hoursFridaySaturday: number;
-  hoursSunday: number;
-  minStaffCocina: number;
-  minStaffCaja: number;
-  minStaffMesas: number;
-  minStaffBar: number;
+  hoursPerDay: number;
   freeDayColor: string;
 }
 
@@ -284,6 +297,28 @@ export interface ShiftAssignmentDto {
   isApproved: boolean;
   approvedBy?: string;
   approvedAt?: string;
+}
+
+export interface CreateShiftAssignmentDto {
+  employeeId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  breakDuration?: string;
+  lunchDuration?: string;
+  workAreaId: string;
+  workRoleId: string;
+  notes?: string;
+}
+
+export interface UpdateShiftAssignmentDto {
+  employeeId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  breakDuration?: string;
+  lunchDuration?: string;
+  notes?: string;
 }
 
 export interface ShiftTemplateDto {
@@ -339,28 +374,70 @@ export interface UpdateShiftTemplateDto {
   notes?: string;
 }
 
+// SpecialDateTemplate DTOs
+export interface SpecialDateTemplateDto {
+  id: string;
+  specialDateId: string;
+  startTime: string;
+  endTime: string;
+  breakDuration?: string;
+  lunchDuration?: string;
+  workAreaId: string;
+  workAreaName: string;
+  workRoleId: string;
+  workRoleName: string;
+  requiredCount: number;
+  notes?: string;
+}
+
+export interface CreateSpecialDateTemplateDto {
+  specialDateId: string;
+  startTime: string;
+  endTime: string;
+  breakDuration?: string;
+  lunchDuration?: string;
+  workAreaId: string;
+  workRoleId: string;
+  requiredCount: number;
+  notes?: string;
+}
+
+export interface UpdateSpecialDateTemplateDto {
+  startTime: string;
+  endTime: string;
+  breakDuration?: string;
+  lunchDuration?: string;
+  requiredCount: number;
+  notes?: string;
+}
+
 export interface CreateScheduleConfigurationDto {
-  minHoursPerMonth: number;
-  maxHoursPerMonth: number;
-  hoursMondayThursday: number;
-  hoursFridaySaturday: number;
-  hoursSunday: number;
-  minStaffCocina: number;
-  minStaffCaja: number;
-  minStaffMesas: number;
-  minStaffBar: number;
+  branchId: string;
+  hoursPerDay?: number;
   freeDayColor: string;
 }
 
 export interface UpdateScheduleConfigurationDto {
-  minHoursPerMonth: number;
-  maxHoursPerMonth: number;
-  hoursMondayThursday: number;
-  hoursFridaySaturday: number;
-  hoursSunday: number;
-  minStaffCocina: number;
-  minStaffCaja: number;
-  minStaffMesas: number;
-  minStaffBar: number;
+  hoursPerDay: number;
   freeDayColor: string;
+}
+
+export interface SpecialDateDto {
+  id: string;
+  branchId: string;
+  date: Date | string;
+  name: string;
+  description?: string;
+}
+
+export interface CreateSpecialDateDto {
+  date: Date | string;
+  name: string;
+  description?: string;
+}
+
+export interface UpdateSpecialDateDto {
+  date: Date | string;
+  name: string;
+  description?: string;
 }

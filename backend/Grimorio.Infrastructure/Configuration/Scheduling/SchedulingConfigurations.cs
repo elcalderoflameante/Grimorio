@@ -40,13 +40,6 @@ public class WorkRoleConfiguration : IEntityTypeConfiguration<WorkRole>
         builder.Property(x => x.Description)
             .HasMaxLength(500);
         
-        builder.Property(x => x.FreeDaysPerMonth)
-            .HasDefaultValue(6);
-        
-        builder.Property(x => x.DailyHoursTarget)
-            .HasPrecision(4, 2)
-            .HasDefaultValue(8.0m);
-        
         builder.HasOne(x => x.WorkArea)
             .WithMany(x => x.WorkRoles)
             .HasForeignKey(x => x.WorkAreaId)
@@ -174,38 +167,6 @@ public class ScheduleConfigurationConfiguration : IEntityTypeConfiguration<Sched
     public void Configure(EntityTypeBuilder<ScheduleConfiguration> builder)
     {
         builder.ToTable("ScheduleConfigurations", "scheduling");
-        
-        builder.Property(x => x.MinHoursPerMonth)
-            .HasPrecision(5, 2)
-            .HasDefaultValue(160m);
-        
-        builder.Property(x => x.MaxHoursPerMonth)
-            .HasPrecision(5, 2)
-            .HasDefaultValue(220m);
-        
-        builder.Property(x => x.HoursMondayThursday)
-            .HasPrecision(4, 2)
-            .HasDefaultValue(8.5m);
-        
-        builder.Property(x => x.HoursFridaySaturday)
-            .HasPrecision(5, 2)
-            .HasDefaultValue(12.5m);
-        
-        builder.Property(x => x.HoursSunday)
-            .HasPrecision(4, 2)
-            .HasDefaultValue(10m);
-        
-        builder.Property(x => x.MinStaffCocina)
-            .HasDefaultValue(2);
-        
-        builder.Property(x => x.MinStaffCaja)
-            .HasDefaultValue(1);
-        
-        builder.Property(x => x.MinStaffMesas)
-            .HasDefaultValue(3);
-        
-        builder.Property(x => x.MinStaffBar)
-            .HasDefaultValue(1);
         
         builder.HasIndex(x => x.BranchId)
             .IsUnique()

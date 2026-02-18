@@ -38,6 +38,8 @@ public class GrimorioDbContext : DbContext
     public DbSet<ShiftAssignment> ShiftAssignments { get; set; } = null!;
     public DbSet<EmployeeAvailability> EmployeeAvailability { get; set; } = null!;
     public DbSet<ScheduleConfiguration> ScheduleConfigurations { get; set; } = null!;
+    public DbSet<SpecialDate> SpecialDates { get; set; } = null!;
+    public DbSet<SpecialDateTemplate> SpecialDateTemplates { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

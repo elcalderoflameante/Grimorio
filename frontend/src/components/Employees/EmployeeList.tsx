@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, DatePicker, message, Popconfirm, Drawer, Row, Col } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, DatePicker, message, Popconfirm, Drawer, Row, Col, InputNumber, Switch } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, TeamOutlined, CalendarOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { employeeService, positionService } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { EmployeeWorkRoleAssignment, EmployeeAvailabilityForm } from '../Scheduling';
-import type { EmployeeDto, PositionDto, CreateEmployeeDto, UpdateEmployeeDto } from '../../types';
+import { ContractType, type EmployeeDto, type PositionDto, type CreateEmployeeDto, type UpdateEmployeeDto, type ContractTypeValue } from '../../types';
 import dayjs, { type Dayjs } from 'dayjs';
 import { isValidEcuadorCedula, isValidEcuadorCell } from '../../utils/ecuadorValidators';
 
@@ -17,7 +17,34 @@ interface EmployeeFormValues {
   identificationNumber: string;
   positionId: string;
   hireDate: Dayjs;
+  contractType: ContractTypeValue;
+  weeklyMinHours: number;
+  weeklyMaxHours: number;
+  freeDaysPerMonth?: number;
+  isActive?: boolean;
 }
+
+const contractTypeOptions = [
+  { value: ContractType.FullTime, label: 'Tiempo completo' },
+  { value: ContractType.PartTime, label: 'Tiempo parcial' },
+  { value: ContractType.Temporary, label: 'Temporal' },
+  { value: ContractType.Seasonal, label: 'Temporada' },
+];
+
+const extractPositionItems = (value: unknown): PositionDto[] => {
+  if (Array.isArray(value)) {
+    return value as PositionDto[];
+  }
+
+  if (value && typeof value === 'object') {
+    const items = (value as { items?: unknown }).items;
+    if (Array.isArray(items)) {
+      return items as PositionDto[];
+    }
+  }
+
+  return [];
+};
 
 export default function EmployeeList() {
   const [employees, setEmployees] = useState<EmployeeDto[]>([]);
@@ -31,12 +58,13 @@ export default function EmployeeList() {
   const [rolesDrawerVisible, setRolesDrawerVisible] = useState(false);
   const [availabilityDrawerVisible, setAvailabilityDrawerVisible] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeDto | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
 
   // Cargar empleados
   const loadEmployees = async (pageNumber = 1, pageSize = 10) => {
     setLoading(true);
     try {
-      const response = await employeeService.getAll(pageNumber, pageSize);
+      const response = await employeeService.getAll(pageNumber, pageSize, !showInactive);
       const data = response.data;
       
       setEmployees(Array.isArray(data) ? data : []);
@@ -57,9 +85,7 @@ export default function EmployeeList() {
   const loadPositions = async () => {
     try {
       const response = await positionService.getAll();
-      const data = response.data;
-      const items = Array.isArray((data as any).items) ? (data as any).items : Array.isArray(data) ? data : [];
-      setPositions(items);
+      setPositions(extractPositionItems(response.data));
     } catch (error) {
       message.error('Error al cargar posiciones');
     }
@@ -68,7 +94,7 @@ export default function EmployeeList() {
   useEffect(() => {
     loadEmployees();
     loadPositions();
-  }, []);
+  }, [showInactive]);
 
   // Crear o actualizar
   const handleSave = async (values: EmployeeFormValues) => {
@@ -81,8 +107,12 @@ export default function EmployeeList() {
           phone: values.phone || '',
           identificationNumber: values.identificationNumber,
           positionId: values.positionId,
-          isActive: true,
+          isActive: values.isActive ?? true,
           terminationDate: undefined,
+          contractType: values.contractType,
+          weeklyMinHours: values.weeklyMinHours,
+          weeklyMaxHours: values.weeklyMaxHours,
+          freeDaysPerMonth: values.freeDaysPerMonth || 6,
         };
         await employeeService.update(editingId, updateData);
         message.success('Empleado actualizado');
@@ -95,6 +125,10 @@ export default function EmployeeList() {
           identificationNumber: values.identificationNumber,
           positionId: values.positionId,
           hireDate: values.hireDate.toISOString(),
+          contractType: values.contractType,
+          weeklyMinHours: values.weeklyMinHours,
+          weeklyMaxHours: values.weeklyMaxHours,
+          freeDaysPerMonth: values.freeDaysPerMonth || 6,
         };
         await employeeService.create(createData);
         message.success('Empleado creado');
@@ -104,8 +138,9 @@ export default function EmployeeList() {
       form.resetFields();
       setEditingId(null);
       loadEmployees();
-    } catch (error: any) {
-      message.error(error.response?.data?.message || 'Error al guardar');
+    } catch (error: unknown) {
+      const errorMessage = (error as { response?: { data?: { message?: string } } }).response?.data?.message;
+      message.error(errorMessage || 'Error al guardar');
     }
   };
 
@@ -131,6 +166,11 @@ export default function EmployeeList() {
       identificationNumber: employee.identificationNumber,
       positionId: employee.positionId,
       hireDate: dayjs(employee.hireDate),
+      contractType: employee.contractType,
+      weeklyMinHours: employee.weeklyMinHours,
+      weeklyMaxHours: employee.weeklyMaxHours,
+      freeDaysPerMonth: employee.freeDaysPerMonth,
+      isActive: employee.isActive,
     });
     setModalVisible(true);
   };
@@ -151,6 +191,12 @@ export default function EmployeeList() {
       title: 'Posición',
       dataIndex: 'positionName',
       key: 'positionName',
+    },
+    {
+      title: 'Activo',
+      dataIndex: 'isActive',
+      key: 'isActive',
+      render: (isActive: boolean) => (isActive ? '✓' : '✗'),
     },
     {
       title: 'Cédula',
@@ -209,12 +255,25 @@ export default function EmployeeList() {
             onClick={() => {
               setEditingId(null);
               form.resetFields();
+              form.setFieldsValue({
+                contractType: ContractType.FullTime,
+                weeklyMinHours: 40,
+                weeklyMaxHours: 40,
+                freeDaysPerMonth: 6,
+              });
               setModalVisible(true);
             }}
           >
             Nuevo Empleado
           </Button>
         )}
+        <span style={{ marginLeft: 16 }}>
+          <Switch
+            checked={showInactive}
+            onChange={setShowInactive}
+          />{' '}
+          Mostrar inactivos
+        </span>
       </div>
 
       <Table
@@ -243,7 +302,7 @@ export default function EmployeeList() {
           onFinish={handleSave}
         >
           <Row gutter={16}>
-            <Col xs={24} sm={12}>
+            <Col xs={24} sm={12} lg={8}>
               <Form.Item
                 label="Nombre"
                 name="firstName"
@@ -253,7 +312,7 @@ export default function EmployeeList() {
               </Form.Item>
             </Col>
 
-            <Col xs={24} sm={12}>
+            <Col xs={24} sm={12} lg={8}>
               <Form.Item
                 label="Apellido"
                 name="lastName"
@@ -262,10 +321,8 @@ export default function EmployeeList() {
                 <Input />
               </Form.Item>
             </Col>
-          </Row>
 
-          <Row gutter={16}>
-            <Col xs={24} sm={12}>
+            <Col xs={24} sm={12} lg={8}>
               <Form.Item
                 label="Email"
                 name="email"
@@ -274,8 +331,10 @@ export default function EmployeeList() {
                 <Input />
               </Form.Item>
             </Col>
+          </Row>
 
-            <Col xs={24} sm={12}>
+          <Row gutter={16}>
+            <Col xs={24} sm={12} lg={8}>
               <Form.Item
                 label="Teléfono"
                 name="phone"
@@ -293,10 +352,8 @@ export default function EmployeeList() {
                 <Input placeholder="09xxxxxxxx" />
               </Form.Item>
             </Col>
-          </Row>
 
-          <Row gutter={16}>
-            <Col xs={24} sm={12}>
+            <Col xs={24} sm={12} lg={8}>
               <Form.Item
                 label="Cédula"
                 name="identificationNumber"
@@ -316,7 +373,7 @@ export default function EmployeeList() {
               </Form.Item>
             </Col>
 
-            <Col xs={24} sm={12}>
+            <Col xs={24} sm={12} lg={8}>
               <Form.Item
                 label="Posición"
                 name="positionId"
@@ -336,13 +393,90 @@ export default function EmployeeList() {
           </Row>
 
           <Row gutter={16}>
-            <Col xs={24} sm={12}>
+            <Col xs={24} sm={12} lg={8}>
               <Form.Item
                 label="Fecha de Contratación"
                 name="hireDate"
                 rules={[{ required: true }]}
               >
                 <DatePicker style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} sm={12} lg={8}>
+              <Form.Item
+                label="Días libres al mes"
+                name="freeDaysPerMonth"
+                rules={[{ required: true, message: 'Campo obligatorio' }]}
+              >
+                <Input type="number" min={1} max={30} placeholder="6" />
+              </Form.Item>
+            </Col>
+
+            {editingId && (
+              <Col xs={24} sm={12} lg={8}>
+                <Form.Item label="Activo" name="isActive" valuePropName="checked">
+                  <Switch />
+                </Form.Item>
+              </Col>
+            )}
+          </Row>
+
+          <Row gutter={16}>
+            <Col xs={24} sm={12} lg={8}>
+              <Form.Item
+                label="Tipo de contrato"
+                name="contractType"
+                rules={[{ required: true, message: 'Selecciona un tipo de contrato' }]}
+              >
+                <Select
+                  placeholder="Selecciona un tipo"
+                  options={contractTypeOptions}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12} lg={8}>
+              <Form.Item
+                label="Horas mínimas por semana"
+                name="weeklyMinHours"
+                rules={[{ required: true, message: 'Campo obligatorio' }]}
+              >
+                <InputNumber<number>
+                  min={0}
+                  max={80}
+                  step={1}
+                  precision={0}
+                  style={{ width: '100%' }}
+                  placeholder="40"
+                />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} sm={12} lg={8}>
+              <Form.Item
+                label="Horas máximas por semana"
+                name="weeklyMaxHours"
+                rules={[
+                  { required: true, message: 'Campo obligatorio' },
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      const minValue = getFieldValue('weeklyMinHours');
+                      if (value == null || minValue == null || value >= minValue) {
+                        return Promise.resolve();
+                      }
+                      return Promise.reject('Debe ser mayor o igual a las horas mínimas');
+                    },
+                  }),
+                ]}
+              >
+                <InputNumber<number>
+                  min={0}
+                  max={80}
+                  step={1}
+                  precision={0}
+                  style={{ width: '100%' }}
+                  placeholder="40"
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -353,7 +487,7 @@ export default function EmployeeList() {
       <Drawer
         title="Asignar Roles"
         placement="right"
-        width={800}
+        size="large"
         onClose={() => setRolesDrawerVisible(false)}
         open={rolesDrawerVisible}
       >
@@ -369,7 +503,7 @@ export default function EmployeeList() {
       <Drawer
         title="Disponibilidad"
         placement="right"
-        width={800}
+        size="large"
         onClose={() => setAvailabilityDrawerVisible(false)}
         open={availabilityDrawerVisible}
       >

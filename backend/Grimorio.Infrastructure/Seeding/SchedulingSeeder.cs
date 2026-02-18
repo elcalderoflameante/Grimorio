@@ -84,8 +84,6 @@ public class SchedulingSeeder
                 WorkAreaId = cocinaId,
                 Name = "Parrillero",
                 Description = "Responsable de la parrilla",
-                FreeDaysPerMonth = 1,
-                DailyHoursTarget = 8.5m,
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = Guid.Empty
             },
@@ -95,8 +93,6 @@ public class SchedulingSeeder
                 WorkAreaId = cocinaId,
                 Name = "Ayudante de Cocina",
                 Description = "Ayudante en preparación de alimentos",
-                FreeDaysPerMonth = 6,
-                DailyHoursTarget = 8.5m,
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = Guid.Empty
             }
@@ -110,8 +106,6 @@ public class SchedulingSeeder
             WorkAreaId = cajaId,
             Name = "Cajero",
             Description = "Responsable de caja",
-            FreeDaysPerMonth = 6,
-            DailyHoursTarget = 8.5m,
             CreatedAt = DateTime.UtcNow,
             CreatedBy = Guid.Empty
         });
@@ -124,8 +118,6 @@ public class SchedulingSeeder
             WorkAreaId = barId,
             Name = "Barman",
             Description = "Preparador de bebidas",
-            FreeDaysPerMonth = 6,
-            DailyHoursTarget = 8.5m,
             CreatedAt = DateTime.UtcNow,
             CreatedBy = Guid.Empty
         });
@@ -138,8 +130,6 @@ public class SchedulingSeeder
             WorkAreaId = mesasId,
             Name = "Mesero/Mesera",
             Description = "Servicio al cliente en mesas",
-            FreeDaysPerMonth = 6,
-            DailyHoursTarget = 8.5m,
             CreatedAt = DateTime.UtcNow,
             CreatedBy = Guid.Empty
         });

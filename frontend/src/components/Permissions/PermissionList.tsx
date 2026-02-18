@@ -57,7 +57,7 @@ export default function PermissionList() {
       form.resetFields();
       setEditingId(null);
       loadPermissions();
-    } catch (error: any) {
+    } catch (error: unknown) {
       message.error(formatError(error));
     }
   };

@@ -13,6 +13,7 @@ public class MappingProfile : Profile
     {
         // Employee mappings
         CreateMap<Employee, EmployeeDto>()
+              // Removed explicit mapping for BranchId since property names now match
             .ForMember(dest => dest.PositionName, opt => opt.Ignore()); // Se asigna manualmente en handlers
 
         // Position mappings

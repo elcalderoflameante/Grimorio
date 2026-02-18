@@ -23,7 +23,7 @@ public class GetEmployeeQueryHandler : IRequestHandler<GetEmployeeQuery, Employe
     {
         var employee = await _dbContext.Employees
             .AsNoTracking()
-            .Where(e => e.Id == request.EmployeeId && e.BranchId == request.BranchId)
+            .Where(e => e.Id == request.EmployeeId && e.BranchId == request.BranchId && !e.IsDeleted)
             .Include(e => e.Position)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -51,7 +51,7 @@ public class GetEmployeesQueryHandler : IRequestHandler<GetEmployeesQuery, List<
     {
         var query = _dbContext.Employees
             .AsNoTracking()
-            .Where(e => e.BranchId == request.BranchId);
+            .Where(e => e.BranchId == request.BranchId && !e.IsDeleted);
 
         if (request.OnlyActive)
             query = query.Where(e => e.IsActive);

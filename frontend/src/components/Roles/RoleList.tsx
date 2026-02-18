@@ -76,7 +76,7 @@ export default function RoleList() {
       form.resetFields();
       setEditingId(null);
       loadRoles();
-    } catch (error: any) {
+    } catch (error: unknown) {
       message.error(formatError(error));
     }
   };
@@ -91,7 +91,7 @@ export default function RoleList() {
       assignForm.resetFields();
       setAssigningRoleId(null);
       loadRoles();
-    } catch (error: any) {
+    } catch (error: unknown) {
       message.error(formatError(error));
     }
   };

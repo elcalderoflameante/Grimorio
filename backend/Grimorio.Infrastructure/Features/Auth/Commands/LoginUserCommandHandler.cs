@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Grimorio.Application.DTOs;
 using Grimorio.Infrastructure.Persistence;
 using Grimorio.Infrastructure.Security;
@@ -12,15 +13,20 @@ public class LoginUserCommandHandler : IRequestHandler<Application.Features.Auth
     private readonly GrimorioDbContext _dbContext;
     private readonly IJwtService _jwtService;
     private readonly IPasswordHashingService _passwordHashingService;
+    private readonly int _accessTokenExpirationMinutes;
 
     public LoginUserCommandHandler(
         GrimorioDbContext dbContext,
         IJwtService jwtService,
-        IPasswordHashingService passwordHashingService)
+        IPasswordHashingService passwordHashingService,
+        IConfiguration configuration)
     {
         _dbContext = dbContext;
         _jwtService = jwtService;
         _passwordHashingService = passwordHashingService;
+        _accessTokenExpirationMinutes = int.Parse(
+            configuration["JwtSettings:AccessTokenExpirationMinutes"] ?? "15"
+        );
     }
 
     public async Task<AuthResponse> Handle(Application.Features.Auth.Commands.LoginUserCommand request, CancellationToken cancellationToken)
@@ -82,7 +88,7 @@ public class LoginUserCommandHandler : IRequestHandler<Application.Features.Auth
             LastName = user.LastName,
             AccessToken = accessToken,
             RefreshToken = refreshToken,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+            ExpiresAt = DateTime.UtcNow.AddMinutes(_accessTokenExpirationMinutes),
             Permissions = permissions
         };
     }

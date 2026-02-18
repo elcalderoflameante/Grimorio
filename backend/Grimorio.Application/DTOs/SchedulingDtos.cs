@@ -23,8 +23,7 @@ public class WorkRoleDto
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public Guid WorkAreaId { get; set; }
-    public int FreeDaysPerMonth { get; set; } = 6;
-    public decimal DailyHoursTarget { get; set; } = 8.0m;
+
 }
 
 /// <summary>
@@ -42,7 +41,7 @@ public class EmployeeWorkRoleDto
 }
 
 /// <summary>
-/// DTO para Plantilla de Turno (configuración semanal)
+/// DTO para Plantilla de Turno (configuración semanal general)
 /// </summary>
 public class ShiftTemplateDto
 {
@@ -105,20 +104,8 @@ public class ScheduleConfigurationDto
     public Guid Id { get; set; }
     public Guid BranchId { get; set; }
     
-    // Horas mensuales
-    public decimal MinHoursPerMonth { get; set; }
-    public decimal MaxHoursPerMonth { get; set; }
-    
-    // Horarios por día (horas)
-    public decimal HoursMondayThursday { get; set; }
-    public decimal HoursFridaySaturday { get; set; }
-    public decimal HoursSunday { get; set; }
-    
-    // Staffing mínimo (fines de semana)
-    public int MinStaffCocina { get; set; }
-    public int MinStaffCaja { get; set; }
-    public int MinStaffMesas { get; set; }
-    public int MinStaffBar { get; set; }
+    // Horas diarias
+    public decimal HoursPerDay { get; set; }
     
     // UI: Color para empleados con día libre
     public string FreeDayColor { get; set; } = string.Empty;
@@ -147,4 +134,83 @@ public class ShiftGenerationWarningDto
     public int RequiredCount { get; set; }
     public int AssignedCount { get; set; }
     public string Reason { get; set; } = string.Empty;
+}
+/// <summary>
+/// DTO para Día Especial (fecha específica con plantilla especial)
+/// </summary>
+public class SpecialDateDto
+{
+    public Guid Id { get; set; }
+    public Guid BranchId { get; set; }
+    public DateTime Date { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+}
+
+/// <summary>
+/// DTO para crear un Día Especial
+/// </summary>
+public class CreateSpecialDateDto
+{
+    public DateTime Date { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+}
+/// <summary>
+/// DTO para Plantilla de Día Especial
+/// </summary>
+public class SpecialDateTemplateDto
+{
+    public Guid Id { get; set; }
+    public Guid SpecialDateId { get; set; }
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
+    public TimeSpan? BreakDuration { get; set; }
+    public TimeSpan? LunchDuration { get; set; }
+    public Guid WorkAreaId { get; set; }
+    public string WorkAreaName { get; set; } = string.Empty;
+    public Guid WorkRoleId { get; set; }
+    public string WorkRoleName { get; set; } = string.Empty;
+    public int RequiredCount { get; set; }
+    public string? Notes { get; set; }
+}
+
+/// <summary>
+/// DTO para crear una Plantilla de Día Especial
+/// </summary>
+public class CreateSpecialDateTemplateDto
+{
+    public Guid SpecialDateId { get; set; }
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
+    public TimeSpan? BreakDuration { get; set; }
+    public TimeSpan? LunchDuration { get; set; }
+    public Guid WorkAreaId { get; set; }
+    public Guid WorkRoleId { get; set; }
+    public int RequiredCount { get; set; }
+    public string? Notes { get; set; }
+}
+
+/// <summary>
+/// DTO para actualizar una Plantilla de Día Especial
+/// </summary>
+public class UpdateSpecialDateTemplateDto
+{
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
+    public TimeSpan? BreakDuration { get; set; }
+    public TimeSpan? LunchDuration { get; set; }
+    public Guid WorkAreaId { get; set; }
+    public Guid WorkRoleId { get; set; }
+    public int RequiredCount { get; set; }
+    public string? Notes { get; set; }
+}
+/// <summary>
+/// DTO para actualizar un Día Especial
+/// </summary>
+public class UpdateSpecialDateDto
+{
+    public DateTime Date { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
 }

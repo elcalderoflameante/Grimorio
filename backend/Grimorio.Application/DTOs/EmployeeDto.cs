@@ -1,3 +1,5 @@
+using Grimorio.Domain.Enums;
+
 namespace Grimorio.Application.DTOs;
 
 /// <summary>
@@ -17,6 +19,10 @@ public class EmployeeDto
     public DateTime HireDate { get; set; }
     public DateTime? TerminationDate { get; set; }
     public bool IsActive { get; set; }
+    public ContractType ContractType { get; set; }
+    public decimal WeeklyMinHours { get; set; }
+    public decimal WeeklyMaxHours { get; set; }
+    public int FreeDaysPerMonth { get; set; }
 }
 
 /// <summary>
@@ -31,6 +37,10 @@ public class CreateEmployeeDto
     public string IdentificationNumber { get; set; } = string.Empty;
     public Guid PositionId { get; set; }
     public DateTime HireDate { get; set; }
+    public ContractType ContractType { get; set; }
+    public decimal WeeklyMinHours { get; set; }
+    public decimal WeeklyMaxHours { get; set; }
+    public int FreeDaysPerMonth { get; set; } = 6;
 }
 
 /// <summary>
@@ -46,4 +56,8 @@ public class UpdateEmployeeDto
     public Guid PositionId { get; set; }
     public DateTime? TerminationDate { get; set; }
     public bool IsActive { get; set; }
+    public ContractType ContractType { get; set; }
+    public decimal WeeklyMinHours { get; set; }
+    public decimal WeeklyMaxHours { get; set; }
+    public int FreeDaysPerMonth { get; set; }
 }

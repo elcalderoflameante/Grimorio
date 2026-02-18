@@ -1,5 +1,6 @@
 using MediatR;
 using Grimorio.Application.DTOs;
+using Grimorio.Domain.Enums;
 
 namespace Grimorio.Application.Features.Employees.Commands;
 
@@ -16,6 +17,10 @@ public class CreateEmployeeCommand : IRequest<EmployeeDto>
     public string IdentificationNumber { get; set; } = string.Empty;
     public Guid PositionId { get; set; }
     public DateTime HireDate { get; set; }
+    public ContractType ContractType { get; set; }
+    public decimal WeeklyMinHours { get; set; }
+    public decimal WeeklyMaxHours { get; set; }
+    public int FreeDaysPerMonth { get; set; } = 6;
 }
 
 /// <summary>
@@ -33,6 +38,10 @@ public class UpdateEmployeeCommand : IRequest<EmployeeDto>
     public Guid PositionId { get; set; }
     public DateTime? TerminationDate { get; set; }
     public bool IsActive { get; set; }
+    public ContractType ContractType { get; set; }
+    public decimal WeeklyMinHours { get; set; }
+    public decimal WeeklyMaxHours { get; set; }
+    public int FreeDaysPerMonth { get; set; }
 }
 
 /// <summary>

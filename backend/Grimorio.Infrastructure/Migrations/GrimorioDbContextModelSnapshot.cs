@@ -448,9 +448,10 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid>("BranchId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("BranchIdAssigned")
-                        .HasColumnType("uuid")
-                        .HasColumnName("BranchIdAssigned");
+                    b.Property<int>("ContractType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -475,6 +476,11 @@ namespace Grimorio.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<int>("FreeDaysPerMonth")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(6);
 
                     b.Property<DateTime>("HireDate")
                         .HasColumnType("timestamp with time zone");
@@ -516,6 +522,18 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid?>("UpdatedBy")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("WeeklyMaxHours")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasDefaultValue(40m);
+
+                    b.Property<decimal>("WeeklyMinHours")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasDefaultValue(40m);
+
                     b.HasKey("Id");
 
                     b.HasIndex("BranchId");
@@ -524,12 +542,12 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.HasIndex("PositionId");
 
-                    b.HasIndex("BranchId", "IsDeleted");
-
-                    b.HasIndex("BranchIdAssigned", "IdentificationNumber")
+                    b.HasIndex("BranchId", "IdentificationNumber")
                         .IsUnique();
 
-                    b.HasIndex("BranchIdAssigned", "IsActive");
+                    b.HasIndex("BranchId", "IsActive");
+
+                    b.HasIndex("BranchId", "IsDeleted");
 
                     b.ToTable("Employees", "organization");
                 });
@@ -871,58 +889,11 @@ namespace Grimorio.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<decimal>("HoursFridaySaturday")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)")
-                        .HasDefaultValue(12.5m);
-
-                    b.Property<decimal>("HoursMondayThursday")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(4, 2)
-                        .HasColumnType("numeric(4,2)")
-                        .HasDefaultValue(8.5m);
-
-                    b.Property<decimal>("HoursSunday")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(4, 2)
-                        .HasColumnType("numeric(4,2)")
-                        .HasDefaultValue(10m);
+                    b.Property<decimal>("HoursPerDay")
+                        .HasColumnType("numeric");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
-
-                    b.Property<decimal>("MaxHoursPerMonth")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)")
-                        .HasDefaultValue(220m);
-
-                    b.Property<decimal>("MinHoursPerMonth")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)")
-                        .HasDefaultValue(160m);
-
-                    b.Property<int>("MinStaffBar")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(1);
-
-                    b.Property<int>("MinStaffCaja")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(1);
-
-                    b.Property<int>("MinStaffCocina")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(2);
-
-                    b.Property<int>("MinStaffMesas")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(3);
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1097,6 +1068,126 @@ namespace Grimorio.Infrastructure.Migrations
                     b.ToTable("ShiftTemplates", "scheduling");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Scheduling.SpecialDate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId", "Date")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("SpecialDates", "scheduling");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Scheduling.SpecialDateTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<TimeSpan?>("BreakDuration")
+                        .HasColumnType("interval");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<TimeSpan>("EndTime")
+                        .HasColumnType("interval");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<TimeSpan?>("LunchDuration")
+                        .HasColumnType("interval");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("RequiredCount")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SpecialDateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<TimeSpan>("StartTime")
+                        .HasColumnType("interval");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkAreaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkRoleId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SpecialDateId");
+
+                    b.HasIndex("WorkAreaId");
+
+                    b.HasIndex("WorkRoleId");
+
+                    b.ToTable("SpecialDateTemplates", "scheduling");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Scheduling.WorkArea", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1170,12 +1261,6 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid>("CreatedBy")
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("DailyHoursTarget")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(4, 2)
-                        .HasColumnType("numeric(4,2)")
-                        .HasDefaultValue(8.0m);
-
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1185,11 +1270,6 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
-
-                    b.Property<int>("FreeDaysPerMonth")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(6);
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -1257,9 +1337,9 @@ namespace Grimorio.Infrastructure.Migrations
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Organization.Employee", b =>
                 {
-                    b.HasOne("Grimorio.Domain.Entities.Organization.Branch", "BranchAssigned")
+                    b.HasOne("Grimorio.Domain.Entities.Organization.Branch", "Branch")
                         .WithMany("Employees")
-                        .HasForeignKey("BranchIdAssigned")
+                        .HasForeignKey("BranchId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -1269,7 +1349,7 @@ namespace Grimorio.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("BranchAssigned");
+                    b.Navigation("Branch");
 
                     b.Navigation("Position");
                 });
@@ -1383,6 +1463,33 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("WorkRole");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Scheduling.SpecialDateTemplate", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Scheduling.SpecialDate", "SpecialDate")
+                        .WithMany("Templates")
+                        .HasForeignKey("SpecialDateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.Scheduling.WorkArea", "WorkArea")
+                        .WithMany()
+                        .HasForeignKey("WorkAreaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.Scheduling.WorkRole", "WorkRole")
+                        .WithMany()
+                        .HasForeignKey("WorkRoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SpecialDate");
+
+                    b.Navigation("WorkArea");
+
+                    b.Navigation("WorkRole");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Scheduling.WorkRole", b =>
                 {
                     b.HasOne("Grimorio.Domain.Entities.Scheduling.WorkArea", "WorkArea")
@@ -1428,6 +1535,11 @@ namespace Grimorio.Infrastructure.Migrations
             modelBuilder.Entity("Grimorio.Domain.Entities.Organization.Position", b =>
                 {
                     b.Navigation("Employees");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Scheduling.SpecialDate", b =>
+                {
+                    b.Navigation("Templates");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Scheduling.WorkArea", b =>

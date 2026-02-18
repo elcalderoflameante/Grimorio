@@ -32,9 +32,7 @@ public class GetWorkAreasQueryHandler : IRequestHandler<GetWorkAreasQuery, List<
                         Id = wr.Id,
                         Name = wr.Name,
                         Description = wr.Description,
-                        WorkAreaId = wr.WorkAreaId,
-                        FreeDaysPerMonth = wr.FreeDaysPerMonth,
-                        DailyHoursTarget = wr.DailyHoursTarget
+                        WorkAreaId = wr.WorkAreaId
                     }).ToList()
             }).ToListAsync(cancellationToken);
     }
@@ -65,9 +63,7 @@ public class GetWorkAreaByIdQueryHandler : IRequestHandler<GetWorkAreaByIdQuery,
                         Id = wr.Id,
                         Name = wr.Name,
                         Description = wr.Description,
-                        WorkAreaId = wr.WorkAreaId,
-                        FreeDaysPerMonth = wr.FreeDaysPerMonth,
-                        DailyHoursTarget = wr.DailyHoursTarget
+                        WorkAreaId = wr.WorkAreaId
                     }).ToList()
             }).FirstOrDefaultAsync(cancellationToken);
     }
@@ -94,9 +90,7 @@ public class GetWorkRolesQueryHandler : IRequestHandler<GetWorkRolesQuery, List<
                 Id = wr.Id,
                 Name = wr.Name,
                 Description = wr.Description,
-                WorkAreaId = wr.WorkAreaId,
-                FreeDaysPerMonth = wr.FreeDaysPerMonth,
-                DailyHoursTarget = wr.DailyHoursTarget
+                WorkAreaId = wr.WorkAreaId
             }).ToListAsync(cancellationToken);
     }
 }
@@ -116,9 +110,7 @@ public class GetWorkRoleByIdQueryHandler : IRequestHandler<GetWorkRoleByIdQuery,
                 Id = wr.Id,
                 Name = wr.Name,
                 Description = wr.Description,
-                WorkAreaId = wr.WorkAreaId,
-                FreeDaysPerMonth = wr.FreeDaysPerMonth,
-                DailyHoursTarget = wr.DailyHoursTarget
+                WorkAreaId = wr.WorkAreaId
             }).FirstOrDefaultAsync(cancellationToken);
     }
 }
@@ -425,15 +417,7 @@ public class GetScheduleConfigurationQueryHandler : IRequestHandler<GetScheduleC
         {
             Id = config.Id,
             BranchId = config.BranchId,
-            MinHoursPerMonth = config.MinHoursPerMonth,
-            MaxHoursPerMonth = config.MaxHoursPerMonth,
-            HoursMondayThursday = config.HoursMondayThursday,
-            HoursFridaySaturday = config.HoursFridaySaturday,
-            HoursSunday = config.HoursSunday,
-            MinStaffCocina = config.MinStaffCocina,
-            MinStaffCaja = config.MinStaffCaja,
-            MinStaffMesas = config.MinStaffMesas,
-            MinStaffBar = config.MinStaffBar,
+            HoursPerDay = config.HoursPerDay,
             FreeDayColor = string.IsNullOrWhiteSpace(config.FreeDayColor) ? "#E8E8E8" : config.FreeDayColor
         };
     }
@@ -449,7 +433,7 @@ public class GetSchedulableEmployeesQueryHandler : IRequestHandler<GetSchedulabl
     {
         return await _context.Employees
             .AsNoTracking()
-            .Where(e => e.BranchId == request.BranchId && e.IsActive)
+            .Where(e => e.BranchId == request.BranchId && e.IsActive && !e.IsDeleted)
             .Where(e => _context.EmployeeWorkRoles.Any(ewr => ewr.EmployeeId == e.Id && !ewr.IsDeleted))
             .Include(e => e.Position)
             .OrderBy(e => e.FirstName)
@@ -466,7 +450,11 @@ public class GetSchedulableEmployeesQueryHandler : IRequestHandler<GetSchedulabl
                 PositionName = e.Position != null ? e.Position.Name : string.Empty,
                 HireDate = e.HireDate,
                 TerminationDate = e.TerminationDate,
-                IsActive = e.IsActive
+                IsActive = e.IsActive,
+                ContractType = e.ContractType,
+                WeeklyMinHours = e.WeeklyMinHours,
+                WeeklyMaxHours = e.WeeklyMaxHours,
+                FreeDaysPerMonth = e.FreeDaysPerMonth
             })
             .ToListAsync(cancellationToken);
     }
@@ -483,7 +471,7 @@ public class GetFreeEmployeesByDateQueryHandler : IRequestHandler<GetFreeEmploye
         // Obtener todos los empleados activos de la sucursal con roles asignados
         var allEmployees = await _context.Employees
             .AsNoTracking()
-            .Where(e => e.BranchId == request.BranchId && e.IsActive)
+            .Where(e => e.BranchId == request.BranchId && e.IsActive && !e.IsDeleted)
             .Where(e => _context.EmployeeWorkRoles.Any(ewr => ewr.EmployeeId == e.Id && !ewr.IsDeleted))
             .Include(e => e.Position)
             .ToListAsync(cancellationToken);
@@ -512,7 +500,11 @@ public class GetFreeEmployeesByDateQueryHandler : IRequestHandler<GetFreeEmploye
                 PositionName = e.Position != null ? e.Position.Name : string.Empty,
                 HireDate = e.HireDate,
                 TerminationDate = e.TerminationDate,
-                IsActive = e.IsActive
+                IsActive = e.IsActive,
+                ContractType = e.ContractType,
+                WeeklyMinHours = e.WeeklyMinHours,
+                WeeklyMaxHours = e.WeeklyMaxHours,
+                FreeDaysPerMonth = e.FreeDaysPerMonth
             })
             .ToList();
 

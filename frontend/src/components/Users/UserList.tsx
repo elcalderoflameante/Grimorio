@@ -79,7 +79,7 @@ export default function UserList() {
       form.resetFields();
       setEditingId(null);
       loadUsers();
-    } catch (error: any) {
+    } catch (error: unknown) {
       message.error(formatError(error));
     }
   };
@@ -95,7 +95,7 @@ export default function UserList() {
       assignForm.resetFields();
       setAssigningUserId(null);
       loadUsers();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error al asignar roles:', error);
       message.error(formatError(error));
     }

@@ -32,10 +32,14 @@ export const BranchConfigurationForm = () => {
     loadBranch();
   }, [form]);
 
-  const handleLocationChange = (lat: number, lng: number) => {
+  const handleLocationChange = (lat: number, lng: number, address?: string) => {
     setLatitude(lat);
     setLongitude(lng);
-    form.setFieldsValue({ latitude: lat, longitude: lng });
+    form.setFieldsValue({ 
+      latitude: lat, 
+      longitude: lng,
+      ...(address && { address })
+    });
   };
 
   const handleSave = async (values: UpdateBranchDto) => {

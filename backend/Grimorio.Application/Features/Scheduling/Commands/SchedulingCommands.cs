@@ -35,8 +35,6 @@ public class CreateWorkRoleCommand : IRequest<WorkRoleDto>
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public Guid WorkAreaId { get; set; }
-    public int FreeDaysPerMonth { get; set; } = 6;
-    public decimal DailyHoursTarget { get; set; } = 8.0m;
 }
 
 public class UpdateWorkRoleCommand : IRequest<WorkRoleDto>
@@ -44,8 +42,6 @@ public class UpdateWorkRoleCommand : IRequest<WorkRoleDto>
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
-    public int FreeDaysPerMonth { get; set; }
-    public decimal DailyHoursTarget { get; set; }
 }
 
 public class DeleteWorkRoleCommand : IRequest<bool>
@@ -115,6 +111,18 @@ public class CreateShiftAssignmentCommand : IRequest<ShiftAssignmentDto>
     public string? Notes { get; set; }
 }
 
+public class UpdateShiftAssignmentCommand : IRequest<ShiftAssignmentDto>
+{
+    public Guid Id { get; set; }
+    public Guid EmployeeId { get; set; }
+    public DateTime Date { get; set; }
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
+    public TimeSpan? BreakDuration { get; set; }
+    public TimeSpan? LunchDuration { get; set; }
+    public string? Notes { get; set; }
+}
+
 public class ApproveShiftAssignmentCommand : IRequest<bool>
 {
     public Guid ShiftAssignmentId { get; set; }
@@ -155,29 +163,70 @@ public class GenerateMonthlyShiftsCommand : IRequest<ShiftGenerationResultDto>
 public class CreateScheduleConfigurationCommand : IRequest<ScheduleConfigurationDto>
 {
     public Guid BranchId { get; set; }
-    public decimal MinHoursPerMonth { get; set; }
-    public decimal MaxHoursPerMonth { get; set; }
-    public decimal HoursMondayThursday { get; set; }
-    public decimal HoursFridaySaturday { get; set; }
-    public decimal HoursSunday { get; set; }
-    public int MinStaffCocina { get; set; }
-    public int MinStaffCaja { get; set; }
-    public int MinStaffMesas { get; set; }
-    public int MinStaffBar { get; set; }
+    public decimal HoursPerDay { get; set; } = 8.0m;
     public string FreeDayColor { get; set; } = "#E8E8E8";
 }
 
 public class UpdateScheduleConfigurationCommand : IRequest<ScheduleConfigurationDto>
 {
     public Guid Id { get; set; }
-    public decimal MinHoursPerMonth { get; set; }
-    public decimal MaxHoursPerMonth { get; set; }
-    public decimal HoursMondayThursday { get; set; }
-    public decimal HoursFridaySaturday { get; set; }
-    public decimal HoursSunday { get; set; }
-    public int MinStaffCocina { get; set; }
-    public int MinStaffCaja { get; set; }
-    public int MinStaffMesas { get; set; }
-    public int MinStaffBar { get; set; }
+    public decimal HoursPerDay { get; set; } = 8.0m;
     public string FreeDayColor { get; set; } = "#E8E8E8";
 }
+
+// ======================== SpecialDate Commands ========================
+
+public class CreateSpecialDateCommand : IRequest<SpecialDateDto>
+{
+    public Guid BranchId { get; set; }
+    public DateTime Date { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+}
+
+public class UpdateSpecialDateCommand : IRequest<SpecialDateDto>
+{
+    public Guid Id { get; set; }
+    public DateTime Date { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+}
+
+public class DeleteSpecialDateCommand : IRequest<bool>
+{
+    public Guid Id { get; set; }
+}
+
+// ======================== SpecialDateTemplate Commands ========================
+
+public class CreateSpecialDateTemplateCommand : IRequest<SpecialDateTemplateDto>
+{
+    public Guid SpecialDateId { get; set; }
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
+    public TimeSpan? BreakDuration { get; set; }
+    public TimeSpan? LunchDuration { get; set; }
+    public Guid WorkAreaId { get; set; }
+    public Guid WorkRoleId { get; set; }
+    public int RequiredCount { get; set; } = 1;
+    public string? Notes { get; set; }
+}
+
+public class UpdateSpecialDateTemplateCommand : IRequest<SpecialDateTemplateDto>
+{
+    public Guid Id { get; set; }
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
+    public TimeSpan? BreakDuration { get; set; }
+    public TimeSpan? LunchDuration { get; set; }
+    public Guid WorkAreaId { get; set; }
+    public Guid WorkRoleId { get; set; }
+    public int RequiredCount { get; set; }
+    public string? Notes { get; set; }
+}
+
+public class DeleteSpecialDateTemplateCommand : IRequest<bool>
+{
+    public Guid Id { get; set; }
+}
+

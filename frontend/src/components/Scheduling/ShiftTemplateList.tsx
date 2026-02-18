@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, TimePicker, message, Popconfirm, Row, Col } from 'antd';
+import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, TimePicker, message, Popconfirm, Row, Col, Collapse, Empty } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
@@ -255,6 +255,19 @@ export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
     },
   ], [loadTemplates]);
 
+  const groupedTemplates = useMemo(() => {
+    return dayOptions.map((day) => {
+      const dayTemplates = templates.filter(t => t.dayOfWeek === day.value);
+      return {
+        key: String(day.value),
+        label: `${day.label} (${dayTemplates.length})`,
+        templates: dayTemplates,
+      };
+    });
+  }, [templates]);
+
+  const columnsWithoutDay = useMemo(() => columns.filter(col => col.key !== 'dayOfWeek'), [columns]);
+
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
@@ -263,12 +276,24 @@ export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
         </Button>
       </div>
 
-      <Table
-        columns={columns}
-        dataSource={templates}
-        rowKey="id"
-        loading={loading}
-        pagination={false}
+      <Collapse
+        accordion
+        items={groupedTemplates.map((group) => ({
+          key: group.key,
+          label: group.label,
+          children: group.templates.length > 0 ? (
+            <Table
+              columns={columnsWithoutDay}
+              dataSource={group.templates}
+              rowKey="id"
+              loading={loading}
+              pagination={false}
+              size="small"
+            />
+          ) : (
+            <Empty description="Sin plantillas" />
+          ),
+        }))}
       />
 
       <Modal

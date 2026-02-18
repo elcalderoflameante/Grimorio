@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Form, Button, Card, Input, InputNumber, Row, Col, message } from 'antd';
+import { Form, Button, Input, InputNumber, Row, Col, message, Spin } from 'antd';
 import { scheduleConfigurationApi } from '../../services/api';
 import type { ScheduleConfigurationDto, CreateScheduleConfigurationDto, UpdateScheduleConfigurationDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
@@ -28,15 +28,7 @@ export const ScheduleConfigurationForm = ({
           setConfiguration(response.data);
           // Convertir propiedades de camelCase a snake_case para el formulario
           form.setFieldsValue({
-            minHoursPerMonth: response.data.minHoursPerMonth,
-            maxHoursPerMonth: response.data.maxHoursPerMonth,
-            hoursMondayThursday: response.data.hoursMondayThursday,
-            hoursFridaySaturday: response.data.hoursFridaySaturday,
-            hoursSunday: response.data.hoursSunday,
-            minStaffCocina: response.data.minStaffCocina,
-            minStaffCaja: response.data.minStaffCaja,
-            minStaffMesas: response.data.minStaffMesas,
-            minStaffBar: response.data.minStaffBar,
+            hoursPerDay: response.data.hoursPerDay,
             freeDayColor: response.data.freeDayColor || '#E8E8E8',
           });
         }
@@ -75,181 +67,52 @@ export const ScheduleConfigurationForm = ({
     }
   };
 
+  if (initialLoading) {
+    return <Spin size="large" style={{ display: 'block', textAlign: 'center', padding: '50px' }} />;
+  }
+
   return (
-    <Card 
-      title="Configuración de Horarios" 
-      loading={initialLoading}
-      style={{ marginBottom: '24px' }}
+    <Form
+      form={form}
+      layout="vertical"
+      onFinish={onFinish}
+      initialValues={{
+        hoursPerDay: 8,
+        freeDayColor: '#E8E8E8',
+      }}
     >
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={onFinish}
-        initialValues={{
-          minHoursPerMonth: 160,
-          maxHoursPerMonth: 220,
-          hoursMondayThursday: 8.5,
-          hoursFridaySaturday: 12.5,
-          hoursSunday: 10,
-          minStaffCocina: 2,
-          minStaffCaja: 1,
-          minStaffMesas: 3,
-          minStaffBar: 1,
-          freeDayColor: '#E8E8E8',
-        }}
-      >
-        {/* Horas mensuales */}
+        {/* Nota sobre horas semanales */}
+        <div style={{ marginBottom: '24px', padding: '16px', backgroundColor: '#fff7e6', borderRadius: '4px', border: '1px solid #ffc069' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '8px' }}>📌 Cambio en configuración de horas</h3>
+          <p style={{ marginBottom: 0, color: '#666' }}>
+            Las horas ahora se configuran por empleado (horas mínimas y máximas semanales) en lugar de ser globales por sucursal.
+            Cada empleado tiene asignado su ContractType (Tiempo completo, Tiempo parcial, etc.) con las horas semanales correspondientes.
+          </p>
+        </div>
+
+        {/* Horas diarias */}
         <div style={{ marginBottom: '24px', padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
-          <h3 style={{ marginTop: 0 }}>📊 HORAS POR MES POR EMPLEADO</h3>
+          <h3 style={{ marginTop: 0 }}>⏰ HORAS DE REFERENCIA DIARIA</h3>
           <Row gutter={[16, 16]}>
             <Col xs={24} sm={12}>
               <Form.Item
-                label="Horas mínimas al mes"
-                name="minHoursPerMonth"
+                label="Horas de trabajo por día (referencia)"
+                name="hoursPerDay"
                 rules={[{ required: true, message: 'Campo obligatorio' }]}
               >
                 <InputNumber 
-                  min={0} 
-                  max={500} 
+                  min={1} 
+                  max={12} 
                   step={0.5}
                   style={{ width: '100%' }}
-                  placeholder="160"
+                  placeholder="8"
                 />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item
-                label="Horas máximas al mes"
-                name="maxHoursPerMonth"
-                rules={[{ required: true, message: 'Campo obligatorio' }]}
-              >
-                <InputNumber 
-                  min={0} 
-                  max={500} 
-                  step={0.5}
-                  style={{ width: '100%' }}
-                  placeholder="220"
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-        </div>
-
-        {/* Horarios diarios */}
-        <div style={{ marginBottom: '24px', padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
-          <h3 style={{ marginTop: 0 }}>⏰ HORAS DE TRABAJO DIARIAS</h3>
-          <Row gutter={[16, 16]}>
-            <Col xs={24} sm={8}>
-              <Form.Item
-                label="Lunes-Jueves (14:00-22:30)"
-                name="hoursMondayThursday"
-                rules={[{ required: true, message: 'Campo obligatorio' }]}
-              >
-                <InputNumber 
-                  min={0} 
-                  max={24} 
-                  step={0.5}
-                  style={{ width: '100%' }}
-                  placeholder="8.5"
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item
-                label="Viernes-Sábado (11:30-23:30)"
-                name="hoursFridaySaturday"
-                rules={[{ required: true, message: 'Campo obligatorio' }]}
-              >
-                <InputNumber 
-                  min={0} 
-                  max={24} 
-                  step={0.5}
-                  style={{ width: '100%' }}
-                  placeholder="12.5"
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item
-                label="Domingo (11:30-21:30)"
-                name="hoursSunday"
-                rules={[{ required: true, message: 'Campo obligatorio' }]}
-              >
-                <InputNumber 
-                  min={0} 
-                  max={24} 
-                  step={0.5}
-                  style={{ width: '100%' }}
-                  placeholder="10"
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-        </div>
-
-        {/* Staffing mínimo fines de semana */}
-        <div style={{ marginBottom: '24px', padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
-          <h3 style={{ marginTop: 0 }}>👥 PERSONAL MÍNIMO (FINES DE SEMANA)</h3>
-          <Row gutter={[16, 16]}>
-            <Col xs={24} sm={6}>
-              <Form.Item
-                label="Cocina"
-                name="minStaffCocina"
-                rules={[{ required: true, message: 'Campo obligatorio' }]}
-              >
-                <InputNumber 
-                  min={1} 
-                  max={20} 
-                  step={1}
-                  style={{ width: '100%' }}
-                  placeholder="2"
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={6}>
-              <Form.Item
-                label="Caja"
-                name="minStaffCaja"
-                rules={[{ required: true, message: 'Campo obligatorio' }]}
-              >
-                <InputNumber 
-                  min={1} 
-                  max={20} 
-                  step={1}
-                  style={{ width: '100%' }}
-                  placeholder="1"
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={6}>
-              <Form.Item
-                label="Mesas"
-                name="minStaffMesas"
-                rules={[{ required: true, message: 'Campo obligatorio' }]}
-              >
-                <InputNumber 
-                  min={1} 
-                  max={20} 
-                  step={1}
-                  style={{ width: '100%' }}
-                  placeholder="3"
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={6}>
-              <Form.Item
-                label="Bar"
-                name="minStaffBar"
-                rules={[{ required: true, message: 'Campo obligatorio' }]}
-              >
-                <InputNumber 
-                  min={1} 
-                  max={20} 
-                  step={1}
-                  style={{ width: '100%' }}
-                  placeholder="1"
-                />
-              </Form.Item>
+              <div style={{ marginTop: 30, color: '#666' }}>
+                Valor referencial para cálculos (no se usa en validación de horas).
+              </div>
             </Col>
           </Row>
         </div>
@@ -287,6 +150,5 @@ export const ScheduleConfigurationForm = ({
           </Button>
         </Form.Item>
       </Form>
-    </Card>
   );
 };

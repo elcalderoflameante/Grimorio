@@ -52,8 +52,8 @@ public class BranchConfiguration : BaseEntityConfiguration<Branch>
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasMany(b => b.Employees)
-            .WithOne(e => e.BranchAssigned)
-            .HasForeignKey(e => e.BranchIdAssigned)
+            .WithOne(e => e.Branch)
+              .HasForeignKey(e => e.BranchId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
@@ -128,13 +128,28 @@ public class EmployeeConfiguration : BaseEntityConfiguration<Employee>
         builder.Property(e => e.IsActive)
             .HasDefaultValue(true);
 
-        builder.Property(e => e.BranchIdAssigned)
-            .HasColumnName("BranchIdAssigned")
+        // Configuración de contrato
+        builder.Property(e => e.ContractType)
+            .HasDefaultValue(Domain.Enums.ContractType.FullTime)
+            .IsRequired();
+
+        builder.Property(e => e.WeeklyMinHours)
+            .HasPrecision(5, 2)
+            .HasDefaultValue(40m)
+            .IsRequired();
+
+        builder.Property(e => e.WeeklyMaxHours)
+            .HasPrecision(5, 2)
+            .HasDefaultValue(40m)
+            .IsRequired();
+
+        builder.Property(e => e.FreeDaysPerMonth)
+            .HasDefaultValue(6)
             .IsRequired();
 
         // Índices
-        builder.HasIndex(e => new { e.BranchIdAssigned, e.IdentificationNumber }).IsUnique();
-        builder.HasIndex(e => new { e.BranchIdAssigned, e.IsActive });
+        builder.HasIndex(e => new { e.BranchId, e.IdentificationNumber }).IsUnique();
+        builder.HasIndex(e => new { e.BranchId, e.IsActive });
 
         // Relaciones
         builder.HasOne(e => e.Position)
@@ -142,9 +157,9 @@ public class EmployeeConfiguration : BaseEntityConfiguration<Employee>
             .HasForeignKey(e => e.PositionId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(e => e.BranchAssigned)
+        builder.HasOne(e => e.Branch)
             .WithMany(b => b.Employees)
-            .HasForeignKey(e => e.BranchIdAssigned)
+            .HasForeignKey(e => e.BranchId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasMany(e => e.EmployeeShifts)

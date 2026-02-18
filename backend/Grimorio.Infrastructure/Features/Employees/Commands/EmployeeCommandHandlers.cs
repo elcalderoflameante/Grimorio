@@ -46,10 +46,13 @@ public class CreateEmployeeCommandHandler : IRequestHandler<CreateEmployeeComman
             IdentificationNumber = request.IdentificationNumber,
             PositionId = request.PositionId,
             HireDate = request.HireDate,
+            ContractType = request.ContractType,
+            WeeklyMinHours = request.WeeklyMinHours,
+            WeeklyMaxHours = request.WeeklyMaxHours,
+            FreeDaysPerMonth = request.FreeDaysPerMonth,
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
             CreatedBy = Guid.Empty, // TODO: obtener del contexto de usuario
-            BranchIdAssigned = request.BranchId
         };
 
         await _dbContext.Employees.AddAsync(employee, cancellationToken);
@@ -80,7 +83,7 @@ public class UpdateEmployeeCommandHandler : IRequestHandler<UpdateEmployeeComman
     public async Task<EmployeeDto> Handle(UpdateEmployeeCommand request, CancellationToken cancellationToken)
     {
         var employee = await _dbContext.Employees
-            .FirstOrDefaultAsync(e => e.Id == request.EmployeeId && e.BranchId == request.BranchId, cancellationToken);
+            .FirstOrDefaultAsync(e => e.Id == request.EmployeeId && e.BranchId == request.BranchId && !e.IsDeleted, cancellationToken);
 
         if (employee == null)
             throw new InvalidOperationException("Empleado no encontrado.");
@@ -98,8 +101,12 @@ public class UpdateEmployeeCommandHandler : IRequestHandler<UpdateEmployeeComman
         employee.Phone = request.Phone;
         employee.IdentificationNumber = request.IdentificationNumber;
         employee.PositionId = request.PositionId;
+        employee.FreeDaysPerMonth = request.FreeDaysPerMonth;
         employee.TerminationDate = request.TerminationDate;
         employee.IsActive = request.IsActive;
+        employee.ContractType = request.ContractType;
+        employee.WeeklyMinHours = request.WeeklyMinHours;
+        employee.WeeklyMaxHours = request.WeeklyMaxHours;
         employee.UpdatedAt = DateTime.UtcNow;
         employee.UpdatedBy = Guid.Empty; // TODO: obtener del contexto de usuario
 
@@ -129,13 +136,18 @@ public class DeleteEmployeeCommandHandler : IRequestHandler<DeleteEmployeeComman
     public async Task<bool> Handle(DeleteEmployeeCommand request, CancellationToken cancellationToken)
     {
         var employee = await _dbContext.Employees
-            .FirstOrDefaultAsync(e => e.Id == request.EmployeeId && e.BranchId == request.BranchId, cancellationToken);
+            .FirstOrDefaultAsync(e => e.Id == request.EmployeeId && e.BranchId == request.BranchId && !e.IsDeleted, cancellationToken);
 
         if (employee == null)
             throw new InvalidOperationException("Empleado no encontrado.");
 
         // Soft delete
-        _dbContext.Employees.Remove(employee);
+        employee.IsDeleted = true;
+        employee.DeletedAt = DateTime.UtcNow;
+        employee.DeletedBy = Guid.Empty;
+        employee.IsActive = false;
+
+        _dbContext.Employees.Update(employee);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return true;
