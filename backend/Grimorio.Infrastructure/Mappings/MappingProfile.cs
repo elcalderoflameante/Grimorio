@@ -1,6 +1,7 @@
 using AutoMapper;
 using Grimorio.Application.DTOs;
 using Grimorio.Domain.Entities.Organization;
+using Grimorio.Domain.Entities.Payroll;
 
 namespace Grimorio.Infrastructure.Mappings;
 
@@ -21,5 +22,13 @@ public class MappingProfile : Profile
 
         // Branch mappings
         CreateMap<Branch, BranchDto>();
+
+        // Payroll mappings
+        CreateMap<PayrollConfiguration, PayrollConfigurationDto>();
+        CreateMap<PayrollAdvance, PayrollAdvanceDto>();
+        CreateMap<EmployeeConsumption, EmployeeConsumptionDto>();
+        CreateMap<PayrollAdjustment, PayrollAdjustmentDto>();
+        CreateMap<PayrollRoleHeader, PayrollRoleDto>();
+        CreateMap<PayrollRoleDetail, PayrollRoleDetailDto>();
     }
 }

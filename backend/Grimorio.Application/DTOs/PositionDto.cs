@@ -6,8 +6,8 @@ namespace Grimorio.Application.DTOs;
 public class PositionDto
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
-    public string Description { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
     public Guid BranchId { get; set; }
     public bool IsActive { get; set; }
 }
@@ -17,8 +17,8 @@ public class PositionDto
 /// </summary>
 public class CreatePositionDto
 {
-    public string Name { get; set; }
-    public string Description { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -26,7 +26,7 @@ public class CreatePositionDto
 /// </summary>
 public class UpdatePositionDto
 {
-    public string Name { get; set; }
-    public string Description { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
     public bool IsActive { get; set; }
 }

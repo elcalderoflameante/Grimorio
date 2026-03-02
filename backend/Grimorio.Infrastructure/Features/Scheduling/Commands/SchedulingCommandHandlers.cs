@@ -472,6 +472,7 @@ public class CreateShiftAssignmentCommandHandler : IRequestHandler<CreateShiftAs
         var shiftAssignment = new ShiftAssignment
         {
             Id = Guid.NewGuid(),
+            BranchId = employee.BranchId,
             EmployeeId = request.EmployeeId,
             Date = request.Date,
             StartTime = startTime,
@@ -564,6 +565,7 @@ public class UpdateShiftAssignmentCommandHandler : IRequestHandler<UpdateShiftAs
         var workedHours = (decimal)(totalMinutes / 60.0);
 
         shiftAssignment.EmployeeId = request.EmployeeId;
+        shiftAssignment.BranchId = employee.BranchId;
         shiftAssignment.Date = request.Date;
         shiftAssignment.StartTime = startTime;
         shiftAssignment.EndTime = endTime;
@@ -803,7 +805,10 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
 
         // Cargar asignaciones existentes del mes
         var existingAssignments = await _context.ShiftAssignments
-            .Where(sa => sa.BranchId == request.BranchId && sa.Date >= startDate && sa.Date <= endDate && !sa.IsDeleted)
+            .Include(sa => sa.Employee)
+            .Where(sa => sa.Date >= startDate && sa.Date <= endDate && !sa.IsDeleted)
+            .Where(sa => sa.BranchId == request.BranchId
+                || (sa.BranchId == Guid.Empty && sa.Employee != null && sa.Employee.BranchId == request.BranchId))
             .ToListAsync(cancellationToken);
 
         var pastAssignments = existingAssignments
@@ -814,6 +819,8 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             .Where(a => a.Date.Date >= generationStartDate.Date)
             .ToList();
 
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+
         foreach (var assignment in futureAssignments)
         {
             assignment.IsDeleted = true;
@@ -821,43 +828,28 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             assignment.DeletedBy = Guid.Empty;
         }
 
+        await _context.SaveChangesAsync(cancellationToken);
+
         // Preparar estructuras de control
         var assignedDatesByEmployee = new Dictionary<Guid, HashSet<DateTime>>();
         var hoursByEmployee = new Dictionary<Guid, decimal>();
         var weeklyHoursByEmployee = new Dictionary<Guid, Dictionary<int, decimal>>();
         var assignmentsToCreate = new List<ShiftAssignment>();
         var warnings = new List<ShiftGenerationWarningDto>();
+        var uncoveredSlots = new List<(DateTime Date, DayOfWeek DayOfWeek, Guid WorkAreaId, Guid WorkRoleId, TimeSpan StartTime, TimeSpan EndTime, TimeSpan? BreakDuration, TimeSpan? LunchDuration, string? Notes, string WorkAreaName, string WorkRoleName, int MissingCount)>();
 
-        // Sembrar asignaciones pasadas para no perder el historial del mes
-        foreach (var assignment in pastAssignments)
-        {
-            TrackAssignment(assignment.EmployeeId, assignment.Date, assignment.WorkedHours, startDate, assignedDatesByEmployee, hoursByEmployee, weeklyHoursByEmployee);
-        }
+        // Importante: para regeneración desde cero en el rango objetivo,
+        // no sembramos asignaciones pasadas en las estructuras de restricción.
 
         // Agrupar roles por WorkRoleId para asignación rápida
         var roleCandidates = employeeWorkRoles
             .GroupBy(ewr => ewr.WorkRoleId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        // Mapear roles por empleado para calcular demanda de días libres (full time)
-        var roleIdsByEmployee = employeeWorkRoles
-            .Where(ewr => ewr.Employee != null)
+        // Cantidad de roles por empleado para priorizar rol único antes que multirol
+        var roleCountByEmployee = employeeWorkRoles
             .GroupBy(ewr => ewr.EmployeeId)
-            .ToDictionary(
-                g => g.Key,
-                g => g.Select(x => x.WorkRoleId).ToHashSet());
-
-        var plannedOffDaysByEmployee = BuildPlannedOffDaysByEmployee(
-            startDate,
-            endDate,
-            shiftTemplates,
-            specialDateDict,
-            roleIdsByEmployee,
-            employeeWorkRoles
-                .Where(ewr => ewr.Employee != null)
-                .Select(ewr => ewr.Employee!)
-                .GroupBy(e => e.Id)
-                .Select(g => g.First()));
+            .ToDictionary(g => g.Key, g => g.Select(x => x.WorkRoleId).Distinct().Count());
 
         // Validación previa: capacidad por rol vs requerimientos (respeta días libres y disponibilidad)
         warnings.AddRange(BuildPreGenerationWarnings(
@@ -923,16 +915,19 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                 if (!roleCandidates.TryGetValue(template.WorkRoleId, out var candidatesForRole))
                 {
                     // No hay empleados con este rol
-                    warnings.Add(new ShiftGenerationWarningDto
-                    {
-                        Date = currentDate,
-                        DayOfWeek = dayOfWeek,
-                        WorkAreaName = template.WorkArea?.Name ?? "Desconocida",
-                        WorkRoleName = template.WorkRole?.Name ?? "Desconocido",
-                        RequiredCount = template.RequiredCount,
-                        AssignedCount = 0,
-                        Reason = "No hay empleados con este rol asignado"
-                    });
+                    uncoveredSlots.Add((
+                        Date: currentDate,
+                        DayOfWeek: dayOfWeek,
+                        WorkAreaId: template.WorkAreaId,
+                        WorkRoleId: template.WorkRoleId,
+                        StartTime: template.StartTime,
+                        EndTime: template.EndTime,
+                        BreakDuration: template.BreakDuration,
+                        LunchDuration: template.LunchDuration,
+                        Notes: template.Notes,
+                        WorkAreaName: template.WorkArea?.Name ?? "Desconocida",
+                        WorkRoleName: template.WorkRole?.Name ?? "Desconocido",
+                        MissingCount: template.RequiredCount));
                     continue;
                 }
 
@@ -943,10 +938,11 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                         .Where(c => IsEmployeeAvailable(c.Employee!.Id, currentDate, availabilityByEmployee))
                         .Where(c => !IsEmployeeAlreadyAssigned(c.Employee!.Id, currentDate, assignedDatesByEmployee))
                         .Where(c => CanAssignByFreeDays(c, daysInMonth, assignedDatesByEmployee))
-                        .Where(c => CanWorkOnDateByContract(c.Employee!, currentDate, plannedOffDaysByEmployee))
                         .Where(c => CanAssignByHours(c.Employee!, currentDate, startDate, template.StartTime, template.EndTime, template.BreakDuration, template.LunchDuration, weeklyHoursByEmployee))
-                        .OrderByDescending(c => GetRemainingDaysToAssign(c, daysInMonth, assignedDatesByEmployee)) // Priorizar cumplimiento de dias libres
-                        .ThenByDescending(c => c.IsPrimary)
+                        .OrderByDescending(c => c.IsPrimary)
+                        .ThenBy(c => GetEmployeeRoleCount(c.EmployeeId, roleCountByEmployee))
+                        .ThenByDescending(c => GetRemainingDaysToAssign(c, daysInMonth, assignedDatesByEmployee)) // Priorizar cumplimiento de dias libres
+                        .ThenBy(c => WillUseWeeklyExtraHours(c.Employee!, currentDate, startDate, template.StartTime, template.EndTime, template.BreakDuration, template.LunchDuration, weeklyHoursByEmployee))
                         .ThenBy(c => c.Priority)
                         .ThenBy(c => GetEmployeeHours(c.Employee!.Id, hoursByEmployee))
                         .ThenBy(c => GetEmployeeAssignedDays(c.Employee!.Id, assignedDatesByEmployee))
@@ -994,22 +990,50 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                 // Si no se cubrieron todos los turnos requeridos, agregar advertencia
                 if (assignedForTemplate < template.RequiredCount)
                 {
-                    warnings.Add(new ShiftGenerationWarningDto
-                    {
-                        Date = currentDate,
-                        DayOfWeek = dayOfWeek,
-                        WorkAreaName = template.WorkArea?.Name ?? "Desconocida",
-                        WorkRoleName = template.WorkRole?.Name ?? "Desconocido",
-                        RequiredCount = template.RequiredCount,
-                        AssignedCount = assignedForTemplate,
-                        Reason = assignedForTemplate == 0 
-                            ? "No hay empleados disponibles con este rol" 
-                            : "No hay suficientes empleados disponibles"
-                    });
+                    uncoveredSlots.Add((
+                        Date: currentDate,
+                        DayOfWeek: dayOfWeek,
+                        WorkAreaId: template.WorkAreaId,
+                        WorkRoleId: template.WorkRoleId,
+                        StartTime: template.StartTime,
+                        EndTime: template.EndTime,
+                        BreakDuration: template.BreakDuration,
+                        LunchDuration: template.LunchDuration,
+                        Notes: template.Notes,
+                        WorkAreaName: template.WorkArea?.Name ?? "Desconocida",
+                        WorkRoleName: template.WorkRole?.Name ?? "Desconocido",
+                        MissingCount: template.RequiredCount - assignedForTemplate));
                 }
             }
             
         }
+
+        var remainingUncoveredSlots = AutoAssignUncoveredSlots(
+            uncoveredSlots,
+            request.BranchId,
+            roleCandidates,
+            roleCountByEmployee,
+            availabilityByEmployee,
+            assignedDatesByEmployee,
+            hoursByEmployee,
+            weeklyHoursByEmployee,
+            daysInMonth,
+            startDate,
+            assignmentsToCreate);
+
+        warnings.AddRange(
+            remainingUncoveredSlots
+                .Where(s => s.MissingCount > 0)
+                .Select(s => new ShiftGenerationWarningDto
+                {
+                    Date = s.Date,
+                    DayOfWeek = s.DayOfWeek,
+                    WorkAreaName = s.WorkAreaName,
+                    WorkRoleName = s.WorkRoleName,
+                    RequiredCount = s.MissingCount,
+                    AssignedCount = 0,
+                    Reason = $"CoberturaFinal: Faltan {s.MissingCount} cupo(s) en el bloque {s.StartTime:hh\\:mm}-{s.EndTime:hh\\:mm} para este rol/área tras 2 pasadas automáticas. Puede existir al menos un turno de ese rol ya asignado en esa fecha."
+                }));
 
         _context.ShiftAssignments.AddRange(assignmentsToCreate);
         await _context.SaveChangesAsync(cancellationToken);
@@ -1022,40 +1046,27 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             .Select(g => g.First())
             .ToList();
 
-        foreach (var employee in employeesToValidate)
+        if (generationStartDate.Date == startDate.Date)
         {
-            var assignedDays = GetEmployeeAssignedDays(employee.Id, assignedDatesByEmployee);
-            var requiredWorkingDays = daysInMonth - employee.FreeDaysPerMonth;
-            var actualFreeDays = daysInMonth - assignedDays;
-            
-            if (employee.ContractType != Domain.Enums.ContractType.PartTime && actualFreeDays != employee.FreeDaysPerMonth)
+            foreach (var employee in employeesToValidate)
             {
-                warnings.Add(new ShiftGenerationWarningDto
+                var assignedDays = GetEmployeeAssignedDays(employee.Id, assignedDatesByEmployee);
+                var requiredWorkingDays = daysInMonth - employee.FreeDaysPerMonth;
+                var actualFreeDays = daysInMonth - assignedDays;
+                
+                if (employee.ContractType != Domain.Enums.ContractType.PartTime && actualFreeDays != employee.FreeDaysPerMonth)
                 {
-                    Date = startDate,
-                    DayOfWeek = startDate.DayOfWeek,
-                    WorkAreaName = "Cuota empleado",
-                    WorkRoleName = "(No aplica)",
-                    RequiredCount = requiredWorkingDays,
-                    AssignedCount = assignedDays,
-                    Reason = $"Empleado {employee.FirstName} {employee.LastName} configurado para {employee.FreeDaysPerMonth} días libres pero tiene {actualFreeDays}. Trabajó {assignedDays} de {requiredWorkingDays} días requeridos."
-                });
-            }
-
-            if (employee.ContractType == Domain.Enums.ContractType.FullTime
-                && plannedOffDaysByEmployee.TryGetValue(employee.Id, out var plannedOffDays)
-                && plannedOffDays.Any(d => assignedDatesByEmployee.TryGetValue(employee.Id, out var assigned) && assigned.Contains(d)))
-            {
-                warnings.Add(new ShiftGenerationWarningDto
-                {
-                    Date = startDate,
-                    DayOfWeek = startDate.DayOfWeek,
-                    WorkAreaName = "Cuota empleado",
-                    WorkRoleName = "(No aplica)",
-                    RequiredCount = plannedOffDays.Count,
-                    AssignedCount = plannedOffDays.Count(d => assignedDatesByEmployee.TryGetValue(employee.Id, out var assigned) && assigned.Contains(d)),
-                    Reason = $"Empleado {employee.FirstName} {employee.LastName} trabajó en días libres planificados del patrón 1-2-1-2."
-                });
+                    warnings.Add(new ShiftGenerationWarningDto
+                    {
+                        Date = startDate,
+                        DayOfWeek = startDate.DayOfWeek,
+                        WorkAreaName = "Cuota empleado",
+                        WorkRoleName = "(No aplica)",
+                        RequiredCount = requiredWorkingDays,
+                        AssignedCount = assignedDays,
+                        Reason = $"Empleado {employee.FirstName} {employee.LastName} configurado para {employee.FreeDaysPerMonth} días libres pero tiene {actualFreeDays}. Trabajó {assignedDays} de {requiredWorkingDays} días requeridos."
+                    });
+                }
             }
         }
 
@@ -1094,6 +1105,8 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             })
             .ToList();
 
+        await transaction.CommitAsync(cancellationToken);
+
         return new ShiftGenerationResultDto
         {
             Assignments = assignments,
@@ -1122,6 +1135,99 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         return dates.Contains(date.Date);
     }
 
+    private static List<(DateTime Date, DayOfWeek DayOfWeek, Guid WorkAreaId, Guid WorkRoleId, TimeSpan StartTime, TimeSpan EndTime, TimeSpan? BreakDuration, TimeSpan? LunchDuration, string? Notes, string WorkAreaName, string WorkRoleName, int MissingCount)> AutoAssignUncoveredSlots(
+        List<(DateTime Date, DayOfWeek DayOfWeek, Guid WorkAreaId, Guid WorkRoleId, TimeSpan StartTime, TimeSpan EndTime, TimeSpan? BreakDuration, TimeSpan? LunchDuration, string? Notes, string WorkAreaName, string WorkRoleName, int MissingCount)> uncoveredSlots,
+        Guid branchId,
+        Dictionary<Guid, List<EmployeeWorkRole>> roleCandidates,
+        Dictionary<Guid, int> roleCountByEmployee,
+        Dictionary<Guid, HashSet<DateTime>> availabilityByEmployee,
+        Dictionary<Guid, HashSet<DateTime>> assignedDatesByEmployee,
+        Dictionary<Guid, decimal> hoursByEmployee,
+        Dictionary<Guid, Dictionary<int, decimal>> weeklyHoursByEmployee,
+        int daysInMonth,
+        DateTime monthStart,
+        List<ShiftAssignment> assignmentsToCreate)
+    {
+        var unresolved = new List<(DateTime Date, DayOfWeek DayOfWeek, Guid WorkAreaId, Guid WorkRoleId, TimeSpan StartTime, TimeSpan EndTime, TimeSpan? BreakDuration, TimeSpan? LunchDuration, string? Notes, string WorkAreaName, string WorkRoleName, int MissingCount)>();
+
+        foreach (var slot in uncoveredSlots.Where(s => s.MissingCount > 0))
+        {
+            if (!roleCandidates.TryGetValue(slot.WorkRoleId, out var candidatesForRole))
+            {
+                unresolved.Add(slot);
+                continue;
+            }
+
+            var remaining = slot.MissingCount;
+
+            for (var i = 0; i < slot.MissingCount; i++)
+            {
+                var eligibleCandidates = candidatesForRole
+                    .Where(c => c.Employee != null)
+                    .Where(c => IsEmployeeAvailable(c.Employee!.Id, slot.Date, availabilityByEmployee))
+                    .Where(c => !IsEmployeeAlreadyAssigned(c.Employee!.Id, slot.Date, assignedDatesByEmployee))
+                    .Where(c => CanAssignByFreeDays(c, daysInMonth, assignedDatesByEmployee))
+                    .Where(c => CanAssignByHours(c.Employee!, slot.Date, monthStart, slot.StartTime, slot.EndTime, slot.BreakDuration, slot.LunchDuration, weeklyHoursByEmployee))
+                    .OrderByDescending(c => c.IsPrimary)
+                    .ThenBy(c => GetEmployeeRoleCount(c.EmployeeId, roleCountByEmployee))
+                    .ThenByDescending(c => GetRemainingDaysToAssign(c, daysInMonth, assignedDatesByEmployee))
+                    .ThenBy(c => WillUseWeeklyExtraHours(c.Employee!, slot.Date, monthStart, slot.StartTime, slot.EndTime, slot.BreakDuration, slot.LunchDuration, weeklyHoursByEmployee))
+                    .ThenBy(c => c.Priority)
+                    .ThenBy(c => GetEmployeeHours(c.Employee!.Id, hoursByEmployee))
+                    .ThenBy(c => GetEmployeeAssignedDays(c.Employee!.Id, assignedDatesByEmployee))
+                    .ToList();
+
+                var selected = eligibleCandidates.FirstOrDefault();
+                if (selected == null)
+                    break;
+
+                var employeeId = selected.Employee!.Id;
+                var workedHours = CalculateWorkedHours(slot.StartTime, slot.EndTime, slot.BreakDuration, slot.LunchDuration);
+
+                assignmentsToCreate.Add(new ShiftAssignment
+                {
+                    Id = Guid.NewGuid(),
+                    BranchId = branchId,
+                    EmployeeId = employeeId,
+                    Date = slot.Date,
+                    StartTime = slot.StartTime,
+                    EndTime = slot.EndTime,
+                    BreakDuration = slot.BreakDuration,
+                    LunchDuration = slot.LunchDuration,
+                    WorkAreaId = slot.WorkAreaId,
+                    WorkRoleId = slot.WorkRoleId,
+                    WorkedHours = workedHours,
+                    Notes = slot.Notes,
+                    IsApproved = false,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = Guid.Empty
+                });
+
+                TrackAssignment(employeeId, slot.Date, workedHours, monthStart, assignedDatesByEmployee, hoursByEmployee, weeklyHoursByEmployee);
+                remaining--;
+            }
+
+            if (remaining > 0)
+            {
+                unresolved.Add((
+                    Date: slot.Date,
+                    DayOfWeek: slot.DayOfWeek,
+                    WorkAreaId: slot.WorkAreaId,
+                    WorkRoleId: slot.WorkRoleId,
+                    StartTime: slot.StartTime,
+                    EndTime: slot.EndTime,
+                    BreakDuration: slot.BreakDuration,
+                    LunchDuration: slot.LunchDuration,
+                    Notes: slot.Notes,
+                    WorkAreaName: slot.WorkAreaName,
+                    WorkRoleName: slot.WorkRoleName,
+                    MissingCount: remaining));
+            }
+        }
+
+        return unresolved;
+    }
+
     private static bool CanAssignByFreeDays(EmployeeWorkRole ewr, int daysInMonth, Dictionary<Guid, HashSet<DateTime>> assignedDatesByEmployee)
     {
         if (ewr.Employee == null)
@@ -1144,18 +1250,11 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         return assignedDays < requiredWorkingDays;
     }
 
-    private static bool CanWorkOnDateByContract(
-        Employee employee,
-        DateTime dateToAssign,
-        Dictionary<Guid, HashSet<DateTime>> plannedOffDaysByEmployee)
+    private static int GetEmployeeRoleCount(Guid employeeId, Dictionary<Guid, int> roleCountByEmployee)
     {
-        if (employee.ContractType == Domain.Enums.ContractType.PartTime)
-            return true;
-
-        return !plannedOffDaysByEmployee.TryGetValue(employee.Id, out var offDays)
-               || !offDays.Contains(dateToAssign.Date);
+        return roleCountByEmployee.TryGetValue(employeeId, out var count) ? count : int.MaxValue;
     }
-    
+
     private static int GetRemainingDaysToAssign(EmployeeWorkRole ewr, int daysInMonth, Dictionary<Guid, HashSet<DateTime>> assignedDatesByEmployee)
     {
         if (ewr.Employee == null)
@@ -1271,7 +1370,8 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             }
 
             var capacity = 0;
-            var capacityHours = 0m;
+            var capacityMinHours = 0m;
+            var capacityMaxHours = 0m;
             var distinctEmployees = candidatesForRole
                 .Where(c => c.Employee != null)
                 .GroupBy(c => c.EmployeeId)
@@ -1292,10 +1392,11 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                 var capacityDays = Math.Min(remainingWorkingDays, availableDaysRemaining);
 
                 capacity += capacityDays;
-                // Capacidad de horas se basa en WeeklyMaxHours del empleado
-                // Estimamos horas disponibles como: capacityDays * (WeeklyMaxHours / 5 días promedio de trabajo por semana)
-                var hoursPerDay = employee.WeeklyMaxHours / 5m; // Asumiendo 5 días de trabajo por semana
-                capacityHours += capacityDays * hoursPerDay;
+                // Capacidad horaria base (objetivo) y máxima (con horas extra)
+                var minHoursPerDay = GetEffectiveWeeklyMinHours(employee) / 5m; // Asumiendo 5 días por semana
+                var maxHoursPerDay = GetEffectiveWeeklyMaxHours(employee) / 5m; // Asumiendo 5 días por semana
+                capacityMinHours += capacityDays * minHoursPerDay;
+                capacityMaxHours += capacityDays * maxHoursPerDay;
             }
 
             if (capacity < required)
@@ -1314,7 +1415,7 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
 
             if (requiredHoursByRole.TryGetValue(workRoleId, out var requiredHours))
             {
-                if (capacityHours < requiredHours)
+                if (capacityMaxHours < requiredHours)
                 {
                     warnings.Add(new ShiftGenerationWarningDto
                     {
@@ -1323,11 +1424,11 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                         WorkAreaName = workAreaName,
                         WorkRoleName = workRoleName,
                         RequiredCount = (int)Math.Ceiling(requiredHours),
-                        AssignedCount = (int)Math.Floor(capacityHours),
-                        Reason = $"PreCheck: Horas insuficientes para cubrir la demanda. Requeridas {requiredHours:F1}h, capacidad {capacityHours:F1}h."
+                        AssignedCount = (int)Math.Floor(capacityMaxHours),
+                        Reason = $"PreCheck: Horas insuficientes para cubrir la demanda aun usando horas máximas. Requeridas {requiredHours:F1}h, capacidad máxima {capacityMaxHours:F1}h."
                     });
                 }
-                else if (capacityHours > requiredHours)
+                else if (capacityMinHours < requiredHours)
                 {
                     warnings.Add(new ShiftGenerationWarningDto
                     {
@@ -1336,8 +1437,8 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                         WorkAreaName = workAreaName,
                         WorkRoleName = workRoleName,
                         RequiredCount = (int)Math.Ceiling(requiredHours),
-                        AssignedCount = (int)Math.Floor(capacityHours),
-                        Reason = $"PreCheck: Exceso de capacidad de horas. Requeridas {requiredHours:F1}h, capacidad {capacityHours:F1}h. Algunos empleados no alcanzaran sus horas."
+                        AssignedCount = (int)Math.Floor(capacityMinHours),
+                        Reason = $"PreCheck: Para cubrir la demanda se requerirá usar horas extra (sobre horas semanales objetivo). Requeridas {requiredHours:F1}h, capacidad base {capacityMinHours:F1}h, capacidad máxima {capacityMaxHours:F1}h."
                     });
                 }
             }
@@ -1356,10 +1457,38 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         TimeSpan? lunchDuration,
         Dictionary<Guid, Dictionary<int, decimal>> weeklyHoursByEmployee)
     {
-        var maxHours = employee.WeeklyMaxHours;
+        var maxHours = GetEffectiveWeeklyMaxHours(employee);
         var currentHours = GetEmployeeWeeklyHours(employee.Id, dateToAssign, monthStart, weeklyHoursByEmployee);
         var workedHours = CalculateWorkedHours(startTime, endTime, breakDuration, lunchDuration);
         return currentHours + workedHours <= maxHours;
+    }
+
+    private static bool WillUseWeeklyExtraHours(
+        Employee employee,
+        DateTime dateToAssign,
+        DateTime monthStart,
+        TimeSpan startTime,
+        TimeSpan endTime,
+        TimeSpan? breakDuration,
+        TimeSpan? lunchDuration,
+        Dictionary<Guid, Dictionary<int, decimal>> weeklyHoursByEmployee)
+    {
+        var minHours = GetEffectiveWeeklyMinHours(employee);
+        var currentHours = GetEmployeeWeeklyHours(employee.Id, dateToAssign, monthStart, weeklyHoursByEmployee);
+        var workedHours = CalculateWorkedHours(startTime, endTime, breakDuration, lunchDuration);
+        return currentHours + workedHours > minHours;
+    }
+
+    private static decimal GetEffectiveWeeklyMinHours(Employee employee)
+    {
+        return employee.WeeklyMinHours < 0m ? 0m : employee.WeeklyMinHours;
+    }
+
+    private static decimal GetEffectiveWeeklyMaxHours(Employee employee)
+    {
+        var minHours = GetEffectiveWeeklyMinHours(employee);
+        var maxHours = employee.WeeklyMaxHours < 0m ? 0m : employee.WeeklyMaxHours;
+        return maxHours < minHours ? minHours : maxHours;
     }
 
     private static void TrackAssignment(
@@ -1397,176 +1526,6 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         weeklyHours[weekIndex] += workedHours;
     }
     
-    private static Dictionary<Guid, HashSet<DateTime>> BuildPlannedOffDaysByEmployee(
-        DateTime monthStart,
-        DateTime monthEnd,
-        List<ShiftTemplate> shiftTemplates,
-        Dictionary<DateTime, SpecialDate> specialDateDict,
-        Dictionary<Guid, HashSet<Guid>> roleIdsByEmployee,
-        IEnumerable<Employee> employees)
-    {
-        var demandByDateRole = BuildDemandByDateForRoles(monthStart, monthEnd, shiftTemplates, specialDateDict);
-        var planned = new Dictionary<Guid, HashSet<DateTime>>();
-        var pattern = new[] { 1, 2, 1, 2 };
-
-        foreach (var employee in employees)
-        {
-            if (employee.ContractType != ContractType.FullTime)
-                continue;
-
-            var remaining = Math.Max(0, employee.FreeDaysPerMonth);
-            var offDays = new HashSet<DateTime>();
-            var roleIds = roleIdsByEmployee.TryGetValue(employee.Id, out var roles)
-                ? roles
-                : new HashSet<Guid>();
-
-            var patternIndex = 0;
-            for (var weekStart = monthStart.Date; weekStart <= monthEnd.Date && remaining > 0; weekStart = weekStart.AddDays(7), patternIndex++)
-            {
-                var weekEnd = weekStart.AddDays(6);
-                if (weekEnd > monthEnd.Date)
-                    weekEnd = monthEnd.Date;
-
-                var weekDays = new List<DateTime>();
-                for (var day = weekStart.Date; day <= weekEnd.Date; day = day.AddDays(1))
-                {
-                    if (IsWeekday(day))
-                        weekDays.Add(day.Date);
-                }
-
-                if (weekDays.Count == 0)
-                    continue;
-
-                var offCount = Math.Min(pattern[patternIndex % pattern.Length], remaining);
-                var selected = SelectOffDaysForWeek(weekDays, offCount, demandByDateRole, roleIds);
-                foreach (var selectedDay in selected)
-                    offDays.Add(selectedDay);
-
-                remaining -= selected.Count;
-            }
-
-            if (offDays.Count > 0)
-                planned[employee.Id] = offDays;
-        }
-
-        return planned;
-    }
-
-    private static Dictionary<DateTime, Dictionary<Guid, int>> BuildDemandByDateForRoles(
-        DateTime monthStart,
-        DateTime monthEnd,
-        List<ShiftTemplate> shiftTemplates,
-        Dictionary<DateTime, SpecialDate> specialDateDict)
-    {
-        var demand = new Dictionary<DateTime, Dictionary<Guid, int>>();
-
-        for (var date = monthStart.Date; date <= monthEnd.Date; date = date.AddDays(1))
-        {
-            var dayOfWeek = date.DayOfWeek;
-            var perRole = new Dictionary<Guid, int>();
-
-            if (specialDateDict.TryGetValue(date.Date, out var specialDate) && specialDate.Templates.Any())
-            {
-                foreach (var template in specialDate.Templates)
-                {
-                    if (!perRole.ContainsKey(template.WorkRoleId))
-                        perRole[template.WorkRoleId] = 0;
-
-                    perRole[template.WorkRoleId] += template.RequiredCount;
-                }
-            }
-            else
-            {
-                foreach (var template in shiftTemplates.Where(t => t.DayOfWeek == dayOfWeek))
-                {
-                    if (!perRole.ContainsKey(template.WorkRoleId))
-                        perRole[template.WorkRoleId] = 0;
-
-                    perRole[template.WorkRoleId] += template.RequiredCount;
-                }
-            }
-
-            demand[date.Date] = perRole;
-        }
-
-        return demand;
-    }
-
-    private static List<DateTime> SelectOffDaysForWeek(
-        List<DateTime> weekDays,
-        int offCount,
-        Dictionary<DateTime, Dictionary<Guid, int>> demandByDateRole,
-        HashSet<Guid> roleIds)
-    {
-        var selected = new List<DateTime>();
-        if (offCount <= 0 || weekDays.Count == 0)
-            return selected;
-
-        if (offCount == 1)
-        {
-            var best = weekDays
-                .OrderBy(day => GetDemandScore(day, demandByDateRole, roleIds))
-                .ThenBy(day => day)
-                .First();
-            selected.Add(best);
-            return selected;
-        }
-
-        // Intentar 2 días consecutivos
-        var bestPair = weekDays
-            .Zip(weekDays.Skip(1), (first, second) => new { first, second })
-            .Where(pair => pair.first.AddDays(1) == pair.second)
-            .Select(pair => new
-            {
-                pair.first,
-                pair.second,
-                score = GetDemandScore(pair.first, demandByDateRole, roleIds)
-                        + GetDemandScore(pair.second, demandByDateRole, roleIds)
-            })
-            .OrderBy(pair => pair.score)
-            .ThenBy(pair => pair.first)
-            .FirstOrDefault();
-
-        if (bestPair != null)
-        {
-            selected.Add(bestPair.first);
-            selected.Add(bestPair.second);
-            return selected;
-        }
-
-        // Fallback: tomar los dias con menor demanda
-        selected.AddRange(
-            weekDays
-                .OrderBy(day => GetDemandScore(day, demandByDateRole, roleIds))
-                .ThenBy(day => day)
-                .Take(offCount));
-
-        return selected;
-    }
-
-    private static int GetDemandScore(
-        DateTime day,
-        Dictionary<DateTime, Dictionary<Guid, int>> demandByDateRole,
-        HashSet<Guid> roleIds)
-    {
-        if (!demandByDateRole.TryGetValue(day.Date, out var perRole))
-            return 0;
-
-        var score = 0;
-        foreach (var roleId in roleIds)
-        {
-            if (perRole.TryGetValue(roleId, out var count))
-                score += count;
-        }
-
-        return score;
-    }
-
-    private static bool IsWeekday(DateTime date)
-    {
-        return date.DayOfWeek != DayOfWeek.Saturday && date.DayOfWeek != DayOfWeek.Sunday;
-    }
-
     private static decimal CalculateWorkedHours(TimeSpan startTime, TimeSpan endTime, TimeSpan? breakDuration, TimeSpan? lunchDuration)
     {
         var breakMinutes = breakDuration?.TotalMinutes ?? 0;

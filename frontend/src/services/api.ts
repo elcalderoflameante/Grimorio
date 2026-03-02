@@ -39,6 +39,19 @@ import type {
   CreateShiftTemplateDto,
   UpdateShiftTemplateDto,
   ShiftGenerationResultDto
+  ,PayrollConfigurationDto
+  ,CreatePayrollConfigurationDto
+  ,EmployeePayrollSummaryDto
+  ,PayrollRoleDto
+  ,PayrollRoleFullDto
+  ,GeneratePayrollRolesResultDto
+  ,UpdatePayrollRoleStatusDto
+  ,PayrollAdvanceDto
+  ,CreatePayrollAdvanceDto
+  ,EmployeeConsumptionDto
+  ,CreateEmployeeConsumptionDto
+  ,PayrollAdjustmentDto
+  ,CreatePayrollAdjustmentDto
 } from '../types';
 import { getDetailedError } from '../utils/errorHandler';
 
@@ -224,6 +237,43 @@ export const employeeAvailabilityApi = {
     apiClient.post<EmployeeAvailabilityDto>(`/scheduling/employees/${data.employeeId}/availability`, data),
   remove: (employeeId: string, id: string): Promise<AxiosResponse<void>> => 
     apiClient.delete<void>(`/scheduling/employees/${employeeId}/availability/${id}`),
+};
+
+// ======================== Payroll API ========================
+
+export const payrollApi = {
+  getConfiguration: (): Promise<AxiosResponse<PayrollConfigurationDto | null>> =>
+    apiClient.get<PayrollConfigurationDto | null>('/payroll/configuration'),
+  updateConfiguration: (data: CreatePayrollConfigurationDto): Promise<AxiosResponse<PayrollConfigurationDto>> =>
+    apiClient.put<PayrollConfigurationDto>('/payroll/configuration', data),
+  getSummary: (year: number, month: number): Promise<AxiosResponse<EmployeePayrollSummaryDto[]>> =>
+    apiClient.get<EmployeePayrollSummaryDto[]>('/payroll/summary', { params: { year, month } }),
+  getAdvances: (employeeId?: string, year?: number, month?: number): Promise<AxiosResponse<PayrollAdvanceDto[]>> =>
+    apiClient.get<PayrollAdvanceDto[]>('/payroll/advances', { params: { employeeId, year, month } }),
+  createAdvance: (data: CreatePayrollAdvanceDto): Promise<AxiosResponse<PayrollAdvanceDto>> =>
+    apiClient.post<PayrollAdvanceDto>('/payroll/advances', data),
+  deleteAdvance: (advanceId: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/payroll/advances/${advanceId}`),
+  getConsumptions: (employeeId?: string, year?: number, month?: number): Promise<AxiosResponse<EmployeeConsumptionDto[]>> =>
+    apiClient.get<EmployeeConsumptionDto[]>('/payroll/consumptions', { params: { employeeId, year, month } }),
+  createConsumption: (data: CreateEmployeeConsumptionDto): Promise<AxiosResponse<EmployeeConsumptionDto>> =>
+    apiClient.post<EmployeeConsumptionDto>('/payroll/consumptions', data),
+  deleteConsumption: (consumptionId: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/payroll/consumptions/${consumptionId}`),
+  getAdjustments: (employeeId?: string, year?: number, month?: number): Promise<AxiosResponse<PayrollAdjustmentDto[]>> =>
+    apiClient.get<PayrollAdjustmentDto[]>('/payroll/adjustments', { params: { employeeId, year, month } }),
+  createAdjustment: (data: CreatePayrollAdjustmentDto): Promise<AxiosResponse<PayrollAdjustmentDto>> =>
+    apiClient.post<PayrollAdjustmentDto>('/payroll/adjustments', data),
+  deleteAdjustment: (adjustmentId: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/payroll/adjustments/${adjustmentId}`),
+  generateRoles: (year: number, month: number, employeeId?: string): Promise<AxiosResponse<GeneratePayrollRolesResultDto>> =>
+    apiClient.post<GeneratePayrollRolesResultDto>('/payroll/roles/generate', null, { params: { year, month, employeeId } }),
+  getRolesByEmployee: (employeeId: string): Promise<AxiosResponse<PayrollRoleDto[]>> =>
+    apiClient.get<PayrollRoleDto[]>(`/payroll/roles/employee/${employeeId}`),
+  getRoleDetail: (roleId: string): Promise<AxiosResponse<PayrollRoleFullDto>> =>
+    apiClient.get<PayrollRoleFullDto>(`/payroll/roles/${roleId}`),
+  updateRoleStatus: (roleId: string, data: UpdatePayrollRoleStatusDto): Promise<AxiosResponse<PayrollRoleDto>> =>
+    apiClient.patch<PayrollRoleDto>(`/payroll/roles/${roleId}/status`, data),
 };
 
 export const scheduleConfigurationApi = {

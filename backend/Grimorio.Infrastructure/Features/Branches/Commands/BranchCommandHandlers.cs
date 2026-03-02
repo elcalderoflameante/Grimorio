@@ -31,6 +31,7 @@ public class UpdateBranchCommandHandler : IRequestHandler<UpdateBranchCommand, B
 
         branch.Name = request.Name;
         branch.Code = request.Code;
+        branch.IdentificationNumber = request.IdentificationNumber;
         branch.Address = request.Address;
         branch.Phone = request.Phone;
         branch.Email = request.Email;

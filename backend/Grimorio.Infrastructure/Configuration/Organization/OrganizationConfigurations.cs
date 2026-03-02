@@ -20,6 +20,10 @@ public class BranchConfiguration : BaseEntityConfiguration<Branch>
             .HasMaxLength(20)
             .IsRequired();
 
+        builder.Property(s => s.IdentificationNumber)
+            .HasMaxLength(13)
+            .IsRequired();
+
         builder.Property(s => s.Address)
             .HasMaxLength(500);
 
@@ -145,6 +149,68 @@ public class EmployeeConfiguration : BaseEntityConfiguration<Employee>
 
         builder.Property(e => e.FreeDaysPerMonth)
             .HasDefaultValue(6)
+            .IsRequired();
+
+        builder.Property(e => e.BaseSalary)
+            .HasPrecision(12, 2)
+            .HasDefaultValue(0m)
+            .IsRequired();
+
+        builder.Property(e => e.BankAccount)
+            .HasMaxLength(64)
+            .HasDefaultValue(string.Empty)
+            .IsRequired();
+
+        builder.Property(e => e.DecimoThirdMonthly)
+            .HasDefaultValue(true)
+            .IsRequired();
+
+        builder.Property(e => e.DecimoFourthMonthly)
+            .HasDefaultValue(true)
+            .IsRequired();
+
+        builder.Property(e => e.ReserveFundMonthly)
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        // Información personal adicional
+        builder.Property(e => e.Photo)
+            .HasColumnType("text")
+            .IsRequired(false);
+
+        builder.Property(e => e.DateOfBirth)
+            .HasColumnType("date")
+            .IsRequired(false);
+
+        builder.Property(e => e.CivilStatus)
+            .HasMaxLength(50)
+            .HasDefaultValue(string.Empty)
+            .IsRequired();
+
+        builder.Property(e => e.Sex)
+            .HasMaxLength(20)
+            .HasDefaultValue(string.Empty)
+            .IsRequired();
+
+        builder.Property(e => e.Nationality)
+            .HasMaxLength(100)
+            .HasDefaultValue(string.Empty)
+            .IsRequired();
+
+        // Información de contacto de emergencia
+        builder.Property(e => e.EmergencyContactPerson)
+            .HasMaxLength(100)
+            .HasDefaultValue(string.Empty)
+            .IsRequired();
+
+        builder.Property(e => e.EmergencyContactRelationship)
+            .HasMaxLength(100)
+            .HasDefaultValue(string.Empty)
+            .IsRequired();
+
+        builder.Property(e => e.EmergencyContactPhone)
+            .HasMaxLength(20)
+            .HasDefaultValue(string.Empty)
             .IsRequired();
 
         // Índices

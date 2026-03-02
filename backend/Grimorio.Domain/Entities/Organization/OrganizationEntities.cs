@@ -11,6 +11,7 @@ public class Branch : BaseEntity
 {
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
+    public string IdentificationNumber { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
@@ -69,6 +70,25 @@ public class Employee : BaseEntity
     public decimal WeeklyMinHours { get; set; } = 40m; // Horas mínimas por semana (required)
     public decimal WeeklyMaxHours { get; set; } = 40m; // Horas máximas por semana (required)
     public int FreeDaysPerMonth { get; set; } = 6; // Días libres que debe tener al mes
+
+    // Información personal adicional
+    public string? Photo { get; set; } // Base64 encoded image or URL
+    public DateTime? DateOfBirth { get; set; }
+    public string CivilStatus { get; set; } = string.Empty; // Single, Married, Divorced, Widowed
+    public string Sex { get; set; } = string.Empty; // M, F, Other
+    public string Nationality { get; set; } = string.Empty;
+    
+    // Información de contacto de emergencia
+    public string EmergencyContactPerson { get; set; } = string.Empty;
+    public string EmergencyContactRelationship { get; set; } = string.Empty; // Parent, Sibling, Spouse, Other
+    public string EmergencyContactPhone { get; set; } = string.Empty;
+
+    // Nomina
+    public decimal BaseSalary { get; set; } = 0m;
+    public string BankAccount { get; set; } = string.Empty;
+    public bool DecimoThirdMonthly { get; set; } = true;
+    public bool DecimoFourthMonthly { get; set; } = true;
+    public bool ReserveFundMonthly { get; set; } = false;
 
     // Relación inversa
     public ICollection<EmployeeShift> EmployeeShifts { get; set; } = new List<EmployeeShift>();

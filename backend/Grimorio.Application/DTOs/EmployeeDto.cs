@@ -22,7 +22,24 @@ public class EmployeeDto
     public ContractType ContractType { get; set; }
     public decimal WeeklyMinHours { get; set; }
     public decimal WeeklyMaxHours { get; set; }
+    public decimal BaseSalary { get; set; }
+    public string BankAccount { get; set; } = string.Empty;
+    public bool DecimoThirdMonthly { get; set; }
+    public bool DecimoFourthMonthly { get; set; }
+    public bool ReserveFundMonthly { get; set; }
     public int FreeDaysPerMonth { get; set; }
+    
+    // Información personal adicional
+    public string? Photo { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    public string CivilStatus { get; set; } = string.Empty;
+    public string Sex { get; set; } = string.Empty;
+    public string Nationality { get; set; } = string.Empty;
+    
+    // Información de contacto de emergencia
+    public string EmergencyContactPerson { get; set; } = string.Empty;
+    public string EmergencyContactRelationship { get; set; } = string.Empty;
+    public string EmergencyContactPhone { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -40,7 +57,24 @@ public class CreateEmployeeDto
     public ContractType ContractType { get; set; }
     public decimal WeeklyMinHours { get; set; }
     public decimal WeeklyMaxHours { get; set; }
+    public decimal BaseSalary { get; set; }
+    public string BankAccount { get; set; } = string.Empty;
+    public bool DecimoThirdMonthly { get; set; }
+    public bool DecimoFourthMonthly { get; set; }
+    public bool ReserveFundMonthly { get; set; }
     public int FreeDaysPerMonth { get; set; } = 6;
+    
+    // Información personal adicional
+    public string? Photo { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    public string CivilStatus { get; set; } = string.Empty;
+    public string Sex { get; set; } = string.Empty;
+    public string Nationality { get; set; } = string.Empty;
+    
+    // Información de contacto de emergencia
+    public string EmergencyContactPerson { get; set; } = string.Empty;
+    public string EmergencyContactRelationship { get; set; } = string.Empty;
+    public string EmergencyContactPhone { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -59,5 +93,22 @@ public class UpdateEmployeeDto
     public ContractType ContractType { get; set; }
     public decimal WeeklyMinHours { get; set; }
     public decimal WeeklyMaxHours { get; set; }
+    public decimal BaseSalary { get; set; }
+    public string BankAccount { get; set; } = string.Empty;
+    public bool DecimoThirdMonthly { get; set; }
+    public bool DecimoFourthMonthly { get; set; }
+    public bool ReserveFundMonthly { get; set; }
     public int FreeDaysPerMonth { get; set; }
+    
+    // Información personal adicional
+    public string? Photo { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    public string CivilStatus { get; set; } = string.Empty;
+    public string Sex { get; set; } = string.Empty;
+    public string Nationality { get; set; } = string.Empty;
+    
+    // Información de contacto de emergencia
+    public string EmergencyContactPerson { get; set; } = string.Empty;
+    public string EmergencyContactRelationship { get; set; } = string.Empty;
+    public string EmergencyContactPhone { get; set; } = string.Empty;
 }

@@ -12,7 +12,7 @@ namespace Grimorio.Infrastructure.Features.Positions.Queries;
 /// Handler para GetPositionQuery.
 /// Obtiene una posición por ID.
 /// </summary>
-public class GetPositionQueryHandler : IRequestHandler<GetPositionQuery, PositionDto>
+public class GetPositionQueryHandler : IRequestHandler<GetPositionQuery, PositionDto?>
 {
     private readonly GrimorioDbContext _dbContext;
     private readonly IMapper _mapper;
@@ -23,7 +23,7 @@ public class GetPositionQueryHandler : IRequestHandler<GetPositionQuery, Positio
         _mapper = mapper;
     }
 
-    public async Task<PositionDto> Handle(GetPositionQuery request, CancellationToken cancellationToken)
+    public async Task<PositionDto?> Handle(GetPositionQuery request, CancellationToken cancellationToken)
     {
         var position = await _dbContext.Positions
             .AsNoTracking()

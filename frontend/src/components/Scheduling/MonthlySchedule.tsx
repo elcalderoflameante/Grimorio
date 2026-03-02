@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Calendar, Card, DatePicker, message, Modal, Space, Spin, Table, Tabs, Typography, Select, Tag, Form, Input, InputNumber, TimePicker, Row, Col, List } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { CalendarOutlined, BarChartOutlined } from '@ant-design/icons';
+import { CalendarOutlined, BarChartOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import dayjs, { Dayjs } from 'dayjs';
@@ -18,6 +18,21 @@ dayjs.extend(isoWeek);
 dayjs.locale('es');
 
 const { Text } = Typography;
+
+type GenerationWarningsSnapshot = {
+  warnings: Array<{
+    date: string;
+    dayOfWeek: number;
+    workAreaName: string;
+    workRoleName: string;
+    requiredCount: number;
+    assignedCount: number;
+    reason: string;
+  }>;
+  totalShiftsGenerated: number;
+  totalShiftsNotCovered: number;
+  generationStartLabel?: string;
+};
 
 // Función para generar colores complementarios a partir del color base
 const getColorVariants = (baseColor: string) => {
@@ -63,6 +78,186 @@ export const MonthlySchedule = () => {
   const [mainTab, setMainTab] = useState<'schedule' | 'stats'>('schedule');
   const [branchName, setBranchName] = useState<string>('');
   const [isExporting, setIsExporting] = useState(false);
+  const [lastGenerationWarnings, setLastGenerationWarnings] = useState<GenerationWarningsSnapshot | null>(null);
+
+  const openWarningsModal = useCallback((snapshot: GenerationWarningsSnapshot) => {
+    const { warnings, totalShiftsGenerated, totalShiftsNotCovered, generationStartLabel } = snapshot;
+    const precheckWarnings = warnings.filter(w => w.reason?.startsWith('PreCheck:'));
+    const precheckHoursWarnings = precheckWarnings.filter(w => /horas|capacidad/i.test(w.reason ?? ''));
+    const precheckOtherWarnings = precheckWarnings.filter(w => !/horas|capacidad/i.test(w.reason ?? ''));
+    const finalCoverageWarnings = warnings.filter(w => w.reason?.startsWith('CoberturaFinal:'));
+    const generationWarnings = warnings.filter(
+      w => !w.reason?.startsWith('PreCheck:')
+        && !w.reason?.startsWith('CoberturaFinal:')
+        && w.workAreaName !== 'Cuota empleado'
+    );
+    const employeeQuotaWarnings = warnings.filter(w => w.workAreaName === 'Cuota empleado');
+
+    const columns = [
+      {
+        title: 'Fecha',
+        dataIndex: 'date',
+        key: 'date',
+        width: 100,
+        render: (date: string) => dayjs(date).format('DD/MM/YYYY')
+      },
+      {
+        title: 'Día',
+        dataIndex: 'dayOfWeek',
+        key: 'dayOfWeek',
+        width: 100
+      },
+      {
+        title: 'Área',
+        dataIndex: 'workAreaName',
+        key: 'workAreaName',
+        width: 120
+      },
+      {
+        title: 'Rol',
+        dataIndex: 'workRoleName',
+        key: 'workRoleName',
+        width: 120
+      },
+      {
+        title: 'Requerido',
+        dataIndex: 'requiredCount',
+        key: 'requiredCount',
+        width: 80,
+        align: 'center' as const
+      },
+      {
+        title: 'Asignado',
+        dataIndex: 'assignedCount',
+        key: 'assignedCount',
+        width: 80,
+        align: 'center' as const
+      },
+      {
+        title: 'Motivo',
+        dataIndex: 'reason',
+        key: 'reason',
+        ellipsis: true,
+        render: (reason: string) => {
+          const isCapacityRangeWarning = /capacidad base|capacidad máxima|horas extra|horas máximas/i.test(reason ?? '');
+          if (isCapacityRangeWarning) {
+            return (
+              <Space size={6}>
+                <Tag color="purple">Base/Max</Tag>
+                <span>{reason}</span>
+              </Space>
+            );
+          }
+
+          return reason;
+        }
+      }
+    ];
+
+    Modal.warning({
+      title: `Generación completada con observaciones`,
+      width: 900,
+      content: (
+        <div>
+          <p style={{ marginBottom: 16 }}>
+            <strong>Turnos generados:</strong> {totalShiftsGenerated}<br />
+            <strong>Turnos sin cubrir:</strong> {totalShiftsNotCovered}
+          </p>
+          {generationStartLabel && (
+            <p style={{ marginBottom: 16 }}>
+              <strong>Regeneración parcial:</strong> desde {generationStartLabel}
+            </p>
+          )}
+
+          {precheckHoursWarnings.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 8 }}>
+                <Tag color="purple">PreCheck Horas</Tag>
+                <strong>Capacidad base/máxima y horas extra</strong>
+              </div>
+                <Table
+                  dataSource={precheckHoursWarnings}
+                  pagination={false}
+                  size="small"
+                  rowKey={(record, index) => `${record.date}-${record.workAreaName}-${record.workRoleName}-${record.reason}-${record.requiredCount}-${record.assignedCount}-${index}`}
+                  columns={columns}
+                />
+            </div>
+          )}
+
+          {precheckOtherWarnings.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 8 }}>
+                <Tag color="blue">PreCheck</Tag>
+                <strong>Validación previa de capacidad</strong>
+              </div>
+                <Table
+                  dataSource={precheckOtherWarnings}
+                  pagination={false}
+                  size="small"
+                  rowKey={(record, index) => `${record.date}-${record.workAreaName}-${record.workRoleName}-${record.reason}-${record.requiredCount}-${record.assignedCount}-${index}`}
+                  columns={columns}
+                />
+            </div>
+          )}
+
+          {finalCoverageWarnings.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 8 }}>
+                <Tag color="red">Cobertura Final</Tag>
+                <strong>Turnos realmente no cubiertos (tras 2 pasadas)</strong>
+              </div>
+                <Table
+                  dataSource={finalCoverageWarnings}
+                  pagination={false}
+                  size="small"
+                  rowKey={(record, index) => `${record.date}-${record.workAreaName}-${record.workRoleName}-${record.reason}-${record.requiredCount}-${record.assignedCount}-${index}`}
+                  columns={columns}
+                />
+            </div>
+          )}
+
+          {generationWarnings.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 8 }}>
+                <Tag color="gold">Generación</Tag>
+                <strong>Observaciones durante la generación</strong>
+              </div>
+                <Table
+                  dataSource={generationWarnings}
+                  pagination={false}
+                  size="small"
+                  rowKey={(record, index) => `${record.date}-${record.workAreaName}-${record.workRoleName}-${record.reason}-${record.requiredCount}-${record.assignedCount}-${index}`}
+                  columns={columns}
+                />
+            </div>
+          )}
+
+          {employeeQuotaWarnings.length > 0 && (
+            <div>
+              <div style={{ marginBottom: 8 }}>
+                <Tag color="orange">Cuota Empleado</Tag>
+                <strong>Diferencias entre días libres configurados vs asignados</strong>
+              </div>
+                <Table
+                  dataSource={employeeQuotaWarnings}
+                  pagination={false}
+                  size="small"
+                  rowKey={(record, index) => `${record.date}-${record.workAreaName}-${record.workRoleName}-${record.reason}-${record.requiredCount}-${record.assignedCount}-${index}`}
+                  columns={columns}
+                />
+            </div>
+          )}
+
+          <p style={{ marginTop: 16, color: '#ff4d4f' }}>
+            <strong>Importante:</strong> Revise las observaciones anteriores para asegurar que tiene el personal necesario.
+            Si aparecen advertencias de <strong>capacidad base/máxima</strong>, ajuste en empleados sus <strong>horas semanales</strong> y <strong>horas máximas semanales</strong>.
+            También puede necesitar contratar empleados con esos roles o ajustar disponibilidad.
+          </p>
+        </div>
+      )
+    });
+  }, []);
 
   const handleExportPdf = useCallback(async () => {
     try {
@@ -309,6 +504,7 @@ export const MonthlySchedule = () => {
       setSavingEdit(true);
 
       const payload = {
+        id: editShift.id,
         employeeId: values.employeeId as string,
         date: (values.date as Dayjs).format('YYYY-MM-DD'),
         startTime: (values.startTime as Dayjs).format('HH:mm:ss'),
@@ -434,11 +630,23 @@ export const MonthlySchedule = () => {
     // Validación 2: Si es el mes actual, verificar que no intente regenerar días pasados
     const isCurrentMonth = selectedYear === currentYear && selectedMonthNumber === currentMonthNumber;
     const generationStart = isCurrentMonth ? today.add(1, 'day') : null;
+    const monthEnd = selectedMonth.endOf('month');
+
+    if (generationStart && generationStart.isAfter(monthEnd, 'day')) {
+      message.error('No hay días futuros para generar en este mes.');
+      return;
+    }
     
     // Validación 3: Si ya existen turnos, mostrar advertencia
-    const hasExistingShifts = shifts.some(shift => 
-      dayjs(shift.date).isSame(selectedMonth, 'month')
-    );
+    let hasExistingShifts = false;
+    try {
+      const latest = await scheduleShiftApi.getMonthly(branchId, selectedYear, selectedMonthNumber);
+      hasExistingShifts = Array.isArray(latest.data) && latest.data.length > 0;
+    } catch (error) {
+      message.error(formatError(error));
+      console.error(error);
+      return;
+    }
 
     if (hasExistingShifts) {
       Modal.confirm({
@@ -481,114 +689,17 @@ export const MonthlySchedule = () => {
         const { warnings, totalShiftsGenerated, totalShiftsNotCovered } = result.data;
       
       if (warnings && warnings.length > 0) {
-        const precheckWarnings = warnings.filter(w => w.reason?.startsWith('PreCheck:'));
-        const generationWarnings = warnings.filter(w => !w.reason?.startsWith('PreCheck:'));
-
-        const columns = [
-          {
-            title: 'Fecha',
-            dataIndex: 'date',
-            key: 'date',
-            width: 100,
-            render: (date: string) => dayjs(date).format('DD/MM/YYYY')
-          },
-          {
-            title: 'Día',
-            dataIndex: 'dayOfWeek',
-            key: 'dayOfWeek',
-            width: 100
-          },
-          {
-            title: 'Área',
-            dataIndex: 'workAreaName',
-            key: 'workAreaName',
-            width: 120
-          },
-          {
-            title: 'Rol',
-            dataIndex: 'workRoleName',
-            key: 'workRoleName',
-            width: 120
-          },
-          {
-            title: 'Requerido',
-            dataIndex: 'requiredCount',
-            key: 'requiredCount',
-            width: 80,
-            align: 'center' as const
-          },
-          {
-            title: 'Asignado',
-            dataIndex: 'assignedCount',
-            key: 'assignedCount',
-            width: 80,
-            align: 'center' as const
-          },
-          {
-            title: 'Motivo',
-            dataIndex: 'reason',
-            key: 'reason',
-            ellipsis: true
-          }
-        ];
-
-        const generationStart = isCurrentMonth ? dayjs().add(1, 'day') : null;
-
-        Modal.warning({
-          title: `Generación completada con observaciones`,
-          width: 900,
-          content: (
-            <div>
-              <p style={{ marginBottom: 16 }}>
-                <strong>Turnos generados:</strong> {totalShiftsGenerated}<br />
-                <strong>Turnos sin cubrir:</strong> {totalShiftsNotCovered}
-              </p>
-              {generationStart && (
-                <p style={{ marginBottom: 16 }}>
-                  <strong>Regeneración parcial:</strong> desde {generationStart.format('DD/MM/YYYY')}
-                </p>
-              )}
-
-              {precheckWarnings.length > 0 && (
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ marginBottom: 8 }}>
-                    <Tag color="blue">PreCheck</Tag>
-                    <strong>Validación previa de capacidad</strong>
-                  </div>
-                    <Table
-                    dataSource={precheckWarnings}
-                    pagination={false}
-                    size="small"
-                      rowKey={(record) => `${record.date}-${record.workAreaName}-${record.workRoleName}-${record.reason}-${record.requiredCount}-${record.assignedCount}`}
-                    columns={columns}
-                  />
-                </div>
-              )}
-
-              {generationWarnings.length > 0 && (
-                <div>
-                  <div style={{ marginBottom: 8 }}>
-                    <Tag color="gold">Generación</Tag>
-                    <strong>Observaciones durante la generación</strong>
-                  </div>
-                    <Table
-                    dataSource={generationWarnings}
-                    pagination={false}
-                    size="small"
-                      rowKey={(record) => `${record.date}-${record.workAreaName}-${record.workRoleName}-${record.reason}-${record.requiredCount}-${record.assignedCount}`}
-                    columns={columns}
-                  />
-                </div>
-              )}
-
-              <p style={{ marginTop: 16, color: '#ff4d4f' }}>
-                <strong>Importante:</strong> Revise las observaciones anteriores para asegurar que tiene el personal necesario.
-                Puede que necesite contratar empleados con estos roles o ajustar la disponibilidad del personal existente.
-              </p>
-            </div>
-          )
-        });
+        const generationStartLabel = isCurrentMonth ? dayjs().add(1, 'day').format('DD/MM/YYYY') : undefined;
+        const snapshot: GenerationWarningsSnapshot = {
+          warnings,
+          totalShiftsGenerated,
+          totalShiftsNotCovered,
+          generationStartLabel,
+        };
+        setLastGenerationWarnings(snapshot);
+        openWarningsModal(snapshot);
       } else {
+        setLastGenerationWarnings(null);
         const generationStart = isCurrentMonth ? dayjs().add(1, 'day') : null;
         const partialMessage = generationStart
           ? ` (desde ${generationStart.format('DD/MM/YYYY')})`
@@ -601,15 +712,13 @@ export const MonthlySchedule = () => {
         await loadFreeEmployees();
       }
     } catch (error: unknown) {
-      const axiosError = error as { response?: { data?: { message?: string } } };
-      const errorMessage = axiosError.response?.data?.message || 'Error al generar turnos';
-      message.error(errorMessage);
+      message.error(formatError(error));
       console.error(error);
     } finally {
       setGenerating(false);
     }
     }
-  }, [branchId, loadShifts, loadFreeEmployees, selectedMonth, viewMode, shifts]);
+  }, [branchId, loadShifts, loadFreeEmployees, selectedMonth, viewMode, openWarningsModal]);
 
   useEffect(() => {
     if (viewMode !== 'week') {
@@ -825,6 +934,13 @@ export const MonthlySchedule = () => {
                   onClick={handleGenerate}
                 >
                   Generar turnos
+                </Button>
+                <Button
+                  icon={<InfoCircleOutlined />}
+                  disabled={!lastGenerationWarnings}
+                  onClick={() => lastGenerationWarnings && openWarningsModal(lastGenerationWarnings)}
+                >
+                  Ver advertencias
                 </Button>
                 <Button onClick={openCreateModal}>
                   Agregar turno

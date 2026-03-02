@@ -21,26 +21,21 @@ public class CreateUserCommandHandler : IRequestHandler<CreateUserCommand, UserD
 
     public async Task<UserDto> Handle(CreateUserCommand request, CancellationToken cancellationToken)
     {
-        var dto = request.Dto;
-
         var existingUser = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == dto.Email && !u.IsDeleted, cancellationToken);
+            .FirstOrDefaultAsync(u => u.Email == request.Dto.Email && !u.IsDeleted, cancellationToken);
 
         if (existingUser != null)
-            throw new InvalidOperationException("El email ya está registrado.");
-
-        if (request.BranchId == Guid.Empty)
-            throw new InvalidOperationException("BranchId requerido para crear usuario.");
+            throw new InvalidOperationException("Ya existe un usuario con ese email.");
 
         var user = new User
         {
             Id = Guid.NewGuid(),
-            BranchId = request.BranchId,
-            Email = dto.Email,
-            FirstName = dto.FirstName,
-            LastName = dto.LastName,
-            PasswordHash = _passwordHashingService.HashPassword(dto.Password),
+            Email = request.Dto.Email,
+            PasswordHash = _passwordHashingService.HashPassword(request.Dto.Password),
+            FirstName = request.Dto.FirstName,
+            LastName = request.Dto.LastName,
             IsActive = true,
+            BranchId = request.BranchId,
             CreatedAt = DateTime.UtcNow,
             CreatedBy = Guid.Empty
         };
@@ -133,61 +128,54 @@ public class AssignRolesToUserCommandHandler : IRequestHandler<AssignRolesToUser
 
     public async Task<bool> Handle(AssignRolesToUserCommand request, CancellationToken cancellationToken)
     {
-        try
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Id == request.UserId && !u.IsDeleted, cancellationToken);
+
+        if (user == null)
+            throw new InvalidOperationException("Usuario no encontrado.");
+
+        var branchId = request.BranchId;
+        if (branchId == Guid.Empty)
+            throw new InvalidOperationException("BranchId requerido para asignar roles.");
+
+        if (user.BranchId == Guid.Empty)
         {
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Id == request.UserId && !u.IsDeleted, cancellationToken);
-
-            if (user == null)
-                throw new InvalidOperationException("Usuario no encontrado.");
-
-            var branchId = request.BranchId;
-            if (branchId == Guid.Empty)
-                throw new InvalidOperationException("BranchId requerido para asignar roles.");
-
-            if (user.BranchId == Guid.Empty)
-            {
-                user.BranchId = branchId;
-            }
-            else if (user.BranchId != branchId)
-            {
-                throw new InvalidOperationException("El usuario pertenece a otra rama.");
-            }
-
-            await _context.UserRoles
-                .Where(ur => ur.UserId == user.Id)
-                .ExecuteDeleteAsync(cancellationToken);
-
-            foreach (var roleId in request.RoleIds)
-            {
-                var role = await _context.Roles
-                    .FirstOrDefaultAsync(r => r.Id == roleId && !r.IsDeleted, cancellationToken);
-
-                if (role == null)
-                {
-                    throw new InvalidOperationException($"Rol con ID {roleId} no encontrado.");
-                }
-
-                var userRole = new UserRole
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = user.Id,
-                    RoleId = roleId,
-                    BranchId = role.BranchId,
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = Guid.Empty
-                };
-
-                _context.UserRoles.Add(userRole);
-            }
-
-            await _context.SaveChangesAsync(cancellationToken);
-            return true;
+            user.BranchId = branchId;
         }
-        catch (Exception ex)
+        else if (user.BranchId != branchId)
         {
-            throw;
+            throw new InvalidOperationException("El usuario pertenece a otra rama.");
         }
+
+        await _context.UserRoles
+            .Where(ur => ur.UserId == user.Id)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        foreach (var roleId in request.RoleIds)
+        {
+            var role = await _context.Roles
+                .FirstOrDefaultAsync(r => r.Id == roleId && !r.IsDeleted, cancellationToken);
+
+            if (role == null)
+            {
+                throw new InvalidOperationException($"Rol con ID {roleId} no encontrado.");
+            }
+
+            var userRole = new UserRole
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                RoleId = roleId,
+                BranchId = role.BranchId,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = Guid.Empty
+            };
+
+            _context.UserRoles.Add(userRole);
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return true;
     }
 }
 

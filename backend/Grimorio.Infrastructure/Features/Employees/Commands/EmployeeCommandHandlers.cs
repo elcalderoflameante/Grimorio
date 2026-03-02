@@ -49,8 +49,21 @@ public class CreateEmployeeCommandHandler : IRequestHandler<CreateEmployeeComman
             ContractType = request.ContractType,
             WeeklyMinHours = request.WeeklyMinHours,
             WeeklyMaxHours = request.WeeklyMaxHours,
+            BaseSalary = request.BaseSalary,
+            BankAccount = request.BankAccount,
+            DecimoThirdMonthly = request.DecimoThirdMonthly,
+            DecimoFourthMonthly = request.DecimoFourthMonthly,
+            ReserveFundMonthly = request.ReserveFundMonthly,
             FreeDaysPerMonth = request.FreeDaysPerMonth,
             IsActive = true,
+            Photo = request.Photo,
+            DateOfBirth = request.DateOfBirth,
+            CivilStatus = request.CivilStatus,
+            Sex = request.Sex,
+            Nationality = request.Nationality,
+            EmergencyContactPerson = request.EmergencyContactPerson,
+            EmergencyContactRelationship = request.EmergencyContactRelationship,
+            EmergencyContactPhone = request.EmergencyContactPhone,
             CreatedAt = DateTime.UtcNow,
             CreatedBy = Guid.Empty, // TODO: obtener del contexto de usuario
         };
@@ -107,6 +120,19 @@ public class UpdateEmployeeCommandHandler : IRequestHandler<UpdateEmployeeComman
         employee.ContractType = request.ContractType;
         employee.WeeklyMinHours = request.WeeklyMinHours;
         employee.WeeklyMaxHours = request.WeeklyMaxHours;
+        employee.BaseSalary = request.BaseSalary;
+        employee.BankAccount = request.BankAccount;
+        employee.DecimoThirdMonthly = request.DecimoThirdMonthly;
+        employee.DecimoFourthMonthly = request.DecimoFourthMonthly;
+        employee.ReserveFundMonthly = request.ReserveFundMonthly;
+        employee.Photo = request.Photo;
+        employee.DateOfBirth = request.DateOfBirth;
+        employee.CivilStatus = request.CivilStatus;
+        employee.Sex = request.Sex;
+        employee.Nationality = request.Nationality;
+        employee.EmergencyContactPerson = request.EmergencyContactPerson;
+        employee.EmergencyContactRelationship = request.EmergencyContactRelationship;
+        employee.EmergencyContactPhone = request.EmergencyContactPhone;
         employee.UpdatedAt = DateTime.UtcNow;
         employee.UpdatedBy = Guid.Empty; // TODO: obtener del contexto de usuario
 

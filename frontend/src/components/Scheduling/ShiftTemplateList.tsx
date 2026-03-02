@@ -154,6 +154,7 @@ export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
       if (editingTemplate) {
         const updateData: UpdateShiftTemplateDto = {
           ...basePayload,
+          id: editingTemplate.id,
         };
         await shiftTemplateApi.update(editingTemplate.id, updateData);
         message.success('Plantilla actualizada');

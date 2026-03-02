@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using DotNetEnv;
 using System.Text;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 
 // Carga variables de entorno desde .env (solo en desarrollo)
 if (File.Exists("../../.env"))
@@ -121,6 +123,8 @@ builder.Services.AddAuthorization(options =>
 
 // === Add services to the container ===
 builder.Services.AddControllers();
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssemblyContaining<Grimorio.Application.Features.Auth.Commands.LoginUserCommandValidator>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {

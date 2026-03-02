@@ -100,7 +100,22 @@ public class EmployeesController : ControllerBase
             ContractType = dto.ContractType,
             WeeklyMinHours = dto.WeeklyMinHours,
             WeeklyMaxHours = dto.WeeklyMaxHours,
-            FreeDaysPerMonth = dto.FreeDaysPerMonth
+            BaseSalary = dto.BaseSalary,
+            BankAccount = dto.BankAccount,
+            DecimoThirdMonthly = dto.DecimoThirdMonthly,
+            DecimoFourthMonthly = dto.DecimoFourthMonthly,
+            ReserveFundMonthly = dto.ReserveFundMonthly,
+            FreeDaysPerMonth = dto.FreeDaysPerMonth,
+            // Información personal adicional
+            Photo = dto.Photo,
+            DateOfBirth = dto.DateOfBirth,
+            CivilStatus = dto.CivilStatus,
+            Sex = dto.Sex,
+            Nationality = dto.Nationality,
+            // Información de contacto de emergencia
+            EmergencyContactPerson = dto.EmergencyContactPerson,
+            EmergencyContactRelationship = dto.EmergencyContactRelationship,
+            EmergencyContactPhone = dto.EmergencyContactPhone
         };
 
         try
@@ -147,7 +162,22 @@ public class EmployeesController : ControllerBase
             ContractType = dto.ContractType,
             WeeklyMinHours = dto.WeeklyMinHours,
             WeeklyMaxHours = dto.WeeklyMaxHours,
-            FreeDaysPerMonth = dto.FreeDaysPerMonth
+            BaseSalary = dto.BaseSalary,
+            BankAccount = dto.BankAccount,
+            DecimoThirdMonthly = dto.DecimoThirdMonthly,
+            DecimoFourthMonthly = dto.DecimoFourthMonthly,
+            ReserveFundMonthly = dto.ReserveFundMonthly,
+            FreeDaysPerMonth = dto.FreeDaysPerMonth,
+            // Información personal adicional
+            Photo = dto.Photo,
+            DateOfBirth = dto.DateOfBirth,
+            CivilStatus = dto.CivilStatus,
+            Sex = dto.Sex,
+            Nationality = dto.Nationality,
+            // Información de contacto de emergencia
+            EmergencyContactPerson = dto.EmergencyContactPerson,
+            EmergencyContactRelationship = dto.EmergencyContactRelationship,
+            EmergencyContactPhone = dto.EmergencyContactPhone
         };
 
         try

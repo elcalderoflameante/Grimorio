@@ -24,11 +24,13 @@ import { formatError } from '../utils/errorHandler';
 import type { BranchDto } from '../types';
 import Welcome from '../components/Welcome/Welcome';
 import EmployeeList from '../components/Employees/EmployeeList.tsx';
+import EmployeeDetail from '../components/Employees/EmployeeDetail';
 import PositionList from '../components/Positions/PositionList.tsx';
 import UserList from '../components/Users/UserList.tsx';
 import RoleList from '../components/Roles/RoleList.tsx';
 import PermissionList from '../components/Permissions/PermissionList.tsx';
 import Profile from '../components/Profile/Profile';
+import { PayrollSummary, PayrollConfigurationForm } from '../components/Payroll';
 import {
   MonthlySchedule,
   SchedulingSettings,
@@ -76,6 +78,7 @@ export default function Dashboard() {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [branch, setBranch] = useState<BranchDto | null>(null);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { user, logout, hasPermission, branchId } = useAuth();
   const screens = useBreakpoint();
@@ -108,6 +111,16 @@ export default function Dashboard() {
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleViewEmployee = (employeeId: string) => {
+    setSelectedEmployeeId(employeeId);
+    setSelectedMenu('employee-detail');
+  };
+
+  const handleCreateEmployee = () => {
+    setSelectedEmployeeId(null);
+    setSelectedMenu('employee-detail');
   };
 
   const menuItems: MenuItem[] = useMemo(() => [
@@ -147,6 +160,15 @@ export default function Dashboard() {
               { key: 'scheduling-settings', label: 'Configuraciones', icon: <ToolOutlined /> },
             ],
           },
+          {
+            key: 'payroll',
+            label: 'Nomina',
+            icon: <ToolOutlined />,
+            children: [
+              { key: 'payroll-summary', label: 'Rol de pagos', icon: <IdcardOutlined /> },
+              { key: 'payroll-config', label: 'Configuracion', icon: <SettingOutlined /> },
+            ],
+          },
         ],
       },
     ] : []),
@@ -176,7 +198,20 @@ export default function Dashboard() {
       case 'profile':
         return <Profile />;
       case 'employees':
-        return <EmployeeList />;
+        return (
+          <EmployeeList
+            onViewEmployee={handleViewEmployee}
+            onCreateEmployee={handleCreateEmployee}
+          />
+        );
+      case 'employee-detail':
+        return (
+          <EmployeeDetail
+            employeeId={selectedEmployeeId}
+            onSaved={() => setSelectedMenu('employees')}
+            onCancel={() => setSelectedMenu('employees')}
+          />
+        );
       case 'positions':
         return <PositionList />;
       case 'users':
@@ -191,16 +226,28 @@ export default function Dashboard() {
         return <MonthlySchedule />;
       case 'scheduling-settings':
         return <SchedulingSettings branchId={branchId || ''} />;
+      case 'payroll-summary':
+        return <PayrollSummary />;
+      case 'payroll-config':
+        return <PayrollConfigurationForm />;
       default:
         return <Welcome />;
     }
   };
 
   const breadcrumbItems = useMemo(() => {
+    if (selectedMenu === 'employee-detail') {
+      return [
+        { title: 'RRHH' },
+        { title: 'Empleados' },
+        { title: selectedEmployeeId ? 'Empleado' : 'Nuevo empleado' },
+      ];
+    }
+
     const path = findBreadcrumbs(menuItems, selectedMenu);
     const titles = path.length > 0 ? path : ['Inicio'];
     return titles.map((title) => ({ title }));
-  }, [selectedMenu, menuItems]);
+  }, [selectedMenu, menuItems, selectedEmployeeId]);
 
   return (
     <Layout style={{ minHeight: '100vh', width: '100%', overflowX: 'hidden' }}>

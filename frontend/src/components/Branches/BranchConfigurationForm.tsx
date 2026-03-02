@@ -94,6 +94,18 @@ export const BranchConfigurationForm = () => {
 
         <Row gutter={16}>
           <Col xs={24} md={12}>
+            <Form.Item
+              label="RUC"
+              name="identificationNumber"
+              rules={[{ required: true, message: 'Ingrese el RUC' }]}
+            >
+              <Input placeholder="RUC" />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Row gutter={16}>
+          <Col xs={24} md={12}>
             <Form.Item label="Teléfono" name="phone">
               <Input placeholder="Teléfono" />
             </Form.Item>

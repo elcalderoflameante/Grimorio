@@ -75,6 +75,7 @@ public class BranchesController : ControllerBase
                 BranchId = branchId,
                 Name = dto.Name,
                 Code = dto.Code,
+                IdentificationNumber = dto.IdentificationNumber,
                 Address = dto.Address,
                 Phone = dto.Phone,
                 Email = dto.Email,

@@ -9,8 +9,8 @@ namespace Grimorio.Application.Features.Positions.Commands;
 public class CreatePositionCommand : IRequest<PositionDto>
 {
     public Guid BranchId { get; set; }
-    public string Name { get; set; }
-    public string Description { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -20,8 +20,8 @@ public class UpdatePositionCommand : IRequest<PositionDto>
 {
     public Guid PositionId { get; set; }
     public Guid BranchId { get; set; }
-    public string Name { get; set; }
-    public string Description { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
     public bool IsActive { get; set; }
 }
 

@@ -6,7 +6,7 @@ namespace Grimorio.Application.Features.Positions.Queries;
 /// <summary>
 /// Query para obtener una posición por su ID.
 /// </summary>
-public class GetPositionQuery : IRequest<PositionDto>
+public class GetPositionQuery : IRequest<PositionDto?>
 {
     public Guid PositionId { get; set; }
     public Guid BranchId { get; set; }

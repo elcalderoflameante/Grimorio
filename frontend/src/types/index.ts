@@ -79,6 +79,23 @@ export const ContractType = {
 
 export type ContractTypeValue = (typeof ContractType)[keyof typeof ContractType];
 
+export const PayrollAdjustmentType = {
+  Income: 1,
+  Deduction: 2,
+} as const;
+
+export type PayrollAdjustmentTypeValue = (typeof PayrollAdjustmentType)[keyof typeof PayrollAdjustmentType];
+
+export const PayrollAdjustmentCategory = {
+  Overtime50: 1,
+  Overtime100: 2,
+  Bonus: 3,
+  OtherIncome: 4,
+  OtherDeduction: 5,
+} as const;
+
+export type PayrollAdjustmentCategoryValue = (typeof PayrollAdjustmentCategory)[keyof typeof PayrollAdjustmentCategory];
+
 export interface EmployeeDto {
   id: string;
   firstName: string;
@@ -94,7 +111,20 @@ export interface EmployeeDto {
   contractType: ContractTypeValue;
   weeklyMinHours: number;
   weeklyMaxHours: number;
+  baseSalary: number;
+  bankAccount: string;
+  decimoThirdMonthly: boolean;
+  decimoFourthMonthly: boolean;
+  reserveFundMonthly: boolean;
   freeDaysPerMonth: number;
+  photo?: string;
+  dateOfBirth?: string;
+  civilStatus: string;
+  sex: string;
+  nationality: string;
+  emergencyContactPerson: string;
+  emergencyContactRelationship: string;
+  emergencyContactPhone: string;
 }
 
 export interface CreateEmployeeDto {
@@ -108,7 +138,20 @@ export interface CreateEmployeeDto {
   contractType: ContractTypeValue;
   weeklyMinHours: number;
   weeklyMaxHours: number;
+  baseSalary: number;
+  bankAccount: string;
+  decimoThirdMonthly: boolean;
+  decimoFourthMonthly: boolean;
+  reserveFundMonthly: boolean;
   freeDaysPerMonth?: number;
+  photo?: string;
+  dateOfBirth?: string;
+  civilStatus: string;
+  sex: string;
+  nationality: string;
+  emergencyContactPerson: string;
+  emergencyContactRelationship: string;
+  emergencyContactPhone: string;
 }
 
 export interface UpdateEmployeeDto {
@@ -123,7 +166,178 @@ export interface UpdateEmployeeDto {
   contractType: ContractTypeValue;
   weeklyMinHours: number;
   weeklyMaxHours: number;
+  baseSalary: number;
+  bankAccount: string;
+  decimoThirdMonthly: boolean;
+  decimoFourthMonthly: boolean;
+  reserveFundMonthly: boolean;
   freeDaysPerMonth: number;
+  photo?: string;
+  dateOfBirth?: string;
+  civilStatus: string;
+  sex: string;
+  nationality: string;
+  emergencyContactPerson: string;
+  emergencyContactRelationship: string;
+  emergencyContactPhone: string;
+}
+
+export interface PayrollConfigurationDto {
+  id: string;
+  branchId: string;
+  iessEmployeeRate: number;
+  iessEmployerRate: number;
+  incomeTaxRate: number;
+  overtimeRate50: number;
+  overtimeRate100: number;
+  decimoThirdRate: number;
+  decimoFourthRate: number;
+  reserveFundRate: number;
+  monthlyHours: number;
+}
+
+export interface CreatePayrollConfigurationDto {
+  iessEmployeeRate: number;
+  iessEmployerRate: number;
+  incomeTaxRate: number;
+  overtimeRate50: number;
+  overtimeRate100: number;
+  decimoThirdRate: number;
+  decimoFourthRate: number;
+  reserveFundRate: number;
+  monthlyHours: number;
+}
+
+export interface PayrollAdvanceDto {
+  id: string;
+  employeeId: string;
+  date: string;
+  amount: number;
+  method: string;
+  notes?: string;
+}
+
+export interface CreatePayrollAdvanceDto {
+  employeeId: string;
+  date: string;
+  amount: number;
+  method: string;
+  notes?: string;
+}
+
+export interface EmployeeConsumptionDto {
+  id: string;
+  employeeId: string;
+  date: string;
+  amount: number;
+  notes?: string;
+}
+
+export interface CreateEmployeeConsumptionDto {
+  employeeId: string;
+  date: string;
+  amount: number;
+  notes?: string;
+}
+
+export interface PayrollAdjustmentDto {
+  id: string;
+  employeeId: string;
+  date: string;
+  type: PayrollAdjustmentTypeValue;
+  category: PayrollAdjustmentCategoryValue;
+  hours?: number | null;
+  amount?: number | null;
+  notes?: string;
+}
+
+export interface CreatePayrollAdjustmentDto {
+  employeeId: string;
+  date: string;
+  type: PayrollAdjustmentTypeValue;
+  category: PayrollAdjustmentCategoryValue;
+  hours?: number | null;
+  amount?: number | null;
+  notes?: string;
+}
+
+export interface EmployeePayrollSummaryDto {
+  employeeId: string;
+  employeeName: string;
+  positionName: string;
+  bankAccount: string;
+  baseSalary: number;
+  iessEmployee: number;
+  iessEmployer: number;
+  incomeTax: number;
+  decimoThird: number;
+  decimoFourth: number;
+  reserveFund: number;
+  overtime50: number;
+  overtime100: number;
+  otherIncome: number;
+  otherDeductions: number;
+  advances: number;
+  consumptions: number;
+  totalIncome: number;
+  totalDeductions: number;
+  netPay: number;
+}
+
+export const PayrollRoleStatus = {
+  Generated: 1,
+  Authorized: 2,
+  Paid: 3,
+} as const;
+
+export type PayrollRoleStatusValue = (typeof PayrollRoleStatus)[keyof typeof PayrollRoleStatus];
+
+export interface PayrollRoleDto {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  year: number;
+  month: number;
+  status: PayrollRoleStatusValue;
+  generatedAt: string;
+  authorizedAt?: string;
+  paidAt?: string;
+  totalIncome: number;
+  totalDeductions: number;
+  netPay: number;
+}
+
+export const PayrollRoleDetailType = {
+  Income: 1,
+  Deduction: 2,
+} as const;
+
+export type PayrollRoleDetailTypeValue = (typeof PayrollRoleDetailType)[keyof typeof PayrollRoleDetailType];
+
+export interface PayrollRoleDetailDto {
+  id: string;
+  payrollRoleHeaderId: string;
+  type: PayrollRoleDetailTypeValue;
+  concept: string;
+  amount: number;
+  sortOrder: number;
+  notes?: string;
+}
+
+export interface PayrollRoleFullDto {
+  header: PayrollRoleDto;
+  details: PayrollRoleDetailDto[];
+}
+
+export interface GeneratePayrollRolesResultDto {
+  year: number;
+  month: number;
+  generatedCount: number;
+  updatedCount: number;
+}
+
+export interface UpdatePayrollRoleStatusDto {
+  status: PayrollRoleStatusValue;
 }
 
 export interface PositionDto {
@@ -148,6 +362,7 @@ export interface BranchDto {
   id: string;
   name: string;
   code: string;
+  identificationNumber: string;
   address: string;
   phone: string;
   email: string;
@@ -159,6 +374,7 @@ export interface BranchDto {
 export interface UpdateBranchDto {
   name: string;
   code: string;
+  identificationNumber: string;
   address: string;
   phone: string;
   email: string;
@@ -312,6 +528,7 @@ export interface CreateShiftAssignmentDto {
 }
 
 export interface UpdateShiftAssignmentDto {
+  id: string;
   employeeId: string;
   date: string;
   startTime: string;
@@ -365,6 +582,7 @@ export interface ShiftGenerationWarningDto {
   reason: string;
 }
 export interface UpdateShiftTemplateDto {
+  id: string;
   dayOfWeek: number;
   startTime: string;
   endTime: string;
