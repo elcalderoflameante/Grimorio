@@ -156,6 +156,9 @@ public class GenerateMonthlyShiftsCommand : IRequest<ShiftGenerationResultDto>
     public Guid BranchId { get; set; }
     public int Year { get; set; }
     public int Month { get; set; }
+    public List<int>? WeeklyFreeDaysPattern { get; set; }
+    public DateTime? RangeStartDate { get; set; }
+    public DateTime? RangeEndDate { get; set; }
 }
 
 // ======================== Schedule Configuration Commands ========================

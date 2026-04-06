@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Calendar, Card, DatePicker, message, Modal, Space, Spin, Table, Tabs, Typography, Select, Tag, Form, Input, InputNumber, TimePicker, Row, Col, List } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { CalendarOutlined, BarChartOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { CalendarOutlined, BarChartOutlined, InfoCircleOutlined, DragOutlined } from '@ant-design/icons';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import dayjs, { Dayjs } from 'dayjs';
@@ -11,6 +11,7 @@ import { scheduleShiftApi, scheduleConfigurationApi, workAreaApi, workRoleApi, e
 import { useAuth } from '../../context/AuthContext';
 import { formatError } from '../../utils/errorHandler';
 import { EmployeeStats } from './EmployeeStats';
+import { WeeklyScheduleBoard } from './WeeklyScheduleBoard';
 import type { ShiftAssignmentDto, EmployeeDto, ScheduleConfigurationDto, WorkAreaDto, WorkRoleDto } from '../../types';
 import logo from '../../assets/ECF-Logo.png';
 
@@ -75,7 +76,8 @@ export const MonthlySchedule = () => {
   const [workRoles, setWorkRoles] = useState<WorkRoleDto[]>([]);
   const [employeeRoleMap, setEmployeeRoleMap] = useState<Record<string, Set<string>>>({});
   const [selectedWorkRoleId, setSelectedWorkRoleId] = useState<string | null>(null);
-  const [mainTab, setMainTab] = useState<'schedule' | 'stats'>('schedule');
+  const [mainTab, setMainTab] = useState<'schedule' | 'board' | 'stats'>('schedule');
+  const [boardPreviewAssignments, setBoardPreviewAssignments] = useState<ShiftAssignmentDto[]>([]);
   const [branchName, setBranchName] = useState<string>('');
   const [isExporting, setIsExporting] = useState(false);
   const [lastGenerationWarnings, setLastGenerationWarnings] = useState<GenerationWarningsSnapshot | null>(null);
@@ -685,7 +687,17 @@ export const MonthlySchedule = () => {
       try {
         const year = selectedMonth.year();
         const monthNumber = selectedMonth.month() + 1;
-        const result = await scheduleShiftApi.generate(year, monthNumber);
+        // Patrón solicitado: semana 1 = 1 libre, semana 2 = 2 libres, semana 3 = 1 libre, semana 4 = 2 libres.
+        const weeklyFreeDaysPattern = [1, 2, 1, 2];
+        const result = viewMode === 'week'
+          ? await scheduleShiftApi.generateWeekly(
+              year,
+              monthNumber,
+              selectedWeekStart.startOf('week').format('YYYY-MM-DD'),
+              selectedWeekStart.endOf('week').format('YYYY-MM-DD'),
+              weeklyFreeDaysPattern
+            )
+          : await scheduleShiftApi.generate(year, monthNumber, weeklyFreeDaysPattern);
         const { warnings, totalShiftsGenerated, totalShiftsNotCovered } = result.data;
       
       if (warnings && warnings.length > 0) {
@@ -701,7 +713,9 @@ export const MonthlySchedule = () => {
       } else {
         setLastGenerationWarnings(null);
         const generationStart = isCurrentMonth ? dayjs().add(1, 'day') : null;
-        const partialMessage = generationStart
+        const partialMessage = viewMode === 'week'
+          ? ` (semana ${selectedWeekStart.startOf('week').format('DD/MM')} - ${selectedWeekStart.endOf('week').format('DD/MM')})`
+          : generationStart
           ? ` (desde ${generationStart.format('DD/MM/YYYY')})`
           : '';
         message.success(`${totalShiftsGenerated} turnos generados correctamente${partialMessage}`);
@@ -718,7 +732,7 @@ export const MonthlySchedule = () => {
       setGenerating(false);
     }
     }
-  }, [branchId, loadShifts, loadFreeEmployees, selectedMonth, viewMode, openWarningsModal]);
+  }, [branchId, loadShifts, loadFreeEmployees, selectedMonth, viewMode, selectedWeekStart, openWarningsModal]);
 
   useEffect(() => {
     if (viewMode !== 'week') {
@@ -737,6 +751,25 @@ export const MonthlySchedule = () => {
       loadFreeEmployees();
     }
   }, [loadFreeEmployees, viewMode]);
+
+  useEffect(() => {
+    // Al cambiar de mes se limpia el preview en memoria del tablero semanal.
+    setBoardPreviewAssignments([]);
+  }, [selectedMonth]);
+
+  const statsShifts = useMemo(() => {
+    if (boardPreviewAssignments.length === 0) return shifts;
+
+    const previewDateKeys = new Set(
+      boardPreviewAssignments.map(shift => dayjs(shift.date).format('YYYY-MM-DD')),
+    );
+
+    const baseWithoutPreviewDates = shifts.filter(
+      shift => !previewDateKeys.has(dayjs(shift.date).format('YYYY-MM-DD')),
+    );
+
+    return [...baseWithoutPreviewDates, ...boardPreviewAssignments];
+  }, [shifts, boardPreviewAssignments]);
 
   const shiftsByDate = useMemo(() => {
     const map = new Map<string, ShiftAssignmentDto[]>();
@@ -871,20 +904,27 @@ export const MonthlySchedule = () => {
     return columns;
   }, [weekShifts]);
 
-  // Obtener empleados únicos con turnos en el mes
+  // Obtener empleados únicos con turnos en el mes, incluyendo hireDate
   const employeesWithShifts = useMemo(() => {
-    const monthShifts = shifts.filter(shift => 
+    const monthShifts = statsShifts.filter(shift => 
       dayjs(shift.date).isSame(selectedMonth, 'month')
     );
-    const uniqueEmployees = Array.from(
-      new Map(monthShifts.map(s => [s.employeeId, { id: s.employeeId, name: s.employeeName }])).values()
-    ).sort((a, b) => a.name.localeCompare(b.name));
-    return uniqueEmployees;
-  }, [shifts, selectedMonth]);
+    const uniqueEmployeeMap = new Map(
+      monthShifts.map(s => [
+        s.employeeId, 
+        { 
+          id: s.employeeId, 
+          name: s.employeeName,
+          hireDate: eligibleEmployees.find(e => e.id === s.employeeId)?.hireDate || undefined
+        }
+      ])
+    );
+    return Array.from(uniqueEmployeeMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [statsShifts, selectedMonth, eligibleEmployees]);
 
   const employeeStatsSummary = useMemo(() => {
     const summary: Record<string, { shiftCount: number; totalHours: number }> = {};
-    shifts.forEach((shift) => {
+    statsShifts.forEach((shift) => {
       if (!dayjs(shift.date).isSame(selectedMonth, 'month')) return;
       if (!summary[shift.employeeId]) {
         summary[shift.employeeId] = { shiftCount: 0, totalHours: 0 };
@@ -893,7 +933,76 @@ export const MonthlySchedule = () => {
       summary[shift.employeeId].totalHours += shift.workedHours;
     });
     return summary;
-  }, [shifts, selectedMonth]);
+  }, [statsShifts, selectedMonth]);
+
+  const employeeFreeDaysSummary = useMemo(() => {
+    const summary: Record<string, {
+      assignedDays: number;
+      freeDays: number;
+      validDaysInMonth: number;
+      freeDayLabels: string[];
+      freeDayWeekLines: string[];
+    }> = {};
+
+    const monthStart = selectedMonth.startOf('month');
+    const monthEnd = selectedMonth.endOf('month');
+
+    eligibleEmployees.forEach((employee) => {
+      let validMonthStart = monthStart;
+      let validDaysInMonth = selectedMonth.daysInMonth();
+
+      if (employee.hireDate) {
+        const hireDate = dayjs(employee.hireDate);
+        if (hireDate.isSame(selectedMonth, 'month') && hireDate.isAfter(monthStart, 'day')) {
+          validMonthStart = hireDate;
+          validDaysInMonth = monthEnd.diff(hireDate, 'day') + 1;
+        }
+      }
+
+      const assignedDates = new Set(
+        statsShifts
+          .filter(s => s.employeeId === employee.id)
+          .map(s => dayjs(s.date))
+          .filter(d => d.isSame(selectedMonth, 'month') && !d.isBefore(validMonthStart, 'day'))
+          .map(d => d.format('YYYY-MM-DD')),
+      );
+
+      const assignedDays = assignedDates.size;
+      const freeDays = Math.max(0, validDaysInMonth - assignedDays);
+
+      const freeDayLabels = Array.from({ length: validDaysInMonth }, (_, index) => {
+        const date = validMonthStart.add(index, 'day');
+        const key = date.format('YYYY-MM-DD');
+        return assignedDates.has(key) ? null : date.format('ddd DD/MM');
+      }).filter((label): label is string => Boolean(label));
+
+      const freeDayDates = Array.from({ length: validDaysInMonth }, (_, index) => {
+        const date = validMonthStart.add(index, 'day');
+        const key = date.format('YYYY-MM-DD');
+        return assignedDates.has(key) ? null : date;
+      }).filter((d): d is dayjs.Dayjs => Boolean(d));
+
+      const weekGroups = new Map<string, string[]>();
+      freeDayDates.forEach((date) => {
+        const weekKey = date.startOf('week').format('YYYY-MM-DD');
+        const current = weekGroups.get(weekKey) ?? [];
+        current.push(date.format('ddd DD/MM'));
+        weekGroups.set(weekKey, current);
+      });
+
+      const freeDayWeekLines = Array.from(weekGroups.values()).map(days => days.join(', '));
+
+      summary[employee.id] = {
+        assignedDays,
+        freeDays,
+        validDaysInMonth,
+        freeDayLabels,
+        freeDayWeekLines,
+      };
+    });
+
+    return summary;
+  }, [statsShifts, selectedMonth, eligibleEmployees]);
 
   const createModalEmployees = useMemo(() => {
     if (!selectedWorkRoleId) return eligibleEmployees;
@@ -955,7 +1064,7 @@ export const MonthlySchedule = () => {
 
         <Tabs
           activeKey={mainTab}
-          onChange={(key) => setMainTab(key as 'schedule' | 'stats')}
+          onChange={(key) => setMainTab(key as 'schedule' | 'board' | 'stats')}
           type="card"
           items={[
             {
@@ -1099,6 +1208,33 @@ export const MonthlySchedule = () => {
               ),
             },
             {
+              key: 'board',
+              label: (
+                <span>
+                  <DragOutlined /> Planificación Semanal
+                </span>
+              ),
+              children: (
+                <WeeklyScheduleBoard
+                  eligibleEmployees={eligibleEmployees}
+                  selectedMonth={selectedMonth}
+                  employeeStatsSummary={employeeStatsSummary}
+                  employeeFreeDaysSummary={employeeFreeDaysSummary}
+                  weekStart={selectedWeekStart}
+                  onWeekChange={setSelectedWeekStart}
+                  onPreviewAssignmentsChange={setBoardPreviewAssignments}
+                  onConfirmed={() => {
+                    // Recargar turnos del mes tras confirmar la semana
+                    if (branchId) {
+                      scheduleShiftApi.getMonthly(branchId, selectedMonth.year(), selectedMonth.month() + 1)
+                        .then(res => setShifts(Array.isArray(res.data) ? res.data : []))
+                        .catch(() => {});
+                    }
+                  }}
+                />
+              ),
+            },
+            {
               key: 'stats',
               label: (
                 <span>
@@ -1143,6 +1279,7 @@ export const MonthlySchedule = () => {
                           <EmployeeStats
                             employeeId={selectedEmployeeId}
                             employeeName={employeesWithShifts.find(e => e.id === selectedEmployeeId)?.name || ''}
+                            hireDate={employeesWithShifts.find(e => e.id === selectedEmployeeId)?.hireDate}
                             shifts={shifts}
                             currentMonth={selectedMonth}
                           />

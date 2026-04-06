@@ -292,8 +292,22 @@ export const scheduleShiftApi = {
     apiClient.get<ShiftAssignmentDto[]>('/scheduling/shifts/by-date', { params: { branchId, date } }),
   getByEmployee: (employeeId: string, year: number, month: number): Promise<AxiosResponse<ShiftAssignmentDto[]>> =>
     apiClient.get<ShiftAssignmentDto[]>(`/scheduling/employees/${employeeId}/shifts`, { params: { year, month } }),
-  generate: (year: number, month: number): Promise<AxiosResponse<ShiftGenerationResultDto>> =>
-    apiClient.post<ShiftGenerationResultDto>('/scheduling/shifts/generate', { year, month }),
+  generate: (year: number, month: number, weeklyFreeDaysPattern?: number[]): Promise<AxiosResponse<ShiftGenerationResultDto>> =>
+    apiClient.post<ShiftGenerationResultDto>('/scheduling/shifts/generate', { year, month, weeklyFreeDaysPattern }),
+  generateWeekly: (
+    year: number,
+    month: number,
+    rangeStartDate: string,
+    rangeEndDate: string,
+    weeklyFreeDaysPattern?: number[]
+  ): Promise<AxiosResponse<ShiftGenerationResultDto>> =>
+    apiClient.post<ShiftGenerationResultDto>('/scheduling/shifts/generate', {
+      year,
+      month,
+      rangeStartDate,
+      rangeEndDate,
+      weeklyFreeDaysPattern
+    }),
   getFreeEmployees: (branchId: string, date: string): Promise<AxiosResponse<EmployeeDto[]>> =>
     apiClient.get<EmployeeDto[]>('/scheduling/shifts/free-employees', { params: { branchId, date } }),
   create: (data: CreateShiftAssignmentDto): Promise<AxiosResponse<ShiftAssignmentDto>> =>

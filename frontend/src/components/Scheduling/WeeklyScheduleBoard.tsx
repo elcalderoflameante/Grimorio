@@ -1,0 +1,1071 @@
+/**
+ * WeeklyScheduleBoard
+ * Tablero semanal de planificación con drag & drop.
+ *
+ * Izquierda  : lista de empleados elegibles (arrastrables)
+ * Derecha     : columnas por día con los slots de plantilla de cada día
+ * Acciones    : Auto-rellenar la semana o colocar empleados manualmente
+ *               Confirmar la semana (guarda en servidor)
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Col,
+  Divider,
+  message,
+  Popover,
+  Popconfirm,
+  Row,
+  Space,
+  Spin,
+  Tag,
+  Tooltip,
+  Typography,
+} from 'antd';
+import {
+  CheckOutlined,
+  CloseOutlined,
+  DeleteOutlined,
+  InfoCircleOutlined,
+  RobotOutlined,
+  LeftOutlined,
+  RightOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
+import dayjs, { Dayjs } from 'dayjs';
+import 'dayjs/locale/es';
+import {
+  scheduleShiftApi,
+  shiftTemplateApi,
+} from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { formatError } from '../../utils/errorHandler';
+import type { EmployeeDto, ShiftAssignmentDto, ShiftTemplateDto } from '../../types';
+
+dayjs.locale('es');
+
+const { Text } = Typography;
+
+const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+const parseDurationToMinutes = (duration?: string) => {
+  if (!duration) return 0;
+  const [hh = '0', mm = '0', ss = '0'] = duration.split(':');
+  const hours = Number(hh) || 0;
+  const minutes = Number(mm) || 0;
+  const seconds = Number(ss) || 0;
+  return hours * 60 + minutes + Math.floor(seconds / 60);
+};
+
+// ---------------------------------------------------------------------------
+// Tipos locales
+// ---------------------------------------------------------------------------
+
+/** Un slot es un cupo dentro de una plantilla (1 empleado por slot) */
+interface SlotKey {
+  templateId: string;
+  date: string; // YYYY-MM-DD
+  slotIndex: number; // 0..RequiredCount-1
+}
+
+/** Identificador serializado de un slot */
+const slotId = (s: SlotKey) => `${s.templateId}|${s.date}|${s.slotIndex}`;
+
+interface BoardSlot extends SlotKey {
+  employee: EmployeeDto | null;
+  existingShiftId?: string;
+}
+
+// ---------------------------------------------------------------------------
+
+interface WeeklyScheduleBoardProps {
+  /** Empleados elegibles ya cargados por el padre */
+  eligibleEmployees: EmployeeDto[];
+  /** Mes actualmente seleccionado en pantalla */
+  selectedMonth: Dayjs;
+  /** Resumen de estadísticas mensual (incluye preview del tablero) */
+  employeeStatsSummary: Record<string, { shiftCount: number; totalHours: number }>;
+  /** Resumen de días libres mensual (incluye preview del tablero) */
+  employeeFreeDaysSummary: Record<string, {
+    assignedDays: number;
+    freeDays: number;
+    validDaysInMonth: number;
+    freeDayLabels: string[];
+    freeDayWeekLines: string[];
+  }>;
+  /** Semana activa (primer día) */
+  weekStart: Dayjs;
+  onWeekChange: (next: Dayjs) => void;
+  /** Callback tras confirmar exitosamente */
+  onConfirmed?: () => void;
+  /** Notifica el borrador semanal para preview de estadísticas */
+  onPreviewAssignmentsChange?: (assignments: ShiftAssignmentDto[]) => void;
+}
+
+export const WeeklyScheduleBoard = ({
+  eligibleEmployees,
+  selectedMonth,
+  employeeStatsSummary,
+  employeeFreeDaysSummary,
+  weekStart,
+  onWeekChange,
+  onConfirmed,
+  onPreviewAssignmentsChange,
+}: WeeklyScheduleBoardProps) => {
+  const { branchId } = useAuth();
+
+  // -------------------------------------------------------------------------
+  // Estado
+  // -------------------------------------------------------------------------
+  const [templates, setTemplates] = useState<ShiftTemplateDto[]>([]);
+  const [slots, setSlots] = useState<Record<string, BoardSlot>>({});
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [autofilling, setAutofilling] = useState(false);
+  const [deletingWeek, setDeletingWeek] = useState(false);
+  const [dragEmployee, setDragEmployee] = useState<EmployeeDto | null>(null);
+  const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
+
+  // Ref para saber cuándo no desmontar
+  const isMounted = useRef(true);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
+
+  // -------------------------------------------------------------------------
+  // Auxiliares de fechas
+  // -------------------------------------------------------------------------
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => weekStart.add(i, 'day')),
+    [weekStart],
+  );
+  const monthStart = useMemo(() => selectedMonth.startOf('month'), [selectedMonth]);
+  const monthEnd = useMemo(() => selectedMonth.endOf('month'), [selectedMonth]);
+  const isDateInSelectedMonth = useCallback(
+    (date: string | Dayjs) => dayjs(date).isSame(selectedMonth, 'month'),
+    [selectedMonth],
+  );
+
+  const weekIntersectsSelectedMonth = useCallback(
+    (start: Dayjs) => {
+      const end = start.add(6, 'day');
+      return !(end.isBefore(monthStart, 'day') || start.isAfter(monthEnd, 'day'));
+    },
+    [monthStart, monthEnd],
+  );
+
+  // -------------------------------------------------------------------------
+  // Carga de plantillas + asignaciones existentes
+  // -------------------------------------------------------------------------
+  const buildSlots = useCallback(
+    (tmplList: ShiftTemplateDto[], existing: ShiftAssignmentDto[]) => {
+      const nextSlots: Record<string, BoardSlot> = {};
+
+      for (const day of weekDays) {
+        const dateStr = day.format('YYYY-MM-DD');
+        const dow = day.day(); // 0=Dom..6=Sáb
+
+        const dayTemplates = tmplList.filter(t => t.dayOfWeek === dow);
+
+        for (const tmpl of dayTemplates) {
+          for (let idx = 0; idx < tmpl.requiredCount; idx++) {
+            const key = slotId({ templateId: tmpl.id, date: dateStr, slotIndex: idx });
+
+            // Buscar si ya hay un turno existente que coincida
+            const existingShift = existing.find(
+              s =>
+                dayjs(s.date).format('YYYY-MM-DD') === dateStr &&
+                s.workRoleId === tmpl.workRoleId &&
+                s.startTime.substring(0, 5) === tmpl.startTime.substring(0, 5),
+            );
+
+            const alreadyUsedEmployee =
+              idx === 0
+                ? existingShift?.employeeId ?? null
+                : existing
+                    .filter(
+                      s =>
+                        dayjs(s.date).format('YYYY-MM-DD') === dateStr &&
+                        s.workRoleId === tmpl.workRoleId &&
+                        s.startTime.substring(0, 5) === tmpl.startTime.substring(0, 5),
+                    )[idx]?.employeeId ?? null;
+
+            const emp = alreadyUsedEmployee
+              ? eligibleEmployees.find(e => e.id === alreadyUsedEmployee) ?? null
+              : null;
+
+            nextSlots[key] = {
+              templateId: tmpl.id,
+              date: dateStr,
+              slotIndex: idx,
+              employee: emp,
+              existingShiftId: existingShift?.id,
+            };
+          }
+        }
+      }
+
+      return nextSlots;
+    },
+    [weekDays, eligibleEmployees],
+  );
+
+  const loadWeek = useCallback(async () => {
+    if (!branchId) return;
+    setLoadingTemplates(true);
+    try {
+      const uniqueYearMonth = Array.from(
+        new Set(weekDays.map(d => `${d.year()}-${d.month() + 1}`)),
+      ).map(v => {
+        const [year, month] = v.split('-').map(Number);
+        return { year, month };
+      });
+
+      const monthlyShiftResponses = await Promise.all(
+        uniqueYearMonth.map(({ year, month }) => scheduleShiftApi.getMonthly(branchId, year, month)),
+      );
+
+      const [tmplRes, shiftsRes] = await Promise.all([
+        shiftTemplateApi.getAll(branchId),
+        Promise.resolve({
+          data: monthlyShiftResponses
+            .flatMap(res => (Array.isArray(res.data) ? res.data : [])),
+        }),
+      ]);
+
+      const tmplList = Array.isArray(tmplRes.data) ? tmplRes.data : [];
+      const existingShifts = Array.isArray(shiftsRes.data) ? shiftsRes.data : [];
+
+      // Filtrar turnos de la semana visible
+      const weekDayStrings = new Set(weekDays.map(d => d.format('YYYY-MM-DD')));
+      const weekShifts = existingShifts.filter(s =>
+        weekDayStrings.has(dayjs(s.date).format('YYYY-MM-DD')),
+      );
+
+      if (!isMounted.current) return;
+      setTemplates(tmplList);
+      setSlots(buildSlots(tmplList, weekShifts));
+    } catch (err) {
+      message.error(formatError(err));
+    } finally {
+      if (isMounted.current) setLoadingTemplates(false);
+    }
+  }, [branchId, weekStart, weekDays, buildSlots]);
+
+  useEffect(() => {
+    loadWeek();
+  }, [loadWeek]);
+
+  // -------------------------------------------------------------------------
+  // Drag & Drop (HTML5 nativo)
+  // -------------------------------------------------------------------------
+  const handleDragStart = (emp: EmployeeDto) => {
+    setDragEmployee(emp);
+  };
+
+  const handleDragEnd = () => {
+    setDragEmployee(null);
+    setDragOverSlot(null);
+  };
+
+  const handleDragOverSlot = (key: string, e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverSlot(key);
+  };
+
+  const handleDropOnSlot = (slot: BoardSlot) => {
+    if (!dragEmployee) return;
+    if (!isDateInSelectedMonth(slot.date)) {
+      message.warning('No se puede modificar días fuera del mes seleccionado.');
+      return;
+    }
+    const key = slotId(slot);
+    setSlots(prev => ({
+      ...prev,
+      [key]: { ...prev[key], employee: dragEmployee },
+    }));
+    setDragEmployee(null);
+    setDragOverSlot(null);
+  };
+
+  const clearSlot = (key: string) => {
+    if (!isDateInSelectedMonth(slots[key]?.date)) {
+      message.warning('No se puede modificar días fuera del mes seleccionado.');
+      return;
+    }
+    setSlots(prev => ({
+      ...prev,
+      [key]: { ...prev[key], employee: null },
+    }));
+  };
+
+  // -------------------------------------------------------------------------
+  // Auto-rellenar
+  // -------------------------------------------------------------------------
+  const handleAutoFill = useCallback(async () => {
+    if (!branchId) return;
+    setAutofilling(true);
+    try {
+      const weekEnd = weekStart.add(6, 'day');
+      const rangeStart = weekStart.isBefore(monthStart, 'day') ? monthStart : weekStart;
+      const rangeEnd = weekEnd.isAfter(monthEnd, 'day') ? monthEnd : weekEnd;
+
+      if (rangeStart.isAfter(rangeEnd, 'day')) {
+        message.info('La semana visible está fuera del mes seleccionado.');
+        return;
+      }
+
+      const result = await scheduleShiftApi.generateWeekly(
+        selectedMonth.year(),
+        selectedMonth.month() + 1,
+        rangeStart.format('YYYY-MM-DD'),
+        rangeEnd.format('YYYY-MM-DD'),
+        [1, 2, 1, 2],
+      );
+
+      const generated: ShiftAssignmentDto[] = result.data.assignments ?? [];
+
+      // Actualizar slots con las asignaciones generadas
+      setSlots(prev => {
+        const next = { ...prev };
+
+        // Agrupar generados por (fecha, workRoleId, startTime)
+        const grouped: Record<string, ShiftAssignmentDto[]> = {};
+        for (const a of generated) {
+          const gKey = `${dayjs(a.date).format('YYYY-MM-DD')}|${a.workRoleId}|${a.startTime.substring(0, 5)}`;
+          if (!grouped[gKey]) grouped[gKey] = [];
+          grouped[gKey].push(a);
+        }
+
+        for (const key of Object.keys(next)) {
+          const s = next[key];
+          const tmpl = templates.find(t => t.id === s.templateId);
+          if (!tmpl) continue;
+
+          const gKey = `${s.date}|${tmpl.workRoleId}|${tmpl.startTime.substring(0, 5)}`;
+          const assignments = grouped[gKey] ?? [];
+          const assigned = assignments[s.slotIndex];
+
+          if (assigned) {
+            const emp = eligibleEmployees.find(e => e.id === assigned.employeeId) ?? null;
+            next[key] = { ...s, employee: emp, existingShiftId: assigned.id };
+          }
+        }
+        return next;
+      });
+
+      const total = result.data.totalShiftsGenerated ?? 0;
+      message.success(`${total} turno(s) autogenerado(s) para la semana.`);
+    } catch (err) {
+      message.error(formatError(err));
+    } finally {
+      if (isMounted.current) setAutofilling(false);
+    }
+  }, [branchId, weekStart, templates, eligibleEmployees, monthStart, monthEnd, selectedMonth]);
+
+  // -------------------------------------------------------------------------
+  // Confirmar semana
+  // -------------------------------------------------------------------------
+  const handleConfirm = useCallback(async () => {
+    if (!branchId) return;
+    setConfirming(true);
+
+    try {
+      // Recolectar todos los slots que tienen empleado asignado
+      const toSave = Object.values(slots).filter(
+        s => s.employee !== null && isDateInSelectedMonth(s.date),
+      );
+
+      // Borrar turnos existentes de la semana y recrear
+      const weekEnd = weekStart.add(6, 'day');
+      const weekDayStrings = new Set(
+        weekDays
+          .filter(d => d.isSame(selectedMonth, 'month'))
+          .map(d => d.format('YYYY-MM-DD')),
+      );
+
+      // Obtener turnos actuales de la semana
+      const uniqueYearMonth = Array.from(
+        new Set(weekDays.map(d => `${d.year()}-${d.month() + 1}`)),
+      ).map(v => {
+        const [year, month] = v.split('-').map(Number);
+        return { year, month };
+      });
+      const existingResponses = await Promise.all(
+        uniqueYearMonth.map(({ year, month }) => scheduleShiftApi.getMonthly(branchId, year, month)),
+      );
+      const weekShifts = existingResponses
+        .flatMap(res => (Array.isArray(res.data) ? res.data : []))
+        .filter(s => weekDayStrings.has(dayjs(s.date).format('YYYY-MM-DD')));
+
+      // Eliminar los existentes
+      await Promise.all(weekShifts.map(s => scheduleShiftApi.delete(s.id)));
+
+      // Crear los nuevos
+      const errors: string[] = [];
+      await Promise.all(
+        toSave.map(async slot => {
+          const tmpl = templates.find(t => t.id === slot.templateId);
+          if (!tmpl || !slot.employee) return;
+          try {
+            await scheduleShiftApi.create({
+              employeeId: slot.employee.id,
+              date: slot.date,
+              startTime: tmpl.startTime,
+              endTime: tmpl.endTime,
+              breakDuration: tmpl.breakDuration,
+              lunchDuration: tmpl.lunchDuration,
+              workAreaId: tmpl.workAreaId,
+              workRoleId: tmpl.workRoleId,
+              notes: tmpl.notes,
+            });
+          } catch {
+            errors.push(`${slot.employee.firstName} ${slot.employee.lastName} - ${slot.date}`);
+          }
+        }),
+      );
+
+      if (errors.length) {
+        message.warning(`Semana confirmada con ${errors.length} error(es): ${errors.slice(0, 3).join(', ')}`);
+      } else {
+        message.success(`Semana del ${weekStart.format('DD/MM')} al ${weekEnd.format('DD/MM')} confirmada correctamente.`);
+      }
+
+      await loadWeek();
+      onConfirmed?.();
+    } catch (err) {
+      message.error(formatError(err));
+    } finally {
+      if (isMounted.current) setConfirming(false);
+    }
+  }, [branchId, weekStart, weekDays, slots, templates, loadWeek, onConfirmed, isDateInSelectedMonth, selectedMonth, monthStart, monthEnd]);
+
+  // -------------------------------------------------------------------------
+  // Borrar turnos de la semana (solo días del mes seleccionado)
+  // -------------------------------------------------------------------------
+  const handleDeleteWeekShifts = useCallback(async () => {
+    if (!branchId) return;
+    setDeletingWeek(true);
+    try {
+      const daysInMonth = weekDays.filter(d => d.isSame(selectedMonth, 'month'));
+      if (daysInMonth.length === 0) {
+        message.info('Ningún día de esta semana pertenece al mes seleccionado.');
+        return;
+      }
+      const dayStrings = new Set(daysInMonth.map(d => d.format('YYYY-MM-DD')));
+
+      const res = await scheduleShiftApi.getMonthly(
+        branchId,
+        selectedMonth.year(),
+        selectedMonth.month() + 1,
+      );
+      const allShifts: ShiftAssignmentDto[] = Array.isArray(res.data) ? res.data : [];
+      const toDelete = allShifts.filter(s =>
+        dayStrings.has(dayjs(s.date).format('YYYY-MM-DD')),
+      );
+
+      if (toDelete.length === 0) {
+        message.info('No hay turnos guardados para estos días.');
+        return;
+      }
+
+      await Promise.all(toDelete.map(s => scheduleShiftApi.delete(s.id)));
+      message.success(`${toDelete.length} turno(s) eliminado(s) correctamente.`);
+      await loadWeek();
+      onConfirmed?.();
+    } catch (err) {
+      message.error(formatError(err));
+    } finally {
+      if (isMounted.current) setDeletingWeek(false);
+    }
+  }, [branchId, weekDays, selectedMonth, loadWeek, onConfirmed]);
+
+  const previewAssignments = useMemo<ShiftAssignmentDto[]>(() => {
+    const result: ShiftAssignmentDto[] = [];
+
+    for (const slot of Object.values(slots)) {
+      if (!slot.employee || !isDateInSelectedMonth(slot.date)) continue;
+
+      const tmpl = templates.find(t => t.id === slot.templateId);
+      if (!tmpl) continue;
+
+      const breakMinutes = parseDurationToMinutes(tmpl.breakDuration);
+      const lunchMinutes = parseDurationToMinutes(tmpl.lunchDuration);
+      const startDateTime = dayjs(`${slot.date}T${tmpl.startTime}`);
+      const endDateTime = dayjs(`${slot.date}T${tmpl.endTime}`);
+      const rawMinutes = Math.max(0, endDateTime.diff(startDateTime, 'minute'));
+      const workedHours = Math.max(0, rawMinutes - breakMinutes - lunchMinutes) / 60;
+
+      result.push({
+        id: slot.existingShiftId ?? `draft-${slotId(slot)}`,
+        employeeId: slot.employee.id,
+        employeeName: `${slot.employee.firstName} ${slot.employee.lastName}`,
+        date: slot.date,
+        startTime: tmpl.startTime,
+        endTime: tmpl.endTime,
+        breakDuration: tmpl.breakDuration,
+        lunchDuration: tmpl.lunchDuration,
+        workAreaId: tmpl.workAreaId,
+        workAreaName: tmpl.workAreaName,
+        workAreaColor: '#808080',
+        workRoleId: tmpl.workRoleId,
+        workRoleName: tmpl.workRoleName,
+        workedHours,
+        notes: tmpl.notes,
+        isApproved: false,
+      });
+    }
+
+    return result;
+  }, [slots, templates, isDateInSelectedMonth]);
+
+  useEffect(() => {
+    onPreviewAssignmentsChange?.(previewAssignments);
+  }, [previewAssignments, onPreviewAssignmentsChange]);
+
+  const deleteWeekLabel = useMemo(() => {
+    const days = weekDays.filter(d => d.isSame(selectedMonth, 'month'));
+    if (days.length === 0) return '';
+    if (days.length === 7)
+      return `del ${days[0].format('DD/MM')} al ${days[6].format('DD/MM')}`;
+    return `del ${days[0].format('DD/MM')} al ${days[days.length - 1].format('DD/MM')} (${days.length} día${days.length > 1 ? 's' : ''} de ${selectedMonth.format('MMMM')})`;
+  }, [weekDays, selectedMonth]);
+
+  const canGoPrev = useMemo(
+    () => weekIntersectsSelectedMonth(weekStart.subtract(1, 'week')),
+    [weekIntersectsSelectedMonth, weekStart],
+  );
+  const canGoNext = useMemo(
+    () => weekIntersectsSelectedMonth(weekStart.add(1, 'week')),
+    [weekIntersectsSelectedMonth, weekStart],
+  );
+
+  // -------------------------------------------------------------------------
+  // Cómputos de interfaz
+  // -------------------------------------------------------------------------
+  const totalSlots = Object.values(slots).length;
+  const filledSlots = Object.values(slots).filter(s => s.employee !== null).length;
+  const coveragePercent = totalSlots > 0 ? Math.round((filledSlots / totalSlots) * 100) : 0;
+
+  // Empleados ya colocados en la semana (para indicar cuáles están ocupados)
+  const employeesOnBoard = useMemo(() => {
+    const ids = new Set<string>();
+    for (const s of Object.values(slots)) {
+      if (s.employee) ids.add(s.employee.id);
+    }
+    return ids;
+  }, [slots]);
+
+  // Asignar color a cada área de trabajo
+  const areaColors: Record<string, string> = useMemo(() => {
+    const palette = ['#4096ff', '#73d13d', '#ff7a45', '#faad14', '#722ed1', '#13c2c2', '#eb2f96'];
+    const map: Record<string, string> = {};
+    let i = 0;
+    for (const tmpl of templates) {
+      if (!(tmpl.workAreaId in map)) {
+        map[tmpl.workAreaId] = palette[i % palette.length];
+        i++;
+      }
+    }
+    return map;
+  }, [templates]);
+
+  // -------------------------------------------------------------------------
+  // Render
+  // -------------------------------------------------------------------------
+  return (
+    <Spin spinning={loadingTemplates} tip="Cargando plantillas...">
+      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+        {/* ── Cabecera ─────────────────────────────────────────────────── */}
+        <Row justify="space-between" align="middle" wrap>
+          <Col>
+            <Space>
+              <Button
+                icon={<LeftOutlined />}
+                onClick={() => onWeekChange(weekStart.subtract(1, 'week'))}
+                disabled={!canGoPrev}
+              />
+              <Text strong style={{ fontSize: 15 }}>
+                Semana del {weekStart.format('DD/MM/YYYY')} al {weekStart.add(6, 'day').format('DD/MM/YYYY')}
+              </Text>
+              <Button
+                icon={<RightOutlined />}
+                onClick={() => onWeekChange(weekStart.add(1, 'week'))}
+                disabled={!canGoNext}
+              />
+              <Button
+                type="dashed"
+                onClick={() => onWeekChange(dayjs().startOf('week'))}
+              >
+                Hoy
+              </Button>
+              <Badge
+                count={`${filledSlots}/${totalSlots}`}
+                color={coveragePercent === 100 ? 'green' : coveragePercent >= 50 ? 'blue' : 'red'}
+                overflowCount={999}
+              >
+                <Button disabled>Cubierto {coveragePercent}%</Button>
+              </Badge>
+            </Space>
+          </Col>
+          <Col>
+            <Space>
+              <Button
+                icon={<RobotOutlined />}
+                onClick={handleAutoFill}
+                loading={autofilling}
+                disabled={confirming}
+                type="default"
+              >
+                Auto-rellenar
+              </Button>
+              <Popconfirm
+                title="Confirmar semana"
+                description="Se guardarán los turnos asignados en el tablero. ¿Continuar?"
+                onConfirm={handleConfirm}
+                okText="Confirmar"
+                cancelText="Cancelar"
+                disabled={filledSlots === 0}
+              >
+                <Button
+                  type="primary"
+                  icon={<CheckOutlined />}
+                  loading={confirming}
+                  disabled={filledSlots === 0 || autofilling}
+                >
+                  Confirmar semana
+                </Button>
+              </Popconfirm>
+            </Space>
+          </Col>
+        </Row>
+
+        {coveragePercent > 0 && coveragePercent < 100 && (
+          <Alert
+            type="warning"
+            showIcon
+            message={`Faltan ${totalSlots - filledSlots} cupo(s) por asignar para completar la semana.`}
+          />
+        )}
+
+        {/* ── Cuerpo: izquierda empleados | derecha calendario ─────────── */}
+        <Row gutter={[12, 0]} style={{ alignItems: 'flex-start' }}>
+          {/* ── Panel izquierdo: empleados ─────────────────────────────── */}
+          <Col xs={24} lg={5}>
+            <Card
+              title={
+                <Space>
+                  <UserOutlined />
+                  <span>Empleados</span>
+                  <Tag color="blue">{eligibleEmployees.length}</Tag>
+                </Space>
+              }
+              size="small"
+              bodyStyle={{ padding: 8, maxHeight: 580, overflowY: 'auto' }}
+            >
+              {eligibleEmployees.length === 0 && (
+                <Text type="secondary">Sin empleados elegibles</Text>
+              )}
+              {eligibleEmployees.map(emp => {
+                const busy = employeesOnBoard.has(emp.id);
+                const summary = employeeStatsSummary[emp.id] ?? { shiftCount: 0, totalHours: 0 };
+                const freeSummary = employeeFreeDaysSummary[emp.id] ?? {
+                  assignedDays: 0,
+                  freeDays: 0,
+                  validDaysInMonth: selectedMonth.daysInMonth(),
+                  freeDayLabels: [],
+                  freeDayWeekLines: [],
+                };
+                return (
+                  <div
+                    key={emp.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      marginBottom: 4,
+                    }}
+                  >
+                    <Popover
+                      trigger={['hover', 'click']}
+                      placement="right"
+                      title={`${emp.firstName} ${emp.lastName}`}
+                      content={
+                        <Space direction="vertical" size={2}>
+                          <Text style={{ fontSize: 12 }}>
+                            Turnos del mes: <Text strong>{summary.shiftCount}</Text>
+                          </Text>
+                          <Text style={{ fontSize: 12 }}>
+                            Horas del mes: <Text strong>{summary.totalHours.toFixed(1)} h</Text>
+                          </Text>
+                          <Text style={{ fontSize: 12 }}>
+                            Días trabajados: <Text strong>{freeSummary.assignedDays}</Text> / {freeSummary.validDaysInMonth}
+                          </Text>
+                          <Text style={{ fontSize: 12 }}>
+                            Días libres: <Text strong>{freeSummary.freeDays}</Text>
+                          </Text>
+                          <div style={{ maxWidth: 260 }}>
+                            <Text style={{ fontSize: 12 }} strong>Días libres del mes:</Text>
+                            <div style={{ marginTop: 4, maxHeight: 120, overflowY: 'auto' }}>
+                              {freeSummary.freeDayWeekLines.length > 0 ? (
+                                freeSummary.freeDayWeekLines.map((line, idx) => (
+                                  <div key={`${emp.id}-free-week-${idx}`} style={{ fontSize: 12, lineHeight: 1.35 }}>
+                                    {line}
+                                  </div>
+                                ))
+                              ) : (
+                                'Sin días libres'
+                              )}
+                            </div>
+                          </div>
+                        </Space>
+                      }
+                    >
+                      <InfoCircleOutlined
+                        onMouseDown={e => e.preventDefault()}
+                        style={{ color: '#1677ff', fontSize: 14, cursor: 'pointer', flexShrink: 0 }}
+                      />
+                    </Popover>
+
+                    <div
+                      draggable
+                      onDragStart={() => handleDragStart(emp)}
+                      onDragEnd={handleDragEnd}
+                      title={busy ? 'Ya asignado en la semana (puedes asignar a otro turno)' : 'Arrastrar al turno'}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 8px',
+                        borderRadius: 6,
+                        border: `1px solid ${busy ? '#91caff' : '#d9d9d9'}`,
+                        background: busy ? '#e6f4ff' : '#fafafa',
+                        cursor: 'grab',
+                        userSelect: 'none',
+                        fontSize: 13,
+                        flex: 1,
+                        minWidth: 0,
+                      }}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {emp.firstName} {emp.lastName}
+                      </span>
+                      <Space size={4}>
+                        <Tag color="geekblue" style={{ marginInlineEnd: 0, fontSize: 11 }}>
+                          {summary.shiftCount}T
+                        </Tag>
+                        {busy && <Badge status="processing" />}
+                      </Space>
+                    </div>
+                  </div>
+                );
+              })}
+            </Card>
+          </Col>
+
+          {/* ── Panel derecho: tablero semanal ─────────────────────────── */}
+          <Col xs={24} lg={19}>
+            <div style={{ overflowX: 'auto' }}>
+              <Row gutter={[6, 0]} style={{ flexWrap: 'nowrap', minWidth: 700 }}>
+                {weekDays.map(day => {
+                  const dateStr = day.format('YYYY-MM-DD');
+                  const dow = day.day();
+                  const isToday = day.isSame(dayjs(), 'day');
+                  const isLockedDay = !day.isSame(selectedMonth, 'month');
+                  const dayTemplates = templates.filter(t => t.dayOfWeek === dow);
+
+                  const daySlots = Object.values(slots).filter(
+                    s => s.date === dateStr,
+                  );
+                  const assignedEmployeeIds = new Set(
+                    daySlots
+                      .filter(s => s.employee !== null)
+                      .map(s => s.employee!.id),
+                  );
+                  const unassignedEmployeesForDay = eligibleEmployees.filter(
+                    employee => !assignedEmployeeIds.has(employee.id),
+                  );
+
+                  return (
+                    <Col key={dateStr} style={{ flex: '1 1 0', minWidth: 110 }}>
+                      {/* Cabecera del día */}
+                      <div
+                        style={{
+                          textAlign: 'center',
+                          padding: '6px 4px',
+                          borderRadius: '6px 6px 0 0',
+                          background: isToday ? '#1677ff' : '#f0f2f5',
+                          color: isToday ? '#fff' : isLockedDay ? '#999' : '#333',
+                          opacity: isLockedDay ? 0.7 : 1,
+                          fontWeight: 600,
+                          fontSize: 13,
+                          marginBottom: 4,
+                        }}
+                      >
+                        <div>{DAY_LABELS[dow]}</div>
+                        <div style={{ fontWeight: 400, fontSize: 11 }}>
+                          {day.format('DD/MM')}
+                        </div>
+                      </div>
+
+                      {/* Plantillas del día */}
+                      {dayTemplates.length === 0 ? (
+                        <div
+                          style={{
+                            textAlign: 'center',
+                            padding: 12,
+                            color: '#bfbfbf',
+                            fontSize: 12,
+                            border: '1px dashed #d9d9d9',
+                            borderRadius: 6,
+                          }}
+                        >
+                          Sin plantilla
+                        </div>
+                      ) : (
+                        dayTemplates.map(tmpl => {
+                          const color = areaColors[tmpl.workAreaId] ?? '#4096ff';
+                          const templateSlots = daySlots.filter(
+                            s => s.templateId === tmpl.id,
+                          );
+
+                          return (
+                            <div
+                              key={`${tmpl.id}-${dateStr}`}
+                              style={{
+                                marginBottom: 6,
+                                border: `1px solid ${color}40`,
+                                borderRadius: 6,
+                                overflow: 'hidden',
+                              }}
+                            >
+                              {/* Cabecera de la plantilla */}
+                              <div
+                                style={{
+                                  background: `${color}20`,
+                                  borderBottom: `1px solid ${color}40`,
+                                  padding: '3px 6px',
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontWeight: 600,
+                                    fontSize: 11,
+                                    color,
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                  }}
+                                >
+                                  {tmpl.workRoleName}
+                                </div>
+                                <div style={{ fontSize: 10, color: '#888' }}>
+                                  {tmpl.startTime.substring(0, 5)} - {tmpl.endTime.substring(0, 5)}
+                                </div>
+                              </div>
+
+                              {/* Slots de empleado */}
+                              <div style={{ padding: '4px 4px 2px' }}>
+                                {templateSlots.map(slot => {
+                                  const key = slotId(slot);
+                                  const isDragOver = dragOverSlot === key;
+                                  const hasEmployee = slot.employee !== null;
+
+                                  return (
+                                    <div
+                                      key={key}
+                                      onDragOver={e => {
+                                        if (isLockedDay) return;
+                                        handleDragOverSlot(key, e);
+                                      }}
+                                      onDrop={() => {
+                                        if (isLockedDay) return;
+                                        handleDropOnSlot(slot);
+                                      }}
+                                      onDragLeave={() => setDragOverSlot(null)}
+                                      style={{
+                                        minHeight: 32,
+                                        marginBottom: 3,
+                                        borderRadius: 4,
+                                        border: isDragOver
+                                          ? `2px dashed ${color}`
+                                          : hasEmployee
+                                          ? `1px solid ${color}80`
+                                          : '1px dashed #d9d9d9',
+                                        background: isDragOver
+                                          ? `${color}15`
+                                          : hasEmployee
+                                          ? `${color}10`
+                                          : '#fafafa',
+                                        padding: '3px 5px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        transition: 'border 0.15s, background 0.15s',
+                                        cursor: isLockedDay ? 'not-allowed' : 'default',
+                                        opacity: isLockedDay ? 0.6 : 1,
+                                      }}
+                                    >
+                                      {hasEmployee ? (
+                                        <>
+                                          <Tooltip
+                                            title={`${slot.employee!.firstName} ${slot.employee!.lastName}`}
+                                          >
+                                            <span
+                                              style={{
+                                                fontSize: 11,
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                                maxWidth: '80%',
+                                                color: '#222',
+                                              }}
+                                            >
+                                              {slot.employee!.firstName} {slot.employee!.lastName}
+                                            </span>
+                                          </Tooltip>
+                                          <Tooltip title="Quitar">
+                                            <CloseOutlined
+                                              style={{
+                                                fontSize: 10,
+                                                color: '#999',
+                                                cursor: 'pointer',
+                                                flexShrink: 0,
+                                              }}
+                                              onClick={() => clearSlot(key)}
+                                            />
+                                          </Tooltip>
+                                        </>
+                                      ) : (
+                                        <span
+                                          style={{
+                                            fontSize: 11,
+                                            color: isDragOver ? color : '#bfbfbf',
+                                            fontStyle: 'italic',
+                                          }}
+                                        >
+                                          {isDragOver ? 'Soltar aquí' : 'Sin asignar'}
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+
+                      <div
+                        style={{
+                          marginTop: 6,
+                          padding: '6px 5px',
+                          border: '1px dashed #d9d9d9',
+                          borderRadius: 6,
+                          background: isLockedDay ? '#fafafa' : '#fcfcfc',
+                          opacity: isLockedDay ? 0.7 : 1,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: '#666',
+                            marginBottom: 4,
+                          }}
+                        >
+                          Libres ese día
+                        </div>
+                        {unassignedEmployeesForDay.length === 0 ? (
+                          <div style={{ fontSize: 11, color: '#bfbfbf', fontStyle: 'italic' }}>
+                            Sin empleados libres
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            {unassignedEmployeesForDay.map(employee => (
+                              <div
+                                key={`${dateStr}-${employee.id}`}
+                                style={{
+                                  fontSize: 11,
+                                  color: '#444',
+                                  padding: '2px 4px',
+                                  borderRadius: 4,
+                                  background: '#f5f5f5',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                                title={`${employee.firstName} ${employee.lastName}`}
+                              >
+                                {employee.firstName} {employee.lastName}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </Col>
+                  );
+                })}
+              </Row>
+            </div>
+          </Col>
+        </Row>
+
+        <Divider style={{ margin: '8px 0' }} />
+        <Row justify="end">
+          <Space>
+            <Button
+              onClick={() => loadWeek()}
+              disabled={loadingTemplates || autofilling || confirming}
+            >
+              Recargar
+            </Button>
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => {
+                setSlots(prev => {
+                  const next = { ...prev };
+                  for (const k of Object.keys(next)) {
+                    if (isDateInSelectedMonth(next[k].date)) {
+                      next[k] = { ...next[k], employee: null };
+                    }
+                  }
+                  return next;
+                });
+              }}
+              disabled={filledSlots === 0 || autofilling || confirming}
+            >
+              Limpiar tablero
+            </Button>
+            <Popconfirm
+              title="Borrar turnos de la semana"
+              description={`Se eliminarán permanentemente los turnos guardados ${deleteWeekLabel}. Esta acción no se puede deshacer.`}
+              onConfirm={handleDeleteWeekShifts}
+              okText="Borrar"
+              okButtonProps={{ danger: true }}
+              cancelText="Cancelar"
+              disabled={deletingWeek || autofilling || confirming}
+            >
+              <Button
+                danger
+                type="primary"
+                icon={<DeleteOutlined />}
+                loading={deletingWeek}
+                disabled={autofilling || confirming || loadingTemplates}
+              >
+                Borrar turnos de la semana
+              </Button>
+            </Popconfirm>
+          </Space>
+        </Row>
+      </Space>
+    </Spin>
+  );
+};
+
+export default WeeklyScheduleBoard;

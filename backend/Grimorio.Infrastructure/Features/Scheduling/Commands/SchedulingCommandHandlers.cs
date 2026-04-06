@@ -733,8 +733,31 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         var daysInMonth = DateTime.DaysInMonth(request.Year, request.Month);
         var today = DateTime.Today;
         var generationStartDate = startDate;
+        var generationEndDate = endDate;
+        var isPartialRangeGeneration = request.RangeStartDate.HasValue && request.RangeEndDate.HasValue;
 
-        if (today.Year == request.Year && today.Month == request.Month)
+        if (isPartialRangeGeneration)
+        {
+            generationStartDate = request.RangeStartDate!.Value.Date;
+            generationEndDate = request.RangeEndDate!.Value.Date;
+
+            if (generationStartDate < startDate)
+                generationStartDate = startDate;
+
+            if (generationEndDate > endDate)
+                generationEndDate = endDate;
+
+            if (today.Year == request.Year && today.Month == request.Month)
+            {
+                var minDate = today.AddDays(1).Date;
+                if (generationStartDate < minDate)
+                    generationStartDate = minDate;
+            }
+
+            if (generationStartDate > generationEndDate)
+                throw new InvalidOperationException("No hay días futuros para generar en el rango semanal seleccionado.");
+        }
+        else if (today.Year == request.Year && today.Month == request.Month)
         {
             generationStartDate = today.AddDays(1);
             if (generationStartDate < startDate)
@@ -793,7 +816,7 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
 
         // Disponibilidad (días no disponibles)
         var availability = await _context.EmployeeAvailability
-            .Where(ea => !ea.IsDeleted && ea.UnavailableDate >= startDate && ea.UnavailableDate <= endDate)
+            .Where(ea => !ea.IsDeleted && ea.UnavailableDate >= generationStartDate && ea.UnavailableDate <= generationEndDate)
             .ToListAsync(cancellationToken);
 
         var availabilityByEmployee = availability
@@ -811,17 +834,17 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                 || (sa.BranchId == Guid.Empty && sa.Employee != null && sa.Employee.BranchId == request.BranchId))
             .ToListAsync(cancellationToken);
 
-        var pastAssignments = existingAssignments
-            .Where(a => a.Date.Date < generationStartDate.Date)
+        var assignmentsToRegenerate = existingAssignments
+            .Where(a => a.Date.Date >= generationStartDate.Date && a.Date.Date <= generationEndDate.Date)
             .ToList();
 
-        var futureAssignments = existingAssignments
-            .Where(a => a.Date.Date >= generationStartDate.Date)
+        var assignmentsToKeep = existingAssignments
+            .Where(a => a.Date.Date < generationStartDate.Date || a.Date.Date > generationEndDate.Date)
             .ToList();
 
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
 
-        foreach (var assignment in futureAssignments)
+        foreach (var assignment in assignmentsToRegenerate)
         {
             assignment.IsDeleted = true;
             assignment.DeletedAt = DateTime.UtcNow;
@@ -838,8 +861,21 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         var warnings = new List<ShiftGenerationWarningDto>();
         var uncoveredSlots = new List<(DateTime Date, DayOfWeek DayOfWeek, Guid WorkAreaId, Guid WorkRoleId, TimeSpan StartTime, TimeSpan EndTime, TimeSpan? BreakDuration, TimeSpan? LunchDuration, string? Notes, string WorkAreaName, string WorkRoleName, int MissingCount)>();
 
-        // Importante: para regeneración desde cero en el rango objetivo,
-        // no sembramos asignaciones pasadas en las estructuras de restricción.
+        // En regeneración parcial se siembran turnos fuera del rango para conservar restricciones semanales/mensuales.
+        if (isPartialRangeGeneration)
+        {
+            foreach (var assignment in assignmentsToKeep)
+            {
+                TrackAssignment(
+                    assignment.EmployeeId,
+                    assignment.Date,
+                    assignment.WorkedHours,
+                    startDate,
+                    assignedDatesByEmployee,
+                    hoursByEmployee,
+                    weeklyHoursByEmployee);
+            }
+        }
 
         // Agrupar roles por WorkRoleId para asignación rápida
         var roleCandidates = employeeWorkRoles
@@ -854,7 +890,7 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         // Validación previa: capacidad por rol vs requerimientos (respeta días libres y disponibilidad)
         warnings.AddRange(BuildPreGenerationWarnings(
             generationStartDate,
-            endDate,
+            generationEndDate,
             daysInMonth,
             shiftTemplates,
             specialDates,
@@ -863,7 +899,7 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             availabilityByEmployee,
             assignedDatesByEmployee));
 
-        for (var currentDate = generationStartDate; currentDate <= endDate; currentDate = currentDate.AddDays(1))
+        for (var currentDate = generationStartDate; currentDate <= generationEndDate; currentDate = currentDate.AddDays(1))
         {
             var dayOfWeek = currentDate.DayOfWeek;
 
@@ -937,7 +973,7 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                         .Where(c => c.Employee != null)
                         .Where(c => IsEmployeeAvailable(c.Employee!.Id, currentDate, availabilityByEmployee))
                         .Where(c => !IsEmployeeAlreadyAssigned(c.Employee!.Id, currentDate, assignedDatesByEmployee))
-                        .Where(c => CanAssignByFreeDays(c, daysInMonth, assignedDatesByEmployee))
+                        .Where(c => CanAssignByFreeDays(c, daysInMonth, assignedDatesByEmployee, currentDate, startDate, request.WeeklyFreeDaysPattern))
                         .Where(c => CanAssignByHours(c.Employee!, currentDate, startDate, template.StartTime, template.EndTime, template.BreakDuration, template.LunchDuration, weeklyHoursByEmployee))
                         .OrderByDescending(c => c.IsPrimary)
                         .ThenBy(c => GetEmployeeRoleCount(c.EmployeeId, roleCountByEmployee))
@@ -1019,6 +1055,7 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             weeklyHoursByEmployee,
             daysInMonth,
             startDate,
+            request.WeeklyFreeDaysPattern,
             assignmentsToCreate);
 
         warnings.AddRange(
@@ -1146,6 +1183,7 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         Dictionary<Guid, Dictionary<int, decimal>> weeklyHoursByEmployee,
         int daysInMonth,
         DateTime monthStart,
+        List<int>? weeklyFreeDaysPattern,
         List<ShiftAssignment> assignmentsToCreate)
     {
         var unresolved = new List<(DateTime Date, DayOfWeek DayOfWeek, Guid WorkAreaId, Guid WorkRoleId, TimeSpan StartTime, TimeSpan EndTime, TimeSpan? BreakDuration, TimeSpan? LunchDuration, string? Notes, string WorkAreaName, string WorkRoleName, int MissingCount)>();
@@ -1166,7 +1204,7 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                     .Where(c => c.Employee != null)
                     .Where(c => IsEmployeeAvailable(c.Employee!.Id, slot.Date, availabilityByEmployee))
                     .Where(c => !IsEmployeeAlreadyAssigned(c.Employee!.Id, slot.Date, assignedDatesByEmployee))
-                    .Where(c => CanAssignByFreeDays(c, daysInMonth, assignedDatesByEmployee))
+                    .Where(c => CanAssignByFreeDays(c, daysInMonth, assignedDatesByEmployee, slot.Date, monthStart, weeklyFreeDaysPattern))
                     .Where(c => CanAssignByHours(c.Employee!, slot.Date, monthStart, slot.StartTime, slot.EndTime, slot.BreakDuration, slot.LunchDuration, weeklyHoursByEmployee))
                     .OrderByDescending(c => c.IsPrimary)
                     .ThenBy(c => GetEmployeeRoleCount(c.EmployeeId, roleCountByEmployee))
@@ -1228,13 +1266,33 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         return unresolved;
     }
 
-    private static bool CanAssignByFreeDays(EmployeeWorkRole ewr, int daysInMonth, Dictionary<Guid, HashSet<DateTime>> assignedDatesByEmployee)
+    private static bool CanAssignByFreeDays(
+        EmployeeWorkRole ewr,
+        int daysInMonth,
+        Dictionary<Guid, HashSet<DateTime>> assignedDatesByEmployee,
+        DateTime dateToAssign,
+        DateTime monthStart,
+        List<int>? weeklyFreeDaysPattern)
     {
         if (ewr.Employee == null)
             return false;
 
         if (ewr.Employee.ContractType == Domain.Enums.ContractType.PartTime)
             return true;
+
+        if (weeklyFreeDaysPattern != null && weeklyFreeDaysPattern.Count > 0)
+        {
+            var weekIndex = GetWeekIndex(dateToAssign, monthStart);
+            var offDaysForWeek = weekIndex < weeklyFreeDaysPattern.Count
+                ? weeklyFreeDaysPattern[weekIndex]
+                : weeklyFreeDaysPattern[^1];
+            var daysInThisWeek = GetDaysInWeekIndex(monthStart, weekIndex);
+            var maxWorkingDaysThisWeek = Math.Max(0, daysInThisWeek - offDaysForWeek);
+            var assignedDaysInWeek = GetEmployeeAssignedDaysInWeek(ewr.EmployeeId, weekIndex, monthStart, assignedDatesByEmployee);
+
+            if (assignedDaysInWeek >= maxWorkingDaysThisWeek)
+                return false;
+        }
             
         var freeDaysPerMonth = ewr.Employee.FreeDaysPerMonth;
         var requiredWorkingDays = daysInMonth - freeDaysPerMonth;
@@ -1555,6 +1613,33 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
     private static int GetWeekIndex(DateTime date, DateTime monthStart)
     {
         return Math.Max(0, (date.Date - monthStart.Date).Days / 7);
+    }
+
+    private static int GetEmployeeAssignedDaysInWeek(
+        Guid employeeId,
+        int weekIndex,
+        DateTime monthStart,
+        Dictionary<Guid, HashSet<DateTime>> assignedDatesByEmployee)
+    {
+        if (!assignedDatesByEmployee.TryGetValue(employeeId, out var dates))
+            return 0;
+
+        return dates.Count(d => GetWeekIndex(d, monthStart) == weekIndex);
+    }
+
+    private static int GetDaysInWeekIndex(DateTime monthStart, int weekIndex)
+    {
+        var weekStart = monthStart.Date.AddDays(weekIndex * 7);
+        var weekEnd = weekStart.AddDays(6);
+        var monthEnd = monthStart.Date.AddMonths(1).AddDays(-1);
+
+        if (weekStart > monthEnd)
+            return 0;
+
+        if (weekEnd > monthEnd)
+            weekEnd = monthEnd;
+
+        return (weekEnd - weekStart).Days + 1;
     }
 
     private static int GetEmployeeAssignedDays(Guid employeeId, Dictionary<Guid, HashSet<DateTime>> assignedDatesByEmployee)

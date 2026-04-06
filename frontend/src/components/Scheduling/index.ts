@@ -9,4 +9,5 @@ export { SpecialDateList } from './SpecialDateList';
 export { SpecialDateListWithTemplates } from './SpecialDateListWithTemplates';
 export { SchedulingSettings } from './SchedulingSettings';
 export { EmployeeStats } from './EmployeeStats';
+export { WeeklyScheduleBoard } from './WeeklyScheduleBoard';
 

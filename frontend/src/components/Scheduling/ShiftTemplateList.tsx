@@ -160,6 +160,7 @@ export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
         message.success('Plantilla actualizada');
       } else {
         const createData: CreateShiftTemplateDto = {
+          branchId,
           ...basePayload,
           workAreaId: values.workAreaId,
           workRoleId: values.workRoleId,

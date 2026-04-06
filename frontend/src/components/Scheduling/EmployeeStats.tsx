@@ -11,9 +11,10 @@ interface EmployeeStatsProps {
   employeeName: string;
   shifts: ShiftAssignmentDto[];
   currentMonth: dayjs.Dayjs;
+  hireDate?: string; // Fecha de contratación para calcular días válidos del mes
 }
 
-export const EmployeeStats = ({ employeeId, employeeName, shifts, currentMonth }: EmployeeStatsProps) => {
+export const EmployeeStats = ({ employeeId, employeeName, shifts, currentMonth, hireDate }: EmployeeStatsProps) => {
   dayjs.locale('es');
   // Filtrar turnos del mes actual del empleado
   const monthShifts = shifts.filter(shift => {
@@ -36,15 +37,28 @@ export const EmployeeStats = ({ employeeId, employeeName, shifts, currentMonth }
   // Nota: Las validaciones de horas ahora son por semana (WeeklyMinHours/WeeklyMaxHours) a nivel de Employee
   // No hay validación mensual global en ScheduleConfiguration
   
-  // Días libres en el mes
-  const daysInMonth = currentMonth.daysInMonth();
+  // Calcular los días válidos del mes considerando la fecha de contratación
+  let daysInMonth = currentMonth.daysInMonth();
+  let validMonthStart = currentMonth.date(1);
+  let validMonthEnd = currentMonth.date(daysInMonth);
+  
+  // Si el empleado se contrató después del primer día del mes, ajustar días válidos
+  if (hireDate) {
+    const hireDateObj = dayjs(hireDate);
+    if (hireDateObj.isAfter(validMonthStart, 'day') && hireDateObj.isSame(currentMonth, 'month')) {
+      // El empleado se contrató en este mes, contar solo desde ese día
+      daysInMonth = validMonthEnd.diff(hireDateObj, 'day') + 1; // +1 para incluir el día de contratación
+      validMonthStart = hireDateObj;
+    }
+  }
+  
   const freeDays = daysInMonth - daysAssigned;
   const recommendedFreeDays = 6; // Estándar recomendado
   const freeDaysStatus = freeDays >= recommendedFreeDays ? 'success' : freeDays >= 4 ? 'normal' : 'exception';
 
   const assignedDates = new Set(monthShifts.map(s => dayjs(s.date).format('YYYY-MM-DD')));
   const freeDayLabels = Array.from({ length: daysInMonth }, (_, index) => {
-    const date = currentMonth.date(index + 1);
+    const date = validMonthStart.add(index, 'day');
     const key = date.format('YYYY-MM-DD');
     return assignedDates.has(key) ? null : date.format('dddd D');
   }).filter((label): label is string => Boolean(label));

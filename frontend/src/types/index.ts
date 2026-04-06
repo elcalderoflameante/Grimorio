@@ -555,6 +555,7 @@ export interface ShiftTemplateDto {
 }
 
 export interface CreateShiftTemplateDto {
+  branchId: string;
   dayOfWeek: number;
   startTime: string;
   endTime: string;

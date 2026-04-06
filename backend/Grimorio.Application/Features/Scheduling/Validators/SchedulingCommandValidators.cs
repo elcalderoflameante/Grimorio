@@ -174,6 +174,22 @@ public class GenerateMonthlyShiftsCommandValidator : AbstractValidator<GenerateM
     {
         RuleFor(x => x.Year).InclusiveBetween(2000, 2100);
         RuleFor(x => x.Month).InclusiveBetween(1, 12);
+        RuleFor(x => x.WeeklyFreeDaysPattern)
+            .Must(pattern => pattern == null || (pattern.Count >= 1 && pattern.Count <= 6))
+            .WithMessage("El patrón semanal de días libres debe tener entre 1 y 6 semanas.");
+
+        RuleForEach(x => x.WeeklyFreeDaysPattern!)
+            .InclusiveBetween(0, 6)
+            .WithMessage("Cada semana debe tener entre 0 y 6 días libres.")
+            .When(x => x.WeeklyFreeDaysPattern != null);
+
+        RuleFor(x => x)
+            .Must(x => (x.RangeStartDate.HasValue && x.RangeEndDate.HasValue) || (!x.RangeStartDate.HasValue && !x.RangeEndDate.HasValue))
+            .WithMessage("RangeStartDate y RangeEndDate deben enviarse juntos.");
+
+        RuleFor(x => x)
+            .Must(x => !x.RangeStartDate.HasValue || !x.RangeEndDate.HasValue || x.RangeStartDate.Value.Date <= x.RangeEndDate.Value.Date)
+            .WithMessage("RangeStartDate no puede ser mayor a RangeEndDate.");
     }
 }
 
