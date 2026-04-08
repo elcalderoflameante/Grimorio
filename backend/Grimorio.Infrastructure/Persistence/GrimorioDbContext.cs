@@ -3,6 +3,7 @@ using Grimorio.Domain.Entities.Auth;
 using Grimorio.Domain.Entities.Organization;
 using Grimorio.Domain.Entities.Scheduling;
 using Grimorio.Domain.Entities.Payroll;
+using Grimorio.Domain.Entities.POS;
 
 namespace Grimorio.Infrastructure.Persistence;
 
@@ -49,6 +50,10 @@ public class GrimorioDbContext : DbContext
     public DbSet<PayrollAdjustment> PayrollAdjustments { get; set; } = null!;
     public DbSet<PayrollRoleHeader> PayrollRoleHeaders { get; set; } = null!;
     public DbSet<PayrollRoleDetail> PayrollRoleDetails { get; set; } = null!;
+
+    // === POS ===
+    public DbSet<RestaurantTable> RestaurantTables { get; set; } = null!;
+    public DbSet<TableServiceRequest> TableServiceRequests { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

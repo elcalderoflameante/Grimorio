@@ -53,7 +53,7 @@ export default function EmployeeList({ onViewEmployee, onCreateEmployee }: Emplo
       await employeeService.delete(id);
       message.success('Empleado eliminado');
       loadEmployees();
-    } catch (error) {
+    } catch {
       message.error('Error al eliminar');
     }
   };

@@ -38,7 +38,15 @@ import type {
   ShiftTemplateDto,
   CreateShiftTemplateDto,
   UpdateShiftTemplateDto,
-  ShiftGenerationResultDto
+  ShiftGenerationResultDto,
+  RestaurantTableDto,
+  CreateRestaurantTableDto,
+  UpdateRestaurantTableDto,
+  TableServiceRequestDto,
+  PublicTableInfoDto,
+  PublicCreateTableServiceRequestDto,
+  SetTableServiceRequestStatusDto,
+  TableServiceRequestStatus
   ,PayrollConfigurationDto
   ,CreatePayrollConfigurationDto
   ,EmployeePayrollSummaryDto
@@ -55,7 +63,8 @@ import type {
 } from '../types';
 import { getDetailedError } from '../utils/errorHandler';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5186/api';
+const defaultApiBaseUrl = '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || defaultApiBaseUrl;
 
 // Crear instancia de axios
 const apiClient = axios.create({
@@ -329,6 +338,29 @@ export const shiftTemplateApi = {
     apiClient.put<ShiftTemplateDto>(`/scheduling/shift-templates/${id}`, data),
   delete: (id: string): Promise<AxiosResponse<void>> =>
     apiClient.delete<void>(`/scheduling/shift-templates/${id}`),
+};
+
+export const tableServiceApi = {
+  getTables: (branchId: string): Promise<AxiosResponse<RestaurantTableDto[]>> =>
+    apiClient.get<RestaurantTableDto[]>('/tableservice/tables', { params: { branchId } }),
+  createTable: (data: CreateRestaurantTableDto): Promise<AxiosResponse<RestaurantTableDto>> =>
+    apiClient.post<RestaurantTableDto>('/tableservice/tables', data),
+  updateTable: (id: string, data: UpdateRestaurantTableDto): Promise<AxiosResponse<RestaurantTableDto>> =>
+    apiClient.put<RestaurantTableDto>(`/tableservice/tables/${id}`, data),
+  deleteTable: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/tableservice/tables/${id}`),
+  regenerateTableToken: (id: string): Promise<AxiosResponse<RestaurantTableDto>> =>
+    apiClient.post<RestaurantTableDto>(`/tableservice/tables/${id}/regenerate-token`),
+  getRequests: (status?: TableServiceRequestStatus): Promise<AxiosResponse<TableServiceRequestDto[]>> =>
+    apiClient.get<TableServiceRequestDto[]>('/tableservice/requests', { params: { status } }),
+  takeRequest: (id: string): Promise<AxiosResponse<TableServiceRequestDto>> =>
+    apiClient.post<TableServiceRequestDto>(`/tableservice/requests/${id}/take`),
+  setRequestStatus: (id: string, data: SetTableServiceRequestStatusDto): Promise<AxiosResponse<TableServiceRequestDto>> =>
+    apiClient.post<TableServiceRequestDto>(`/tableservice/requests/${id}/status`, data),
+  getPublicTable: (token: string): Promise<AxiosResponse<PublicTableInfoDto>> =>
+    apiClient.get<PublicTableInfoDto>(`/tableservice/public/table/${token}`),
+  createPublicRequest: (data: PublicCreateTableServiceRequestDto): Promise<AxiosResponse<TableServiceRequestDto>> =>
+    apiClient.post<TableServiceRequestDto>('/tableservice/public/request', data),
 };
 
 // Export the external specialDateTemplateApi service

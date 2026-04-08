@@ -49,6 +49,13 @@ public class JwtService : IJwtService
             new Claim("BranchId", user.BranchId.ToString()),
         };
 
+        if (!string.IsNullOrWhiteSpace(user.FirstName))
+            claims.Add(new Claim("FirstName", user.FirstName));
+        if (!string.IsNullOrWhiteSpace(user.LastName))
+            claims.Add(new Claim("LastName", user.LastName));
+        if (!string.IsNullOrWhiteSpace(user.Email))
+            claims.Add(new Claim("email", user.Email));
+
         // Agregar roles
         foreach (var role in user.Roles)
         {

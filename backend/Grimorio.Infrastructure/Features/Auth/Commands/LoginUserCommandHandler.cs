@@ -53,12 +53,28 @@ public class LoginUserCommandHandler : IRequestHandler<Application.Features.Auth
         if (!userRoles.Any())
             throw new UnauthorizedAccessException("Usuario no tiene roles asignados en su rama.");
 
+        var activeRoleNames = userRoles
+            .Where(ur => ur.Role != null && ur.Role.IsActive)
+            .Select(ur => ur.Role!.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct()
+            .ToList();
+
+        if (!activeRoleNames.Any())
+            throw new UnauthorizedAccessException("Usuario no tiene roles activos en su rama.");
+
         // Obtener permisos de los roles
-        var roleIds = userRoles.Select(ur => ur.RoleId).ToList();
+        var roleIds = userRoles
+            .Where(ur => ur.Role != null && ur.Role.IsActive)
+            .Select(ur => ur.RoleId)
+            .Distinct()
+            .ToList();
+
         var permissions = await _dbContext.RolePermissions
             .AsNoTracking()
-            .Where(rp => roleIds.Contains(rp.RoleId) && rp.Permission!.IsActive)
+            .Where(rp => roleIds.Contains(rp.RoleId) && rp.Permission != null && rp.Permission.IsActive)
             .Select(rp => rp.Permission!.Code)
+            .Where(code => !string.IsNullOrWhiteSpace(code))
             .Distinct()
             .ToListAsync(cancellationToken);
 
@@ -67,7 +83,10 @@ public class LoginUserCommandHandler : IRequestHandler<Application.Features.Auth
         {
             UserId = user.Id,
             BranchId = user.BranchId,
-            Roles = userRoles.Select(ur => ur.Role!.Name).ToList(),
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            Email = user.Email,
+            Roles = activeRoleNames,
             Permissions = permissions
         };
 

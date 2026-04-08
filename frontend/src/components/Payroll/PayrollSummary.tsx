@@ -324,7 +324,7 @@ export const PayrollSummary = () => {
 
       const currentRole = rolesResponse.data.find((role) => role.year === year && role.month === monthNumber);
       setCurrentRoleStatus(currentRole?.status ?? null);
-    } catch (error) {
+    } catch {
       setAdvancesDetails([]);
       setConsumptionsDetails([]);
       setAdjustmentsDetails([]);
@@ -436,7 +436,7 @@ export const PayrollSummary = () => {
       }
 
       pdf.save(`rol-pagos-${selectedEmployee.employeeName}-${month.format('YYYY-MM')}.pdf`);
-    } catch (error) {
+    } catch {
       message.error('No se pudo generar el PDF del rol.');
     } finally {
       setIsExportingPdf(false);

@@ -1,9 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider, Spin } from 'antd';
+import { App as AntApp, ConfigProvider, Spin } from 'antd';
 import esES from 'antd/locale/es_ES';
 import { useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import PublicTableRequest from './pages/PublicTableRequest';
 import type { ReactNode } from 'react';
 
 interface ProtectedRouteProps {
@@ -37,9 +38,11 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
 export default function App() {
   return (
     <ConfigProvider locale={esES}>
+      <AntApp>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/mesa/:token" element={<PublicTableRequest />} />
           
           <Route
             path="/dashboard"
@@ -53,6 +56,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/dashboard" />} />
         </Routes>
       </BrowserRouter>
+      </AntApp>
     </ConfigProvider>
   );
 }

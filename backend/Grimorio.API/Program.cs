@@ -11,6 +11,7 @@ using DotNetEnv;
 using System.Text;
 using FluentValidation;
 using FluentValidation.AspNetCore;
+using Grimorio.API.Hubs;
 
 // Carga variables de entorno desde .env (solo en desarrollo)
 if (File.Exists("../../.env"))
@@ -68,13 +69,48 @@ builder.Services.AddAuthentication(options =>
         ValidateLifetime = true,
         ClockSkew = TimeSpan.Zero
     };
+
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+
+            if (!string.IsNullOrEmpty(accessToken)
+                && path.StartsWithSegments("/hubs/table-service"))
+            {
+                context.Token = accessToken;
+            }
+
+            return Task.CompletedTask;
+        },
+    };
 });
 
 // === CORS ===
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
-        policy.WithOrigins("http://localhost:5173", "http://localhost:3000")
+        policy.SetIsOriginAllowed(origin =>
+            {
+                if (string.IsNullOrWhiteSpace(origin))
+                    return false;
+
+                if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                    return false;
+
+                var host = uri.Host;
+                if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                    || host.Equals("127.0.0.1"))
+                    return true;
+
+                return host.StartsWith("192.168.", StringComparison.Ordinal)
+                    || host.StartsWith("10.", StringComparison.Ordinal)
+                    || (host.StartsWith("172.", StringComparison.Ordinal)
+                        && int.TryParse(host.Split('.')[1], out var secondOctet)
+                        && secondOctet >= 16 && secondOctet <= 31);
+            })
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials());
@@ -123,6 +159,7 @@ builder.Services.AddAuthorization(options =>
 
 // === Add services to the container ===
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<Grimorio.Application.Features.Auth.Commands.LoginUserCommandValidator>();
 builder.Services.AddEndpointsApiExplorer();
@@ -200,5 +237,6 @@ app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<TableServiceHub>("/hubs/table-service");
 
 app.Run();

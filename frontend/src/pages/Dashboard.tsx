@@ -35,6 +35,7 @@ import {
   MonthlySchedule,
   SchedulingSettings,
 } from '../components/Scheduling';
+import TableServiceModule from '../components/POS/TableServiceModule';
 import { BranchConfigurationForm } from '../components/Branches/BranchConfigurationForm';
 import type { MenuProps } from 'antd';
 
@@ -172,6 +173,14 @@ export default function Dashboard() {
         ],
       },
     ] : []),
+    {
+      key: 'pos',
+      label: 'POS',
+      icon: <ShopOutlined />,
+      children: [
+        { key: 'pos-table-service', label: 'Atención QR', icon: <ToolOutlined /> },
+      ],
+    },
   ], [hasPermission]);
 
   const userMenu: MenuProps['items'] = [
@@ -230,6 +239,8 @@ export default function Dashboard() {
         return <PayrollSummary />;
       case 'payroll-config':
         return <PayrollConfigurationForm />;
+      case 'pos-table-service':
+        return <TableServiceModule />;
       default:
         return <Welcome />;
     }

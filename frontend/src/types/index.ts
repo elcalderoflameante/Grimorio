@@ -660,3 +660,71 @@ export interface UpdateSpecialDateDto {
   name: string;
   description?: string;
 }
+
+// ======================== POS - Table Service ========================
+
+export type TableServiceRequestType = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 99;
+export type TableServiceRequestStatus = 1 | 2 | 3 | 4 | 5;
+
+export interface RestaurantTableDto {
+  id: string;
+  branchId: string;
+  code: string;
+  name: string;
+  area?: string;
+  capacity: number;
+  publicToken: string;
+  publicUrl: string;
+  isActive: boolean;
+}
+
+export interface CreateRestaurantTableDto {
+  code: string;
+  name: string;
+  area?: string;
+  capacity: number;
+}
+
+export interface UpdateRestaurantTableDto {
+  code: string;
+  name: string;
+  area?: string;
+  capacity: number;
+  isActive: boolean;
+}
+
+export interface PublicTableInfoDto {
+  tableId: string;
+  code: string;
+  name: string;
+  area?: string;
+  isActive: boolean;
+}
+
+export interface TableServiceRequestDto {
+  id: string;
+  branchId: string;
+  restaurantTableId: string;
+  tableCode: string;
+  tableName: string;
+  tableArea?: string;
+  type: TableServiceRequestType;
+  customMessage?: string;
+  status: TableServiceRequestStatus;
+  requestedAt: string;
+  takenAt?: string;
+  completedAt?: string;
+  takenByUserId?: string;
+  takenByName?: string;
+}
+
+export interface PublicCreateTableServiceRequestDto {
+  tableToken: string;
+  type: TableServiceRequestType;
+  customMessage?: string;
+  clientFingerprint?: string;
+}
+
+export interface SetTableServiceRequestStatusDto {
+  status: TableServiceRequestStatus;
+}
