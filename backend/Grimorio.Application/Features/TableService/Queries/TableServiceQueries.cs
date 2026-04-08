@@ -21,3 +21,13 @@ public class GetTableServiceRequestsQuery : IRequest<List<TableServiceRequestDto
     public DateTime? FromUtc { get; set; }
     public DateTime? ToUtc { get; set; }
 }
+
+public class GetPublicRequestStatusQuery : IRequest<PublicRequestStatusDto?>
+{
+    public Guid RequestId { get; set; }
+}
+
+public class GetActivePublicTableRequestQuery : IRequest<PublicActiveTableRequestDto?>
+{
+    public string TableToken { get; set; } = string.Empty;
+}

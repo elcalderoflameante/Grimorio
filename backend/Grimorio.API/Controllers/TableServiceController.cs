@@ -99,6 +99,10 @@ public class TableServiceController : ControllerBase
             .Group(TableServiceHub.GetBranchGroup(result.BranchId))
             .SendAsync(TableServiceHub.RequestUpdatedEvent, result);
 
+        await _hubContext.Clients
+            .Group(TableServiceHub.GetPublicTableGroup(result.RestaurantTableId))
+            .SendAsync(TableServiceHub.RequestUpdatedEvent, result);
+
         return Ok(result);
     }
 
@@ -115,6 +119,10 @@ public class TableServiceController : ControllerBase
             .Group(TableServiceHub.GetBranchGroup(result.BranchId))
             .SendAsync(TableServiceHub.RequestUpdatedEvent, result);
 
+        await _hubContext.Clients
+            .Group(TableServiceHub.GetPublicTableGroup(result.RestaurantTableId))
+            .SendAsync(TableServiceHub.RequestUpdatedEvent, result);
+
         return Ok(result);
     }
 
@@ -125,6 +133,24 @@ public class TableServiceController : ControllerBase
         var result = await _mediator.Send(new GetRestaurantTableByTokenQuery { Token = token });
         if (result == null)
             return NotFound(new { message = "Mesa no encontrada." });
+        return Ok(result);
+    }
+
+    [AllowAnonymous]
+    [HttpGet("public/table/{token}/active-request")]
+    public async Task<IActionResult> GetPublicActiveRequest(string token)
+    {
+        var result = await _mediator.Send(new GetActivePublicTableRequestQuery { TableToken = token });
+        return Ok(result);
+    }
+
+    [AllowAnonymous]
+    [HttpGet("public/request/{id:guid}")]
+    public async Task<IActionResult> GetPublicRequestStatus(Guid id)
+    {
+        var result = await _mediator.Send(new GetPublicRequestStatusQuery { RequestId = id });
+        if (result == null)
+            return NotFound(new { message = "Solicitud no encontrada." });
         return Ok(result);
     }
 
@@ -145,6 +171,10 @@ public class TableServiceController : ControllerBase
         await _hubContext.Clients
             .Group(TableServiceHub.GetBranchGroup(result.BranchId))
             .SendAsync(TableServiceHub.NewRequestEvent, result);
+
+        await _hubContext.Clients
+            .Group(TableServiceHub.GetPublicTableGroup(result.RestaurantTableId))
+            .SendAsync(TableServiceHub.RequestUpdatedEvent, result);
 
         return Ok(result);
     }

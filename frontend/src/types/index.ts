@@ -728,3 +728,13 @@ export interface PublicCreateTableServiceRequestDto {
 export interface SetTableServiceRequestStatusDto {
   status: TableServiceRequestStatus;
 }
+
+export interface PublicRequestStatusDto {
+  id: string;
+  status: TableServiceRequestStatus;
+}
+
+export interface PublicActiveTableRequestDto {
+  id: string;
+  status: TableServiceRequestStatus;
+}

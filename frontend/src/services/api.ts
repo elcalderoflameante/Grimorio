@@ -47,6 +47,8 @@ import type {
   PublicCreateTableServiceRequestDto,
   SetTableServiceRequestStatusDto,
   TableServiceRequestStatus
+  ,PublicRequestStatusDto
+  ,PublicActiveTableRequestDto
   ,PayrollConfigurationDto
   ,CreatePayrollConfigurationDto
   ,EmployeePayrollSummaryDto
@@ -359,8 +361,12 @@ export const tableServiceApi = {
     apiClient.post<TableServiceRequestDto>(`/tableservice/requests/${id}/status`, data),
   getPublicTable: (token: string): Promise<AxiosResponse<PublicTableInfoDto>> =>
     apiClient.get<PublicTableInfoDto>(`/tableservice/public/table/${token}`),
+  getPublicActiveRequest: (token: string): Promise<AxiosResponse<PublicActiveTableRequestDto | null>> =>
+    apiClient.get<PublicActiveTableRequestDto | null>(`/tableservice/public/table/${token}/active-request`),
   createPublicRequest: (data: PublicCreateTableServiceRequestDto): Promise<AxiosResponse<TableServiceRequestDto>> =>
     apiClient.post<TableServiceRequestDto>('/tableservice/public/request', data),
+  getPublicRequestStatus: (id: string): Promise<AxiosResponse<PublicRequestStatusDto>> =>
+    apiClient.get<PublicRequestStatusDto>(`/tableservice/public/request/${id}`),
 };
 
 // Export the external specialDateTemplateApi service

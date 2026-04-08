@@ -1,15 +1,19 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
 namespace Grimorio.API.Hubs;
 
-[Authorize]
 public class TableServiceHub : Hub
 {
     public const string NewRequestEvent = "tableService:new-request";
     public const string RequestUpdatedEvent = "tableService:request-updated";
 
     public static string GetBranchGroup(Guid branchId) => $"branch:{branchId}";
+    public static string GetPublicTableGroup(Guid tableId) => $"public-table:{tableId}";
+
+    public async Task JoinPublicTable(Guid tableId)
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, GetPublicTableGroup(tableId));
+    }
 
     public override async Task OnConnectedAsync()
     {

@@ -1,5 +1,6 @@
 using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.TableService.Queries;
+using Grimorio.Domain.Entities.POS;
 using Grimorio.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -106,3 +107,48 @@ public class GetTableServiceRequestsQueryHandler : IRequestHandler<GetTableServi
             .ToListAsync(cancellationToken);
     }
 }
+
+    public class GetPublicRequestStatusQueryHandler : IRequestHandler<GetPublicRequestStatusQuery, PublicRequestStatusDto?>
+    {
+        private readonly GrimorioDbContext _context;
+
+        public GetPublicRequestStatusQueryHandler(GrimorioDbContext context) => _context = context;
+
+        public async Task<PublicRequestStatusDto?> Handle(GetPublicRequestStatusQuery request, CancellationToken cancellationToken)
+        {
+            return await _context.TableServiceRequests
+                .Where(x => x.Id == request.RequestId && !x.IsDeleted)
+                .Select(x => new PublicRequestStatusDto
+                {
+                    Id = x.Id,
+                    Status = x.Status,
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+    }
+
+    public class GetActivePublicTableRequestQueryHandler : IRequestHandler<GetActivePublicTableRequestQuery, PublicActiveTableRequestDto?>
+    {
+        private readonly GrimorioDbContext _context;
+
+        public GetActivePublicTableRequestQueryHandler(GrimorioDbContext context) => _context = context;
+
+        public async Task<PublicActiveTableRequestDto?> Handle(GetActivePublicTableRequestQuery request, CancellationToken cancellationToken)
+        {
+            return await _context.TableServiceRequests
+                .Where(x =>
+                    !x.IsDeleted &&
+                    x.RestaurantTable != null &&
+                    x.RestaurantTable.PublicToken == request.TableToken &&
+                    (x.Status == TableServiceRequestStatus.Pending ||
+                     x.Status == TableServiceRequestStatus.Taken ||
+                     x.Status == TableServiceRequestStatus.InProgress))
+                .OrderByDescending(x => x.RequestedAt)
+                .Select(x => new PublicActiveTableRequestDto
+                {
+                    Id = x.Id,
+                    Status = x.Status,
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+    }

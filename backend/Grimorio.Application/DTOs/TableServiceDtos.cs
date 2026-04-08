@@ -49,3 +49,15 @@ public class PublicCreateTableServiceRequestDto
     public string? CustomMessage { get; set; }
     public string? ClientFingerprint { get; set; }
 }
+
+public class PublicRequestStatusDto
+{
+    public Guid Id { get; set; }
+    public TableServiceRequestStatus Status { get; set; }
+}
+
+public class PublicActiveTableRequestDto
+{
+    public Guid Id { get; set; }
+    public TableServiceRequestStatus Status { get; set; }
+}
