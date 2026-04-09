@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Table, Button, Space, Modal, Form, Input, Switch, Select, message, Popconfirm, Tag } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, LockOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { roleService, permissionService } from '../../services/api';
+import { roleApi, permissionApi } from '../../services/api';
 import type { RoleDto, PermissionDto, CreateRoleDto, UpdateRoleDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 
@@ -30,7 +30,7 @@ export default function RoleList() {
   const loadRoles = async () => {
     setLoading(true);
     try {
-      const response = await roleService.getAll();
+      const response = await roleApi.getAll();
       setRoles(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       message.error(formatError(error));
@@ -41,7 +41,7 @@ export default function RoleList() {
 
   const loadPermissions = async () => {
     try {
-      const response = await permissionService.getAll();
+      const response = await permissionApi.getAll();
       setPermissions(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       message.error(formatError(error));
@@ -61,14 +61,14 @@ export default function RoleList() {
           description: values.description,
           isActive: values.isActive ?? true,
         };
-        await roleService.update(editingId, updateData);
+        await roleApi.update(editingId, updateData);
         message.success('Rol actualizado');
       } else {
         const createData: CreateRoleDto = {
           name: values.name,
           description: values.description,
         };
-        await roleService.create(createData);
+        await roleApi.create(createData);
         message.success('Rol creado');
       }
 
@@ -85,7 +85,7 @@ export default function RoleList() {
     if (!assigningRoleId) return;
 
     try {
-      await roleService.assignPermissions(assigningRoleId, values.permissionIds);
+      await roleApi.assignPermissions(assigningRoleId, values.permissionIds);
       message.success('Permisos asignados');
       setAssignModalVisible(false);
       assignForm.resetFields();
@@ -98,7 +98,7 @@ export default function RoleList() {
 
   const handleDelete = async (id: string) => {
     try {
-      await roleService.delete(id);
+      await roleApi.delete(id);
       message.success('Rol eliminado');
       loadRoles();
     } catch (error) {

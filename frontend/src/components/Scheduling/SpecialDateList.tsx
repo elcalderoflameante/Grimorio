@@ -3,7 +3,7 @@ import { Button, Form, Input, Modal, Table, Space, Popconfirm, message, DatePick
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
-import type { SpecialDateDto, CreateSpecialDateDto, UpdateSpecialDateDto } from '../../types/SpecialDate';
+import type { SpecialDateDto, CreateSpecialDateDto, UpdateSpecialDateDto } from '../../types';
 import { specialDateApi } from '../../services/specialDateApi';
 
 interface SpecialDateListProps {

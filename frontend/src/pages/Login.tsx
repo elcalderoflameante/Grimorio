@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Form, Input, Button, Card, message, Spin } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
-import { authService } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { authApi } from '../services/api';
+import { useAuth } from '../context/useAuth';
 import { jwtDecode } from 'jwt-decode';
 import { formatError } from '../utils/errorHandler';
 
@@ -27,7 +27,7 @@ export default function Login() {
   const onFinish = async (values: LoginFormValues) => {
     setLoading(true);
     try {
-      const response = await authService.login(values.email, values.password);
+      const response = await authApi.login(values.email, values.password);
       const { accessToken, userId, email, firstName, lastName } = response.data;
 
       // Decodificar JWT para obtener claims (incluyendo branchId)

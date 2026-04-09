@@ -1,5 +1,5 @@
 import { Card, Typography } from 'antd';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import logo from '../../assets/ECF-Logo.png';
 
 const { Title, Paragraph } = Typography;

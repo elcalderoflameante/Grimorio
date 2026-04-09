@@ -18,7 +18,7 @@ import {
   ShopOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { branchApi } from '../services/api';
 import { formatError } from '../utils/errorHandler';
 import type { BranchDto } from '../types';
@@ -84,15 +84,7 @@ export default function Dashboard() {
   const { user, logout, hasPermission, branchId } = useAuth();
   const screens = useBreakpoint();
   const isMobile = !screens.lg;
-
-  useEffect(() => {
-    if (isMobile) {
-      setCollapsed(true);
-      return;
-    }
-
-    setCollapsed(false);
-  }, [isMobile]);
+  const siderCollapsed = isMobile || collapsed;
 
   useEffect(() => {
     if (!branchId) return;
@@ -266,7 +258,7 @@ export default function Dashboard() {
       <Sider
         trigger={null}
         collapsible
-        collapsed={collapsed}
+        collapsed={siderCollapsed}
         breakpoint="lg"
         collapsedWidth={isMobile ? 0 : 80}
         width={250}
@@ -297,12 +289,12 @@ export default function Dashboard() {
           }}
         >
           <div style={{ flex: 1, textAlign: 'center' }}>
-            {!collapsed && <span>Grimorio</span>}
+            {!siderCollapsed && <span>Grimorio</span>}
           </div>
           <Button
             type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
+            icon={siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            onClick={() => setCollapsed((prev) => !prev)}
             style={{
               fontSize: '16px',
               color: '#fff',
@@ -327,7 +319,7 @@ export default function Dashboard() {
       {/* Layout principal */}
         <Layout
           style={{
-            marginLeft: isMobile ? 0 : collapsed ? 80 : 250,
+            marginLeft: isMobile ? 0 : siderCollapsed ? 80 : 250,
             transition: 'margin-left 0.2s',
             minWidth: 0,
           }}

@@ -40,7 +40,7 @@ export const EmployeeStats = ({ employeeId, employeeName, shifts, currentMonth, 
   // Calcular los días válidos del mes considerando la fecha de contratación
   let daysInMonth = currentMonth.daysInMonth();
   let validMonthStart = currentMonth.date(1);
-  let validMonthEnd = currentMonth.date(daysInMonth);
+  const validMonthEnd = currentMonth.date(daysInMonth);
   
   // Si el empleado se contrató después del primer día del mes, ajustar días válidos
   if (hireDate) {

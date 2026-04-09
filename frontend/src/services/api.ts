@@ -115,7 +115,7 @@ apiClient.interceptors.response.use(
 );
 
 // ======== AUTH ========
-export const authService = {
+export const authApi = {
   login: (email: string, password: string): Promise<AxiosResponse<AuthResponse>> =>
     apiClient.post<AuthResponse>('/auth/login', { email, password }),
 };
@@ -129,7 +129,7 @@ export const branchApi = {
 };
 
 // ======== USERS ========
-export const userService = {
+export const userApi = {
   getAll: (): Promise<AxiosResponse<UserDto[]>> => 
     apiClient.get<UserDto[]>('/users'),
   getById: (id: string): Promise<AxiosResponse<UserDto>> => 
@@ -147,7 +147,7 @@ export const userService = {
 };
 
 // ======== ROLES ========
-export const roleService = {
+export const roleApi = {
   getAll: (): Promise<AxiosResponse<RoleDto[]>> => 
     apiClient.get<RoleDto[]>('/roles'),
   getById: (id: string): Promise<AxiosResponse<RoleDto>> => 
@@ -163,7 +163,7 @@ export const roleService = {
 };
 
 // ======== PERMISSIONS ========
-export const permissionService = {
+export const permissionApi = {
   getAll: (): Promise<AxiosResponse<PermissionDto[]>> => 
     apiClient.get<PermissionDto[]>('/permissions'),
   getById: (id: string): Promise<AxiosResponse<PermissionDto>> => 
@@ -177,7 +177,7 @@ export const permissionService = {
 };
 
 // ======== EMPLOYEES ========
-export const employeeService = {
+export const employeeApi = {
   getAll: (pageNumber = 1, pageSize = 10, onlyActive = true): Promise<AxiosResponse<EmployeeDto[]>> =>
     apiClient.get<EmployeeDto[]>('/employees', { params: { pageNumber, pageSize, onlyActive } }),
   getById: (id: string): Promise<AxiosResponse<EmployeeDto>> =>
@@ -191,7 +191,7 @@ export const employeeService = {
 };
 
 // ======== POSITIONS ========
-export const positionService = {
+export const positionApi = {
   getAll: (pageNumber = 1, pageSize = 50): Promise<AxiosResponse<PaginatedResult<PositionDto>>> => 
     apiClient.get<PaginatedResult<PositionDto>>('/positions', { params: { pageNumber, pageSize } }),
   getById: (id: string): Promise<AxiosResponse<PositionDto>> => 

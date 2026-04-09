@@ -20,7 +20,7 @@ import {
 } from 'antd';
 import { EditOutlined, PlusOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
 import * as signalR from '@microsoft/signalr';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import { tableServiceApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
 import type {

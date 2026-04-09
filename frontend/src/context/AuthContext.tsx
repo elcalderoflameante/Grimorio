@@ -1,33 +1,6 @@
-import { createContext, useState, useContext, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
-
-interface User {
-  userId: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-}
-
-interface AuthContextValue {
-  user: User | null;
-  token: string | null;
-  loading: boolean;
-  branchId: string | null;
-  userPermissions: string[];
-  userRoles: string[];
-  login: (userData: User, accessToken: string, branchIdFromToken: string) => void;
-  logout: () => void;
-  hasPermission: (permissionCode: string) => boolean;
-}
-
-interface DecodedToken {
-  permissions?: string | string[];
-  'http://schemas.microsoft.com/ws/2008/06/identity/claims/role'?: string | string[];
-  BranchId?: string;
-  branchId?: string;
-}
-
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+import { AuthContext, type DecodedToken, type User } from './auth-context';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(() => {
@@ -126,13 +99,4 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       {children}
     </AuthContext.Provider>
   );
-};
-
-// Hook para usar el contexto
-export const useAuth = (): AuthContextValue => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth debe usarse dentro de AuthProvider');
-  }
-  return context;
 };

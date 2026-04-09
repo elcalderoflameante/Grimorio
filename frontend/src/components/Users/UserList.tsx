@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Table, Button, Space, Modal, Form, Input, Switch, Select, message, Popconfirm, Tag } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, LockOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { userService, roleService } from '../../services/api';
+import { userApi, roleApi } from '../../services/api';
 import type { UserDto, RoleDto, CreateUserDto, UpdateUserDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 interface UserFormValues {
@@ -31,7 +31,7 @@ export default function UserList() {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const response = await userService.getAll();
+      const response = await userApi.getAll();
       setUsers(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       message.error(formatError(error));
@@ -42,7 +42,7 @@ export default function UserList() {
 
   const loadRoles = async () => {
     try {
-      const response = await roleService.getAll();
+      const response = await roleApi.getAll();
       setRoles(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       message.error(formatError(error));
@@ -62,7 +62,7 @@ export default function UserList() {
           lastName: values.lastName,
           isActive: values.isActive ?? true,
         };
-        await userService.update(editingId, updateData);
+        await userApi.update(editingId, updateData);
         message.success('Usuario actualizado');
       } else {
         const createData: CreateUserDto = {
@@ -71,7 +71,7 @@ export default function UserList() {
           email: values.email,
           password: values.password || '',
         };
-        await userService.create(createData);
+        await userApi.create(createData);
         message.success('Usuario creado');
       }
 
@@ -89,7 +89,7 @@ export default function UserList() {
     
     try {
       console.log('Asignando roles:', { userId: assigningUserId, roleIds: values.roleIds });
-      await userService.assignRoles(assigningUserId, values.roleIds);
+      await userApi.assignRoles(assigningUserId, values.roleIds);
       message.success('Roles asignados');
       setAssignModalVisible(false);
       assignForm.resetFields();
@@ -103,7 +103,7 @@ export default function UserList() {
 
   const handleDelete = async (id: string) => {
     try {
-      await userService.delete(id);
+      await userApi.delete(id);
       message.success('Usuario eliminado');
       loadUsers();
     } catch (error) {

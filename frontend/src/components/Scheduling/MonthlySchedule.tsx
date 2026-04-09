@@ -8,7 +8,7 @@ import dayjs, { Dayjs } from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek';
 import 'dayjs/locale/es';
 import { scheduleShiftApi, scheduleConfigurationApi, workAreaApi, workRoleApi, employeeWorkRoleApi, branchApi } from '../../services/api';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import { formatError } from '../../utils/errorHandler';
 import { EmployeeStats } from './EmployeeStats';
 import { WeeklyScheduleBoard } from './WeeklyScheduleBoard';

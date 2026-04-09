@@ -41,7 +41,7 @@ import {
   scheduleShiftApi,
   shiftTemplateApi,
 } from '../../services/api';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import { formatError } from '../../utils/errorHandler';
 import type { EmployeeDto, ShiftAssignmentDto, ShiftTemplateDto } from '../../types';
 
@@ -254,7 +254,7 @@ export const WeeklyScheduleBoard = ({
     } finally {
       if (isMounted.current) setLoadingTemplates(false);
     }
-  }, [branchId, weekStart, weekDays, buildSlots]);
+  }, [branchId, weekDays, buildSlots]);
 
   useEffect(() => {
     loadWeek();
@@ -442,7 +442,7 @@ export const WeeklyScheduleBoard = ({
     } finally {
       if (isMounted.current) setConfirming(false);
     }
-  }, [branchId, weekStart, weekDays, slots, templates, loadWeek, onConfirmed, isDateInSelectedMonth, selectedMonth, monthStart, monthEnd]);
+  }, [branchId, weekStart, weekDays, slots, templates, loadWeek, onConfirmed, isDateInSelectedMonth, selectedMonth]);
 
   // -------------------------------------------------------------------------
   // Borrar turnos de la semana (solo días del mes seleccionado)

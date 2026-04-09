@@ -2,9 +2,24 @@ import { useCallback, useEffect, useState, useRef } from 'react';
 import { Button, Form, Input, Select, DatePicker, Row, Col, InputNumber, Switch, Tabs, Space, Typography, message, Spin, Upload, Card, Divider, Table, Tag } from 'antd';
 import { ArrowLeftOutlined, CameraOutlined, DeleteOutlined, InboxOutlined, PictureOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
-import { employeeService, payrollApi, positionService } from '../../services/api';
+import type { UploadChangeParam, UploadFile } from 'antd/es/upload';
+import { employeeApi, payrollApi, positionApi } from '../../services/api';
 import { ContractType, PayrollRoleDetailType, PayrollRoleStatus, type EmployeeDto, type PositionDto, type CreateEmployeeDto, type UpdateEmployeeDto, type ContractTypeValue, type PayrollRoleDto, type PayrollRoleDetailDto } from '../../types';
 import { isValidEcuadorCedula, isValidEcuadorCell } from '../../utils/ecuadorValidators';
+
+interface CameraAccessError {
+  name?: string;
+  message?: string;
+}
+
+interface ApiValidationError {
+  response?: {
+    data?: {
+      message?: string;
+      errors?: unknown;
+    };
+  };
+}
 
 interface EmployeeFormValues {
   firstName: string;
@@ -97,7 +112,7 @@ export default function EmployeeDetail({ employeeId, onSaved, onCancel }: Employ
 
   const loadPositions = useCallback(async () => {
     try {
-      const response = await positionService.getAll();
+      const response = await positionApi.getAll();
       setPositions(extractPositionItems(response.data));
     } catch {
       message.error('Error al cargar posiciones');
@@ -107,7 +122,7 @@ export default function EmployeeDetail({ employeeId, onSaved, onCancel }: Employ
   const loadEmployee = useCallback(async (id: string) => {
     setLoading(true);
     try {
-      const response = await employeeService.getById(id);
+      const response = await employeeApi.getById(id);
       const employee: EmployeeDto = response.data;
       form.setFieldsValue({
         firstName: employee.firstName,
@@ -185,19 +200,20 @@ export default function EmployeeDetail({ employeeId, onSaved, onCancel }: Employ
       videoRef.current.addEventListener('playing', () => console.log('Video: playing'));
       
       message.info('Cámara iniciada. Esperando carga del video...');
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const cameraError = error as CameraAccessError;
       console.error('Error al acceder a la cámara:', error);
       setShowCamera(false);
       setCameraReady(false);
       
-      if (error.name === 'NotAllowedError') {
+      if (cameraError.name === 'NotAllowedError') {
         message.error('Permiso de cámara denegado. Verifica la configuración del navegador.');
-      } else if (error.name === 'NotFoundError') {
+      } else if (cameraError.name === 'NotFoundError') {
         message.error('No se encontró ninguna cámara en el dispositivo.');
-      } else if (error.name === 'NotReadableError') {
+      } else if (cameraError.name === 'NotReadableError') {
         message.error('La cámara está siendo usada por otra aplicación.');
       } else {
-        message.error(`Error al acceder a la cámara: ${error.message}`);
+        message.error(`Error al acceder a la cámara: ${cameraError.message ?? 'desconocido'}`);
       }
     }
   }, []);
@@ -284,13 +300,14 @@ export default function EmployeeDetail({ employeeId, onSaved, onCancel }: Employ
       } else {
         message.error('La foto capturada no es válida');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const captureError = error as CameraAccessError;
       console.error('Error al capturar foto:', error);
-      message.error(`Error al capturar: ${error.message}`);
+      message.error(`Error al capturar: ${captureError.message ?? 'desconocido'}`);
     }
   }, [form, stopCamera]);
 
-  const handlePhotoUpload = useCallback((e: any) => {
+  const handlePhotoUpload = useCallback((e: UploadChangeParam<UploadFile>) => {
     const file = e?.file?.originFileObj ?? e?.file;
     if (!(file instanceof File)) {
       message.error('No se pudo leer el archivo de imagen');
@@ -464,7 +481,7 @@ export default function EmployeeDetail({ employeeId, onSaved, onCancel }: Employ
         };
         console.log('=== UPDATE DATA ===');
         console.log('Datos de actualización:', JSON.stringify(updateData, null, 2));
-        await employeeService.update(employeeId, updateData);
+        await employeeApi.update(employeeId, updateData);
         message.success('Empleado actualizado');
       } else {
         const createData: CreateEmployeeDto = {
@@ -495,14 +512,14 @@ export default function EmployeeDetail({ employeeId, onSaved, onCancel }: Employ
         };
         console.log('=== CREATE DATA ===');
         console.log('Datos de creación:', JSON.stringify(createData, null, 2));
-        await employeeService.create(createData);
+        await employeeApi.create(createData);
         message.success('Empleado creado');
       }
 
       onSaved();
     } catch (error: unknown) {
       console.error('Error al guardar:', error);
-      const err = error as { response?: { data?: { message?: string; errors?: any } } };
+      const err = error as ApiValidationError;
       const errorMessage = err.response?.data?.message || 'Error al guardar';
       const errors = err.response?.data?.errors;
       

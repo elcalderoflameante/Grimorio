@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import type { LatLngTuple, LeafletMouseEvent } from 'leaflet';
 import L from 'leaflet';
@@ -28,21 +28,15 @@ interface LocationMarkerProps {
 }
 
 const LocationMarker = ({ latitude, longitude, onLocationChange }: LocationMarkerProps) => {
-  const [position, setPosition] = useState<LatLngTuple | null>(
+  const [selectedPosition, setSelectedPosition] = useState<LatLngTuple | null>(
     latitude && longitude ? [latitude, longitude] : null
   );
-
-  // Actualizar posición cuando los props cambian (ej: al cargar datos guardados)
-  useEffect(() => {
-    if (latitude && longitude) {
-      setPosition([latitude, longitude]);
-    }
-  }, [latitude, longitude]);
+  const position = latitude && longitude ? [latitude, longitude] as LatLngTuple : selectedPosition;
 
   useMapEvents({
     click(e: LeafletMouseEvent) {
       const { lat, lng } = e.latlng;
-      setPosition([lat, lng]);
+      setSelectedPosition([lat, lng]);
       
       // Obtener dirección de las coordenadas
       getAddressFromCoordinates(lat, lng).then((address) => {

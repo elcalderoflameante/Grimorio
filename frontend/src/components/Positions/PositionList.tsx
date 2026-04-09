@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Table, Button, Space, Modal, Form, Input, Switch, message, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { positionService } from '../../services/api';
+import { positionApi } from '../../services/api';
 import type { PositionDto, CreatePositionDto, UpdatePositionDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 
@@ -38,7 +38,7 @@ export default function PositionList() {
   const loadPositions = async () => {
     setLoading(true);
     try {
-      const response = await positionService.getAll();
+      const response = await positionApi.getAll();
       setPositions(extractPositionItems(response.data));
     } catch (error) {
       message.error(formatError(error));
@@ -60,14 +60,14 @@ export default function PositionList() {
           description: values.description,
           isActive: values.isActive ?? true,
         };
-        await positionService.update(editingId, updateData);
+        await positionApi.update(editingId, updateData);
         message.success('Posición actualizada');
       } else {
         const createData: CreatePositionDto = {
           name: values.name,
           description: values.description,
         };
-        await positionService.create(createData);
+        await positionApi.create(createData);
         message.success('Posición creada');
       }
 
@@ -83,7 +83,7 @@ export default function PositionList() {
   // Eliminar
   const handleDelete = async (id: string) => {
     try {
-      await positionService.delete(id);
+      await positionApi.delete(id);
       message.success('Posición eliminada');
       loadPositions();
     } catch (error) {

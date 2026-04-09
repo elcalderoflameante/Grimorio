@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Table, Button, Space, Modal, Form, Input, Switch, message, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { permissionService } from '../../services/api';
+import { permissionApi } from '../../services/api';
 import type { PermissionDto, CreatePermissionDto, UpdatePermissionDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 
@@ -22,7 +22,7 @@ export default function PermissionList() {
   const loadPermissions = async () => {
     setLoading(true);
     try {
-      const response = await permissionService.getAll();
+      const response = await permissionApi.getAll();
       setPermissions(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       message.error(formatError(error));
@@ -42,14 +42,14 @@ export default function PermissionList() {
           description: values.description,
           isActive: values.isActive ?? true,
         };
-        await permissionService.update(editingId, updateData);
+        await permissionApi.update(editingId, updateData);
         message.success('Permiso actualizado');
       } else {
         const createData: CreatePermissionDto = {
           code: values.code,
           description: values.description,
         };
-        await permissionService.create(createData);
+        await permissionApi.create(createData);
         message.success('Permiso creado');
       }
 
@@ -64,7 +64,7 @@ export default function PermissionList() {
 
   const handleDelete = async (id: string) => {
     try {
-      await permissionService.delete(id);
+      await permissionApi.delete(id);
       message.success('Permiso eliminado');
       loadPermissions();
     } catch (error) {

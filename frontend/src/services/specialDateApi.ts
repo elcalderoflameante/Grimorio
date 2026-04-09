@@ -3,7 +3,7 @@ import type {
   SpecialDateDto,
   CreateSpecialDateDto,
   UpdateSpecialDateDto,
-} from '../types/SpecialDate';
+} from '../types';
 import apiClient from './api';
 
 export const specialDateApi = {

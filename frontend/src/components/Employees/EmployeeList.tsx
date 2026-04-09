@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Table, Button, Space, message, Popconfirm, Drawer, Switch } from 'antd';
 import { PlusOutlined, DeleteOutlined, TeamOutlined, CalendarOutlined, EyeOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { employeeService } from '../../services/api';
-import { useAuth } from '../../context/AuthContext';
+import { employeeApi } from '../../services/api';
+import { useAuth } from '../../context/useAuth';
 import { EmployeeWorkRoleAssignment, EmployeeAvailabilityForm } from '../Scheduling';
 import { type EmployeeDto } from '../../types';
 
@@ -23,10 +23,10 @@ export default function EmployeeList({ onViewEmployee, onCreateEmployee }: Emplo
   const [showInactive, setShowInactive] = useState(false);
 
   // Cargar empleados
-  const loadEmployees = async (pageNumber = 1, pageSize = 10) => {
+  const loadEmployees = useCallback(async (pageNumber = 1, pageSize = 10) => {
     setLoading(true);
     try {
-      const response = await employeeService.getAll(pageNumber, pageSize, !showInactive);
+      const response = await employeeApi.getAll(pageNumber, pageSize, !showInactive);
       const data = response.data;
       
       setEmployees(Array.isArray(data) ? data : []);
@@ -41,16 +41,16 @@ export default function EmployeeList({ onViewEmployee, onCreateEmployee }: Emplo
     } finally {
       setLoading(false);
     }
-  };
+  }, [showInactive]);
 
   useEffect(() => {
     loadEmployees();
-  }, [showInactive]);
+  }, [loadEmployees]);
 
   // Eliminar
   const handleDelete = async (id: string) => {
     try {
-      await employeeService.delete(id);
+      await employeeApi.delete(id);
       message.success('Empleado eliminado');
       loadEmployees();
     } catch {

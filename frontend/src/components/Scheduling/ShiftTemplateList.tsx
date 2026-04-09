@@ -110,7 +110,7 @@ export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
     loadWorkAreas();
   }, [loadTemplates, loadWorkAreas]);
 
-  const handleOpenModal = (template?: ShiftTemplateDto) => {
+  const handleOpenModal = useCallback((template?: ShiftTemplateDto) => {
     if (template) {
       setEditingTemplate(template);
       form.setFieldsValue({
@@ -131,7 +131,7 @@ export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
       setWorkRoles([]);
     }
     setModalVisible(true);
-  };
+  }, [form, loadWorkRoles]);
 
   const handleWorkAreaChange = (workAreaId: string) => {
     form.setFieldValue('workRoleId', undefined);
@@ -181,7 +181,7 @@ export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     try {
       setLoading(true);
       await shiftTemplateApi.delete(id);
@@ -193,7 +193,7 @@ export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadTemplates]);
 
   const columns: ColumnsType<ShiftTemplateDto> = useMemo(() => [
     {
@@ -255,7 +255,7 @@ export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
         </Space>
       ),
     },
-  ], [loadTemplates]);
+  ], [handleDelete, handleOpenModal]);
 
   const groupedTemplates = useMemo(() => {
     return dayOptions.map((day) => {

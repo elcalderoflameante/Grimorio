@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { App as AntApp, ConfigProvider, Spin } from 'antd';
 import esES from 'antd/locale/es_ES';
-import { useAuth } from './context/AuthContext';
+import { useAuth } from './context/useAuth';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import PublicTableRequest from './pages/PublicTableRequest';

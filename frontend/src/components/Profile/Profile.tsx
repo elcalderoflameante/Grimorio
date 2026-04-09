@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Card, Form, Input, Button, message, Spin, Row, Col, Tag, Alert } from 'antd';
 import { SaveOutlined, LockOutlined } from '@ant-design/icons';
-import { useAuth } from '../../context/AuthContext';
-import { userService } from '../../services/api';
+import { useAuth } from '../../context/useAuth';
+import { userApi } from '../../services/api';
 import type { UserDto, UpdateUserDto } from '../../types';
 
 interface ProfileFormValues {
@@ -30,7 +30,7 @@ export default function Profile() {
     
     setLoading(true);
     try {
-      const response = await userService.getById(user.userId);
+      const response = await userApi.getById(user.userId);
       setUserData(response.data);
       form.setFieldsValue({
         firstName: response.data.firstName,
@@ -60,7 +60,7 @@ export default function Profile() {
         isActive: userData?.isActive ?? true,
       };
 
-      await userService.update(user.userId, updateData);
+      await userApi.update(user.userId, updateData);
       message.success('Perfil actualizado correctamente');
     } catch (error) {
       message.error('Error al actualizar el perfil');
@@ -80,7 +80,7 @@ export default function Profile() {
 
     setLoading(true);
     try {
-      const response = await userService.changePassword(
+      const response = await userApi.changePassword(
         user.userId,
         values.currentPassword,
         values.newPassword

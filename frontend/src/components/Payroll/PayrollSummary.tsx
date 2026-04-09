@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, message, Card, Row, Col, List, Divider, Empty, Popconfirm } from 'antd';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import dayjs, { type Dayjs } from 'dayjs';
-import { branchApi, employeeService, payrollApi } from '../../services/api';
+import { branchApi, employeeApi, payrollApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
 import type {
   EmployeePayrollSummaryDto,
@@ -117,7 +117,35 @@ export const PayrollSummary = () => {
     || adjustmentCategory === PayrollAdjustmentCategory.Overtime100;
   const isRoleLocked = currentRoleStatus != null && currentRoleStatus !== PayrollRoleStatus.Generated;
 
-  const loadSummary = async () => {
+  const loadMovementDetails = useCallback(async (employeeId: string) => {
+    setDetailsLoading(true);
+    try {
+      const year = month.year();
+      const monthNumber = month.month() + 1;
+      const [advancesResponse, consumptionsResponse, adjustmentsResponse, rolesResponse] = await Promise.all([
+        payrollApi.getAdvances(employeeId, year, monthNumber),
+        payrollApi.getConsumptions(employeeId, year, monthNumber),
+        payrollApi.getAdjustments(employeeId, year, monthNumber),
+        payrollApi.getRolesByEmployee(employeeId),
+      ]);
+
+      setAdvancesDetails(Array.isArray(advancesResponse.data) ? advancesResponse.data : []);
+      setConsumptionsDetails(Array.isArray(consumptionsResponse.data) ? consumptionsResponse.data : []);
+      setAdjustmentsDetails(Array.isArray(adjustmentsResponse.data) ? adjustmentsResponse.data : []);
+
+      const currentRole = rolesResponse.data.find((role) => role.year === year && role.month === monthNumber);
+      setCurrentRoleStatus(currentRole?.status ?? null);
+    } catch {
+      setAdvancesDetails([]);
+      setConsumptionsDetails([]);
+      setAdjustmentsDetails([]);
+      setCurrentRoleStatus(null);
+    } finally {
+      setDetailsLoading(false);
+    }
+  }, [month]);
+
+  const loadSummary = useCallback(async () => {
     setLoading(true);
     try {
       const response = await payrollApi.getSummary(month.year(), month.month() + 1);
@@ -136,11 +164,11 @@ export const PayrollSummary = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadMovementDetails, month, selectedEmployee]);
 
   useEffect(() => {
     loadSummary();
-  }, [month]);
+  }, [loadSummary]);
 
   useEffect(() => {
     const loadConfiguration = async () => {
@@ -179,7 +207,7 @@ export const PayrollSummary = () => {
     }
 
     loadMovementDetails(selectedEmployee.employeeId);
-  }, [month, selectedEmployee?.employeeId]);
+  }, [loadMovementDetails, selectedEmployee]);
 
   useEffect(() => {
     const loadEmployeeDetail = async () => {
@@ -189,7 +217,7 @@ export const PayrollSummary = () => {
       }
 
       try {
-        const response = await employeeService.getById(selectedEmployee.employeeId);
+        const response = await employeeApi.getById(selectedEmployee.employeeId);
         setSelectedEmployeeDetail(response.data ?? null);
       } catch {
         setSelectedEmployeeDetail(null);
@@ -197,7 +225,7 @@ export const PayrollSummary = () => {
     };
 
     loadEmployeeDetail();
-  }, [selectedEmployee?.employeeId]);
+  }, [selectedEmployee]);
 
   const openAdvanceModal = (employee: EmployeePayrollSummaryDto) => {
     setSelectedEmployee(employee);
@@ -303,34 +331,6 @@ export const PayrollSummary = () => {
       message.error(`Error generando rol para ${employee.employeeName}: ${formatError(error)}`);
     } finally {
       setGeneratingEmployeeId(null);
-    }
-  };
-
-  const loadMovementDetails = async (employeeId: string) => {
-    setDetailsLoading(true);
-    try {
-      const year = month.year();
-      const monthNumber = month.month() + 1;
-      const [advancesResponse, consumptionsResponse, adjustmentsResponse, rolesResponse] = await Promise.all([
-        payrollApi.getAdvances(employeeId, year, monthNumber),
-        payrollApi.getConsumptions(employeeId, year, monthNumber),
-        payrollApi.getAdjustments(employeeId, year, monthNumber),
-        payrollApi.getRolesByEmployee(employeeId),
-      ]);
-
-      setAdvancesDetails(Array.isArray(advancesResponse.data) ? advancesResponse.data : []);
-      setConsumptionsDetails(Array.isArray(consumptionsResponse.data) ? consumptionsResponse.data : []);
-      setAdjustmentsDetails(Array.isArray(adjustmentsResponse.data) ? adjustmentsResponse.data : []);
-
-      const currentRole = rolesResponse.data.find((role) => role.year === year && role.month === monthNumber);
-      setCurrentRoleStatus(currentRole?.status ?? null);
-    } catch {
-      setAdvancesDetails([]);
-      setConsumptionsDetails([]);
-      setAdjustmentsDetails([]);
-      setCurrentRoleStatus(null);
-    } finally {
-      setDetailsLoading(false);
     }
   };
 
