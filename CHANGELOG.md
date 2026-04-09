@@ -1,61 +1,47 @@
-# Changelog
+﻿# Changelog
 
-Todos los cambios notables del proyecto serán documentados en este archivo.
+Todos los cambios relevantes del proyecto se registran aqui.
 
-El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
-y este proyecto adhiere al [Versionamiento Semántico](https://semver.org/lang/es/).
+El formato se basa en Keep a Changelog y Versionado Semantico.
 
 ## [Sin versionar]
 
 ### Agregado
-- Sistema de autenticación con JWT
-- Gestión de usuarios, roles y permisos
-- Módulo de RRHH (empleados, posiciones)
-- Sistema de planificación de horarios
-  - Generación automática de turnos
-  - Plantillas de horarios
-  - Áreas de trabajo y roles de trabajo
-  - Visualización de calendario mensual
-- Gestión de indisponibilidad de empleados
-  - Soporte para fechas individuales
-  - Soporte para rangos de fechas
-- Gestión de sucursales
-  - Configuración básica (nombre, código, dirección, teléfono, email)
-  - Geolocalización con mapas interactivos (Leaflet + OpenStreetMap)
-  - Reverse geocoding automático (coordenadas → dirección)
-  - Almacenamiento de coordenadas GPS (precisión ~10cm)
-- Breadcrumb navigation en Dashboard
-- Manejo centralizado de errores con mensajes en español
-- Migraciones de base de datos
 
-### Técnico
-- Arquitectura backend con CQRS (MediatR)
-- Entity Framework Core con PostgreSQL
-- Frontend con React 18, TypeScript y Ant Design
-- Patrón Multi-tenancy con soporte para múltiples sucursales
-- Documentación XML en controladores del backend
-- Error handler centralizado en frontend
+- Flujo en tiempo real para solicitudes publicas de mesa con SignalR.
+- Endpoint para solicitud activa por mesa en canal publico.
+- Estructura de documentacion por modulo (`docs/`, `backend/docs/`, `mobile/`).
+
+### Cambiado
+
+- Estandar de clientes HTTP en frontend a nomenclatura `*Api`.
+- Refactor de contexto de autenticacion (`AuthContext` + `useAuth`).
+- Actualizacion de documentacion principal (README raiz y README frontend).
+
+### Corregido
+
+- Limpieza de archivos no usados en frontend.
+- Consolidacion de tipos `SpecialDate` y actualizacion de imports.
+- Correcciones de lint en hooks, efectos y tipado.
+
+### Seguridad
+
+- Actualizado AutoMapper a `16.1.1` para mitigar vulnerabilidad reportada en `16.0.0`.
 
 ---
 
-## Formato para futuras entradas:
+## Formato recomendado para nuevas versiones
 
-### [Versión] - YYYY-MM-DD
+### [x.y.z] - YYYY-MM-DD
 
 #### Agregado
-- Nueva funcionalidad para usuarios finales
+- Nueva funcionalidad.
 
 #### Cambiado
-- Cambios en funcionalidad existente
-
-#### Obsoleto
-- Funcionalidad que será removida pronto
-
-#### Removido
-- Funcionalidad eliminada
+- Cambio en comportamiento existente.
 
 #### Corregido
-- Corrección de bugs
+- Correccion de bug.
 
 #### Seguridad
-- Cambios relacionados con vulnerabilidades
+- Mitigacion de vulnerabilidad.

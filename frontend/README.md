@@ -1,73 +1,50 @@
-# React + TypeScript + Vite
+﻿# Frontend Grimorio
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicacion web administrativa para operaciones internas de Grimorio.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- React 19
+- TypeScript
+- Vite
+- Ant Design
+- Axios
+- SignalR (`@microsoft/signalr`)
 
-## React Compiler
+## Scripts
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
+npm run build
+npm run lint
+npm run preview
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Estructura principal
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```text
+src/
+|-- components/
+|-- context/
+|-- pages/
+|-- services/
+|-- types/
+`-- utils/
 ```
+
+## Convenciones
+
+- Clientes HTTP con sufijo `Api` (ejemplo: `userApi`, `tableServiceApi`).
+- Tipos compartidos centralizados en `src/types/index.ts`.
+- Hooks de contexto separados de providers cuando aplique (ejemplo: `useAuth`).
+- Toda nueva pagina/componente debe compilar sin errores de TypeScript y sin warnings de lint.
+
+## Integracion con backend
+
+- URL API por `VITE_API_URL` en `.env`.
+- En local, valor sugerido: `http://localhost:5186/api`.
+
+## Notas de mantenimiento
+
+- Evitar reintroducir nombres `*Service` para clientes HTTP del frontend.
+- Registrar cambios importantes del modulo en `CHANGELOG.md` raiz.
