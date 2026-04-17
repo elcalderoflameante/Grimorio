@@ -26,7 +26,7 @@ public static class AuthSeeder
             Name = "El Caldero Flameante - Sucursal Principal",
             Code = "MAIN",
             Address = "Alfredo Escudero s25-293 e Isinlivi",
-            Phone = "+593 2 1234567",
+            Phone = "+593 964135806",
             Email = "admin@elcalderoflameante.com",
             IsActive = true,
             CreatedAt = DateTime.UtcNow,

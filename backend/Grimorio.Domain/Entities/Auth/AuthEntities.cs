@@ -17,6 +17,20 @@ public class User : BaseEntity
 
     // Relaciones
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
+    public ICollection<UserPushToken> PushTokens { get; set; } = new List<UserPushToken>();
+}
+
+public class UserPushToken : BaseEntity
+{
+    public Guid UserId { get; set; }
+    public string Token { get; set; } = string.Empty;
+    public string Platform { get; set; } = "android";
+    public string? DeviceId { get; set; }
+    public DateTime LastSeenAt { get; set; } = DateTime.UtcNow;
+    public bool IsActive { get; set; } = true;
+
+    // Relaciones
+    public User? User { get; set; }
 }
 
 /// <summary>

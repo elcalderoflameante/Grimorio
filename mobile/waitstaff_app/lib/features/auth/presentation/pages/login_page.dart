@@ -1,22 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class LoginPage extends StatefulWidget {
+import '../providers/auth_controller.dart';
+
+class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends ConsumerState<LoginPage> {
   late TextEditingController _emailController;
   late TextEditingController _passwordController;
-  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _emailController = TextEditingController();
+    _emailController = TextEditingController(text: 'admin@elcalderoflameante.com');
     _passwordController = TextEditingController();
   }
 
@@ -27,20 +29,42 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void _handleLogin() {
-    setState(() => _isLoading = true);
-    
-    // TODO: Implement actual login with backend API call
-    // For now, just navigate to home after a short delay
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        context.go('/home');
-      }
-    });
+  Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ingresa correo y contraseña.')),
+      );
+      return;
+    }
+
+    final success = await ref.read(authControllerProvider.notifier).login(
+      email: email,
+      password: password,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (success) {
+      context.go('/home');
+      return;
+    }
+
+    final message = ref.read(authControllerProvider).errorMessage ??
+        'No se pudo iniciar sesión.';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authControllerProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Iniciar Sesión'),
@@ -53,20 +77,14 @@ class _LoginPageState extends State<LoginPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 40),
-              // Logo placeholder
-              Container(
-                height: 80,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  Icons.restaurant,
-                  size: 48,
-                  color: Theme.of(context).colorScheme.primary,
+              SizedBox(
+                height: 180,
+                child: Image.asset(
+                  'assets/images/ecf_logo.png',
+                  fit: BoxFit.contain,
                 ),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 24),
               Text(
                 'Grimorio - Meseros',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -100,15 +118,16 @@ class _LoginPageState extends State<LoginPage> {
                 obscureText: true,
                 decoration: const InputDecoration(
                   labelText: 'Contraseña',
-                  hintText: '••••••••',
+                  hintText: 'Admin123',
                   prefixIcon: Icon(Icons.lock),
                 ),
+                onSubmitted: (_) => _handleLogin(),
               ),
               const SizedBox(height: 32),
               // Login button
               ElevatedButton(
-                onPressed: _isLoading ? null : _handleLogin,
-                child: _isLoading
+                onPressed: authState.isLoading ? null : _handleLogin,
+                child: authState.isLoading
                     ? const SizedBox(
                         height: 20,
                         width: 20,
@@ -120,7 +139,15 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 16),
               Text(
-                'Modo desarrollo: presiona el botón para continuar',
+                'Usuario inicial: admin@elcalderoflameante.com',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Colors.grey,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Contraseña inicial: Admin123',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: Colors.grey,
                 ),

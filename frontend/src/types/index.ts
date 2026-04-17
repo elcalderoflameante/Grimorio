@@ -686,6 +686,7 @@ export interface CreateRestaurantTableDto {
 }
 
 export interface UpdateRestaurantTableDto {
+  id?: string;
   code: string;
   name: string;
   area?: string;

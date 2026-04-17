@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# Firebase Admin SDK secrets
+backend/secrets/*.json
+
 # User-specific files
 *.rsuser
 *.suo

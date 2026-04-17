@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/app/google-services.json
+
+# Dart define files (keep only example template in git)
+dart_define*.json
+!dart_define.example.json

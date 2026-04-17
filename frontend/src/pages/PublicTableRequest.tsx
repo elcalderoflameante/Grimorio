@@ -217,30 +217,30 @@ export default function PublicTableRequest() {
             className="absolute inset-0 z-10 h-full w-full"
           />
 
-          <div className="absolute inset-x-0 top-0 z-30 flex justify-center px-6 pt-6">
+          <div className="absolute inset-x-0 top-0 z-30 flex justify-center px-3 pt-2 sm:px-4 sm:pt-3">
             <img
               src={ecfLogo}
               alt="El Caldero Flameante"
-              className="h-auto w-[74vw] max-w-[420px] min-w-[220px] drop-shadow-[0_12px_30px_rgba(0,0,0,0.7)]"
+              className="h-auto w-[50vw] max-w-[240px] min-w-[110px] drop-shadow-[0_10px_24px_rgba(0,0,0,0.65)]"
             />
           </div>
 
-          <div className="absolute inset-x-0 bottom-0 z-30 px-6 pb-14">
+          <div className="absolute inset-x-0 bottom-0 z-30 px-3 pb-5 sm:px-4 sm:pb-8">
             <div
-              className="mx-auto max-w-[820px] rounded-2xl border-4 border-[#8B5E3C] px-8 py-6 text-center shadow-[inset_0_2px_4px_rgba(255,255,255,0.25),_inset_0_-2px_4px_rgba(0,0,0,0.2),_0_12px_30px_rgba(0,0,0,0.6)]"
+              className="mx-auto max-w-[620px] rounded-2xl border-4 border-[#8B5E3C] px-3 py-2.5 text-center shadow-[inset_0_2px_4px_rgba(255,255,255,0.25),_inset_0_-2px_4px_rgba(0,0,0,0.2),_0_10px_24px_rgba(0,0,0,0.55)] sm:px-5 sm:py-4"
               style={{ backgroundImage: 'url(' + fondoPergamino + ')', backgroundSize: 'cover', backgroundPosition: 'center' }}
             >
             {ACTIVE_STATUSES.has(activeRequestStatus) ? (
               <>
-                <p className="text-[40px] font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif] drop-shadow-sm">
+                <p className="text-[20px] font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif] drop-shadow-sm sm:text-[24px] lg:text-[28px]">
                   {STATUS_MESSAGES[activeRequestStatus]?.title}
                 </p>
-                <p className="mt-3 text-[30px] italic text-[#5d4037] [font-family:'Eagle_Lake',serif]">
+                <p className="mt-1.5 text-[15px] italic text-[#5d4037] [font-family:'Eagle_Lake',serif] sm:mt-2 sm:text-[18px] lg:text-[21px]">
                   {STATUS_MESSAGES[activeRequestStatus]?.subtitle}
                 </p>
               </>
             ) : (
-              <p className="text-[38px] font-bold text-[#4E7D40] [font-family:'Eagle_Lake',serif]">
+              <p className="text-[20px] font-bold text-[#4E7D40] [font-family:'Eagle_Lake',serif] sm:text-[24px] lg:text-[28px]">
                 ¡Solicitud completada! ✨
               </p>
             )}
@@ -255,33 +255,33 @@ export default function PublicTableRequest() {
         className="absolute inset-0 h-full w-full object-cover"
       />
 
-      <div className="relative z-10 h-full overflow-y-auto px-2 pb-6 pt-6">
+      <div className="relative z-10 h-full overflow-y-auto px-2 pb-5 pt-3 sm:pt-5">
         <div className="mx-auto flex w-full max-w-[900px] flex-col items-center">
           <div className="pointer-events-none flex w-full flex-col items-center">
             <img
               src={ecfLogo}
               alt="El Caldero Flameante"
-              className="h-auto w-[88vw] max-w-[460px] min-w-[290px] drop-shadow-xl"
+              className="h-auto w-[70vw] max-w-[300px] min-w-[140px] drop-shadow-xl"
             />
-            <h1 className="mt-0 text-center text-[36px] font-bold tracking-wide text-[#3e2723] [font-family:'Eagle_Lake',serif] drop-shadow-sm">
+            <h1 className="mt-0 text-center text-[22px] font-bold tracking-wide text-[#3e2723] [font-family:'Eagle_Lake',serif] drop-shadow-sm sm:text-[27px] lg:text-[31px]">
               Solicitud de Mesa {tableCode ?? '--'}
             </h1>
           </div>
 
-          <div className="mt-5 grid w-full grid-cols-2 gap-2">
+          <div className="mt-3 grid w-full grid-cols-2 gap-1.5 sm:mt-4 sm:gap-2">
             {requestOptions.map((option) => (
               <RusticButton
                 key={option.id}
-                className="h-[150px]"
+                className="h-[68px] sm:h-[82px] lg:h-[94px]"
                 onClick={() => handleOptionRequest(option.type, option.label)}
               >
-                <div className="flex w-full flex-row items-center gap-4 px-3 text-[#3e2723]">
+                <div className="flex w-full flex-row items-center gap-1.5 px-1.5 text-[#3e2723] sm:gap-2.5 sm:px-2">
                   <img 
                     src={option.image} 
                     alt=""
-                    className="h-40 w-40 object-contain"
+                    className="h-12 w-12 object-contain sm:h-[60px] sm:w-[60px] lg:h-[72px] lg:w-[72px]"
                   />
-                  <span className="flex-1 text-center text-4xl font-bold leading-tight [font-family:'Eagle_Lake',serif]">
+                  <span className="flex-1 text-center text-[14px] font-bold leading-tight [font-family:'Eagle_Lake',serif] sm:text-[18px] lg:text-[22px]">
                     {option.label}
                   </span>
                 </div>
@@ -289,21 +289,21 @@ export default function PublicTableRequest() {
             ))}
           </div>
 
-          <div className="mt-8 w-full max-w-[900px]">
-            <h2 className="text-center text-[28px] font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif]">
+          <div className="mt-6 w-full max-w-[900px]">
+            <h2 className="text-center text-[19px] font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif] sm:text-[22px] lg:text-[24px]">
               Solicitud Personalizada
             </h2>
             <textarea
               value={customRequest}
               onChange={(e) => setCustomRequest(e.target.value)}
               placeholder="Escribe tu solicitud aquí..."
-              className="mt-4 w-full box-border rounded-lg border-4 border-[#8B5E3C] bg-[#f5f1ed] p-6 text-[32px] font-semibold text-[#3e2723] placeholder-[#a1887f] focus:outline-none focus:ring-2 focus:ring-[#bc955c] resize-none"
+              className="mt-3 w-full box-border resize-none rounded-lg border-4 border-[#8B5E3C] bg-[#f5f1ed] p-3 text-[16px] font-semibold text-[#3e2723] placeholder-[#a1887f] focus:outline-none focus:ring-2 focus:ring-[#bc955c] sm:p-4 sm:text-[19px] lg:p-5 lg:text-[23px]"
               rows={6}
             />
             <button
               onClick={handleCustomRequest}
               disabled={isSubmitting || !customRequest.trim()}
-              className="mt-4 h-[150px] w-full box-border flex items-center justify-center rounded-lg border-4 border-[#8B5E3C] bg-[#D2B48C] px-6 text-[24px] font-bold text-[#3e2723] drop-shadow-md transition-transform [font-family:'Eagle_Lake',serif] hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+              className="mt-3 box-border flex h-[58px] w-full items-center justify-center rounded-lg border-4 border-[#8B5E3C] bg-[#D2B48C] px-3 text-[16px] font-bold text-[#3e2723] drop-shadow-md transition-transform [font-family:'Eagle_Lake',serif] hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 sm:h-[72px] sm:px-4 sm:text-[18px] lg:h-[84px] lg:px-5 lg:text-[20px]"
             >
               {isSubmitting ? 'Enviando...' : 'Enviar Solicitud'}
             </button>
@@ -315,31 +315,31 @@ export default function PublicTableRequest() {
       {pendingRequest && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
           <div
-            className="w-full max-w-[680px] rounded-2xl border-4 border-[#8B5E3C] bg-[#f5ead8] p-10 shadow-2xl"
+            className="w-full max-w-[500px] rounded-2xl border-4 border-[#8B5E3C] bg-[#f5ead8] p-3 shadow-2xl sm:p-4 lg:p-5"
             style={{ backgroundImage: 'url(' + fondoPergamino + ')', backgroundSize: 'cover' }}
           >
-            <h3 className="text-center text-[38px] font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif]">
+            <h3 className="text-center text-[18px] font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif] sm:text-[22px] lg:text-[24px]">
               ¿Confirmar solicitud?
             </h3>
-            <p className="mt-4 text-center text-[30px] text-[#5d4037] [font-family:'Eagle_Lake',serif]">
+            <p className="mt-1.5 text-center text-[15px] text-[#5d4037] [font-family:'Eagle_Lake',serif] sm:mt-2 sm:text-[17px] lg:text-[19px]">
               {pendingRequest.label}
             </p>
             {pendingRequest.customMessage && (
-              <p className="mt-3 text-center text-[24px] italic text-[#7b5e47] [font-family:'Eagle_Lake',serif]">
+              <p className="mt-1 text-center text-[13px] italic text-[#7b5e47] [font-family:'Eagle_Lake',serif] sm:text-[14px] lg:text-[15px]">
                 &ldquo;{pendingRequest.customMessage}&rdquo;
               </p>
             )}
-            <div className="mt-10 flex gap-5">
+            <div className="mt-3 flex gap-2 sm:mt-4 sm:gap-2.5 lg:mt-5 lg:gap-3">
               <button
                 onClick={cancelRequest}
-                className="flex-1 rounded-xl border-4 border-[#8B5E3C] bg-[#e8d9c0] py-6 text-[28px] font-bold text-[#5d4037] transition-transform [font-family:'Eagle_Lake',serif] hover:scale-105 active:scale-95"
+                className="flex-1 rounded-xl border-4 border-[#8B5E3C] bg-[#e8d9c0] py-2 text-[15px] font-bold text-[#5d4037] transition-transform [font-family:'Eagle_Lake',serif] hover:scale-105 active:scale-95 sm:py-2.5 sm:text-[16px] lg:py-3 lg:text-[17px]"
               >
                 Cancelar
               </button>
               <button
                 onClick={() => { confirmRequest().catch(() => {}); }}
                 disabled={isSubmitting}
-                className="flex-1 rounded-xl border-4 border-[#5a3a1a] bg-[#8B5E3C] py-6 text-[28px] font-bold text-[#f5ead8] transition-transform [font-family:'Eagle_Lake',serif] hover:scale-105 active:scale-95 disabled:opacity-50"
+                className="flex-1 rounded-xl border-4 border-[#5a3a1a] bg-[#8B5E3C] py-2 text-[15px] font-bold text-[#f5ead8] transition-transform [font-family:'Eagle_Lake',serif] hover:scale-105 active:scale-95 disabled:opacity-50 sm:py-2.5 sm:text-[16px] lg:py-3 lg:text-[17px]"
               >
                 {isSubmitting ? 'Enviando...' : 'Confirmar'}
               </button>

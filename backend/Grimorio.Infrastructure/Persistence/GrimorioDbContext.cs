@@ -24,6 +24,7 @@ public class GrimorioDbContext : DbContext
     public DbSet<Permission> Permissions { get; set; } = null!;
     public DbSet<RolePermission> RolePermissions { get; set; } = null!;
     public DbSet<UserRole> UserRoles { get; set; } = null!;
+    public DbSet<UserPushToken> UserPushTokens { get; set; } = null!;
 
     // === Organization ===
     public DbSet<Branch> Branches { get; set; } = null!;

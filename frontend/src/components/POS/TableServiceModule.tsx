@@ -4,6 +4,7 @@ import {
   Card,
   Col,
   Form,
+  Grid,
   Input,
   InputNumber,
   Modal,
@@ -32,6 +33,7 @@ import type {
 } from '../../types';
 
 const { Text } = Typography;
+const { useBreakpoint } = Grid;
 
 const PUBLIC_APP_BASE_URL = (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined)?.replace(/\/$/, '')
   || window.location.origin;
@@ -77,8 +79,42 @@ interface QrPreviewState {
   table: RestaurantTableDto | null;
 }
 
+type TableRowLike = RestaurantTableDto & {
+  Id?: string;
+  BranchId?: string;
+  Code?: string;
+  Name?: string;
+  Area?: string;
+  Capacity?: number;
+  PublicToken?: string;
+  PublicUrl?: string;
+  IsActive?: boolean;
+};
+
+const resolveTableId = (table: Partial<TableRowLike> | null | undefined): string => {
+  if (!table) return '';
+  const value = table.id ?? table.Id;
+  return typeof value === 'string' ? value : '';
+};
+
+const normalizeTable = (raw: unknown): RestaurantTableDto => {
+  const table = raw as Partial<TableRowLike>;
+  return {
+    id: resolveTableId(table),
+    branchId: (table.branchId ?? table.BranchId ?? '') as string,
+    code: (table.code ?? table.Code ?? '') as string,
+    name: (table.name ?? table.Name ?? '') as string,
+    area: (table.area ?? table.Area ?? undefined) as string | undefined,
+    capacity: Number(table.capacity ?? table.Capacity ?? 0),
+    publicToken: (table.publicToken ?? table.PublicToken ?? '') as string,
+    publicUrl: (table.publicUrl ?? table.PublicUrl ?? '') as string,
+    isActive: Boolean(table.isActive ?? table.IsActive ?? true),
+  };
+};
+
 export default function TableServiceModule() {
   const { branchId, token } = useAuth();
+  const screens = useBreakpoint();
   const [loading, setLoading] = useState(false);
   const [tables, setTables] = useState<RestaurantTableDto[]>([]);
   const [requests, setRequests] = useState<TableServiceRequestDto[]>([]);
@@ -96,9 +132,52 @@ export default function TableServiceModule() {
     setQrPreview({ open: false, table: null });
   }, []);
 
+  const buildTablePublicUrl = useCallback((publicToken: string) => {
+    return `${PUBLIC_APP_BASE_URL}/mesa/${publicToken}`;
+  }, []);
+
+  const copyToClipboard = useCallback(async (text: string) => {
+    if (!text) return false;
+
+    // Prefer Clipboard API when available and allowed by browser context.
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+        // Fallback below.
+      }
+    }
+
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      textarea.style.top = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const copied = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return copied;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const handleCopyUrl = useCallback(async (fullUrl: string) => {
+    const copied = await copyToClipboard(fullUrl);
+    if (copied) {
+      message.success('URL copiada.');
+      return;
+    }
+    message.error('No se pudo copiar la URL automáticamente.');
+  }, [copyToClipboard]);
+
   const handlePrintQr = useCallback(() => {
     if (!qrPreview.table) return;
-    const fullUrl = `${PUBLIC_APP_BASE_URL}/mesa/${qrPreview.table.publicToken}`;
+    const fullUrl = buildTablePublicUrl(qrPreview.table.publicToken);
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=420x420&data=${encodeURIComponent(fullUrl)}`;
 
     const printWindow = window.open('', '_blank', 'width=900,height=700');
@@ -130,12 +209,15 @@ export default function TableServiceModule() {
     printWindow.document.close();
     printWindow.focus();
     printWindow.print();
-  }, [qrPreview.table]);
+  }, [buildTablePublicUrl, qrPreview.table]);
 
   const loadTables = useCallback(async () => {
     if (!branchId) return;
     const response = await tableServiceApi.getTables(branchId);
-    setTables(Array.isArray(response.data) ? response.data : []);
+    const parsed = Array.isArray(response.data)
+      ? response.data.map((item) => normalizeTable(item))
+      : [];
+    setTables(parsed);
   }, [branchId]);
 
   const loadRequests = useCallback(async () => {
@@ -221,7 +303,12 @@ export default function TableServiceModule() {
   };
 
   const handleOpenEdit = useCallback((table: RestaurantTableDto) => {
-    setEditingTable(table);
+    const tableId = resolveTableId(table);
+    if (!tableId) {
+      message.error('No se pudo editar: la mesa no tiene id válido.');
+      return;
+    }
+    setEditingTable({ ...table, id: tableId });
     tableForm.setFieldsValue({
       code: table.code,
       name: table.name,
@@ -235,7 +322,13 @@ export default function TableServiceModule() {
   const handleSaveTable = async (values: TableFormValues) => {
     try {
       if (editingTable) {
-        await tableServiceApi.updateTable(editingTable.id, {
+        const tableId = resolveTableId(editingTable);
+        if (!tableId) {
+          message.error('No se pudo actualizar: id de mesa inválido.');
+          return;
+        }
+        await tableServiceApi.updateTable(tableId, {
+          id: tableId,
           code: values.code,
           name: values.name,
           area: values.area,
@@ -263,6 +356,10 @@ export default function TableServiceModule() {
 
   const handleDeleteTable = useCallback(async (id: string) => {
     try {
+      if (!id) {
+        message.error('No se pudo eliminar: id de mesa inválido.');
+        return;
+      }
       await tableServiceApi.deleteTable(id);
       message.success('Mesa eliminada.');
       await loadTables();
@@ -273,6 +370,10 @@ export default function TableServiceModule() {
 
   const handleRegenerateToken = useCallback(async (id: string) => {
     try {
+      if (!id) {
+        message.error('No se pudo regenerar QR: id de mesa inválido.');
+        return;
+      }
       await tableServiceApi.regenerateTableToken(id);
       message.success('Token QR regenerado.');
       await loadTables();
@@ -337,10 +438,10 @@ export default function TableServiceModule() {
       title: 'QR',
       key: 'qr',
       render: (_: unknown, record: RestaurantTableDto) => {
-        const fullUrl = `${PUBLIC_APP_BASE_URL}/mesa/${record.publicToken}`;
+        const fullUrl = buildTablePublicUrl(record.publicToken);
         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=${encodeURIComponent(fullUrl)}`;
         return (
-          <Space>
+          <Space wrap>
             <img
               src={qrUrl}
               alt={`QR-${record.code}`}
@@ -353,7 +454,7 @@ export default function TableServiceModule() {
             <Button size="small" onClick={() => openQrPreview(record)}>
               Ver QR
             </Button>
-            <Button size="small" onClick={() => navigator.clipboard.writeText(fullUrl)}>
+            <Button size="small" onClick={() => void handleCopyUrl(fullUrl)}>
               Copiar URL
             </Button>
           </Space>
@@ -365,7 +466,7 @@ export default function TableServiceModule() {
       key: 'actions',
       width: 230,
       render: (_: unknown, record: RestaurantTableDto) => (
-        <Space>
+        <Space wrap>
           <Button size="small" icon={<EditOutlined />} onClick={() => handleOpenEdit(record)} />
           <Button size="small" onClick={() => handleRegenerateToken(record.id)}>
             Regenerar QR
@@ -381,7 +482,7 @@ export default function TableServiceModule() {
         </Space>
       ),
     },
-  ], [handleDeleteTable, handleOpenEdit, handleRegenerateToken, openQrPreview]);
+  ], [buildTablePublicUrl, handleCopyUrl, handleDeleteTable, handleOpenEdit, handleRegenerateToken, openQrPreview]);
 
   const requestColumns = useMemo(() => [
     {
@@ -426,7 +527,7 @@ export default function TableServiceModule() {
       key: 'actions',
       width: 280,
       render: (_: unknown, row: TableServiceRequestDto) => (
-        <Space>
+        <Space wrap>
           {row.status === 1 && <Button size="small" onClick={() => handleTakeRequest(row.id)}>Tomar</Button>}
           {row.status === 2 && <Button size="small" onClick={() => handleSetRequestStatus(row.id, 3)}>En proceso</Button>}
           {(row.status === 2 || row.status === 3) && (
@@ -458,10 +559,21 @@ export default function TableServiceModule() {
             children: (
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Row justify="space-between" align="middle">
-                  <Col><Text type="secondary">Administra mesas y sus QR de atención.</Text></Col>
-                  <Col><Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreate}>Nueva mesa</Button></Col>
+                  <Col flex="auto"><Text type="secondary">Administra mesas y sus QR de atención.</Text></Col>
+                  <Col>
+                    <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreate}>
+                      Nueva mesa
+                    </Button>
+                  </Col>
                 </Row>
-                <Table rowKey="id" loading={loading} columns={tableColumns} dataSource={tables} pagination={{ pageSize: 8 }} />
+                <Table
+                  rowKey={(record) => resolveTableId(record) || `${record.code}-${record.name}`}
+                  loading={loading}
+                  columns={tableColumns}
+                  dataSource={tables}
+                  pagination={{ pageSize: 8 }}
+                  scroll={{ x: 980 }}
+                />
               </Space>
             ),
           },
@@ -471,14 +583,14 @@ export default function TableServiceModule() {
             children: (
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Row justify="space-between" align="middle">
-                  <Col>
+                  <Col flex="auto">
                     <Text type="secondary">Solicitudes recibidas desde QR.</Text>
                   </Col>
                   <Col>
                     <Select
                       allowClear
                       placeholder="Filtrar estado"
-                      style={{ width: 180 }}
+                      style={{ width: screens.xs ? '100%' : 220, minWidth: 180 }}
                       value={statusFilter}
                       onChange={(value) => setStatusFilter(value)}
                       options={[
@@ -491,7 +603,14 @@ export default function TableServiceModule() {
                     />
                   </Col>
                 </Row>
-                <Table rowKey="id" loading={loading} columns={requestColumns} dataSource={requests} pagination={{ pageSize: 10 }} />
+                <Table
+                  rowKey="id"
+                  loading={loading}
+                  columns={requestColumns}
+                  dataSource={requests}
+                  pagination={{ pageSize: 10 }}
+                  scroll={{ x: 1100 }}
+                />
               </Space>
             ),
           },
@@ -541,9 +660,8 @@ export default function TableServiceModule() {
             <Button
               onClick={() => {
                 if (!qrPreview.table) return;
-                const fullUrl = `${PUBLIC_APP_BASE_URL}/mesa/${qrPreview.table.publicToken}`;
-                navigator.clipboard.writeText(fullUrl);
-                message.success('URL copiada.');
+                const fullUrl = buildTablePublicUrl(qrPreview.table.publicToken);
+                void handleCopyUrl(fullUrl);
               }}
             >
               Copiar URL
@@ -557,11 +675,11 @@ export default function TableServiceModule() {
           <Space direction="vertical" style={{ width: '100%', alignItems: 'center' }}>
             <Text type="secondary">{qrPreview.table.area || 'Área general'}</Text>
             <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=420x420&data=${encodeURIComponent(`${PUBLIC_APP_BASE_URL}/mesa/${qrPreview.table.publicToken}`)}`}
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=420x420&data=${encodeURIComponent(buildTablePublicUrl(qrPreview.table.publicToken))}`}
               alt={`QR-Mesa-${qrPreview.table.code}`}
               style={{ width: 320, height: 320, maxWidth: '100%' }}
             />
-            <Text copyable>{`${PUBLIC_APP_BASE_URL}/mesa/${qrPreview.table.publicToken}`}</Text>
+            <Text copyable>{buildTablePublicUrl(qrPreview.table.publicToken)}</Text>
           </Space>
         )}
       </Modal>

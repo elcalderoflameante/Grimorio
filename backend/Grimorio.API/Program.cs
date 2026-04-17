@@ -2,6 +2,7 @@ using Grimorio.Infrastructure;
 using Grimorio.Infrastructure.Persistence;
 using Grimorio.Infrastructure.Security;
 using Grimorio.Infrastructure.Seeding;
+using Grimorio.API.Notifications;
 using Serilog;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -14,9 +15,14 @@ using FluentValidation.AspNetCore;
 using Grimorio.API.Hubs;
 
 // Carga variables de entorno desde .env (solo en desarrollo)
-if (File.Exists("../../.env"))
+var envCandidates = new[] { "../../.env", "../.env", ".env" };
+foreach (var envPath in envCandidates)
 {
-    Env.Load("../../.env");
+    if (File.Exists(envPath))
+    {
+        Env.Load(envPath);
+        break;
+    }
 }
 
 var builder = WebApplication.CreateBuilder(args);
@@ -44,10 +50,24 @@ var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "postgres"
 var connectionString = $"Host={dbHost};Port={dbPort};Database={dbName};Username={dbUser};Password={dbPassword}";
 builder.Configuration.GetSection("ConnectionStrings")["DefaultConnection"] = connectionString;
 
-// === Configurar JWT ===
-var jwtSecretKey = builder.Configuration["JwtSettings:SecretKey"] ?? "your-default-secret-key-change-in-production";
-var jwtIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "Grimorio";
-var jwtAudience = builder.Configuration["JwtSettings:Audience"] ?? "GrimorioClient";
+// === Configurar JWT (env vars first, appsettings as fallback) ===
+var jwtSecretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY")
+    ?? builder.Configuration["JwtSettings:SecretKey"]
+    ?? "DEV_ONLY_CHANGE_ME_1234567890_1234567890";
+var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER")
+    ?? builder.Configuration["JwtSettings:Issuer"]
+    ?? "Grimorio";
+var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE")
+    ?? builder.Configuration["JwtSettings:Audience"]
+    ?? "GrimorioClient";
+var jwtAccessTokenExpirationMinutes = Environment.GetEnvironmentVariable("JWT_ACCESS_TOKEN_EXPIRATION_MINUTES")
+    ?? builder.Configuration["JwtSettings:AccessTokenExpirationMinutes"]
+    ?? "480";
+
+builder.Configuration["JwtSettings:SecretKey"] = jwtSecretKey;
+builder.Configuration["JwtSettings:Issuer"] = jwtIssuer;
+builder.Configuration["JwtSettings:Audience"] = jwtAudience;
+builder.Configuration["JwtSettings:AccessTokenExpirationMinutes"] = jwtAccessTokenExpirationMinutes;
 
 var key = Encoding.ASCII.GetBytes(jwtSecretKey);
 
@@ -194,6 +214,7 @@ builder.Services.AddAutoMapper(cfg => cfg.AddProfile<Grimorio.Infrastructure.Map
 builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
+builder.Services.AddScoped<IFcmPushNotificationService, FcmPushNotificationService>();
 
 // === Registrar MediatR ===
 builder.Services.AddMediatR(config =>
@@ -215,6 +236,16 @@ if (app.Environment.IsDevelopment())
         // Ejecutar seeder
         var passwordHashingService = scope.ServiceProvider.GetRequiredService<IPasswordHashingService>();
         await AuthSeeder.SeedAsync(dbContext, passwordHashingService);
+
+        await EnsureUserPushTokensTableAsync(dbContext);
+    }
+}
+else
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var dbContext = scope.ServiceProvider.GetRequiredService<GrimorioDbContext>();
+        await EnsureUserPushTokensTableAsync(dbContext);
     }
 }
 
@@ -240,3 +271,35 @@ app.MapControllers();
 app.MapHub<TableServiceHub>("/hubs/table-service");
 
 app.Run();
+
+static async Task EnsureUserPushTokensTableAsync(GrimorioDbContext dbContext)
+{
+    const string sql = @"
+CREATE SCHEMA IF NOT EXISTS auth;
+
+CREATE TABLE IF NOT EXISTS auth.""UserPushTokens"" (
+    ""Id"" uuid NOT NULL DEFAULT gen_random_uuid(),
+    ""UserId"" uuid NOT NULL,
+    ""Token"" character varying(512) NOT NULL,
+    ""Platform"" character varying(20) NOT NULL,
+    ""DeviceId"" character varying(200) NULL,
+    ""LastSeenAt"" timestamp with time zone NOT NULL,
+    ""IsActive"" boolean NOT NULL DEFAULT TRUE,
+    ""BranchId"" uuid NOT NULL,
+    ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ""CreatedBy"" uuid NOT NULL,
+    ""UpdatedAt"" timestamp with time zone NULL,
+    ""UpdatedBy"" uuid NULL,
+    ""IsDeleted"" boolean NOT NULL DEFAULT FALSE,
+    ""DeletedAt"" timestamp with time zone NULL,
+    ""DeletedBy"" uuid NULL,
+    CONSTRAINT ""PK_UserPushTokens"" PRIMARY KEY (""Id""),
+    CONSTRAINT ""FK_UserPushTokens_Users_UserId"" FOREIGN KEY (""UserId"") REFERENCES auth.""Users"" (""Id"") ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ""IX_UserPushTokens_Token"" ON auth.""UserPushTokens"" (""Token"");
+CREATE INDEX IF NOT EXISTS ""IX_UserPushTokens_BranchId_IsActive"" ON auth.""UserPushTokens"" (""BranchId"", ""IsActive"");
+";
+
+    await dbContext.Database.ExecuteSqlRawAsync(sql);
+}

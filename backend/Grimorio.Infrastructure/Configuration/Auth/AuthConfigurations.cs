@@ -40,6 +40,11 @@ public class UserConfiguration : BaseEntityConfiguration<User>
             .WithOne(ur => ur.User)
             .HasForeignKey(ur => ur.UserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(u => u.PushTokens)
+            .WithOne(pt => pt.User)
+            .HasForeignKey(pt => pt.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
 
@@ -159,6 +164,43 @@ public class UserRoleConfiguration : BaseEntityConfiguration<UserRole>
         builder.HasOne(ur => ur.Role)
             .WithMany(r => r.UserRoles)
             .HasForeignKey(ur => ur.RoleId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class UserPushTokenConfiguration : BaseEntityConfiguration<UserPushToken>
+{
+    public override void Configure(EntityTypeBuilder<UserPushToken> builder)
+    {
+        base.Configure(builder);
+
+        builder.ToTable("UserPushTokens", "auth");
+
+        builder.Property(pt => pt.UserId).IsRequired();
+
+        builder.Property(pt => pt.Token)
+            .HasMaxLength(512)
+            .IsRequired();
+
+        builder.Property(pt => pt.Platform)
+            .HasMaxLength(20)
+            .IsRequired();
+
+        builder.Property(pt => pt.DeviceId)
+            .HasMaxLength(200);
+
+        builder.Property(pt => pt.LastSeenAt)
+            .IsRequired();
+
+        builder.Property(pt => pt.IsActive)
+            .HasDefaultValue(true);
+
+        builder.HasIndex(pt => pt.Token).IsUnique();
+        builder.HasIndex(pt => new { pt.BranchId, pt.IsActive });
+
+        builder.HasOne(pt => pt.User)
+            .WithMany(u => u.PushTokens)
+            .HasForeignKey(pt => pt.UserId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

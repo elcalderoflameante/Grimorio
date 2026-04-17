@@ -5,7 +5,7 @@ namespace Grimorio.Domain.Entities.Payroll;
 
 public class PayrollConfiguration : BaseEntity
 {
-    public Guid BranchId { get; set; }
+    public new Guid BranchId { get; set; }
     public decimal IessEmployeeRate { get; set; } = 9.45m;
     public decimal IessEmployerRate { get; set; } = 11.45m;
     public decimal IncomeTaxRate { get; set; } = 0m;
@@ -19,7 +19,7 @@ public class PayrollConfiguration : BaseEntity
 
 public class PayrollAdvance : BaseEntity
 {
-    public Guid BranchId { get; set; }
+    public new Guid BranchId { get; set; }
     public Guid EmployeeId { get; set; }
     public DateTime Date { get; set; }
     public decimal Amount { get; set; }
@@ -31,7 +31,7 @@ public class PayrollAdvance : BaseEntity
 
 public class EmployeeConsumption : BaseEntity
 {
-    public Guid BranchId { get; set; }
+    public new Guid BranchId { get; set; }
     public Guid EmployeeId { get; set; }
     public DateTime Date { get; set; }
     public decimal Amount { get; set; }
@@ -42,7 +42,7 @@ public class EmployeeConsumption : BaseEntity
 
 public class PayrollAdjustment : BaseEntity
 {
-    public Guid BranchId { get; set; }
+    public new Guid BranchId { get; set; }
     public Guid EmployeeId { get; set; }
     public DateTime Date { get; set; }
     public PayrollAdjustmentType Type { get; set; }
@@ -56,7 +56,7 @@ public class PayrollAdjustment : BaseEntity
 
 public class PayrollRoleHeader : BaseEntity
 {
-    public Guid BranchId { get; set; }
+    public new Guid BranchId { get; set; }
     public Guid EmployeeId { get; set; }
     public int Year { get; set; }
     public int Month { get; set; }

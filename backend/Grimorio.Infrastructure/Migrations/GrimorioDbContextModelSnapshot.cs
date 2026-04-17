@@ -292,6 +292,84 @@ namespace Grimorio.Infrastructure.Migrations
                     b.ToTable("Users", "auth");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Auth.UserPushToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DeviceId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("BranchId", "IsActive");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.ToTable("UserPushTokens", "auth");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Auth.UserRole", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1933,6 +2011,17 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("Role");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Auth.UserPushToken", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Auth.User", "User")
+                        .WithMany("PushTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Auth.UserRole", b =>
                 {
                     b.HasOne("Grimorio.Domain.Entities.Auth.Role", "Role")
@@ -2198,6 +2287,8 @@ namespace Grimorio.Infrastructure.Migrations
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Auth.User", b =>
                 {
+                    b.Navigation("PushTokens");
+
                     b.Navigation("UserRoles");
                 });
 

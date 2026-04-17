@@ -116,7 +116,7 @@ public class SchedulingSeeder
         {
             Id = Guid.NewGuid(),
             WorkAreaId = barId,
-            Name = "Barman",
+            Name = "Bartender",
             Description = "Preparador de bebidas",
             CreatedAt = DateTime.UtcNow,
             CreatedBy = Guid.Empty

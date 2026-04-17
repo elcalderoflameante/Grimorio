@@ -2,11 +2,15 @@ using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.TableService.Commands;
 using Grimorio.Application.Features.TableService.Queries;
 using Grimorio.API.Hubs;
+using Grimorio.API.Notifications;
+using Grimorio.Domain.Entities.Auth;
 using Grimorio.Domain.Entities.POS;
+using Grimorio.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Grimorio.API.Controllers;
 
@@ -17,11 +21,19 @@ public class TableServiceController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly IHubContext<TableServiceHub> _hubContext;
+    private readonly IFcmPushNotificationService _fcmPushNotificationService;
+    private readonly GrimorioDbContext _dbContext;
 
-    public TableServiceController(IMediator mediator, IHubContext<TableServiceHub> hubContext)
+    public TableServiceController(
+        IMediator mediator,
+        IHubContext<TableServiceHub> hubContext,
+        IFcmPushNotificationService fcmPushNotificationService,
+        GrimorioDbContext dbContext)
     {
         _mediator = mediator;
         _hubContext = hubContext;
+        _fcmPushNotificationService = fcmPushNotificationService;
+        _dbContext = dbContext;
     }
 
     [HttpGet("tables")]
@@ -126,6 +138,82 @@ public class TableServiceController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("push-token")]
+    public async Task<IActionResult> RegisterPushToken([FromBody] PushTokenBody body)
+    {
+        if (string.IsNullOrWhiteSpace(body.Token))
+            return BadRequest("Token requerido.");
+
+        if (!TryGetUserId(out var userId))
+            return Unauthorized("UserId no válido en el token.");
+
+        if (!TryGetBranchId(out var branchId))
+            return Unauthorized("BranchId no válido en el token.");
+
+        var normalizedToken = body.Token.Trim();
+        var existingToken = await _dbContext.UserPushTokens
+            .FirstOrDefaultAsync(t => t.Token == normalizedToken);
+
+        if (existingToken == null)
+        {
+            _dbContext.UserPushTokens.Add(new UserPushToken
+            {
+                UserId = userId,
+                BranchId = branchId,
+                Token = normalizedToken,
+                Platform = string.IsNullOrWhiteSpace(body.Platform) ? "android" : body.Platform.Trim().ToLowerInvariant(),
+                DeviceId = string.IsNullOrWhiteSpace(body.DeviceId) ? null : body.DeviceId.Trim(),
+                LastSeenAt = DateTime.UtcNow,
+                IsActive = true,
+                CreatedBy = userId,
+                UpdatedBy = userId,
+            });
+        }
+        else
+        {
+            existingToken.UserId = userId;
+            existingToken.BranchId = branchId;
+            existingToken.Platform = string.IsNullOrWhiteSpace(body.Platform)
+                ? existingToken.Platform
+                : body.Platform.Trim().ToLowerInvariant();
+            existingToken.DeviceId = string.IsNullOrWhiteSpace(body.DeviceId)
+                ? existingToken.DeviceId
+                : body.DeviceId.Trim();
+            existingToken.LastSeenAt = DateTime.UtcNow;
+            existingToken.IsActive = true;
+            existingToken.IsDeleted = false;
+            existingToken.UpdatedAt = DateTime.UtcNow;
+            existingToken.UpdatedBy = userId;
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(new { message = "Push token registrado." });
+    }
+
+    [HttpDelete("push-token")]
+    public async Task<IActionResult> RemovePushToken([FromQuery] string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            return BadRequest("Token requerido.");
+
+        if (!TryGetUserId(out var userId))
+            return Unauthorized("UserId no válido en el token.");
+
+        var existingToken = await _dbContext.UserPushTokens
+            .FirstOrDefaultAsync(t => t.Token == token.Trim());
+
+        if (existingToken != null)
+        {
+            existingToken.IsActive = false;
+            existingToken.UpdatedAt = DateTime.UtcNow;
+            existingToken.UpdatedBy = userId;
+            await _dbContext.SaveChangesAsync();
+        }
+
+        return Ok(new { message = "Push token desactivado." });
+    }
+
     [AllowAnonymous]
     [HttpGet("public/table/{token}")]
     public async Task<IActionResult> GetPublicTableInfo(string token)
@@ -176,6 +264,8 @@ public class TableServiceController : ControllerBase
             .Group(TableServiceHub.GetPublicTableGroup(result.RestaurantTableId))
             .SendAsync(TableServiceHub.RequestUpdatedEvent, result);
 
+        await _fcmPushNotificationService.SendNewTableRequestAsync(result);
+
         return Ok(result);
     }
 
@@ -212,5 +302,12 @@ public class TableServiceController : ControllerBase
     public class SetStatusBody
     {
         public TableServiceRequestStatus Status { get; set; }
+    }
+
+    public class PushTokenBody
+    {
+        public string Token { get; set; } = string.Empty;
+        public string Platform { get; set; } = "android";
+        public string? DeviceId { get; set; }
     }
 }
