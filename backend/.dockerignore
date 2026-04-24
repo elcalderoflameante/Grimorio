@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+**/logs/
+**/.vs/
+**/.vscode/
+secrets/*.json
+.env
+api.log
