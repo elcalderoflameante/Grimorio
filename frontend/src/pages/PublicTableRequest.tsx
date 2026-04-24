@@ -205,83 +205,85 @@ export default function PublicTableRequest() {
 
   return (
     <>
-      <div className="fixed inset-0 h-[100dvh] w-screen overflow-hidden">
-      {/* Overlay de estado de solicitud activa */}
+      {/* Overlay de solicitud activa — cubre toda la pantalla */}
       {activeRequestId && activeRequestStatus && (
-        <div className="absolute inset-0 z-40 overflow-hidden">
-          <div className="absolute inset-0 z-0 bg-black" />
+        <div className="fixed inset-0 z-40 flex flex-col">
+          {/* Fondo negro */}
+          <div className="absolute inset-0 bg-black" />
 
-          <Lottie
-            animationData={magicAnimation}
-            loop
-            className="absolute inset-0 z-10 h-full w-full"
-          />
+          {/* Columna centrada — limita el ancho en pantallas grandes */}
+          <div className="relative z-10 mx-auto flex w-full max-w-sm flex-col sm:max-w-md" style={{ height: '100dvh' }}>
 
-          <div className="absolute inset-x-0 top-0 z-30 flex justify-center px-3 pt-2 sm:px-4 sm:pt-3">
-            <img
-              src={ecfLogo}
-              alt="El Caldero Flameante"
-              className="h-auto w-[50vw] max-w-[240px] min-w-[110px] drop-shadow-[0_10px_24px_rgba(0,0,0,0.65)]"
-            />
-          </div>
-
-          <div className="absolute inset-x-0 bottom-0 z-30 px-3 pb-5 sm:px-4 sm:pb-8">
-            <div
-              className="mx-auto max-w-[620px] rounded-2xl border-4 border-[#8B5E3C] px-3 py-2.5 text-center shadow-[inset_0_2px_4px_rgba(255,255,255,0.25),_inset_0_-2px_4px_rgba(0,0,0,0.2),_0_10px_24px_rgba(0,0,0,0.55)] sm:px-5 sm:py-4"
-              style={{ backgroundImage: 'url(' + fondoPergamino + ')', backgroundSize: 'cover', backgroundPosition: 'center' }}
-            >
-            {ACTIVE_STATUSES.has(activeRequestStatus) ? (
-              <>
-                <p className="text-[20px] font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif] drop-shadow-sm sm:text-[24px] lg:text-[28px]">
-                  {STATUS_MESSAGES[activeRequestStatus]?.title}
-                </p>
-                <p className="mt-1.5 text-[15px] italic text-[#5d4037] [font-family:'Eagle_Lake',serif] sm:mt-2 sm:text-[18px] lg:text-[21px]">
-                  {STATUS_MESSAGES[activeRequestStatus]?.subtitle}
-                </p>
-              </>
-            ) : (
-              <p className="text-[20px] font-bold text-[#4E7D40] [font-family:'Eagle_Lake',serif] sm:text-[24px] lg:text-[28px]">
-                ¡Solicitud completada! ✨
-              </p>
-            )}
+            {/* Logo — arriba */}
+            <div className="flex justify-center pt-8 sm:pt-12">
+              <img
+                src={ecfLogo}
+                alt="El Caldero Flameante"
+                className="w-40 sm:w-52 md:w-60 drop-shadow-[0_8px_20px_rgba(0,0,0,0.7)]"
+              />
             </div>
+
+            {/* Animación — centro */}
+            <div className="flex-1">
+              <Lottie animationData={magicAnimation} loop className="h-full w-full" />
+            </div>
+
+            {/* Pergamino — abajo */}
+            <div className="px-4 pb-10 sm:pb-14">
+              <div
+                className="rounded-2xl border-4 border-[#8B5E3C] px-5 py-3 text-center shadow-xl"
+                style={{ backgroundImage: `url(${fondoPergamino})`, backgroundSize: 'cover' }}
+              >
+                {ACTIVE_STATUSES.has(activeRequestStatus) ? (
+                  <>
+                    <p className="text-xl font-bold text-[#3e2723] sm:text-2xl [font-family:'Eagle_Lake',serif]">
+                      {STATUS_MESSAGES[activeRequestStatus]?.title}
+                    </p>
+                    <p className="mt-2 text-base italic text-[#5d4037] sm:text-lg [font-family:'Eagle_Lake',serif]">
+                      {STATUS_MESSAGES[activeRequestStatus]?.subtitle}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xl font-bold text-[#4E7D40] sm:text-2xl [font-family:'Eagle_Lake',serif]">
+                    ¡Solicitud completada! ✨
+                  </p>
+                )}
+              </div>
+            </div>
+
           </div>
         </div>
       )}
-      <img
-        src={fondoPergamino}
-        alt=""
-        aria-hidden="true"
-        className="absolute inset-0 h-full w-full object-cover"
-      />
 
-      <div className="relative z-10 h-full overflow-y-auto px-2 pb-5 pt-3 sm:pt-5">
-        <div className="mx-auto flex w-full max-w-[900px] flex-col items-center">
-          <div className="pointer-events-none flex w-full flex-col items-center">
-            <img
-              src={ecfLogo}
-              alt="El Caldero Flameante"
-              className="h-auto w-[70vw] max-w-[300px] min-w-[140px] drop-shadow-xl"
-            />
-            <h1 className="mt-0 text-center text-[22px] font-bold tracking-wide text-[#3e2723] [font-family:'Eagle_Lake',serif] drop-shadow-sm sm:text-[27px] lg:text-[31px]">
-              Solicitud de Mesa {tableCode ?? '--'}
+      {/* Página principal — flujo normal de documento */}
+      <div
+        className="min-h-screen w-full"
+        style={{ backgroundImage: `url(${fondoPergamino})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+      >
+        <div className="mx-auto max-w-md px-4 pb-10 pt-6">
+
+          {/* Cabecera */}
+          <div className="mb-6 flex flex-col items-center text-center">
+            <img src={ecfLogo} alt="El Caldero Flameante" className="w-40 drop-shadow-lg" />
+            <h1 className="mt-2 text-2xl font-bold tracking-wide text-[#3e2723] [font-family:'Eagle_Lake',serif]">
+              Mesa {tableCode ?? '--'}
             </h1>
+            <p className="text-base text-[#6d4c3d] [font-family:'Eagle_Lake',serif]">
+              ¿Qué necesitas?
+            </p>
           </div>
 
-          <div className="mt-3 grid w-full grid-cols-2 gap-1.5 sm:mt-4 sm:gap-2">
+          {/* Grilla de opciones */}
+          <div className="grid grid-cols-2 gap-3">
             {requestOptions.map((option) => (
               <RusticButton
                 key={option.id}
-                className="h-[68px] sm:h-[82px] lg:h-[94px]"
+                className="min-h-10"
                 onClick={() => handleOptionRequest(option.type, option.label)}
               >
-                <div className="flex w-full flex-row items-center gap-1.5 px-1.5 text-[#3e2723] sm:gap-2.5 sm:px-2">
-                  <img 
-                    src={option.image} 
-                    alt=""
-                    className="h-12 w-12 object-contain sm:h-[60px] sm:w-[60px] lg:h-[72px] lg:w-[72px]"
-                  />
-                  <span className="flex-1 text-center text-[14px] font-bold leading-tight [font-family:'Eagle_Lake',serif] sm:text-[18px] lg:text-[22px]">
+                <div className="flex w-full flex-row items-center gap-2 px-2 text-[#3e2723]">
+                  <img src={option.image} alt="" className="h-9 w-9 shrink-0 object-contain" />
+                  <span className="min-w-0 flex-1 overflow-hidden text-left text-sm font-bold leading-tight [font-family:'Eagle_Lake',serif]">
                     {option.label}
                   </span>
                 </div>
@@ -289,60 +291,65 @@ export default function PublicTableRequest() {
             ))}
           </div>
 
-          <div className="mt-6 w-full max-w-[900px]">
-            <h2 className="text-center text-[19px] font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif] sm:text-[22px] lg:text-[24px]">
+          {/* Solicitud personalizada */}
+          <div className="mt-8">
+            <h2 className="text-center text-xl font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif]">
               Solicitud Personalizada
             </h2>
             <textarea
               value={customRequest}
               onChange={(e) => setCustomRequest(e.target.value)}
               placeholder="Escribe tu solicitud aquí..."
-              className="mt-3 w-full box-border resize-none rounded-lg border-4 border-[#8B5E3C] bg-[#f5f1ed] p-3 text-[16px] font-semibold text-[#3e2723] placeholder-[#a1887f] focus:outline-none focus:ring-2 focus:ring-[#bc955c] sm:p-4 sm:text-[19px] lg:p-5 lg:text-[23px]"
-              rows={6}
+              rows={4}
+              className="mt-3 box-border w-full resize-none rounded-2xl border-4 border-[#8B5E3C] bg-[#f5f1ed] p-4 text-base font-semibold text-[#3e2723] placeholder-[#a1887f] focus:outline-none focus:ring-2 focus:ring-[#bc955c]"
             />
             <button
               onClick={handleCustomRequest}
               disabled={isSubmitting || !customRequest.trim()}
-              className="mt-3 box-border flex h-[58px] w-full items-center justify-center rounded-lg border-4 border-[#8B5E3C] bg-[#D2B48C] px-3 text-[16px] font-bold text-[#3e2723] drop-shadow-md transition-transform [font-family:'Eagle_Lake',serif] hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 sm:h-[72px] sm:px-4 sm:text-[18px] lg:h-[84px] lg:px-5 lg:text-[20px]"
+              className="mt-3 flex h-14 w-full items-center justify-center rounded-2xl border-4 border-[#8B5E3C] bg-[#D2B48C] text-lg font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif] shadow-md transition-transform active:scale-95 disabled:opacity-50"
             >
               {isSubmitting ? 'Enviando...' : 'Enviar Solicitud'}
             </button>
           </div>
+
         </div>
       </div>
-    </div>
 
+      {/* Modal de confirmación */}
       {pendingRequest && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
           <div
-            className="w-full max-w-[500px] rounded-2xl border-4 border-[#8B5E3C] bg-[#f5ead8] p-3 shadow-2xl sm:p-4 lg:p-5"
-            style={{ backgroundImage: 'url(' + fondoPergamino + ')', backgroundSize: 'cover' }}
+            className="w-full max-w-sm rounded-2xl border-4 border-[#8B5E3C] shadow-2xl"
+            style={{ backgroundImage: `url(${fondoPergamino})`, backgroundSize: 'cover' }}
           >
-            <h3 className="text-center text-[18px] font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif] sm:text-[22px] lg:text-[24px]">
-              ¿Confirmar solicitud?
-            </h3>
-            <p className="mt-1.5 text-center text-[15px] text-[#5d4037] [font-family:'Eagle_Lake',serif] sm:mt-2 sm:text-[17px] lg:text-[19px]">
-              {pendingRequest.label}
-            </p>
-            {pendingRequest.customMessage && (
-              <p className="mt-1 text-center text-[13px] italic text-[#7b5e47] [font-family:'Eagle_Lake',serif] sm:text-[14px] lg:text-[15px]">
-                &ldquo;{pendingRequest.customMessage}&rdquo;
+
+            <div className="px-6 pb-8 pt-5">
+              <h3 className="text-center text-xl font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif]">
+                ¿Confirmar solicitud?
+              </h3>
+              <p className="mt-2 text-center text-lg text-[#5d4037] [font-family:'Eagle_Lake',serif]">
+                {pendingRequest.label}
               </p>
-            )}
-            <div className="mt-3 flex gap-2 sm:mt-4 sm:gap-2.5 lg:mt-5 lg:gap-3">
-              <button
-                onClick={cancelRequest}
-                className="flex-1 rounded-xl border-4 border-[#8B5E3C] bg-[#e8d9c0] py-2 text-[15px] font-bold text-[#5d4037] transition-transform [font-family:'Eagle_Lake',serif] hover:scale-105 active:scale-95 sm:py-2.5 sm:text-[16px] lg:py-3 lg:text-[17px]"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => { confirmRequest().catch(() => {}); }}
-                disabled={isSubmitting}
-                className="flex-1 rounded-xl border-4 border-[#5a3a1a] bg-[#8B5E3C] py-2 text-[15px] font-bold text-[#f5ead8] transition-transform [font-family:'Eagle_Lake',serif] hover:scale-105 active:scale-95 disabled:opacity-50 sm:py-2.5 sm:text-[16px] lg:py-3 lg:text-[17px]"
-              >
-                {isSubmitting ? 'Enviando...' : 'Confirmar'}
-              </button>
+              {pendingRequest.customMessage && (
+                <p className="mt-1 text-center text-sm italic text-[#7b5e47] [font-family:'Eagle_Lake',serif]">
+                  &ldquo;{pendingRequest.customMessage}&rdquo;
+                </p>
+              )}
+              <div className="mt-5 flex gap-3">
+                <button
+                  onClick={cancelRequest}
+                  className="h-14 flex-1 rounded-2xl border-4 border-[#8B5E3C] bg-[#e8d9c0] text-base font-bold text-[#5d4037] [font-family:'Eagle_Lake',serif] active:scale-95"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => { confirmRequest().catch(() => {}); }}
+                  disabled={isSubmitting}
+                  className="h-14 flex-1 rounded-2xl border-4 border-[#5a3a1a] bg-[#8B5E3C] text-base font-bold text-[#f5ead8] [font-family:'Eagle_Lake',serif] active:scale-95 disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Enviando...' : 'Confirmar'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

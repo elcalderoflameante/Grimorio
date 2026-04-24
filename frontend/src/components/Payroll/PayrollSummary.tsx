@@ -734,8 +734,8 @@ export const PayrollSummary = () => {
                     }}
                   >
                     <div style={{ fontWeight: 600, fontSize: 14 }}>{employee.employeeName}</div>
-                    <div style={{ color: '#666', fontSize: 12 }}>{employee.positionName}</div>
-                    <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
+                    <div style={{ color: '#666', fontSize: 13 }}>{employee.positionName}</div>
+                    <div style={{ color: '#999', fontSize: 13, marginTop: 4 }}>
                       Sueldo: {currency(employee.baseSalary)}
                     </div>
                   </List.Item>
@@ -837,7 +837,7 @@ export const PayrollSummary = () => {
                   <div>
                     <h4>Acciones</h4>
                     {isRoleLocked && (
-                      <div style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>
+                      <div style={{ fontSize: 13, color: '#999', marginBottom: 8 }}>
                         Rol autorizado/pagado: no se permiten cambios.
                       </div>
                     )}

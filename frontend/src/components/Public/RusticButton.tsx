@@ -11,7 +11,7 @@ export default function RusticButton({ children, onClick, className = '' }: Rust
     <div className={`relative p-1.5 ${className}`}>
       <button
         onClick={onClick}
-        className="relative flex h-full w-full items-center justify-center rounded-xl border-4 border-[#8B5E3C] bg-[#D2B48C] bg-opacity-95 p-4 shadow-[inset_0_2px_4px_rgba(255,255,255,0.4),_inset_0_-2px_4px_rgba(0,0,0,0.3),_0_2px_4px_rgba(0,0,0,0.2)] transition-all duration-150 hover:scale-[1.02] hover:bg-[#C9A67C] active:scale-[0.98] active:border-[#734A31] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),_inset_0_-2px_4px_rgba(255,255,255,0.1),_0_2px_4px_rgba(0,0,0,0.2)]"
+        className="relative flex h-full w-full items-center justify-center rounded-xl border-4 border-[#8B5E3C] bg-[#D2B48C] bg-opacity-95 p-3 shadow-[inset_0_2px_4px_rgba(255,255,255,0.4),_inset_0_-2px_4px_rgba(0,0,0,0.3),_0_2px_4px_rgba(0,0,0,0.2)] transition-all duration-150 hover:scale-[1.02] hover:bg-[#C9A67C] active:scale-[0.98] active:border-[#734A31] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.5),_inset_0_-2px_4px_rgba(255,255,255,0.1),_0_2px_4px_rgba(0,0,0,0.2)]"
         style={{
           borderStyle: 'outset',
           borderColor: '#8B5E3C',

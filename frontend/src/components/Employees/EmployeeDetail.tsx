@@ -578,8 +578,8 @@ export default function EmployeeDetail({ employeeId, onSaved, onCancel }: Employ
                       <Col xs={24} md={8}>
                         <div
                           style={{
-                            width: '200px',
-                            height: '240px',
+                            width: 'min(200px, 100%)',
+                            aspectRatio: '5 / 6',
                             margin: '0 auto',
                             backgroundColor: '#f0f0f0',
                             borderRadius: '8px',

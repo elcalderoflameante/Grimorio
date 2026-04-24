@@ -769,7 +769,7 @@ export const WeeklyScheduleBoard = ({
 
           {/* ── Panel derecho: tablero semanal ─────────────────────────── */}
           <Col xs={24} lg={19}>
-            <div style={{ overflowX: 'auto' }}>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
               <Row gutter={[6, 0]} style={{ flexWrap: 'nowrap', minWidth: 700 }}>
                 {weekDays.map(day => {
                   const dateStr = day.format('YYYY-MM-DD');

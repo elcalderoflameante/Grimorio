@@ -8,11 +8,12 @@ export const Welcome = () => {
   const { user } = useAuth();
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      minHeight: '60vh' 
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: '60vh',
+      padding: '16px',
     }}>
       <Card 
         style={{ 

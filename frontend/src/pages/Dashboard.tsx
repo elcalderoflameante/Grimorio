@@ -328,13 +328,15 @@ export default function Dashboard() {
           <Header
           style={{
             background: '#fff',
-            padding: '0 24px',
+            padding: isMobile ? '0 12px' : '0 24px',
             boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-              flexWrap: 'wrap',
-              rowGap: 8,
+            flexWrap: 'wrap',
+            rowGap: 8,
+            height: 'auto',
+            minHeight: 64,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -348,11 +350,13 @@ export default function Dashboard() {
             <Breadcrumb items={breadcrumbItems} />
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '12px' : '24px' }}>
+            {!isMobile && (
             <Space>
               <ShopOutlined />
               <span>Sucursal: {branch?.name || '—'}</span>
             </Space>
+            )}
             <Dropdown menu={{ items: userMenu }} placement="bottomRight">
               <Space style={{ cursor: 'pointer' }}>
                 <Avatar icon={<UserOutlined />} />

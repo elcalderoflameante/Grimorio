@@ -821,14 +821,14 @@ export const MonthlySchedule = () => {
         const colors = getColorVariants(shift?.workAreaColor || '');
         
         row[date.format('YYYY-MM-DD')] = shift ? (
-          <div 
-            style={{ 
-              fontSize: '9px',
+          <div
+            style={{
+              fontSize: '11px',
               padding: '2px 4px',
               backgroundColor: colors.bg,
               border: `0.5px solid ${colors.border}`,
               borderRadius: '4px',
-              minHeight: '34px',
+              minHeight: '38px',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
@@ -840,7 +840,7 @@ export const MonthlySchedule = () => {
               {startTime}-{endTime}
             </div>
             <div style={{ color: '#333', fontWeight: 500 }}>{shift.employeeName}</div>
-            <div style={{ color: colors.text, fontSize: '8px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ color: colors.text, fontSize: '10px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {shift.workAreaName} / {shift.workRoleName}
             </div>
           </div>
@@ -858,12 +858,12 @@ export const MonthlySchedule = () => {
       freeRow[key] = (
         <div
           style={{
-            fontSize: '9px',
+            fontSize: '11px',
             padding: '2px 4px',
             backgroundColor: freeDayColors.bg,
             border: `0.5px dashed ${freeDayColors.border}`,
             borderRadius: '4px',
-            minHeight: '34px',
+            minHeight: '38px',
             maxHeight: '80px',
             overflowY: 'auto',
           }}

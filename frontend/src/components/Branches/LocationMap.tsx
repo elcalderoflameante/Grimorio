@@ -54,7 +54,7 @@ export const LocationMap = ({
   latitude,
   longitude,
   onLocationChange,
-  height = '400px',
+  height = 'clamp(240px, 50vh, 400px)',
 }: LocationMapProps) => {
   const center: LatLngTuple = [
     latitude && longitude ? latitude : -0.2298,

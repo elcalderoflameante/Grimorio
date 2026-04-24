@@ -401,6 +401,7 @@ export default function TableServiceModule() {
       title: 'Área',
       dataIndex: 'area',
       key: 'area',
+      responsive: ['sm'] as never,
       render: (value?: string) => value || '-',
     },
     {
@@ -408,6 +409,7 @@ export default function TableServiceModule() {
       dataIndex: 'capacity',
       key: 'capacity',
       width: 90,
+      responsive: ['sm'] as never,
     },
     {
       title: 'Estado',
@@ -489,6 +491,7 @@ export default function TableServiceModule() {
       title: 'Detalle',
       dataIndex: 'customMessage',
       key: 'customMessage',
+      responsive: ['md'] as never,
       render: (value?: string) => value || '-',
     },
     {
@@ -502,6 +505,7 @@ export default function TableServiceModule() {
       title: 'Responsable',
       dataIndex: 'takenByName',
       key: 'takenByName',
+      responsive: ['sm'] as never,
       render: (value?: string) => value || '-',
     },
     {
@@ -554,7 +558,7 @@ export default function TableServiceModule() {
                   columns={tableColumns}
                   dataSource={tables}
                   pagination={{ pageSize: 8 }}
-                  scroll={{ x: 980 }}
+                  scroll={{ x: screens.md ? 980 : 'max-content' }}
                 />
               </Space>
             ),
@@ -591,7 +595,7 @@ export default function TableServiceModule() {
                   columns={requestColumns}
                   dataSource={requests}
                   pagination={{ pageSize: 10 }}
-                  scroll={{ x: 1100 }}
+                  scroll={{ x: screens.md ? 1100 : 'max-content' }}
                 />
               </Space>
             ),
@@ -659,7 +663,7 @@ export default function TableServiceModule() {
             <img
               src={`${QR_SERVER_BASE_URL}?size=420x420&data=${encodeURIComponent(buildTablePublicUrl(qrPreview.table.publicToken))}`}
               alt={`QR-Mesa-${qrPreview.table.code}`}
-              style={{ width: 320, height: 320, maxWidth: '100%' }}
+              style={{ width: '100%', maxWidth: 320, height: 'auto', aspectRatio: '1 / 1' }}
             />
             <Text copyable>{buildTablePublicUrl(qrPreview.table.publicToken)}</Text>
           </Space>
