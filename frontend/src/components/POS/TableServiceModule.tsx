@@ -24,6 +24,15 @@ import * as signalR from '@microsoft/signalr';
 import { useAuth } from '../../context/useAuth';
 import { tableServiceApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
+import {
+  QR_SERVER_BASE_URL,
+  REQUEST_STATUS,
+  REQUEST_STATUS_COLORS,
+  REQUEST_STATUS_LABELS,
+  REQUEST_TYPE_LABELS,
+  REQUESTS_POLLING_INTERVAL_MS,
+  TABLE_SERVICE_HUB_PATH,
+} from '../../constants/tableService';
 import type {
   CreateRestaurantTableDto,
   RestaurantTableDto,
@@ -38,33 +47,6 @@ const { useBreakpoint } = Grid;
 const PUBLIC_APP_BASE_URL = (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined)?.replace(/\/$/, '')
   || window.location.origin;
 
-const requestTypeLabel: Record<number, string> = {
-  1: 'Servilletas',
-  2: 'Sal',
-  3: 'Salsa de tomate',
-  4: 'Mayonesa',
-  5: 'Aji',
-  6: 'Contenedor',
-  7: 'Cuenta',
-  8: 'Llamar mesero',
-  99: 'Personalizado',
-};
-
-const statusLabel: Record<number, string> = {
-  1: 'Pendiente',
-  2: 'Tomada',
-  3: 'En proceso',
-  4: 'Completada',
-  5: 'Cancelada',
-};
-
-const statusColor: Record<number, string> = {
-  1: 'gold',
-  2: 'blue',
-  3: 'purple',
-  4: 'green',
-  5: 'red',
-};
 
 interface TableFormValues {
   code: string;
@@ -178,7 +160,7 @@ export default function TableServiceModule() {
   const handlePrintQr = useCallback(() => {
     if (!qrPreview.table) return;
     const fullUrl = buildTablePublicUrl(qrPreview.table.publicToken);
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=420x420&data=${encodeURIComponent(fullUrl)}`;
+    const qrUrl = `${QR_SERVER_BASE_URL}?size=420x420&data=${encodeURIComponent(fullUrl)}`;
 
     const printWindow = window.open('', '_blank', 'width=900,height=700');
     if (!printWindow) {
@@ -243,7 +225,7 @@ export default function TableServiceModule() {
   useEffect(() => {
     const timer = setInterval(() => {
       loadRequests().catch(() => {});
-    }, 10000);
+    }, REQUESTS_POLLING_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [loadRequests]);
 
@@ -252,8 +234,8 @@ export default function TableServiceModule() {
 
     const apiUrlFromEnv = import.meta.env.VITE_API_URL as string | undefined;
     const hubUrl = apiUrlFromEnv
-      ? `${apiUrlFromEnv.replace(/\/api\/?$/, '')}/hubs/table-service`
-      : '/hubs/table-service';
+      ? `${apiUrlFromEnv.replace(/\/api\/?$/, '')}${TABLE_SERVICE_HUB_PATH}`
+      : TABLE_SERVICE_HUB_PATH;
     const connection = new signalR.HubConnectionBuilder()
       .withUrl(hubUrl, {
         accessTokenFactory: () => token,
@@ -262,7 +244,7 @@ export default function TableServiceModule() {
       .build();
 
     const onNewRequest = (payload: TableServiceRequestDto) => {
-      const typeText = requestTypeLabel[payload.type] ?? String(payload.type);
+      const typeText = REQUEST_TYPE_LABELS[payload.type] ?? String(payload.type);
       notification.info({
         message: `Nueva solicitud: ${payload.tableCode} - ${payload.tableName}`,
         description: payload.customMessage?.trim()
@@ -276,7 +258,7 @@ export default function TableServiceModule() {
     const onRequestUpdated = (payload: TableServiceRequestDto) => {
       notification.open({
         message: `Solicitud actualizada: ${payload.tableCode} - ${payload.tableName}`,
-        description: `Estado: ${statusLabel[payload.status] ?? payload.status}`,
+        description: `Estado: ${REQUEST_STATUS_LABELS[payload.status] ?? payload.status}`,
         placement: 'topRight',
       });
       loadRequests().catch(() => {});
@@ -439,7 +421,7 @@ export default function TableServiceModule() {
       key: 'qr',
       render: (_: unknown, record: RestaurantTableDto) => {
         const fullUrl = buildTablePublicUrl(record.publicToken);
-        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=${encodeURIComponent(fullUrl)}`;
+        const qrUrl = `${QR_SERVER_BASE_URL}?size=90x90&data=${encodeURIComponent(fullUrl)}`;
         return (
           <Space wrap>
             <img
@@ -501,7 +483,7 @@ export default function TableServiceModule() {
       title: 'Tipo',
       dataIndex: 'type',
       key: 'type',
-      render: (value: number) => requestTypeLabel[value] || String(value),
+      render: (value: number) => REQUEST_TYPE_LABELS[value] || String(value),
     },
     {
       title: 'Detalle',
@@ -514,7 +496,7 @@ export default function TableServiceModule() {
       dataIndex: 'status',
       key: 'status',
       width: 120,
-      render: (value: number) => <Tag color={statusColor[value] || 'default'}>{statusLabel[value] || value}</Tag>,
+      render: (value: number) => <Tag color={REQUEST_STATUS_COLORS[value] || 'default'}>{REQUEST_STATUS_LABELS[value] || value}</Tag>,
     },
     {
       title: 'Responsable',
@@ -528,15 +510,15 @@ export default function TableServiceModule() {
       width: 280,
       render: (_: unknown, row: TableServiceRequestDto) => (
         <Space wrap>
-          {row.status === 1 && <Button size="small" onClick={() => handleTakeRequest(row.id)}>Tomar</Button>}
-          {row.status === 2 && <Button size="small" onClick={() => handleSetRequestStatus(row.id, 3)}>En proceso</Button>}
-          {(row.status === 2 || row.status === 3) && (
-            <Button size="small" type="primary" onClick={() => handleSetRequestStatus(row.id, 4)}>
+          {row.status === REQUEST_STATUS.PENDING && <Button size="small" onClick={() => handleTakeRequest(row.id)}>Tomar</Button>}
+          {row.status === REQUEST_STATUS.TAKEN && <Button size="small" onClick={() => handleSetRequestStatus(row.id, REQUEST_STATUS.IN_PROGRESS)}>En proceso</Button>}
+          {(row.status === REQUEST_STATUS.TAKEN || row.status === REQUEST_STATUS.IN_PROGRESS) && (
+            <Button size="small" type="primary" onClick={() => handleSetRequestStatus(row.id, REQUEST_STATUS.COMPLETED)}>
               Completar
             </Button>
           )}
-          {(row.status === 1 || row.status === 2 || row.status === 3) && (
-            <Button size="small" danger onClick={() => handleSetRequestStatus(row.id, 5)}>
+          {(row.status === REQUEST_STATUS.PENDING || row.status === REQUEST_STATUS.TAKEN || row.status === REQUEST_STATUS.IN_PROGRESS) && (
+            <Button size="small" danger onClick={() => handleSetRequestStatus(row.id, REQUEST_STATUS.CANCELLED)}>
               Cancelar
             </Button>
           )}
@@ -675,7 +657,7 @@ export default function TableServiceModule() {
           <Space direction="vertical" style={{ width: '100%', alignItems: 'center' }}>
             <Text type="secondary">{qrPreview.table.area || 'Área general'}</Text>
             <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=420x420&data=${encodeURIComponent(buildTablePublicUrl(qrPreview.table.publicToken))}`}
+              src={`${QR_SERVER_BASE_URL}?size=420x420&data=${encodeURIComponent(buildTablePublicUrl(qrPreview.table.publicToken))}`}
               alt={`QR-Mesa-${qrPreview.table.code}`}
               style={{ width: 320, height: 320, maxWidth: '100%' }}
             />

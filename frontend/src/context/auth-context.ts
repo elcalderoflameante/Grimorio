@@ -23,7 +23,6 @@ export interface DecodedToken {
   permissions?: string | string[];
   'http://schemas.microsoft.com/ws/2008/06/identity/claims/role'?: string | string[];
   BranchId?: string;
-  branchId?: string;
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);

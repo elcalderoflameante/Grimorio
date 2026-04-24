@@ -3,14 +3,12 @@ using Grimorio.Application.Features.TableService.Commands;
 using Grimorio.Application.Features.TableService.Queries;
 using Grimorio.API.Hubs;
 using Grimorio.API.Notifications;
-using Grimorio.Domain.Entities.Auth;
 using Grimorio.Domain.Entities.POS;
-using Grimorio.Infrastructure.Persistence;
+using Grimorio.SharedKernel.Constants;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
 
 namespace Grimorio.API.Controllers;
 
@@ -22,18 +20,15 @@ public class TableServiceController : ControllerBase
     private readonly IMediator _mediator;
     private readonly IHubContext<TableServiceHub> _hubContext;
     private readonly IFcmPushNotificationService _fcmPushNotificationService;
-    private readonly GrimorioDbContext _dbContext;
 
     public TableServiceController(
         IMediator mediator,
         IHubContext<TableServiceHub> hubContext,
-        IFcmPushNotificationService fcmPushNotificationService,
-        GrimorioDbContext dbContext)
+        IFcmPushNotificationService fcmPushNotificationService)
     {
         _mediator = mediator;
         _hubContext = hubContext;
         _fcmPushNotificationService = fcmPushNotificationService;
-        _dbContext = dbContext;
     }
 
     [HttpGet("tables")]
@@ -150,43 +145,14 @@ public class TableServiceController : ControllerBase
         if (!TryGetBranchId(out var branchId))
             return Unauthorized("BranchId no válido en el token.");
 
-        var normalizedToken = body.Token.Trim();
-        var existingToken = await _dbContext.UserPushTokens
-            .FirstOrDefaultAsync(t => t.Token == normalizedToken);
-
-        if (existingToken == null)
+        await _mediator.Send(new RegisterPushTokenCommand
         {
-            _dbContext.UserPushTokens.Add(new UserPushToken
-            {
-                UserId = userId,
-                BranchId = branchId,
-                Token = normalizedToken,
-                Platform = string.IsNullOrWhiteSpace(body.Platform) ? "android" : body.Platform.Trim().ToLowerInvariant(),
-                DeviceId = string.IsNullOrWhiteSpace(body.DeviceId) ? null : body.DeviceId.Trim(),
-                LastSeenAt = DateTime.UtcNow,
-                IsActive = true,
-                CreatedBy = userId,
-                UpdatedBy = userId,
-            });
-        }
-        else
-        {
-            existingToken.UserId = userId;
-            existingToken.BranchId = branchId;
-            existingToken.Platform = string.IsNullOrWhiteSpace(body.Platform)
-                ? existingToken.Platform
-                : body.Platform.Trim().ToLowerInvariant();
-            existingToken.DeviceId = string.IsNullOrWhiteSpace(body.DeviceId)
-                ? existingToken.DeviceId
-                : body.DeviceId.Trim();
-            existingToken.LastSeenAt = DateTime.UtcNow;
-            existingToken.IsActive = true;
-            existingToken.IsDeleted = false;
-            existingToken.UpdatedAt = DateTime.UtcNow;
-            existingToken.UpdatedBy = userId;
-        }
-
-        await _dbContext.SaveChangesAsync();
+            UserId = userId,
+            BranchId = branchId,
+            Token = body.Token,
+            Platform = body.Platform,
+            DeviceId = body.DeviceId,
+        });
 
         return Ok(new { message = "Push token registrado." });
     }
@@ -200,16 +166,11 @@ public class TableServiceController : ControllerBase
         if (!TryGetUserId(out var userId))
             return Unauthorized("UserId no válido en el token.");
 
-        var existingToken = await _dbContext.UserPushTokens
-            .FirstOrDefaultAsync(t => t.Token == token.Trim());
-
-        if (existingToken != null)
+        await _mediator.Send(new DeactivatePushTokenCommand
         {
-            existingToken.IsActive = false;
-            existingToken.UpdatedAt = DateTime.UtcNow;
-            existingToken.UpdatedBy = userId;
-            await _dbContext.SaveChangesAsync();
-        }
+            UserId = userId,
+            Token = token,
+        });
 
         return Ok(new { message = "Push token desactivado." });
     }
@@ -272,31 +233,30 @@ public class TableServiceController : ControllerBase
     private bool TryGetBranchId(out Guid branchId)
     {
         branchId = Guid.Empty;
-        var branchClaim = User.FindFirst("BranchId")?.Value;
+        var branchClaim = User.FindFirst(AppConstants.Claims.BranchId)?.Value;
         return branchClaim != null && Guid.TryParse(branchClaim, out branchId);
     }
 
     private bool TryGetUserId(out Guid userId)
     {
         userId = Guid.Empty;
-        var userClaim = User.FindFirst("UserId")?.Value
+        var userClaim = User.FindFirst(AppConstants.Claims.UserId)?.Value
             ?? User.FindFirst("sub")?.Value
-            ?? User.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier")?.Value;
+            ?? User.FindFirst(AppConstants.Claims.NameIdentifier)?.Value;
 
         return userClaim != null && Guid.TryParse(userClaim, out userId);
     }
 
     private string GetUserDisplayName()
     {
-        var firstName = User.FindFirst("FirstName")?.Value;
-        var lastName = User.FindFirst("LastName")?.Value;
-        var email = User.FindFirst("email")?.Value ?? User.Identity?.Name;
+        var firstName = User.FindFirst(AppConstants.Claims.FirstName)?.Value;
+        var lastName = User.FindFirst(AppConstants.Claims.LastName)?.Value;
+        var email = User.FindFirst(AppConstants.Claims.Email)?.Value ?? User.Identity?.Name;
 
         var fullName = $"{firstName} {lastName}".Trim();
-        if (!string.IsNullOrWhiteSpace(fullName))
-            return fullName;
-
-        return string.IsNullOrWhiteSpace(email) ? "Usuario" : email;
+        return !string.IsNullOrWhiteSpace(fullName)
+            ? fullName
+            : (string.IsNullOrWhiteSpace(email) ? "Usuario" : email);
     }
 
     public class SetStatusBody

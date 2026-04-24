@@ -2,717 +2,11 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Scheduling.Commands;
-using Grimorio.Domain.Enums;
 using Grimorio.Domain.Entities.Organization;
 using Grimorio.Domain.Entities.Scheduling;
 using Grimorio.Infrastructure.Persistence;
 
 namespace Grimorio.Infrastructure.Features.Scheduling.Commands;
-
-public class CreateWorkAreaCommandHandler : IRequestHandler<CreateWorkAreaCommand, WorkAreaDto>
-{
-    private readonly GrimorioDbContext _context;
-
-    public CreateWorkAreaCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<WorkAreaDto> Handle(CreateWorkAreaCommand request, CancellationToken cancellationToken)
-    {
-        var workArea = new WorkArea
-        {
-            Id = Guid.NewGuid(),
-            Name = request.Name,
-            Description = request.Description,
-            Color = request.Color,
-            DisplayOrder = request.DisplayOrder,
-            BranchId = request.BranchId,
-            CreatedAt = DateTime.UtcNow,
-            CreatedBy = Guid.Empty
-        };
-
-        _context.WorkAreas.Add(workArea);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return new WorkAreaDto
-        {
-            Id = workArea.Id,
-            Name = workArea.Name,
-            Description = workArea.Description,
-            Color = workArea.Color,
-            DisplayOrder = workArea.DisplayOrder,
-            BranchId = workArea.BranchId,
-            WorkRoles = new()
-        };
-    }
-}
-
-public class UpdateWorkAreaCommandHandler : IRequestHandler<UpdateWorkAreaCommand, WorkAreaDto>
-{
-    private readonly GrimorioDbContext _context;
-
-    public UpdateWorkAreaCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<WorkAreaDto> Handle(UpdateWorkAreaCommand request, CancellationToken cancellationToken)
-    {
-        var workArea = await _context.WorkAreas
-            .Include(w => w.WorkRoles)
-            .FirstOrDefaultAsync(w => w.Id == request.Id && !w.IsDeleted, cancellationToken);
-
-        if (workArea == null)
-            throw new InvalidOperationException("Área de trabajo no encontrada.");
-
-        workArea.Name = request.Name;
-        workArea.Description = request.Description;
-        workArea.Color = request.Color;
-        workArea.DisplayOrder = request.DisplayOrder;
-        workArea.UpdatedAt = DateTime.UtcNow;
-        workArea.UpdatedBy = Guid.Empty;
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return new WorkAreaDto
-        {
-            Id = workArea.Id,
-            Name = workArea.Name,
-            Description = workArea.Description,
-            Color = workArea.Color,
-            DisplayOrder = workArea.DisplayOrder,
-            BranchId = workArea.BranchId,
-            WorkRoles = workArea.WorkRoles
-                .Where(wr => !wr.IsDeleted)
-                .Select(wr => new WorkRoleDto
-                {
-                    Id = wr.Id,
-                    Name = wr.Name,
-                    Description = wr.Description,
-                    WorkAreaId = wr.WorkAreaId
-                }).ToList()
-        };
-    }
-}
-
-public class DeleteWorkAreaCommandHandler : IRequestHandler<DeleteWorkAreaCommand, bool>
-{
-    private readonly GrimorioDbContext _context;
-
-    public DeleteWorkAreaCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<bool> Handle(DeleteWorkAreaCommand request, CancellationToken cancellationToken)
-    {
-        var workArea = await _context.WorkAreas
-            .FirstOrDefaultAsync(w => w.Id == request.Id && !w.IsDeleted, cancellationToken);
-
-        if (workArea == null)
-            throw new InvalidOperationException("Área de trabajo no encontrada.");
-
-        workArea.IsDeleted = true;
-        workArea.DeletedAt = DateTime.UtcNow;
-        workArea.DeletedBy = Guid.Empty;
-
-        await _context.SaveChangesAsync(cancellationToken);
-        return true;
-    }
-}
-
-public class CreateWorkRoleCommandHandler : IRequestHandler<CreateWorkRoleCommand, WorkRoleDto>
-{
-    private readonly GrimorioDbContext _context;
-
-    public CreateWorkRoleCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<WorkRoleDto> Handle(CreateWorkRoleCommand request, CancellationToken cancellationToken)
-    {
-        var workArea = await _context.WorkAreas
-            .FirstOrDefaultAsync(w => w.Id == request.WorkAreaId && !w.IsDeleted, cancellationToken);
-
-        if (workArea == null)
-            throw new InvalidOperationException("Área de trabajo no encontrada.");
-
-        var workRole = new WorkRole
-        {
-            Id = Guid.NewGuid(),
-            Name = request.Name,
-            Description = request.Description,
-            WorkAreaId = request.WorkAreaId,
-            CreatedAt = DateTime.UtcNow,
-            CreatedBy = Guid.Empty
-        };
-
-        _context.WorkRoles.Add(workRole);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return new WorkRoleDto
-        {
-            Id = workRole.Id,
-            Name = workRole.Name,
-            Description = workRole.Description,
-            WorkAreaId = workRole.WorkAreaId
-        };
-    }
-}
-
-public class UpdateWorkRoleCommandHandler : IRequestHandler<UpdateWorkRoleCommand, WorkRoleDto>
-{
-    private readonly GrimorioDbContext _context;
-
-    public UpdateWorkRoleCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<WorkRoleDto> Handle(UpdateWorkRoleCommand request, CancellationToken cancellationToken)
-    {
-        var workRole = await _context.WorkRoles
-            .FirstOrDefaultAsync(wr => wr.Id == request.Id && !wr.IsDeleted, cancellationToken);
-
-        if (workRole == null)
-            throw new InvalidOperationException("Rol de trabajo no encontrado.");
-
-        workRole.Name = request.Name;
-        workRole.Description = request.Description;
-        workRole.UpdatedAt = DateTime.UtcNow;
-        workRole.UpdatedBy = Guid.Empty;
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return new WorkRoleDto
-        {
-            Id = workRole.Id,
-            Name = workRole.Name,
-            Description = workRole.Description,
-            WorkAreaId = workRole.WorkAreaId
-        };
-    }
-}
-
-public class DeleteWorkRoleCommandHandler : IRequestHandler<DeleteWorkRoleCommand, bool>
-{
-    private readonly GrimorioDbContext _context;
-
-    public DeleteWorkRoleCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<bool> Handle(DeleteWorkRoleCommand request, CancellationToken cancellationToken)
-    {
-        var workRole = await _context.WorkRoles
-            .FirstOrDefaultAsync(wr => wr.Id == request.Id && !wr.IsDeleted, cancellationToken);
-
-        if (workRole == null)
-            throw new InvalidOperationException("Rol de trabajo no encontrado.");
-
-        workRole.IsDeleted = true;
-        workRole.DeletedAt = DateTime.UtcNow;
-        workRole.DeletedBy = Guid.Empty;
-
-        await _context.SaveChangesAsync(cancellationToken);
-        return true;
-    }
-}
-
-// ======================== EmployeeWorkRole Commands ========================
-
-public class AssignWorkRolesToEmployeeCommandHandler : IRequestHandler<AssignWorkRolesToEmployeeCommand, List<EmployeeWorkRoleDto>>
-{
-    private readonly GrimorioDbContext _context;
-
-    public AssignWorkRolesToEmployeeCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<List<EmployeeWorkRoleDto>> Handle(AssignWorkRolesToEmployeeCommand request, CancellationToken cancellationToken)
-    {
-        var employee = await _context.Employees
-            .FirstOrDefaultAsync(e => e.Id == request.EmployeeId && !e.IsDeleted, cancellationToken);
-
-        if (employee == null)
-            throw new InvalidOperationException("Empleado no encontrado.");
-
-        // Validar máximo 3 roles
-        if (request.WorkRoleIds.Count > 3)
-            throw new InvalidOperationException("Un empleado puede tener máximo 3 roles. El último rol tiene la menor prioridad.");
-
-        // Validar al menos 1 rol
-        if (request.WorkRoleIds.Count == 0)
-            throw new InvalidOperationException("Un empleado debe tener al menos un rol asignado.");
-
-        // Eliminar roles existentes
-        await _context.EmployeeWorkRoles
-            .Where(ewr => ewr.EmployeeId == request.EmployeeId)
-            .ExecuteDeleteAsync(cancellationToken);
-
-        // Agregar nuevos roles
-        foreach (var (roleId, index) in request.WorkRoleIds.Select((r, i) => (r, i)))
-        {
-            var workRole = await _context.WorkRoles
-                .FirstOrDefaultAsync(wr => wr.Id == roleId && !wr.IsDeleted, cancellationToken);
-
-            if (workRole == null)
-                throw new InvalidOperationException($"Rol de trabajo con ID {roleId} no encontrado.");
-
-            var employeeWorkRole = new EmployeeWorkRole
-            {
-                Id = Guid.NewGuid(),
-                EmployeeId = request.EmployeeId,
-                WorkRoleId = roleId,
-                IsPrimary = index == 0, // Primer rol es el primario
-                Priority = index + 1,
-                CreatedAt = DateTime.UtcNow,
-                CreatedBy = Guid.Empty
-            };
-
-            _context.EmployeeWorkRoles.Add(employeeWorkRole);
-        }
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        // Retornar roles asignados
-        return await _context.EmployeeWorkRoles
-            .Where(ewr => ewr.EmployeeId == request.EmployeeId && !ewr.IsDeleted)
-            .Include(ewr => ewr.WorkRole)
-            .ThenInclude(wr => wr!.WorkArea)
-            .Select(ewr => new EmployeeWorkRoleDto
-            {
-                Id = ewr.Id,
-                EmployeeId = ewr.EmployeeId,
-                WorkRoleId = ewr.WorkRoleId,
-                WorkRoleName = ewr.WorkRole!.Name,
-                WorkAreaName = ewr.WorkRole!.WorkArea!.Name,
-                IsPrimary = ewr.IsPrimary,
-                Priority = ewr.Priority
-            }).OrderByDescending(ewr => ewr.IsPrimary)
-            .ThenBy(ewr => ewr.Priority)
-            .ToListAsync(cancellationToken);
-    }
-}
-
-public class RemoveWorkRoleFromEmployeeCommandHandler : IRequestHandler<RemoveWorkRoleFromEmployeeCommand, bool>
-{
-    private readonly GrimorioDbContext _context;
-
-    public RemoveWorkRoleFromEmployeeCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<bool> Handle(RemoveWorkRoleFromEmployeeCommand request, CancellationToken cancellationToken)
-    {
-        var employeeWorkRole = await _context.EmployeeWorkRoles
-            .FirstOrDefaultAsync(ewr => ewr.EmployeeId == request.EmployeeId && ewr.WorkRoleId == request.WorkRoleId && !ewr.IsDeleted, cancellationToken);
-
-        if (employeeWorkRole == null)
-            throw new InvalidOperationException("Asignación de rol no encontrada.");
-
-        employeeWorkRole.IsDeleted = true;
-        employeeWorkRole.DeletedAt = DateTime.UtcNow;
-        employeeWorkRole.DeletedBy = Guid.Empty;
-
-        await _context.SaveChangesAsync(cancellationToken);
-        return true;
-    }
-}
-
-// ======================== ShiftTemplate Commands ========================
-
-public class CreateShiftTemplateCommandHandler : IRequestHandler<CreateShiftTemplateCommand, ShiftTemplateDto>
-{
-    private readonly GrimorioDbContext _context;
-
-    public CreateShiftTemplateCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<ShiftTemplateDto> Handle(CreateShiftTemplateCommand request, CancellationToken cancellationToken)
-    {
-        var workArea = await _context.WorkAreas
-            .FirstOrDefaultAsync(w => w.Id == request.WorkAreaId && !w.IsDeleted, cancellationToken);
-
-        if (workArea == null)
-            throw new InvalidOperationException("Área de trabajo no encontrada.");
-
-        var workRole = await _context.WorkRoles
-            .FirstOrDefaultAsync(wr => wr.Id == request.WorkRoleId && !wr.IsDeleted, cancellationToken);
-
-        if (workRole == null)
-            throw new InvalidOperationException("Rol de trabajo no encontrado.");
-
-        var shiftTemplate = new ShiftTemplate
-        {
-            Id = Guid.NewGuid(),
-            BranchId = request.BranchId,
-            DayOfWeek = request.DayOfWeek,
-            StartTime = request.StartTime,
-            EndTime = request.EndTime,
-            BreakDuration = request.BreakDuration,
-            LunchDuration = request.LunchDuration,
-            WorkAreaId = request.WorkAreaId,
-            WorkRoleId = request.WorkRoleId,
-            RequiredCount = request.RequiredCount,
-            Notes = request.Notes,
-            CreatedAt = DateTime.UtcNow,
-            CreatedBy = Guid.Empty
-        };
-
-        _context.ShiftTemplates.Add(shiftTemplate);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return new ShiftTemplateDto
-        {
-            Id = shiftTemplate.Id,
-            BranchId = shiftTemplate.BranchId,
-            DayOfWeek = shiftTemplate.DayOfWeek,
-            StartTime = shiftTemplate.StartTime,
-            EndTime = shiftTemplate.EndTime,
-            BreakDuration = shiftTemplate.BreakDuration,
-            LunchDuration = shiftTemplate.LunchDuration,
-            WorkAreaId = shiftTemplate.WorkAreaId,
-            WorkAreaName = workArea.Name,
-            WorkRoleId = shiftTemplate.WorkRoleId,
-            WorkRoleName = workRole.Name,
-            RequiredCount = shiftTemplate.RequiredCount,
-            Notes = shiftTemplate.Notes
-        };
-    }
-}
-
-public class UpdateShiftTemplateCommandHandler : IRequestHandler<UpdateShiftTemplateCommand, ShiftTemplateDto>
-{
-    private readonly GrimorioDbContext _context;
-
-    public UpdateShiftTemplateCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<ShiftTemplateDto> Handle(UpdateShiftTemplateCommand request, CancellationToken cancellationToken)
-    {
-        var shiftTemplate = await _context.ShiftTemplates
-            .Include(st => st.WorkArea)
-            .Include(st => st.WorkRole)
-            .FirstOrDefaultAsync(st => st.Id == request.Id && !st.IsDeleted, cancellationToken);
-
-        if (shiftTemplate == null)
-            throw new InvalidOperationException("Plantilla de turno no encontrada.");
-
-        shiftTemplate.DayOfWeek = request.DayOfWeek;
-        shiftTemplate.StartTime = request.StartTime;
-        shiftTemplate.EndTime = request.EndTime;
-        shiftTemplate.BreakDuration = request.BreakDuration;
-        shiftTemplate.LunchDuration = request.LunchDuration;
-        shiftTemplate.RequiredCount = request.RequiredCount;
-        shiftTemplate.Notes = request.Notes;
-        shiftTemplate.UpdatedAt = DateTime.UtcNow;
-        shiftTemplate.UpdatedBy = Guid.Empty;
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return new ShiftTemplateDto
-        {
-            Id = shiftTemplate.Id,
-            BranchId = shiftTemplate.BranchId,
-            DayOfWeek = shiftTemplate.DayOfWeek,
-            StartTime = shiftTemplate.StartTime,
-            EndTime = shiftTemplate.EndTime,
-            BreakDuration = shiftTemplate.BreakDuration,
-            LunchDuration = shiftTemplate.LunchDuration,
-            WorkAreaId = shiftTemplate.WorkAreaId,
-            WorkAreaName = shiftTemplate.WorkArea!.Name,
-            WorkRoleId = shiftTemplate.WorkRoleId,
-            WorkRoleName = shiftTemplate.WorkRole!.Name,
-            RequiredCount = shiftTemplate.RequiredCount,
-            Notes = shiftTemplate.Notes
-        };
-    }
-}
-
-public class DeleteShiftTemplateCommandHandler : IRequestHandler<DeleteShiftTemplateCommand, bool>
-{
-    private readonly GrimorioDbContext _context;
-
-    public DeleteShiftTemplateCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<bool> Handle(DeleteShiftTemplateCommand request, CancellationToken cancellationToken)
-    {
-        var shiftTemplate = await _context.ShiftTemplates
-            .FirstOrDefaultAsync(st => st.Id == request.Id && !st.IsDeleted, cancellationToken);
-
-        if (shiftTemplate == null)
-            throw new InvalidOperationException("Plantilla de turno no encontrada.");
-
-        shiftTemplate.IsDeleted = true;
-        shiftTemplate.DeletedAt = DateTime.UtcNow;
-        shiftTemplate.DeletedBy = Guid.Empty;
-
-        await _context.SaveChangesAsync(cancellationToken);
-        return true;
-    }
-}
-
-// ======================== ShiftAssignment Commands ========================
-
-public class CreateShiftAssignmentCommandHandler : IRequestHandler<CreateShiftAssignmentCommand, ShiftAssignmentDto>
-{
-    private readonly GrimorioDbContext _context;
-
-    public CreateShiftAssignmentCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<ShiftAssignmentDto> Handle(CreateShiftAssignmentCommand request, CancellationToken cancellationToken)
-    {
-        var employee = await _context.Employees
-            .FirstOrDefaultAsync(e => e.Id == request.EmployeeId && !e.IsDeleted, cancellationToken);
-
-        if (employee == null)
-            throw new InvalidOperationException("Empleado no encontrado.");
-
-        var workArea = await _context.WorkAreas
-            .FirstOrDefaultAsync(w => w.Id == request.WorkAreaId && !w.IsDeleted, cancellationToken);
-
-        if (workArea == null)
-            throw new InvalidOperationException("Área de trabajo no encontrada.");
-
-        var workRole = await _context.WorkRoles
-            .FirstOrDefaultAsync(wr => wr.Id == request.WorkRoleId && !wr.IsDeleted, cancellationToken);
-
-        if (workRole == null)
-            throw new InvalidOperationException("Rol de trabajo no encontrado.");
-
-        // Calcular horas trabajadas
-        var startTime = request.StartTime;
-        var endTime = request.EndTime;
-        var breakMinutes = request.BreakDuration?.TotalMinutes ?? 0;
-        var lunchMinutes = request.LunchDuration?.TotalMinutes ?? 0;
-        
-        var totalMinutes = (endTime - startTime).TotalMinutes - breakMinutes - lunchMinutes;
-        var workedHours = (decimal)(totalMinutes / 60.0);
-
-        var shiftAssignment = new ShiftAssignment
-        {
-            Id = Guid.NewGuid(),
-            BranchId = employee.BranchId,
-            EmployeeId = request.EmployeeId,
-            Date = request.Date,
-            StartTime = startTime,
-            EndTime = endTime,
-            BreakDuration = request.BreakDuration,
-            LunchDuration = request.LunchDuration,
-            WorkAreaId = request.WorkAreaId,
-            WorkRoleId = request.WorkRoleId,
-            WorkedHours = workedHours,
-            Notes = request.Notes,
-            IsApproved = false,
-            CreatedAt = DateTime.UtcNow,
-            CreatedBy = Guid.Empty
-        };
-
-        _context.ShiftAssignments.Add(shiftAssignment);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return new ShiftAssignmentDto
-        {
-            Id = shiftAssignment.Id,
-            EmployeeId = shiftAssignment.EmployeeId,
-            EmployeeName = $"{employee.FirstName} {employee.LastName}",
-            Date = shiftAssignment.Date,
-            StartTime = shiftAssignment.StartTime,
-            EndTime = shiftAssignment.EndTime,
-            BreakDuration = shiftAssignment.BreakDuration,
-            LunchDuration = shiftAssignment.LunchDuration,
-            WorkAreaId = shiftAssignment.WorkAreaId,
-            WorkAreaName = workArea.Name,
-            WorkAreaColor = workArea.Color,
-            WorkRoleId = shiftAssignment.WorkRoleId,
-            WorkRoleName = workRole.Name,
-            WorkedHours = shiftAssignment.WorkedHours,
-            Notes = shiftAssignment.Notes,
-            IsApproved = shiftAssignment.IsApproved,
-            ApprovedBy = shiftAssignment.ApprovedBy,
-            ApprovedAt = shiftAssignment.ApprovedAt
-        };
-    }
-}
-
-public class UpdateShiftAssignmentCommandHandler : IRequestHandler<UpdateShiftAssignmentCommand, ShiftAssignmentDto>
-{
-    private readonly GrimorioDbContext _context;
-
-    public UpdateShiftAssignmentCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<ShiftAssignmentDto> Handle(UpdateShiftAssignmentCommand request, CancellationToken cancellationToken)
-    {
-        var shiftAssignment = await _context.ShiftAssignments
-            .FirstOrDefaultAsync(sa => sa.Id == request.Id && !sa.IsDeleted, cancellationToken);
-
-        if (shiftAssignment == null)
-            throw new InvalidOperationException("Asignación de turno no encontrada.");
-
-        var employee = await _context.Employees
-            .FirstOrDefaultAsync(e => e.Id == request.EmployeeId && !e.IsDeleted, cancellationToken);
-
-        if (employee == null)
-            throw new InvalidOperationException("Empleado no encontrado.");
-
-        var workArea = await _context.WorkAreas
-            .FirstOrDefaultAsync(w => w.Id == shiftAssignment.WorkAreaId && !w.IsDeleted, cancellationToken);
-
-        if (workArea == null)
-            throw new InvalidOperationException("Área de trabajo no encontrada.");
-
-        var workRole = await _context.WorkRoles
-            .FirstOrDefaultAsync(wr => wr.Id == shiftAssignment.WorkRoleId && !wr.IsDeleted, cancellationToken);
-
-        if (workRole == null)
-            throw new InvalidOperationException("Rol de trabajo no encontrado.");
-
-        var hasRole = await _context.EmployeeWorkRoles
-            .AnyAsync(ewr => ewr.EmployeeId == request.EmployeeId
-                && ewr.WorkRoleId == shiftAssignment.WorkRoleId
-                && !ewr.IsDeleted, cancellationToken);
-
-        if (!hasRole)
-            throw new InvalidOperationException("El empleado no tiene asignado el rol de este turno.");
-
-        // Calcular horas trabajadas
-        var startTime = request.StartTime;
-        var endTime = request.EndTime;
-        var breakMinutes = request.BreakDuration?.TotalMinutes ?? 0;
-        var lunchMinutes = request.LunchDuration?.TotalMinutes ?? 0;
-
-        var totalMinutes = (endTime - startTime).TotalMinutes - breakMinutes - lunchMinutes;
-        var workedHours = (decimal)(totalMinutes / 60.0);
-
-        shiftAssignment.EmployeeId = request.EmployeeId;
-        shiftAssignment.BranchId = employee.BranchId;
-        shiftAssignment.Date = request.Date;
-        shiftAssignment.StartTime = startTime;
-        shiftAssignment.EndTime = endTime;
-        shiftAssignment.BreakDuration = request.BreakDuration;
-        shiftAssignment.LunchDuration = request.LunchDuration;
-        shiftAssignment.WorkedHours = workedHours;
-        shiftAssignment.Notes = request.Notes;
-        shiftAssignment.UpdatedAt = DateTime.UtcNow;
-        shiftAssignment.UpdatedBy = Guid.Empty;
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return new ShiftAssignmentDto
-        {
-            Id = shiftAssignment.Id,
-            EmployeeId = shiftAssignment.EmployeeId,
-            EmployeeName = $"{employee.FirstName} {employee.LastName}",
-            Date = shiftAssignment.Date,
-            StartTime = shiftAssignment.StartTime,
-            EndTime = shiftAssignment.EndTime,
-            BreakDuration = shiftAssignment.BreakDuration,
-            LunchDuration = shiftAssignment.LunchDuration,
-            WorkAreaId = shiftAssignment.WorkAreaId,
-            WorkAreaName = workArea.Name,
-            WorkAreaColor = workArea.Color,
-            WorkRoleId = shiftAssignment.WorkRoleId,
-            WorkRoleName = workRole.Name,
-            WorkedHours = shiftAssignment.WorkedHours,
-            Notes = shiftAssignment.Notes,
-            IsApproved = shiftAssignment.IsApproved,
-            ApprovedBy = shiftAssignment.ApprovedBy,
-            ApprovedAt = shiftAssignment.ApprovedAt
-        };
-    }
-}
-
-public class ApproveShiftAssignmentCommandHandler : IRequestHandler<ApproveShiftAssignmentCommand, bool>
-{
-    private readonly GrimorioDbContext _context;
-
-    public ApproveShiftAssignmentCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<bool> Handle(ApproveShiftAssignmentCommand request, CancellationToken cancellationToken)
-    {
-        var shiftAssignment = await _context.ShiftAssignments
-            .FirstOrDefaultAsync(sa => sa.Id == request.ShiftAssignmentId && !sa.IsDeleted, cancellationToken);
-
-        if (shiftAssignment == null)
-            throw new InvalidOperationException("Asignación de turno no encontrada.");
-
-        shiftAssignment.IsApproved = true;
-        shiftAssignment.ApprovedBy = request.ApprovedBy;
-        shiftAssignment.ApprovedAt = DateTime.UtcNow;
-        shiftAssignment.UpdatedAt = DateTime.UtcNow;
-        shiftAssignment.UpdatedBy = Guid.Empty;
-
-        await _context.SaveChangesAsync(cancellationToken);
-        return true;
-    }
-}
-
-public class DeleteShiftAssignmentCommandHandler : IRequestHandler<DeleteShiftAssignmentCommand, bool>
-{
-    private readonly GrimorioDbContext _context;
-
-    public DeleteShiftAssignmentCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<bool> Handle(DeleteShiftAssignmentCommand request, CancellationToken cancellationToken)
-    {
-        var shiftAssignment = await _context.ShiftAssignments
-            .FirstOrDefaultAsync(sa => sa.Id == request.Id && !sa.IsDeleted, cancellationToken);
-
-        if (shiftAssignment == null)
-            throw new InvalidOperationException("Asignación de turno no encontrada.");
-
-        shiftAssignment.IsDeleted = true;
-        shiftAssignment.DeletedAt = DateTime.UtcNow;
-        shiftAssignment.DeletedBy = Guid.Empty;
-
-        await _context.SaveChangesAsync(cancellationToken);
-        return true;
-    }
-}
-
-// ======================== EmployeeAvailability Commands ========================
-
-public class AddEmployeeAvailabilityCommandHandler : IRequestHandler<AddEmployeeAvailabilityCommand, EmployeeAvailabilityDto>
-{
-    private readonly GrimorioDbContext _context;
-
-    public AddEmployeeAvailabilityCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<EmployeeAvailabilityDto> Handle(AddEmployeeAvailabilityCommand request, CancellationToken cancellationToken)
-    {
-        var employee = await _context.Employees
-            .FirstOrDefaultAsync(e => e.Id == request.EmployeeId && !e.IsDeleted, cancellationToken);
-
-        if (employee == null)
-            throw new InvalidOperationException("Empleado no encontrado.");
-
-        var employeeAvailability = new EmployeeAvailability
-        {
-            Id = Guid.NewGuid(),
-            EmployeeId = request.EmployeeId,
-            UnavailableDate = request.UnavailableDate,
-            Reason = request.Reason,
-            CreatedAt = DateTime.UtcNow,
-            CreatedBy = Guid.Empty
-        };
-
-        _context.EmployeeAvailability.Add(employeeAvailability);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return new EmployeeAvailabilityDto
-        {
-            Id = employeeAvailability.Id,
-            EmployeeId = employeeAvailability.EmployeeId,
-            UnavailableDate = employeeAvailability.UnavailableDate,
-            Reason = employeeAvailability.Reason
-        };
-    }
-}
-
-public class RemoveEmployeeAvailabilityCommandHandler : IRequestHandler<RemoveEmployeeAvailabilityCommand, bool>
-{
-    private readonly GrimorioDbContext _context;
-
-    public RemoveEmployeeAvailabilityCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<bool> Handle(RemoveEmployeeAvailabilityCommand request, CancellationToken cancellationToken)
-    {
-        var employeeAvailability = await _context.EmployeeAvailability
-            .FirstOrDefaultAsync(ea => ea.Id == request.Id && ea.EmployeeId == request.EmployeeId && !ea.IsDeleted, cancellationToken);
-
-        if (employeeAvailability == null)
-            throw new InvalidOperationException("Disponibilidad no encontrada.");
-
-        employeeAvailability.IsDeleted = true;
-        employeeAvailability.DeletedAt = DateTime.UtcNow;
-        employeeAvailability.DeletedBy = Guid.Empty;
-
-        await _context.SaveChangesAsync(cancellationToken);
-        return true;
-    }
-}
-
-// ======================== Schedule Generation Commands ========================
 
 public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonthlyShiftsCommand, ShiftGenerationResultDto>
 {
@@ -767,12 +61,10 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                 throw new InvalidOperationException("No hay días futuros para generar en este mes.");
         }
 
-        // Cargar configuración (para límites de horas)
         var config = await _context.ScheduleConfigurations
             .AsNoTracking()
             .FirstOrDefaultAsync(sc => sc.BranchId == request.BranchId && !sc.IsDeleted, cancellationToken);
 
-        // Cargar plantillas de turno generales
         var shiftTemplates = await _context.ShiftTemplates
             .Where(st => st.BranchId == request.BranchId && !st.IsDeleted)
             .Include(st => st.WorkArea)
@@ -782,9 +74,8 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         if (!shiftTemplates.Any())
             throw new InvalidOperationException("No existen plantillas de turno para esta sucursal.");
 
-        // Cargar días especiales y sus plantillas para el mes
         var specialDates = await _context.SpecialDates
-            .Where(sd => sd.BranchId == request.BranchId && !sd.IsDeleted 
+            .Where(sd => sd.BranchId == request.BranchId && !sd.IsDeleted
                 && sd.Date >= startDate && sd.Date <= endDate)
             .Include(sd => sd.Templates.Where(t => !t.IsDeleted))
             .ThenInclude(t => t.WorkArea)
@@ -792,7 +83,6 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
 
         var specialDateDict = specialDates.ToDictionary(sd => sd.Date.Date);
 
-        // También cargar WorkRoles para SpecialDateTemplates
         var specialTemplateRoleIds = specialDates
             .SelectMany(sd => sd.Templates)
             .Select(t => t.WorkRoleId)
@@ -803,7 +93,6 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             .Where(wr => specialTemplateRoleIds.Contains(wr.Id) && !wr.IsDeleted)
             .ToDictionaryAsync(wr => wr.Id, wr => wr, cancellationToken);
 
-        // Cargar roles asignados a empleados (con roles y empleados)
         var employeeWorkRoles = await _context.EmployeeWorkRoles
             .Where(ewr => !ewr.IsDeleted)
             .Include(ewr => ewr.Employee)
@@ -814,7 +103,6 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         if (!employeeWorkRoles.Any())
             throw new InvalidOperationException("No hay empleados elegibles con roles asignados.");
 
-        // Disponibilidad (días no disponibles)
         var availability = await _context.EmployeeAvailability
             .Where(ea => !ea.IsDeleted && ea.UnavailableDate >= generationStartDate && ea.UnavailableDate <= generationEndDate)
             .ToListAsync(cancellationToken);
@@ -826,7 +114,6 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                 g => g.Select(a => a.UnavailableDate.Date).ToHashSet()
             );
 
-        // Cargar asignaciones existentes del mes
         var existingAssignments = await _context.ShiftAssignments
             .Include(sa => sa.Employee)
             .Where(sa => sa.Date >= startDate && sa.Date <= endDate && !sa.IsDeleted)
@@ -845,15 +132,10 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
 
         foreach (var assignment in assignmentsToRegenerate)
-        {
             assignment.IsDeleted = true;
-            assignment.DeletedAt = DateTime.UtcNow;
-            assignment.DeletedBy = Guid.Empty;
-        }
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Preparar estructuras de control
         var assignedDatesByEmployee = new Dictionary<Guid, HashSet<DateTime>>();
         var hoursByEmployee = new Dictionary<Guid, decimal>();
         var weeklyHoursByEmployee = new Dictionary<Guid, Dictionary<int, decimal>>();
@@ -861,7 +143,6 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         var warnings = new List<ShiftGenerationWarningDto>();
         var uncoveredSlots = new List<(DateTime Date, DayOfWeek DayOfWeek, Guid WorkAreaId, Guid WorkRoleId, TimeSpan StartTime, TimeSpan EndTime, TimeSpan? BreakDuration, TimeSpan? LunchDuration, string? Notes, string WorkAreaName, string WorkRoleName, int MissingCount)>();
 
-        // En regeneración parcial se siembran turnos fuera del rango para conservar restricciones semanales/mensuales.
         if (isPartialRangeGeneration)
         {
             foreach (var assignment in assignmentsToKeep)
@@ -877,17 +158,14 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             }
         }
 
-        // Agrupar roles por WorkRoleId para asignación rápida
         var roleCandidates = employeeWorkRoles
             .GroupBy(ewr => ewr.WorkRoleId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        // Cantidad de roles por empleado para priorizar rol único antes que multirol
         var roleCountByEmployee = employeeWorkRoles
             .GroupBy(ewr => ewr.EmployeeId)
             .ToDictionary(g => g.Key, g => g.Select(x => x.WorkRoleId).Distinct().Count());
 
-        // Validación previa: capacidad por rol vs requerimientos (respeta días libres y disponibilidad)
         warnings.AddRange(BuildPreGenerationWarnings(
             generationStartDate,
             generationEndDate,
@@ -903,12 +181,10 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         {
             var dayOfWeek = currentDate.DayOfWeek;
 
-            // Verificar si es día especial
             List<(Guid WorkAreaId, Guid WorkRoleId, TimeSpan StartTime, TimeSpan EndTime, TimeSpan? BreakDuration, TimeSpan? LunchDuration, int RequiredCount, string? Notes, WorkArea? WorkArea, WorkRole? WorkRole)> templatesForDay;
 
             if (specialDateDict.TryGetValue(currentDate.Date, out var specialDate) && specialDate.Templates.Any())
             {
-                // Es día especial: usar SOLO las plantillas del día especial
                 templatesForDay = specialDate.Templates
                     .Select(t => (
                         WorkAreaId: t.WorkAreaId,
@@ -926,7 +202,6 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             }
             else
             {
-                // Día normal: usar plantillas generales según día de la semana
                 templatesForDay = shiftTemplates
                     .Where(t => t.DayOfWeek == dayOfWeek)
                     .Select(t => (
@@ -947,10 +222,9 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             foreach (var template in templatesForDay)
             {
                 var assignedForTemplate = 0;
-                
+
                 if (!roleCandidates.TryGetValue(template.WorkRoleId, out var candidatesForRole))
                 {
-                    // No hay empleados con este rol
                     uncoveredSlots.Add((
                         Date: currentDate,
                         DayOfWeek: dayOfWeek,
@@ -977,7 +251,7 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                         .Where(c => CanAssignByHours(c.Employee!, currentDate, startDate, template.StartTime, template.EndTime, template.BreakDuration, template.LunchDuration, weeklyHoursByEmployee))
                         .OrderByDescending(c => c.IsPrimary)
                         .ThenBy(c => GetEmployeeRoleCount(c.EmployeeId, roleCountByEmployee))
-                        .ThenByDescending(c => GetRemainingDaysToAssign(c, daysInMonth, assignedDatesByEmployee)) // Priorizar cumplimiento de dias libres
+                        .ThenByDescending(c => GetRemainingDaysToAssign(c, daysInMonth, assignedDatesByEmployee))
                         .ThenBy(c => WillUseWeeklyExtraHours(c.Employee!, currentDate, startDate, template.StartTime, template.EndTime, template.BreakDuration, template.LunchDuration, weeklyHoursByEmployee))
                         .ThenBy(c => c.Priority)
                         .ThenBy(c => GetEmployeeHours(c.Employee!.Id, hoursByEmployee))
@@ -986,23 +260,13 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
 
                     var selected = eligibleCandidates.FirstOrDefault();
                     if (selected == null)
-                    {
-                        // No se pudo asignar este turno
-                        var reason = candidatesForRole.All(c => c.Employee == null) 
-                            ? "No hay empleados disponibles"
-                            : candidatesForRole.Any(c => c.Employee != null && !IsEmployeeAvailable(c.Employee.Id, currentDate, availabilityByEmployee))
-                            ? "Empleados no disponibles o ya asignados"
-                            : "Límite de horas o días libres alcanzado";
-                        
-                        continue; // Registraremos la advertencia después del loop
-                    }
+                        continue;
 
                     var employeeId = selected.Employee!.Id;
                     var workedHours = CalculateWorkedHours(template.StartTime, template.EndTime, template.BreakDuration, template.LunchDuration);
 
                     assignmentsToCreate.Add(new ShiftAssignment
                     {
-                        Id = Guid.NewGuid(),
                         BranchId = request.BranchId,
                         EmployeeId = employeeId,
                         Date = currentDate,
@@ -1015,15 +279,12 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                         WorkedHours = workedHours,
                         Notes = template.Notes,
                         IsApproved = false,
-                        CreatedAt = DateTime.UtcNow,
-                        CreatedBy = Guid.Empty
                     });
 
                     assignedForTemplate++;
                     TrackAssignment(employeeId, currentDate, workedHours, startDate, assignedDatesByEmployee, hoursByEmployee, weeklyHoursByEmployee);
                 }
-                
-                // Si no se cubrieron todos los turnos requeridos, agregar advertencia
+
                 if (assignedForTemplate < template.RequiredCount)
                 {
                     uncoveredSlots.Add((
@@ -1041,7 +302,6 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                         MissingCount: template.RequiredCount - assignedForTemplate));
                 }
             }
-            
         }
 
         var remainingUncoveredSlots = AutoAssignUncoveredSlots(
@@ -1075,7 +335,6 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         _context.ShiftAssignments.AddRange(assignmentsToCreate);
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Validar que cada empleado tenga exactamente los días libres configurados
         var employeesToValidate = employeeWorkRoles
             .Where(ewr => ewr.Employee != null)
             .Select(ewr => ewr.Employee!)
@@ -1090,7 +349,7 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                 var assignedDays = GetEmployeeAssignedDays(employee.Id, assignedDatesByEmployee);
                 var requiredWorkingDays = daysInMonth - employee.FreeDaysPerMonth;
                 var actualFreeDays = daysInMonth - assignedDays;
-                
+
                 if (employee.ContractType != Domain.Enums.ContractType.PartTime && actualFreeDays != employee.FreeDaysPerMonth)
                 {
                     warnings.Add(new ShiftGenerationWarningDto
@@ -1107,7 +366,6 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             }
         }
 
-        // Mapear a DTO
         var employeeNames = employeeWorkRoles
             .Where(ewr => ewr.Employee != null)
             .Select(ewr => ewr.Employee!)
@@ -1224,7 +482,6 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
 
                 assignmentsToCreate.Add(new ShiftAssignment
                 {
-                    Id = Guid.NewGuid(),
                     BranchId = branchId,
                     EmployeeId = employeeId,
                     Date = slot.Date,
@@ -1237,8 +494,6 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                     WorkedHours = workedHours,
                     Notes = slot.Notes,
                     IsApproved = false,
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = Guid.Empty
                 });
 
                 TrackAssignment(employeeId, slot.Date, workedHours, monthStart, assignedDatesByEmployee, hoursByEmployee, weeklyHoursByEmployee);
@@ -1293,25 +548,16 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             if (assignedDaysInWeek >= maxWorkingDaysThisWeek)
                 return false;
         }
-            
+
         var freeDaysPerMonth = ewr.Employee.FreeDaysPerMonth;
-        var requiredWorkingDays = daysInMonth - freeDaysPerMonth;
-        
-        // Asegurar que requiredWorkingDays sea al menos 0
-        if (requiredWorkingDays < 0)
-            requiredWorkingDays = 0;
-            
+        var requiredWorkingDays = Math.Max(0, daysInMonth - freeDaysPerMonth);
         var assignedDays = GetEmployeeAssignedDays(ewr.EmployeeId, assignedDatesByEmployee);
-        
-        // El empleado debe trabajar EXACTAMENTE requiredWorkingDays días
-        // No puede trabajar más de lo requerido
+
         return assignedDays < requiredWorkingDays;
     }
 
     private static int GetEmployeeRoleCount(Guid employeeId, Dictionary<Guid, int> roleCountByEmployee)
-    {
-        return roleCountByEmployee.TryGetValue(employeeId, out var count) ? count : int.MaxValue;
-    }
+        => roleCountByEmployee.TryGetValue(employeeId, out var count) ? count : int.MaxValue;
 
     private static int GetRemainingDaysToAssign(EmployeeWorkRole ewr, int daysInMonth, Dictionary<Guid, HashSet<DateTime>> assignedDatesByEmployee)
     {
@@ -1323,12 +569,8 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             var assignedDays = GetEmployeeAssignedDays(ewr.EmployeeId, assignedDatesByEmployee);
             return Math.Max(0, daysInMonth - assignedDays);
         }
-            
-        var freeDaysPerMonth = ewr.Employee.FreeDaysPerMonth;
-        var requiredWorkingDays = daysInMonth - freeDaysPerMonth;
-        if (requiredWorkingDays < 0)
-            requiredWorkingDays = 0;
-            
+
+        var requiredWorkingDays = Math.Max(0, daysInMonth - ewr.Employee.FreeDaysPerMonth);
         var assignedDaysForEmployee = GetEmployeeAssignedDays(ewr.EmployeeId, assignedDatesByEmployee);
         return Math.Max(0, requiredWorkingDays - assignedDaysForEmployee);
     }
@@ -1346,7 +588,6 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
     {
         var warnings = new List<ShiftGenerationWarningDto>();
         var remainingDays = (endDate.Date - generationStartDate.Date).Days + 1;
-
         var specialDateDict = specialDates.ToDictionary(sd => sd.Date.Date);
         var requiredByRole = new Dictionary<Guid, (int Required, string WorkAreaName, string WorkRoleName)>();
         var requiredHoursByRole = new Dictionary<Guid, decimal>();
@@ -1365,9 +606,7 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                         WorkRoleId: t.WorkRoleId,
                         RequiredCount: t.RequiredCount,
                         WorkAreaName: t.WorkArea?.Name ?? "Desconocida",
-                        WorkRoleName: specialDateRoles.TryGetValue(t.WorkRoleId, out var role)
-                            ? role.Name
-                            : "Desconocido",
+                        WorkRoleName: specialDateRoles.TryGetValue(t.WorkRoleId, out var role) ? role.Name : "Desconocido",
                         NetHours: CalculateWorkedHours(t.StartTime, t.EndTime, t.BreakDuration, t.LunchDuration)))
                     .ToList();
             }
@@ -1450,9 +689,8 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                 var capacityDays = Math.Min(remainingWorkingDays, availableDaysRemaining);
 
                 capacity += capacityDays;
-                // Capacidad horaria base (objetivo) y máxima (con horas extra)
-                var minHoursPerDay = GetEffectiveWeeklyMinHours(employee) / 5m; // Asumiendo 5 días por semana
-                var maxHoursPerDay = GetEffectiveWeeklyMaxHours(employee) / 5m; // Asumiendo 5 días por semana
+                var minHoursPerDay = GetEffectiveWeeklyMinHours(employee) / 5m;
+                var maxHoursPerDay = GetEffectiveWeeklyMaxHours(employee) / 5m;
                 capacityMinHours += capacityDays * minHoursPerDay;
                 capacityMaxHours += capacityDays * maxHoursPerDay;
             }
@@ -1538,9 +776,7 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
     }
 
     private static decimal GetEffectiveWeeklyMinHours(Employee employee)
-    {
-        return employee.WeeklyMinHours < 0m ? 0m : employee.WeeklyMinHours;
-    }
+        => employee.WeeklyMinHours < 0m ? 0m : employee.WeeklyMinHours;
 
     private static decimal GetEffectiveWeeklyMaxHours(Employee employee)
     {
@@ -1583,7 +819,7 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
 
         weeklyHours[weekIndex] += workedHours;
     }
-    
+
     private static decimal CalculateWorkedHours(TimeSpan startTime, TimeSpan endTime, TimeSpan? breakDuration, TimeSpan? lunchDuration)
     {
         var breakMinutes = breakDuration?.TotalMinutes ?? 0;
@@ -1593,9 +829,7 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
     }
 
     private static decimal GetEmployeeHours(Guid employeeId, Dictionary<Guid, decimal> hoursByEmployee)
-    {
-        return hoursByEmployee.TryGetValue(employeeId, out var hours) ? hours : 0m;
-    }
+        => hoursByEmployee.TryGetValue(employeeId, out var hours) ? hours : 0m;
 
     private static decimal GetEmployeeWeeklyHours(
         Guid employeeId,
@@ -1611,9 +845,7 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
     }
 
     private static int GetWeekIndex(DateTime date, DateTime monthStart)
-    {
-        return Math.Max(0, (date.Date - monthStart.Date).Days / 7);
-    }
+        => Math.Max(0, (date.Date - monthStart.Date).Days / 7);
 
     private static int GetEmployeeAssignedDaysInWeek(
         Guid employeeId,
@@ -1643,81 +875,5 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
     }
 
     private static int GetEmployeeAssignedDays(Guid employeeId, Dictionary<Guid, HashSet<DateTime>> assignedDatesByEmployee)
-    {
-        return assignedDatesByEmployee.TryGetValue(employeeId, out var dates) ? dates.Count : 0;
-    }
-}
-
-// ======================== ScheduleConfiguration Commands ========================
-
-public class CreateScheduleConfigurationCommandHandler : IRequestHandler<CreateScheduleConfigurationCommand, ScheduleConfigurationDto>
-{
-    private readonly GrimorioDbContext _context;
-
-    public CreateScheduleConfigurationCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<ScheduleConfigurationDto> Handle(CreateScheduleConfigurationCommand request, CancellationToken cancellationToken)
-    {
-        // Verificar si ya existe configuración para esta sucursal
-        var existingConfig = await _context.ScheduleConfigurations
-            .FirstOrDefaultAsync(sc => sc.BranchId == request.BranchId && !sc.IsDeleted, cancellationToken);
-
-        if (existingConfig != null)
-            throw new InvalidOperationException("Ya existe una configuración de horarios para esta sucursal.");
-
-        var config = new ScheduleConfiguration
-        {
-            Id = Guid.NewGuid(),
-            BranchId = request.BranchId,
-            HoursPerDay = request.HoursPerDay,
-            FreeDayColor = string.IsNullOrWhiteSpace(request.FreeDayColor) ? "#E8E8E8" : request.FreeDayColor,
-            CreatedAt = DateTime.UtcNow,
-            CreatedBy = Guid.Empty
-        };
-
-        _context.ScheduleConfigurations.Add(config);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return MapToDto(config);
-    }
-
-    private static ScheduleConfigurationDto MapToDto(ScheduleConfiguration config) => new()
-    {
-        Id = config.Id,
-        BranchId = config.BranchId,
-        HoursPerDay = config.HoursPerDay,
-        FreeDayColor = string.IsNullOrWhiteSpace(config.FreeDayColor) ? "#E8E8E8" : config.FreeDayColor
-    };
-}
-
-public class UpdateScheduleConfigurationCommandHandler : IRequestHandler<UpdateScheduleConfigurationCommand, ScheduleConfigurationDto>
-{
-    private readonly GrimorioDbContext _context;
-
-    public UpdateScheduleConfigurationCommandHandler(GrimorioDbContext context) => _context = context;
-
-    public async Task<ScheduleConfigurationDto> Handle(UpdateScheduleConfigurationCommand request, CancellationToken cancellationToken)
-    {
-        var config = await _context.ScheduleConfigurations
-            .FirstOrDefaultAsync(sc => sc.Id == request.Id && !sc.IsDeleted, cancellationToken);
-
-        if (config == null)
-            throw new InvalidOperationException("Configuración de horarios no encontrada.");
-
-        config.HoursPerDay = request.HoursPerDay;
-        config.FreeDayColor = string.IsNullOrWhiteSpace(request.FreeDayColor) ? "#E8E8E8" : request.FreeDayColor;
-        config.UpdatedAt = DateTime.UtcNow;
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return MapToDto(config);
-    }
-
-    private static ScheduleConfigurationDto MapToDto(ScheduleConfiguration config) => new()
-    {
-        Id = config.Id,
-        BranchId = config.BranchId,
-        HoursPerDay = config.HoursPerDay,
-        FreeDayColor = string.IsNullOrWhiteSpace(config.FreeDayColor) ? "#E8E8E8" : config.FreeDayColor
-    };
+        => assignedDatesByEmployee.TryGetValue(employeeId, out var dates) ? dates.Count : 0;
 }

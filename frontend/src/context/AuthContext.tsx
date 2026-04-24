@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { AuthContext, type DecodedToken, type User } from './auth-context';
+import { MICROSOFT_ROLE_CLAIM } from '../constants/auth';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(() => {
@@ -38,7 +39,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (savedToken) {
       try {
         const decoded = jwtDecode<DecodedToken>(savedToken);
-        const roles = decoded['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
+        const roles = decoded[MICROSOFT_ROLE_CLAIM];
         return Array.isArray(roles) ? roles : (roles ? [roles] : []);
       } catch {
         return [];

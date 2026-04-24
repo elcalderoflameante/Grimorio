@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Grimorio.Application.Abstractions;
 using Grimorio.Domain.Entities.Auth;
 using Grimorio.Domain.Entities.Organization;
 using Grimorio.Domain.Entities.Scheduling;
@@ -13,9 +14,12 @@ namespace Grimorio.Infrastructure.Persistence;
 /// </summary>
 public class GrimorioDbContext : DbContext
 {
-    public GrimorioDbContext(DbContextOptions<GrimorioDbContext> options)
+    private readonly ICurrentUserContext? _currentUserContext;
+
+    public GrimorioDbContext(DbContextOptions<GrimorioDbContext> options, ICurrentUserContext? currentUserContext = null)
         : base(options)
     {
+        _currentUserContext = currentUserContext;
     }
 
     // === Auth & Permissions ===
@@ -86,39 +90,37 @@ public class GrimorioDbContext : DbContext
         return await base.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>
-    /// Aplica auditoría y soft delete automáticamente a todas las entidades.
-    /// TODO: Obtener userId del contexto autenticado (IUserContext o similar).
-    /// </summary>
     private void ApplyAuditingAndSoftDelete()
     {
-        var entries = ChangeTracker.Entries();
+        var userId = _currentUserContext?.UserId ?? Guid.Empty;
+        var now = DateTime.UtcNow;
 
-        foreach (var entry in entries)
+        foreach (var entry in ChangeTracker.Entries())
         {
             if (entry.Entity is not Grimorio.SharedKernel.BaseEntity baseEntity)
                 continue;
 
-            // TODO: Inyectar IUserContext para obtener el usuario actual
-            var userId = Guid.NewGuid(); // Placeholder por ahora
-
             switch (entry.State)
             {
                 case EntityState.Added:
-                    baseEntity.CreatedAt = DateTime.UtcNow;
+                    baseEntity.CreatedAt = now;
                     baseEntity.CreatedBy = userId;
                     break;
 
                 case EntityState.Modified:
-                    baseEntity.UpdatedAt = DateTime.UtcNow;
+                    baseEntity.UpdatedAt = now;
                     baseEntity.UpdatedBy = userId;
+                    if (baseEntity.IsDeleted && baseEntity.DeletedAt == null)
+                    {
+                        baseEntity.DeletedAt = now;
+                        baseEntity.DeletedBy = userId;
+                    }
                     break;
 
                 case EntityState.Deleted:
-                    // Soft delete: marcar como eliminado en lugar de borrar
                     entry.State = EntityState.Modified;
                     baseEntity.IsDeleted = true;
-                    baseEntity.DeletedAt = DateTime.UtcNow;
+                    baseEntity.DeletedAt = now;
                     baseEntity.DeletedBy = userId;
                     break;
             }

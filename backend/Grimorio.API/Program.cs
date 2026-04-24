@@ -3,10 +3,14 @@ using Grimorio.Infrastructure.Persistence;
 using Grimorio.Infrastructure.Security;
 using Grimorio.Infrastructure.Seeding;
 using Grimorio.API.Notifications;
+using Grimorio.API.Services;
+using Grimorio.Application.Abstractions;
+using Grimorio.SharedKernel.Constants;
 using Serilog;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 using DotNetEnv;
 using System.Text;
@@ -28,11 +32,12 @@ foreach (var envPath in envCandidates)
 var builder = WebApplication.CreateBuilder(args);
 
 // === Configurar Serilog ===
+var logFilePath = builder.Configuration["Serilog:LogFilePath"] ?? "logs/grimorio_.txt";
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Debug()
     .WriteTo.Console()
     .WriteTo.File(
-        "logs/grimorio_.txt",
+        logFilePath,
         rollingInterval: RollingInterval.Day,
         outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}"
     )
@@ -41,11 +46,11 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog();
 
 // === Construir cadena de conexión desde variables de entorno ===
-var dbHost = Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost";
-var dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "5432";
-var dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? "grimorio_dev";
-var dbUser = Environment.GetEnvironmentVariable("DB_USER") ?? "postgres";
-var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "postgres";
+var dbHost = Environment.GetEnvironmentVariable("DB_HOST") ?? builder.Configuration["Database:Host"] ?? "localhost";
+var dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? builder.Configuration["Database:Port"] ?? "5432";
+var dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? builder.Configuration["Database:Name"] ?? "grimorio_dev";
+var dbUser = Environment.GetEnvironmentVariable("DB_USER") ?? builder.Configuration["Database:User"] ?? "postgres";
+var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? builder.Configuration["Database:Password"] ?? "postgres";
 
 var connectionString = $"Host={dbHost};Port={dbPort};Database={dbName};Username={dbUser};Password={dbPassword}";
 builder.Configuration.GetSection("ConnectionStrings")["DefaultConnection"] = connectionString;
@@ -53,7 +58,7 @@ builder.Configuration.GetSection("ConnectionStrings")["DefaultConnection"] = con
 // === Configurar JWT (env vars first, appsettings as fallback) ===
 var jwtSecretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY")
     ?? builder.Configuration["JwtSettings:SecretKey"]
-    ?? "DEV_ONLY_CHANGE_ME_1234567890_1234567890";
+    ?? throw new InvalidOperationException("JWT_SECRET_KEY is required.");
 var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER")
     ?? builder.Configuration["JwtSettings:Issuer"]
     ?? "Grimorio";
@@ -90,6 +95,7 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.Zero
     };
 
+    // Permite recibir el JWT desde query string para conexiones SignalR
     options.Events = new JwtBearerEvents
     {
         OnMessageReceived = context =>
@@ -98,7 +104,7 @@ builder.Services.AddAuthentication(options =>
             var path = context.HttpContext.Request.Path;
 
             if (!string.IsNullOrEmpty(accessToken)
-                && path.StartsWithSegments("/hubs/table-service"))
+                && path.StartsWithSegments(AppConstants.Hubs.TableServicePath))
             {
                 context.Token = accessToken;
             }
@@ -136,48 +142,45 @@ builder.Services.AddCors(options =>
             .AllowCredentials());
 });
 
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 // === Authorization handler para bypass Admin ===
 builder.Services.AddSingleton<IAuthorizationHandler, Grimorio.API.Authorization.AdminBypassHandler>();
 
 // === Authorization policies ===
 builder.Services.AddAuthorization(options =>
 {
-    // Política básica para roles
     options.AddPolicy("AdminOnly", policy =>
-        policy.RequireRole("Administrador"));
+        policy.RequireRole(AppConstants.Roles.Admin));
 
-    // Políticas granulares por permiso (RRHH)
-    // El AdminBypassHandler bypasea estas políticas automáticamente si el usuario es Administrador
-    options.AddPolicy("RRHH.ViewEmployees", policy =>
-        policy.RequireAssertion(context =>
-        {
-            var permissionsClaims = context.User.FindAll("permissions");
-            return permissionsClaims.Any(c => c.Value == "RRHH.ViewEmployees");
-        }));
+    // Políticas granulares por permiso — el AdminBypassHandler las bypasea para Administrador
+    var permissionPolicies = new[]
+    {
+        "RRHH.ViewEmployees",
+        "RRHH.CreateEmployees",
+        "RRHH.UpdateEmployees",
+        "RRHH.DeleteEmployees",
+    };
 
-    options.AddPolicy("RRHH.CreateEmployees", policy =>
-        policy.RequireAssertion(context =>
-        {
-            var permissionsClaims = context.User.FindAll("permissions");
-            return permissionsClaims.Any(c => c.Value == "RRHH.CreateEmployees");
-        }));
-
-    options.AddPolicy("RRHH.UpdateEmployees", policy =>
-        policy.RequireAssertion(context =>
-        {
-            var permissionsClaims = context.User.FindAll("permissions");
-            return permissionsClaims.Any(c => c.Value == "RRHH.UpdateEmployees");
-        }));
-
-    options.AddPolicy("RRHH.DeleteEmployees", policy =>
-        policy.RequireAssertion(context =>
-        {
-            var permissionsClaims = context.User.FindAll("permissions");
-            return permissionsClaims.Any(c => c.Value == "RRHH.DeleteEmployees");
-        }));
+    foreach (var permission in permissionPolicies)
+    {
+        var captured = permission;
+        options.AddPolicy(captured, policy =>
+            policy.RequireAssertion(context =>
+                context.User.FindAll(AppConstants.Claims.Permissions)
+                    .Any(c => c.Value == captured)));
+    }
 });
 
 // === Add services to the container ===
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserContext, HttpContextCurrentUserContext>();
+
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
 builder.Services.AddFluentValidationAutoValidation();
@@ -225,28 +228,19 @@ builder.Services.AddMediatR(config =>
 
 var app = builder.Build();
 
-// === Ejecutar migraciones de EF Core al iniciar (en desarrollo) ===
-if (app.Environment.IsDevelopment())
+// === Ejecutar migraciones de EF Core al iniciar ===
+using (var scope = app.Services.CreateScope())
 {
-    using (var scope = app.Services.CreateScope())
-    {
-        var dbContext = scope.ServiceProvider.GetRequiredService<GrimorioDbContext>();
-        await dbContext.Database.MigrateAsync();
+    var dbContext = scope.ServiceProvider.GetRequiredService<GrimorioDbContext>();
 
-        // Ejecutar seeder
+    if (app.Environment.IsDevelopment())
+    {
+        await dbContext.Database.MigrateAsync();
         var passwordHashingService = scope.ServiceProvider.GetRequiredService<IPasswordHashingService>();
         await AuthSeeder.SeedAsync(dbContext, passwordHashingService);
+    }
 
-        await EnsureUserPushTokensTableAsync(dbContext);
-    }
-}
-else
-{
-    using (var scope = app.Services.CreateScope())
-    {
-        var dbContext = scope.ServiceProvider.GetRequiredService<GrimorioDbContext>();
-        await EnsureUserPushTokensTableAsync(dbContext);
-    }
+    await EnsureUserPushTokensTableAsync(dbContext);
 }
 
 // === Configure the HTTP request pipeline ===
@@ -255,20 +249,18 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 
-    // Seed scheduling data
-    using (var scope = app.Services.CreateScope())
-    {
-        var dbContext = scope.ServiceProvider.GetRequiredService<GrimorioDbContext>();
-        await SchedulingSeeder.SeedSchedulingDataAsync(dbContext);
-    }
+    using var scope = app.Services.CreateScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<GrimorioDbContext>();
+    await SchedulingSeeder.SeedSchedulingDataAsync(dbContext);
 }
 
+app.UseForwardedHeaders();
 app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapHub<TableServiceHub>("/hubs/table-service");
+app.MapHub<TableServiceHub>(AppConstants.Hubs.TableServicePath);
 
 app.Run();
 

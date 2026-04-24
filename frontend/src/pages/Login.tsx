@@ -9,7 +9,6 @@ import { formatError } from '../utils/errorHandler';
 
 interface DecodedToken {
   BranchId?: string;
-  branchId?: string;
   [key: string]: unknown;
 }
 
@@ -32,7 +31,7 @@ export default function Login() {
 
       // Decodificar JWT para obtener claims (incluyendo branchId)
       const decoded = jwtDecode<DecodedToken>(accessToken);
-      const branchId = decoded.BranchId || decoded.branchId || '';
+      const branchId = decoded.BranchId || '';
 
       // Guardar en contexto y localStorage
       login({ userId, email, firstName, lastName }, accessToken, branchId);
