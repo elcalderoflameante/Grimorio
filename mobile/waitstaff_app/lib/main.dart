@@ -33,9 +33,8 @@ class MyApp extends ConsumerWidget {
 
     return MaterialApp.router(
       title: 'Grimorio - Meseros',
-      theme: AppTheme.lightTheme(),
-      darkTheme: AppTheme.darkTheme(),
-      themeMode: ThemeMode.light,
+      theme: AppTheme.magicTheme(),
+      themeMode: ThemeMode.dark,
       routerConfig: router,
     );
   }

@@ -96,6 +96,19 @@ class TableRequestsController extends StateNotifier<TableRequestsState> {
     }
   }
 
+  Future<void> startRequest(String id) async {
+    try {
+      final apiService = _ref.read(tableServiceApiServiceProvider);
+      final updated = await apiService.setStatus(
+        id,
+        TableServiceRequestStatus.inProgress,
+      );
+      _upsertRequest(updated);
+    } catch (e) {
+      state = state.copyWith(errorMessage: 'Error al iniciar solicitud: $e');
+    }
+  }
+
   Future<void> completeRequest(String id) async {
     try {
       final apiService = _ref.read(tableServiceApiServiceProvider);

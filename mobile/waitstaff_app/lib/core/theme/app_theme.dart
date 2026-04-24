@@ -1,143 +1,188 @@
 import 'package:flutter/material.dart';
-import '../constants/app_colors.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+// ── Paleta mágica — El Caldero Flameante ──────────────────────────────────
+const kBgDeep   = Color(0xFF080612);
+const kBgMid    = Color(0xFF0F0820);
+const kBgCard   = Color(0xFF120A28);
+const kGold     = Color(0xFFD4A017);
+const kGoldLight = Color(0xFFFFD060);
+const kGoldDark  = Color(0xFF8B6400);
+const kParchment = Color(0xFFF5E6C8);
+const kParchmentDim = Color(0xFFDDC48A);
+const kBrown    = Color(0xFF3E2008);
 
 class AppTheme {
-  static ThemeData lightTheme() {
+  static ThemeData magicTheme() {
     return ThemeData(
       useMaterial3: true,
+      brightness: Brightness.dark,
+      scaffoldBackgroundColor: kBgDeep,
       colorScheme: ColorScheme(
-        brightness: Brightness.light,
-        primary: AppColors.primary,
-        onPrimary: AppColors.onPrimary,
-        primaryContainer: AppColors.primaryContainer,
-        onPrimaryContainer: AppColors.onPrimaryContainer,
-        secondary: AppColors.secondary,
-        onSecondary: AppColors.onSecondary,
-        secondaryContainer: AppColors.secondaryContainer,
-        onSecondaryContainer: AppColors.onSecondaryContainer,
-        tertiary: AppColors.tertiary,
-        onTertiary: AppColors.onTertiary,
-        tertiaryContainer: AppColors.tertiaryContainer,
-        onTertiaryContainer: AppColors.onTertiaryContainer,
-        error: AppColors.error,
-        onError: Colors.white,
-        errorContainer: const Color(0xFFF9DEDC),
-        onErrorContainer: const Color(0xFF410E0B),
-        surface: AppColors.surface,
-        onSurface: AppColors.onSurface,
-        outline: AppColors.outline,
-        outlineVariant: AppColors.outlineVariant,
-        shadow: AppColors.scrim,
-        scrim: AppColors.scrim,
-        inverseSurface: AppColors.inverseSurface,
-        onInverseSurface: AppColors.inverseOnSurface,
-        inversePrimary: AppColors.inversePrimary,
+        brightness: Brightness.dark,
+        primary: kGold,
+        onPrimary: kBrown,
+        primaryContainer: const Color(0xFF1A1035),
+        onPrimaryContainer: kGoldLight,
+        secondary: const Color(0xFFC8860A),
+        onSecondary: kBrown,
+        secondaryContainer: kBgCard,
+        onSecondaryContainer: kParchment,
+        tertiary: kGoldLight,
+        onTertiary: kBrown,
+        tertiaryContainer: kBgMid,
+        onTertiaryContainer: kParchment,
+        error: const Color(0xFFFF6B6B),
+        onError: const Color(0xFF3E0000),
+        errorContainer: const Color(0xFF6B1A1A),
+        onErrorContainer: const Color(0xFFFFCDD2),
+        surface: kBgDeep,
+        onSurface: kParchment,
+        surfaceContainerHighest: kBgCard,
+        surfaceContainerHigh: kBgCard,
+        surfaceContainer: kBgMid,
+        surfaceContainerLow: kBgMid,
+        surfaceContainerLowest: kBgDeep,
+        onSurfaceVariant: kParchmentDim,
+        outline: kGoldDark,
+        outlineVariant: const Color(0xFF3A2800),
+        shadow: Colors.black,
+        scrim: Colors.black,
+        inverseSurface: kParchment,
+        onInverseSurface: kBrown,
+        inversePrimary: kGoldDark,
+      ),
+      textTheme: GoogleFonts.latoTextTheme().copyWith(
+        titleLarge: GoogleFonts.cinzel(
+          color: kParchment, fontSize: 18,
+          fontWeight: FontWeight.w700, letterSpacing: 1,
+        ),
+        titleMedium: GoogleFonts.lato(color: kParchment, fontSize: 15, fontWeight: FontWeight.w600),
+        titleSmall: GoogleFonts.lato(color: kParchment, fontSize: 13, fontWeight: FontWeight.w600),
+        bodyLarge: GoogleFonts.lato(color: kParchment, fontSize: 15),
+        bodyMedium: GoogleFonts.lato(color: kParchment, fontSize: 14),
+        bodySmall: GoogleFonts.lato(color: kParchmentDim, fontSize: 12),
+        labelLarge: GoogleFonts.lato(color: kParchment, fontSize: 14, fontWeight: FontWeight.w600),
+        labelMedium: GoogleFonts.lato(color: kParchmentDim, fontSize: 12),
+        labelSmall: GoogleFonts.lato(color: kParchmentDim, fontSize: 11),
       ),
       appBarTheme: AppBarTheme(
         elevation: 0,
         centerTitle: true,
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.onPrimary,
-        titleTextStyle: const TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w500,
-          color: AppColors.onPrimary,
+        backgroundColor: kBgMid,
+        surfaceTintColor: Colors.transparent,
+        foregroundColor: kGold,
+        titleTextStyle: GoogleFonts.cinzel(
+          color: kGold, fontSize: 17,
+          fontWeight: FontWeight.w700, letterSpacing: 2,
+        ),
+        iconTheme: const IconThemeData(color: kGold),
+        actionsIconTheme: const IconThemeData(color: kGold),
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+      ),
+      cardTheme: CardThemeData(
+        color: kBgCard,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: kGoldDark.withAlpha(80), width: 1),
         ),
       ),
-      floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.onPrimary,
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+      tabBarTheme: TabBarThemeData(
+        labelColor: kGold,
+        unselectedLabelColor: kParchmentDim,
+        indicatorColor: kGold,
+        indicatorSize: TabBarIndicatorSize.tab,
+        labelStyle: GoogleFonts.cinzel(
+          fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1,
+        ),
+        unselectedLabelStyle: GoogleFonts.cinzel(
+          fontSize: 12, fontWeight: FontWeight.w500,
+        ),
+        dividerColor: kGoldDark.withAlpha(50),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: kBgMid,
+        indicatorColor: kGoldDark.withAlpha(90),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        height: 64,
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: kGold, size: 24);
+          }
+          return IconThemeData(color: kParchment.withAlpha(110), size: 24);
+        }),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return GoogleFonts.cinzel(
+              color: kGold, fontSize: 11,
+              fontWeight: FontWeight.w700, letterSpacing: 0.5,
+            );
+          }
+          return GoogleFonts.cinzel(
+            color: kParchment.withAlpha(110), fontSize: 11,
+          );
+        }),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) return kBgCard;
+            return kGold;
+          }),
+          foregroundColor: WidgetStateProperty.all(kBrown),
+          textStyle: WidgetStateProperty.all(
+            GoogleFonts.cinzel(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 1),
+          ),
+          shape: WidgetStateProperty.all(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          padding: WidgetStateProperty.all(
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          ),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.onPrimary,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          backgroundColor: kGold,
+          foregroundColor: kBrown,
+          textStyle: GoogleFonts.cinzel(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 1),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primary,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          foregroundColor: kGold,
+          side: BorderSide(color: kGoldDark.withAlpha(150), width: 1),
+          textStyle: GoogleFonts.cinzel(fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 1),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),
-      textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(
-          foregroundColor: AppColors.primary,
-        ),
+      dividerTheme: DividerThemeData(
+        color: kGoldDark.withAlpha(60),
+        thickness: 1,
       ),
-      cardTheme: CardThemeData(
-        elevation: 1,
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: kBgCard,
+        contentTextStyle: GoogleFonts.lato(color: kParchment, fontSize: 14),
+        behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(color: kGoldDark.withAlpha(80)),
         ),
-        color: AppColors.surface,
       ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: AppColors.surfaceDim,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.outline),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.outlineVariant),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primary, width: 2),
-        ),
-        contentPadding: const EdgeInsets.all(16),
+      badgeTheme: const BadgeThemeData(
+        backgroundColor: kGold,
+        textColor: kBrown,
       ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(color: kGold),
     );
   }
 
-  static ThemeData darkTheme() {
-    return ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.dark,
-      colorScheme: ColorScheme(
-        brightness: Brightness.dark,
-        primary: AppColors.inversePrimary,
-        onPrimary: AppColors.primary,
-        primaryContainer: Color.alphaBlend(
-          AppColors.primary.withAlpha(51),
-          AppColors.inverseSurface,
-        ),
-        onPrimaryContainer: AppColors.primaryContainer,
-        secondary: const Color(0xFFCFC7D8),
-        onSecondary: const Color(0xFF332D41),
-        secondaryContainer: const Color(0xFF4A4458),
-        onSecondaryContainer: const Color(0xFFEBDEFF),
-        tertiary: const Color(0xFFFFC0CB),
-        onTertiary: const Color(0xFF492532),
-        tertiaryContainer: const Color(0xFF633B48),
-        onTertiaryContainer: const Color(0xFFFFD8E4),
-        error: const Color(0xFFF2B8B5),
-        onError: const Color(0xFF601410),
-        errorContainer: const Color(0xFF8C1D18),
-        onErrorContainer: const Color(0xFFF9DEDC),
-        surface: AppColors.inverseSurface,
-        onSurface: AppColors.inverseOnSurface,
-        outline: const Color(0xFF938F99),
-        outlineVariant: const Color(0xFF49454E),
-        shadow: AppColors.scrim,
-        scrim: AppColors.scrim,
-        inverseSurface: AppColors.surface,
-        onInverseSurface: AppColors.onSurface,
-        inversePrimary: AppColors.primary,
-      ),
-    );
-  }
+  // Compatibilidad con llamadas existentes
+  static ThemeData lightTheme() => magicTheme();
+  static ThemeData darkTheme() => magicTheme();
 }
