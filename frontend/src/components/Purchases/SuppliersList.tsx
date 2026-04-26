@@ -1,11 +1,11 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Table, Button, Modal, Form, Input, Switch, Space, Tag, Popconfirm, message } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { SupplierDto, CreateSupplierDto, UpdateSupplierDto } from '../../types';
 import { purchasesApi } from '../../services/api';
 
 export default function SuppliersList() {
-  const [proveedores, setProveedores] = useState<SupplierDto[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<SupplierDto | null>(null);
@@ -15,7 +15,7 @@ export default function SuppliersList() {
     setLoading(true);
     try {
       const res = await purchasesApi.getSuppliers();
-      setProveedores(res.data);
+      setSuppliers(res.data);
     } finally {
       setLoading(false);
     }
@@ -29,9 +29,9 @@ export default function SuppliersList() {
     setModalOpen(true);
   };
 
-  const openEdit = (p: SupplierDto) => {
-    setEditing(p);
-    form.setFieldsValue({ ...p });
+  const openEdit = (s: SupplierDto) => {
+    setEditing(s);
+    form.setFieldsValue({ ...s });
     setModalOpen(true);
   };
 
@@ -63,22 +63,23 @@ export default function SuppliersList() {
   };
 
   const columns = [
-    { title: 'Nombre', dataIndex: 'nombre', key: 'nombre', sorter: (a: SupplierDto, b: SupplierDto) => a.name.localeCompare(b.name) },
-    { title: 'RUC/Cédula', dataIndex: 'rucCedula', key: 'rucCedula' },
-    { title: 'Teléfono', dataIndex: 'telefono', key: 'telefono' },
-    { title: 'Email', dataIndex: 'email', key: 'email' },
-    { title: 'Contacto', dataIndex: 'contacto', key: 'contacto' },
     {
-      title: 'Estado',
-      key: 'estado',
+      title: 'Nombre', dataIndex: 'name', key: 'name',
+      sorter: (a: SupplierDto, b: SupplierDto) => a.name.localeCompare(b.name),
+    },
+    { title: 'RUC/Cédula', dataIndex: 'taxId', key: 'taxId' },
+    { title: 'Teléfono', dataIndex: 'phone', key: 'phone' },
+    { title: 'Email', dataIndex: 'email', key: 'email' },
+    { title: 'Contacto', dataIndex: 'contactName', key: 'contactName' },
+    {
+      title: 'Estado', key: 'isActive',
       render: (_: unknown, r: SupplierDto) => (
         <Tag color={r.isActive ? 'green' : 'default'}>{r.isActive ? 'Activo' : 'Inactivo'}</Tag>
       ),
     },
-    { title: 'Órdenes', dataIndex: 'totalOrdenes', key: 'totalOrdenes', align: 'right' as const },
+    { title: 'Órdenes', dataIndex: 'totalOrders', key: 'totalOrders', align: 'right' as const },
     {
-      title: '',
-      key: 'actions',
+      title: '', key: 'actions',
       render: (_: unknown, r: SupplierDto) => (
         <Space>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
@@ -99,7 +100,7 @@ export default function SuppliersList() {
 
       <Table
         columns={columns}
-        dataSource={proveedores}
+        dataSource={suppliers}
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 20 }}
@@ -116,26 +117,26 @@ export default function SuppliersList() {
         width={500}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true, message: 'Requerido' }]}>
+          <Form.Item name="name" label="Nombre" rules={[{ required: true, message: 'Requerido' }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="rucCedula" label="RUC / Cédula">
+          <Form.Item name="taxId" label="RUC / Cédula">
             <Input />
           </Form.Item>
-          <Form.Item name="telefono" label="Teléfono">
+          <Form.Item name="phone" label="Teléfono">
             <Input />
           </Form.Item>
           <Form.Item name="email" label="Email">
             <Input type="email" />
           </Form.Item>
-          <Form.Item name="direccion" label="Dirección">
+          <Form.Item name="address" label="Dirección">
             <Input.TextArea rows={2} />
           </Form.Item>
-          <Form.Item name="contacto" label="Persona de contacto">
+          <Form.Item name="contactName" label="Persona de contacto">
             <Input />
           </Form.Item>
           {editing && (
-            <Form.Item name="esActivo" label="Activo" valuePropName="checked">
+            <Form.Item name="isActive" label="Activo" valuePropName="checked">
               <Switch />
             </Form.Item>
           )}
