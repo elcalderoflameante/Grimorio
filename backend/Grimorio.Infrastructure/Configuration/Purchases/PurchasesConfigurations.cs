@@ -8,7 +8,7 @@ public class ProveedorConfiguration : IEntityTypeConfiguration<Supplier>
 {
     public void Configure(EntityTypeBuilder<Supplier> builder)
     {
-        builder.ToTable("Suppliers", "compras");
+        builder.ToTable("Suppliers", "purchases");
 
         builder.Property(x => x.Name).IsRequired().HasMaxLength(200);
         builder.Property(x => x.TaxId).HasMaxLength(20);
@@ -26,7 +26,7 @@ public class OrdenCompraConfiguration : IEntityTypeConfiguration<PurchaseOrder>
 {
     public void Configure(EntityTypeBuilder<PurchaseOrder> builder)
     {
-        builder.ToTable("PurchaseOrders", "compras");
+        builder.ToTable("PurchaseOrders", "purchases");
 
         builder.Property(x => x.OrderNumber).IsRequired().HasMaxLength(50);
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
@@ -49,7 +49,7 @@ public class OrdenCompraItemConfiguration : IEntityTypeConfiguration<PurchaseOrd
 {
     public void Configure(EntityTypeBuilder<PurchaseOrderItem> builder)
     {
-        builder.ToTable("PurchaseOrderItems", "compras");
+        builder.ToTable("PurchaseOrderItems", "purchases");
 
         builder.Property(x => x.QuantityOrdered).HasColumnType("numeric(18,4)").IsRequired();
         builder.Property(x => x.QuantityReceived).HasColumnType("numeric(18,4)");
