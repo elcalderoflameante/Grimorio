@@ -108,7 +108,7 @@ public class Order : BaseEntity
     public virtual RestaurantTable? Table { get; set; }
     public virtual Billing.Customer? Customer { get; set; }
     public virtual ICollection<OrderItem> Items { get; set; } = [];
-    public virtual Billing.OrderPayment? Payment { get; set; }
+    public virtual ICollection<Billing.OrderPayment> Payments { get; set; } = [];
 }
 
 public class OrderItem : BaseEntity

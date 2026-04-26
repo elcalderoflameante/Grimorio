@@ -47,13 +47,12 @@ public class OrderPaymentConfiguration : BaseEntityConfiguration<OrderPayment>
         base.Configure(builder);
         builder.ToTable("OrderPayments", "billing");
 
-        builder.Property(x => x.AmountPaid).HasColumnType("numeric(18,2)");
-        builder.Property(x => x.Change).HasColumnType("numeric(18,2)");
-        builder.Property(x => x.OrderTotal).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.OrderAmount).HasColumnType("numeric(18,2)");
 
+        // Muchos pagos por orden (cuentas divididas y pagos parciales)
         builder.HasOne(x => x.Order)
-            .WithOne(o => o.Payment)
-            .HasForeignKey<OrderPayment>(x => x.OrderId)
+            .WithMany(o => o.Payments)
+            .HasForeignKey(x => x.OrderId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.CashSession)
@@ -66,7 +65,24 @@ public class OrderPaymentConfiguration : BaseEntityConfiguration<OrderPayment>
             .HasForeignKey(x => x.CustomerId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        builder.HasIndex(x => x.OrderId).IsUnique();
+        builder.HasIndex(x => x.OrderId);
         builder.HasIndex(x => new { x.BranchId, x.PaidAt });
+    }
+}
+
+public class PaymentLineConfiguration : BaseEntityConfiguration<PaymentLine>
+{
+    public override void Configure(EntityTypeBuilder<PaymentLine> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("PaymentLines", "billing");
+
+        builder.Property(x => x.AmountTendered).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Change).HasColumnType("numeric(18,2)");
+
+        builder.HasOne(x => x.Payment)
+            .WithMany(p => p.Lines)
+            .HasForeignKey(x => x.OrderPaymentId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

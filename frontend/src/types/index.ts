@@ -1232,6 +1232,14 @@ export interface CloseCashSessionDto {
 
 // ── Billing: Cobro ────────────────────────────────────────────────────────────
 
+export interface PaymentLineDto {
+  id: string;
+  method: 'Cash' | 'Card' | 'Transfer' | 'QR';
+  amountTendered: number;
+  change: number;
+  netAmount: number;
+}
+
 export interface OrderPaymentDto {
   id: string;
   orderId: string;
@@ -1239,16 +1247,21 @@ export interface OrderPaymentDto {
   customerId?: string;
   customerName?: string;
   customerTaxId?: string;
-  method: 'Cash' | 'Card' | 'Transfer' | 'QR';
-  amountPaid: number;
-  change: number;
-  orderTotal: number;
+  documentType: 'NotaDeVenta' | 'Factura';
+  orderAmount: number;
   paidAt: string;
+  lines: PaymentLineDto[];
 }
 
-export interface PayOrderDto {
+export interface AddPaymentLineDto {
   method: string;
-  amountPaid: number;
+  amountTendered: number;
+}
+
+export interface AddOrderPaymentDto {
+  orderAmount: number;
+  documentType: string;
   customerId?: string;
   cashSessionId?: string;
+  lines: AddPaymentLineDto[];
 }

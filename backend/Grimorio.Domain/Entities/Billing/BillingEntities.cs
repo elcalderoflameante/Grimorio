@@ -10,6 +10,8 @@ public enum TaxIdType { Cedula = 1, Ruc = 2, Passport = 3, FinalConsumer = 4 }
 
 public enum CashSessionStatus { Open = 1, Closed = 2 }
 
+public enum DocumentType { NotaDeVenta = 1, Factura = 2 }
+
 // ── Customer ──────────────────────────────────────────────────────────────────
 
 public class Customer : BaseEntity
@@ -44,6 +46,7 @@ public class CashSession : BaseEntity
 }
 
 // ── OrderPayment ──────────────────────────────────────────────────────────────
+// Un pago parcial por una porción de la orden (uno por persona en cuentas divididas).
 
 public class OrderPayment : BaseEntity
 {
@@ -51,13 +54,25 @@ public class OrderPayment : BaseEntity
     public Guid OrderId { get; set; }
     public Guid? CashSessionId { get; set; }
     public Guid? CustomerId { get; set; }
-    public PaymentMethod Method { get; set; }
-    public decimal AmountPaid { get; set; }
-    public decimal Change { get; set; }
-    public decimal OrderTotal { get; set; }
+    public DocumentType DocumentType { get; set; } = DocumentType.NotaDeVenta;
+    public decimal OrderAmount { get; set; }   // porción de la orden que cubre este pago
     public DateTime PaidAt { get; set; } = DateTime.UtcNow;
 
     public virtual POS.Order? Order { get; set; }
     public virtual CashSession? CashSession { get; set; }
     public virtual Customer? Customer { get; set; }
+    public virtual ICollection<PaymentLine> Lines { get; set; } = [];
+}
+
+// ── PaymentLine ───────────────────────────────────────────────────────────────
+// Una línea de medio de pago dentro de un OrderPayment (permite pago mixto).
+
+public class PaymentLine : BaseEntity
+{
+    public Guid OrderPaymentId { get; set; }
+    public PaymentMethod Method { get; set; }
+    public decimal AmountTendered { get; set; }  // lo que entrega el cliente
+    public decimal Change { get; set; }           // vuelto (solo efectivo)
+
+    public virtual OrderPayment? Payment { get; set; }
 }

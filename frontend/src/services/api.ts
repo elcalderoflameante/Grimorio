@@ -619,7 +619,9 @@ export const cashApi = {
     apiClient.post<CashSessionDto>('/cash/abrir', dto),
   closeSession: (id: string, dto: CloseCashSessionDto): Promise<AxiosResponse<CashSessionDto>> =>
     apiClient.post<CashSessionDto>(`/cash/sesiones/${id}/cerrar`, dto),
-  payOrder: (orderId: string, dto: PayOrderDto): Promise<AxiosResponse<OrderPaymentDto>> =>
+  getOrderPayments: (orderId: string): Promise<AxiosResponse<OrderPaymentDto[]>> =>
+    apiClient.get<OrderPaymentDto[]>(`/cash/ordenes/${orderId}/pagos`),
+  payOrder: (orderId: string, dto: AddOrderPaymentDto): Promise<AxiosResponse<OrderPaymentDto>> =>
     apiClient.post<OrderPaymentDto>(`/cash/cobrar/${orderId}`, dto),
 };
 

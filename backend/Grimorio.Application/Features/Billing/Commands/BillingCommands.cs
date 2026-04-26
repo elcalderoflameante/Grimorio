@@ -57,12 +57,19 @@ public class CloseCashSessionCommand : IRequest<CashSessionDto>
 
 // ── Payment ───────────────────────────────────────────────────────────────────
 
+public class PaymentLineCommand
+{
+    public string Method { get; set; } = "Cash";
+    public decimal AmountTendered { get; set; }
+}
+
 public class PayOrderCommand : IRequest<OrderPaymentDto>
 {
     public Guid OrderId { get; set; }
     public Guid BranchId { get; set; }
-    public string Method { get; set; } = "Cash";
-    public decimal AmountPaid { get; set; }
+    public decimal OrderAmount { get; set; }
+    public string DocumentType { get; set; } = "NotaDeVenta";
     public Guid? CustomerId { get; set; }
     public Guid? CashSessionId { get; set; }
+    public List<PaymentLineCommand> Lines { get; set; } = [];
 }

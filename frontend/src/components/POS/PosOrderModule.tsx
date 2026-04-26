@@ -66,8 +66,9 @@ export default function PosOrderModule() {
     setLoadingOrders(true);
     try {
       const r = await posApi.getOrders({ activeOnly: true });
+      // Mostrar toda orden activa no pagada completamente (incluye pagos parciales)
       const unpaid = r.data.filter(o =>
-        (o.status === 'Delivered' || o.status === 'Ready') && !o.paidAt
+        o.status !== 'Draft' && o.status !== 'Cancelled' && !o.paidAt
       );
       setOrdersToPay(unpaid);
       setView('orders-list');

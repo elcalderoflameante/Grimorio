@@ -69,6 +69,7 @@ public class GrimorioDbContext : DbContext
     public DbSet<Customer> Customers { get; set; } = null!;
     public DbSet<CashSession> CashSessions { get; set; } = null!;
     public DbSet<OrderPayment> OrderPayments { get; set; } = null!;
+    public DbSet<PaymentLine> PaymentLines { get; set; } = null!;
 
     // === Menú ===
     public DbSet<MenuCategory> MenuCategories { get; set; } = null!;

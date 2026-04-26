@@ -37,7 +37,8 @@ public class GetActiveCashSessionHandler : IRequestHandler<GetActiveCashSessionQ
     public async Task<CashSessionDto?> Handle(GetActiveCashSessionQuery req, CancellationToken ct)
     {
         var session = await _db.CashSessions
-            .Include(s => s.Payments)
+            .Include(s => s.Payments.Where(p => !p.IsDeleted))
+                .ThenInclude(p => p.Lines)
             .FirstOrDefaultAsync(s => s.BranchId == req.BranchId && s.Status == CashSessionStatus.Open && !s.IsDeleted, ct);
         return session == null ? null : BillingMapper.MapSession(session);
     }
@@ -51,7 +52,8 @@ public class GetCashSessionsHandler : IRequestHandler<GetCashSessionsQuery, List
     public async Task<List<CashSessionDto>> Handle(GetCashSessionsQuery req, CancellationToken ct)
     {
         var query = _db.CashSessions
-            .Include(s => s.Payments)
+            .Include(s => s.Payments.Where(p => !p.IsDeleted))
+                .ThenInclude(p => p.Lines)
             .Where(s => s.BranchId == req.BranchId && !s.IsDeleted);
 
         if (req.FromUtc.HasValue) query = query.Where(s => s.OpenedAt >= req.FromUtc.Value);
@@ -74,8 +76,31 @@ public class GetCashSessionDetailHandler : IRequestHandler<GetCashSessionDetailQ
     public async Task<CashSessionDto?> Handle(GetCashSessionDetailQuery req, CancellationToken ct)
     {
         var session = await _db.CashSessions
-            .Include(s => s.Payments)
+            .Include(s => s.Payments.Where(p => !p.IsDeleted))
+                .ThenInclude(p => p.Lines)
             .FirstOrDefaultAsync(s => s.Id == req.Id && s.BranchId == req.BranchId && !s.IsDeleted, ct);
         return session == null ? null : BillingMapper.MapSession(session);
+    }
+}
+
+public class GetOrderPaymentsHandler : IRequestHandler<GetOrderPaymentsQuery, List<OrderPaymentDto>>
+{
+    private readonly GrimorioDbContext _db;
+    public GetOrderPaymentsHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<List<OrderPaymentDto>> Handle(GetOrderPaymentsQuery req, CancellationToken ct)
+    {
+        var order = await _db.Orders
+            .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
+            ?? throw new KeyNotFoundException("Orden no encontrada.");
+
+        var payments = await _db.OrderPayments
+            .Include(p => p.Lines)
+            .Include(p => p.Customer)
+            .Where(p => p.OrderId == req.OrderId && !p.IsDeleted)
+            .OrderBy(p => p.PaidAt)
+            .ToListAsync(ct);
+
+        return payments.Select(p => BillingMapper.MapPayment(p, order.Number, p.Customer)).ToList();
     }
 }

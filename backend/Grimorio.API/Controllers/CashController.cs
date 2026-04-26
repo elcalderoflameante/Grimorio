@@ -83,15 +83,27 @@ public class CashController : ControllerBase
 
     // ── Cobro de orden ────────────────────────────────────────────────────────
 
+    [HttpGet("ordenes/{orderId:guid}/pagos")]
+    public async Task<IActionResult> GetOrderPayments(Guid orderId)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        return Ok(await _mediator.Send(new GetOrderPaymentsQuery { OrderId = orderId, BranchId = branchId }));
+    }
+
     [HttpPost("cobrar/{orderId:guid}")]
-    public async Task<IActionResult> PayOrder(Guid orderId, [FromBody] PayOrderDto dto)
+    public async Task<IActionResult> PayOrder(Guid orderId, [FromBody] AddOrderPaymentDto dto)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
         var result = await _mediator.Send(new PayOrderCommand
         {
             OrderId = orderId, BranchId = branchId,
-            Method = dto.Method, AmountPaid = dto.AmountPaid,
+            OrderAmount = dto.OrderAmount,
+            DocumentType = dto.DocumentType,
             CustomerId = dto.CustomerId, CashSessionId = dto.CashSessionId,
+            Lines = dto.Lines.Select(l => new PaymentLineCommand
+            {
+                Method = l.Method, AmountTendered = l.AmountTendered,
+            }).ToList(),
         });
         return Ok(result);
     }

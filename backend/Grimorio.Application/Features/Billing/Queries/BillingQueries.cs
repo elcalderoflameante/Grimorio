@@ -28,3 +28,9 @@ public class GetCashSessionDetailQuery : IRequest<CashSessionDto?>
     public Guid Id { get; set; }
     public Guid BranchId { get; set; }
 }
+
+public class GetOrderPaymentsQuery : IRequest<List<OrderPaymentDto>>
+{
+    public Guid OrderId { get; set; }
+    public Guid BranchId { get; set; }
+}
