@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Table, Button, Modal, Form, Input, Switch, Popconfirm, Space, Typography, message, Tag
 } from 'antd';
@@ -10,7 +10,7 @@ import { formatError } from '../../utils/errorHandler';
 const { Title } = Typography;
 
 export default function WarehousesList() {
-  const [bodegas, setBodegas] = useState<WarehouseDto[]>([]);
+  const [warehouses, setWarehouses] = useState<WarehouseDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<WarehouseDto | null>(null);
@@ -20,7 +20,7 @@ export default function WarehousesList() {
     setLoading(true);
     try {
       const res = await inventoryApi.getWarehouses();
-      setBodegas(res.data);
+      setWarehouses(res.data);
     } catch (e) {
       message.error(formatError(e));
     } finally {
@@ -30,9 +30,9 @@ export default function WarehousesList() {
 
   useEffect(() => { load(); }, []);
 
-  const openModal = (b?: WarehouseDto) => {
-    setEditing(b ?? null);
-    form.setFieldsValue(b ?? { nombre: '', descripcion: '', ubicacion: '', esActiva: true });
+  const openModal = (w?: WarehouseDto) => {
+    setEditing(w ?? null);
+    form.setFieldsValue(w ?? { name: '', description: '', location: '', isActive: true });
     setModal(true);
   };
 
@@ -72,25 +72,25 @@ export default function WarehousesList() {
       </div>
 
       <Table
-        dataSource={bodegas}
+        dataSource={warehouses}
         rowKey="id"
         loading={loading}
         size="small"
         pagination={false}
         columns={[
-          { title: 'Nombre', dataIndex: 'nombre', key: 'nombre' },
-          { title: 'Descripción', dataIndex: 'descripcion', key: 'descripcion' },
-          { title: 'Ubicación', dataIndex: 'ubicacion', key: 'ubicacion' },
+          { title: 'Nombre', dataIndex: 'name', key: 'name' },
+          { title: 'Descripción', dataIndex: 'description', key: 'description' },
+          { title: 'Ubicación', dataIndex: 'location', key: 'location' },
           {
-            title: 'Estado', dataIndex: 'esActiva', key: 'esActiva',
+            title: 'Estado', dataIndex: 'isActive', key: 'isActive',
             render: (v: boolean) => <Tag color={v ? 'green' : 'default'}>{v ? 'Activa' : 'Inactiva'}</Tag>,
           },
           {
-            title: 'Acciones', key: 'acciones', width: 100,
-            render: (_: unknown, b: WarehouseDto) => (
+            title: 'Acciones', key: 'actions', width: 100,
+            render: (_: unknown, w: WarehouseDto) => (
               <Space>
-                <Button size="small" icon={<EditOutlined />} onClick={() => openModal(b)} />
-                <Popconfirm title="¿Eliminar?" onConfirm={() => remove(b.id)}>
+                <Button size="small" icon={<EditOutlined />} onClick={() => openModal(w)} />
+                <Popconfirm title="¿Eliminar?" onConfirm={() => remove(w.id)}>
                   <Button size="small" danger icon={<DeleteOutlined />} />
                 </Popconfirm>
               </Space>
@@ -107,17 +107,17 @@ export default function WarehousesList() {
         okText="Guardar"
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
+          <Form.Item name="name" label="Nombre" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="descripcion" label="Descripción">
+          <Form.Item name="description" label="Descripción">
             <Input.TextArea rows={2} />
           </Form.Item>
-          <Form.Item name="ubicacion" label="Ubicación">
+          <Form.Item name="location" label="Ubicación">
             <Input />
           </Form.Item>
           {editing && (
-            <Form.Item name="esActiva" label="Activa" valuePropName="checked">
+            <Form.Item name="isActive" label="Activa" valuePropName="checked">
               <Switch />
             </Form.Item>
           )}

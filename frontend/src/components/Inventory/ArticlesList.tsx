@@ -14,15 +14,15 @@ import { formatError } from '../../utils/errorHandler';
 const { Title } = Typography;
 
 const TIPO_OPTIONS = [
-  { label: 'Ingrediente', value: 'Ingrediente' },
-  { label: 'Producto terminado', value: 'ProductoTerminado' },
-  { label: 'Suministro', value: 'Suministro' },
+  { label: 'Ingrediente', value: 'Ingredient' },
+  { label: 'Producto terminado', value: 'FinishedProduct' },
+  { label: 'Suministro', value: 'Supply' },
 ];
 
 const TIPO_COLOR: Record<string, string> = {
-  Ingrediente: 'blue',
-  ProductoTerminado: 'green',
-  Suministro: 'orange',
+  Ingredient: 'blue',
+  FinishedProduct: 'green',
+  Supply: 'orange',
 };
 
 export default function ArticlesList() {

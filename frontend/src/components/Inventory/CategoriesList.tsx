@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Table, Button, Modal, Form, Input, ColorPicker, Popconfirm, Space, Typography, message, Tag
 } from 'antd';
@@ -10,7 +10,7 @@ import { formatError } from '../../utils/errorHandler';
 const { Title } = Typography;
 
 export default function CategoriesList() {
-  const [categorias, setCategorias] = useState<InventoryCategoryDto[]>([]);
+  const [categories, setCategories] = useState<InventoryCategoryDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<InventoryCategoryDto | null>(null);
@@ -20,7 +20,7 @@ export default function CategoriesList() {
     setLoading(true);
     try {
       const res = await inventoryApi.getCategories();
-      setCategorias(res.data);
+      setCategories(res.data);
     } catch (e) {
       message.error(formatError(e));
     } finally {
@@ -32,7 +32,7 @@ export default function CategoriesList() {
 
   const openModal = (c?: InventoryCategoryDto) => {
     setEditing(c ?? null);
-    form.setFieldsValue(c ?? { nombre: '', descripcion: '', color: '#1677ff' });
+    form.setFieldsValue(c ?? { name: '', description: '', color: '#1677ff' });
     setModal(true);
   };
 
@@ -73,28 +73,28 @@ export default function CategoriesList() {
       </div>
 
       <Table
-        dataSource={categorias}
+        dataSource={categories}
         rowKey="id"
         loading={loading}
         size="small"
         pagination={false}
         columns={[
           {
-            title: 'Nombre', dataIndex: 'nombre', key: 'nombre',
-            render: (nombre: string, c: InventoryCategoryDto) => (
+            title: 'Nombre', dataIndex: 'name', key: 'name',
+            render: (name: string, c: InventoryCategoryDto) => (
               <Space>
                 {c.color && <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 3, background: c.color }} />}
-                {nombre}
+                {name}
               </Space>
             ),
           },
-          { title: 'Descripción', dataIndex: 'descripcion', key: 'descripcion' },
+          { title: 'Descripción', dataIndex: 'description', key: 'description' },
           {
-            title: 'Artículos', dataIndex: 'totalArticulos', key: 'totalArticulos',
+            title: 'Artículos', dataIndex: 'totalArticles', key: 'totalArticles',
             render: (v: number) => <Tag color="blue">{v}</Tag>,
           },
           {
-            title: 'Acciones', key: 'acciones', width: 100,
+            title: 'Acciones', key: 'actions', width: 100,
             render: (_: unknown, c: InventoryCategoryDto) => (
               <Space>
                 <Button size="small" icon={<EditOutlined />} onClick={() => openModal(c)} />
@@ -115,10 +115,10 @@ export default function CategoriesList() {
         okText="Guardar"
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
+          <Form.Item name="name" label="Nombre" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="descripcion" label="Descripción">
+          <Form.Item name="description" label="Descripción">
             <Input.TextArea rows={2} />
           </Form.Item>
           <Form.Item name="color" label="Color">
