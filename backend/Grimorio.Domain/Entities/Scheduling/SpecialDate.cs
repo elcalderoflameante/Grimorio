@@ -10,7 +10,7 @@ namespace Grimorio.Domain.Entities.Scheduling;
 public class SpecialDate : BaseEntity
 {
     public DateTime Date { get; set; } // La fecha específica (ej: 2026-02-14)
-    public string Name { get; set; } = string.Empty; // Nombre del día especial (Valentine, Carnaval, etc)
+    public string Name { get; set; } = string.Empty; // Name del día especial (Valentine, Carnaval, etc)
     public string? Description { get; set; }
     
     // Navegación a sus plantillas específicas

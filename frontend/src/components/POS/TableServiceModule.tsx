@@ -91,6 +91,10 @@ const normalizeTable = (raw: unknown): RestaurantTableDto => {
     publicToken: (table.publicToken ?? table.PublicToken ?? '') as string,
     publicUrl: (table.publicUrl ?? table.PublicUrl ?? '') as string,
     isActive: Boolean(table.isActive ?? table.IsActive ?? true),
+    posX: Number((table as RestaurantTableDto).posX ?? 0),
+    posY: Number((table as RestaurantTableDto).posY ?? 0),
+    currentStatus: ((table as RestaurantTableDto).currentStatus ?? 'Free') as 'Free' | 'Occupied',
+    currentOrderId: (table as RestaurantTableDto).currentOrderId,
   };
 };
 
@@ -393,7 +397,7 @@ export default function TableServiceModule() {
       width: 90,
     },
     {
-      title: 'Mesa',
+      title: 'DineIn',
       dataIndex: 'name',
       key: 'name',
     },
@@ -477,7 +481,7 @@ export default function TableServiceModule() {
       render: (value: string) => new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
     {
-      title: 'Mesa',
+      title: 'DineIn',
       key: 'table',
       render: (_: unknown, row: TableServiceRequestDto) => `${row.tableCode} - ${row.tableName}`,
     },
@@ -580,11 +584,11 @@ export default function TableServiceModule() {
                       value={statusFilter}
                       onChange={(value) => setStatusFilter(value)}
                       options={[
-                        { label: 'Pendiente', value: 1 },
+                        { label: 'Pending', value: 1 },
                         { label: 'Tomada', value: 2 },
                         { label: 'En proceso', value: 3 },
                         { label: 'Completada', value: 4 },
-                        { label: 'Cancelada', value: 5 },
+                        { label: 'Cancelled', value: 5 },
                       ]}
                     />
                   </Col>

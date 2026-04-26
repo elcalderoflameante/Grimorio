@@ -57,7 +57,7 @@ public class ShiftTemplate : Grimorio.SharedKernel.BaseEntity
     public TimeSpan? LunchDuration { get; set; } // 1 hora almuerzo fines de semana
     public Guid WorkAreaId { get; set; }
     public Guid WorkRoleId { get; set; }
-    public int RequiredCount { get; set; } = 1; // Cantidad de personas necesarias
+    public int RequiredCount { get; set; } = 1; // Quantity de personas necesarias
     public string? Notes { get; set; }
     
     // Navegación

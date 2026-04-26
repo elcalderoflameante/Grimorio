@@ -1,10 +1,13 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Grimorio.Application.Abstractions;
 using Grimorio.Domain.Entities.Auth;
 using Grimorio.Domain.Entities.Organization;
 using Grimorio.Domain.Entities.Scheduling;
 using Grimorio.Domain.Entities.Payroll;
+using Grimorio.Domain.Entities.Inventory;
+using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.POS;
+using Grimorio.Domain.Entities.Purchases;
 
 namespace Grimorio.Infrastructure.Persistence;
 
@@ -59,6 +62,28 @@ public class GrimorioDbContext : DbContext
     // === POS ===
     public DbSet<RestaurantTable> RestaurantTables { get; set; } = null!;
     public DbSet<TableServiceRequest> TableServiceRequests { get; set; } = null!;
+    public DbSet<WorkStation> WorkStations { get; set; } = null!;
+    public DbSet<Order> Orders { get; set; } = null!;
+    public DbSet<OrderItem> OrderItems { get; set; } = null!;
+
+    // === Menú ===
+    public DbSet<MenuCategory> MenuCategories { get; set; } = null!;
+    public DbSet<MenuItem> MenuItems { get; set; } = null!;
+    public DbSet<RecipeIngredient> RecipeIngredients { get; set; } = null!;
+
+    // === Purchases ===
+    public DbSet<Supplier> Suppliers { get; set; } = null!;
+    public DbSet<PurchaseOrder> PurchaseOrders { get; set; } = null!;
+    public DbSet<PurchaseOrderItem> PurchaseOrderItems { get; set; } = null!;
+
+    // === Inventario ===
+    public DbSet<MeasurementUnit> MeasurementUnits { get; set; } = null!;
+    public DbSet<UnitConversion> UnitConversions { get; set; } = null!;
+    public DbSet<InventoryCategory> InventoryCategories { get; set; } = null!;
+    public DbSet<InventoryArticle> InventoryArticles { get; set; } = null!;
+    public DbSet<Warehouse> Warehouses { get; set; } = null!;
+    public DbSet<WarehouseStock> WarehouseStock { get; set; } = null!;
+    public DbSet<StockMovement> StockMovements { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

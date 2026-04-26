@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Layout, Menu, Dropdown, Avatar, Space, Drawer, Button, Breadcrumb, message, Grid } from 'antd';
+﻿import { useEffect, useMemo, useState } from 'react';
+import { Layout, Menu, Dropdown, Avatar, Space, Drawer, Button, Breadcrumb, message, Grid, Badge, Alert } from 'antd';
 import {
   UserOutlined,
   LogoutOutlined,
@@ -15,7 +15,14 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   MenuOutlined,
-  ShopOutlined
+  ShopOutlined,
+  InboxOutlined,
+  WarningOutlined,
+  SwapOutlined,
+  AppstoreOutlined,
+  UnorderedListOutlined,
+  ShoppingCartOutlined,
+  ShoppingOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
@@ -36,7 +43,20 @@ import {
   SchedulingSettings,
 } from '../components/Scheduling';
 import TableServiceModule from '../components/POS/TableServiceModule';
+import PosOrderModule from '../components/POS/PosOrderModule';
+import StationMonitor from '../components/POS/StationMonitor';
+import StationsConfig from '../components/POS/StationsConfig';
 import { BranchConfigurationForm } from '../components/Branches/BranchConfigurationForm';
+import InventoryConfig from '../components/Inventory/InventoryConfig';
+import MenuCategoriesList from '../components/Menu/MenuCategoriesList';
+import MenuItemsList from '../components/Menu/MenuItemsList';
+import ArticlesList from '../components/Inventory/ArticlesList';
+import CurrentStock from '../components/Inventory/CurrentStock';
+import StockMovements from '../components/Inventory/StockMovements';
+import SuppliersList from '../components/Purchases/SuppliersList';
+import PurchaseOrdersList from '../components/Purchases/PurchaseOrdersList';
+import { inventoryApi } from '../services/api';
+import type { StockAlertDto } from '../types';
 import type { MenuProps } from 'antd';
 
 const { Header, Content, Sider } = Layout;
@@ -80,6 +100,7 @@ export default function Dashboard() {
   const [collapsed, setCollapsed] = useState(false);
   const [branch, setBranch] = useState<BranchDto | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+  const [alertasStock, setAlertasStock] = useState<StockAlertDto[]>([]);
   const navigate = useNavigate();
   const { user, logout, hasPermission, branchId } = useAuth();
   const screens = useBreakpoint();
@@ -100,6 +121,20 @@ export default function Dashboard() {
 
     loadBranch();
   }, [branchId]);
+
+  useEffect(() => {
+    const loadAlertas = async () => {
+      try {
+        const res = await inventoryApi.getAlerts();
+        setAlertasStock(res.data);
+      } catch {
+        // silencioso: las alertas son informativas
+      }
+    };
+    loadAlertas();
+    const interval = setInterval(loadAlertas, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -170,10 +205,49 @@ export default function Dashboard() {
       label: 'POS',
       icon: <ShopOutlined />,
       children: [
+        { key: 'pos-ordenes', label: 'Pedidos', icon: <ShoppingCartOutlined /> },
+        { key: 'pos-monitor', label: 'Monitor cocina', icon: <AppstoreOutlined /> },
+        { key: 'pos-estaciones', label: 'Estaciones', icon: <ToolOutlined /> },
         { key: 'pos-table-service', label: 'Atención QR', icon: <ToolOutlined /> },
       ],
     },
-  ], [hasPermission]);
+    {
+      key: 'menu',
+      label: 'Menú',
+      icon: <ShopOutlined />,
+      children: [
+        { key: 'menu-categorias', label: 'Categorías', icon: <AppstoreOutlined /> },
+        { key: 'menu-items', label: 'Ítems y recetas', icon: <UnorderedListOutlined /> },
+      ],
+    },
+    {
+      key: 'inventario',
+      label: (
+        <Space size={6}>
+          Inventario
+          {alertasStock.length > 0 && (
+            <Badge count={alertasStock.length} size="small" />
+          )}
+        </Space>
+      ),
+      icon: <InboxOutlined />,
+      children: [
+        { key: 'inv-config', label: 'Configuración', icon: <SettingOutlined /> },
+        { key: 'inv-articulos', label: 'Artículos', icon: <InboxOutlined /> },
+        { key: 'inv-stock', label: 'Stock actual', icon: <WarningOutlined /> },
+        { key: 'inv-movimientos', label: 'Movimientos', icon: <SwapOutlined /> },
+      ],
+    },
+    {
+      key: 'purchases',
+      label: 'Compras',
+      icon: <ShoppingOutlined />,
+      children: [
+        { key: 'purchases-suppliers', label: 'Proveedores', icon: <TeamOutlined /> },
+        { key: 'purchases-orders', label: 'Órdenes de compra', icon: <ShoppingCartOutlined /> },
+      ],
+    },
+  ], [hasPermission, alertasStock.length]);
 
   const userMenu: MenuProps['items'] = [
     {
@@ -231,8 +305,30 @@ export default function Dashboard() {
         return <PayrollSummary />;
       case 'payroll-config':
         return <PayrollConfigurationForm />;
+      case 'pos-ordenes':
+        return <PosOrderModule />;
+      case 'pos-monitor':
+        return <StationMonitor />;
+      case 'pos-estaciones':
+        return <StationsConfig />;
       case 'pos-table-service':
         return <TableServiceModule />;
+      case 'menu-categorias':
+        return <MenuCategoriesList />;
+      case 'menu-items':
+        return <MenuItemsList />;
+      case 'inv-stock':
+        return <CurrentStock />;
+      case 'inv-movimientos':
+        return <StockMovements />;
+      case 'inv-articulos':
+        return <ArticlesList />;
+      case 'inv-config':
+        return <InventoryConfig />;
+      case 'purchases-suppliers':
+        return <SuppliersList />;
+      case 'purchases-orders':
+        return <PurchaseOrdersList />;
       default:
         return <Welcome />;
     }
@@ -377,6 +473,17 @@ export default function Dashboard() {
             maxWidth: '100%',
           }}
         >
+          {alertasStock.length > 0 && (
+            <Alert
+              type="warning"
+              icon={<WarningOutlined />}
+              showIcon
+              style={{ marginBottom: 16, cursor: 'pointer' }}
+              message={`${alertasStock.length} artículo${alertasStock.length > 1 ? 's' : ''} con stock bajo mínimo`}
+              description={alertasStock.slice(0, 3).map(a => `${a.articleName}: ${a.currentStock}/${a.minStock} ${a.unitSymbol}`).join(' · ') + (alertasStock.length > 3 ? ' ...' : '')}
+              onClick={() => setSelectedMenu('inv-stock')}
+            />
+          )}
           {renderContent()}
         </Content>
       </Layout>

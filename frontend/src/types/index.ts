@@ -1,4 +1,4 @@
-// DTOs del backend
+﻿// DTOs del backend
 export interface UserDto {
   id: string;
   email: string;
@@ -676,6 +676,10 @@ export interface RestaurantTableDto {
   publicToken: string;
   publicUrl: string;
   isActive: boolean;
+  posX: number;
+  posY: number;
+  currentStatus: 'Free' | 'Occupied';
+  currentOrderId?: string;
 }
 
 export interface CreateRestaurantTableDto {
@@ -739,3 +743,432 @@ export interface PublicActiveTableRequestDto {
   id: string;
   status: TableServiceRequestStatus;
 }
+
+// ======================== Inventory ========================
+
+export type ArticleType = 'Ingredient' | 'FinishedProduct' | 'Supply';
+export type MovementType =
+  | 'InitialInventory'
+  | 'PurchaseEntry'
+  | 'ManualEntry'
+  | 'ManualExit'
+  | 'Waste'
+  | 'Spoilage'
+  | 'SaleDeduction'
+  | 'TransferIn'
+  | 'TransferOut'
+  | 'PositiveAdjustment'
+  | 'NegativeAdjustment';
+
+export interface MeasurementUnitDto {
+  id: string;
+  name: string;
+  symbol: string;
+}
+
+export interface CreateMeasurementUnitDto {
+  name: string;
+  symbol: string;
+}
+
+export interface UnitConversionDto {
+  id: string;
+  originUnitId: string;
+  originUnitName: string;
+  originUnitSymbol: string;
+  destinationUnitId: string;
+  destinationUnitName: string;
+  destinationUnitSymbol: string;
+  factor: number;
+}
+
+export interface CreateUnitConversionDto {
+  originUnitId: string;
+  destinationUnitId: string;
+  factor: number;
+}
+
+export interface InventoryCategoryDto {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  totalArticles: number;
+}
+
+export interface CreateInventoryCategoryDto {
+  name: string;
+  description?: string;
+  color?: string;
+}
+
+export interface InventoryArticleDto {
+  id: string;
+  name: string;
+  description?: string;
+  internalCode?: string;
+  type: ArticleType;
+  categoryId: string;
+  categoryName: string;
+  categoryColor?: string;
+  baseUnitId: string;
+  baseUnitName: string;
+  baseUnitSymbol: string;
+  minStock: number;
+  totalStock: number;
+  stockAlertActive: boolean;
+  lowStock: boolean;
+  isActive: boolean;
+}
+
+export interface CreateInventoryArticleDto {
+  name: string;
+  description?: string;
+  internalCode?: string;
+  type: ArticleType;
+  categoryId: string;
+  baseUnitId: string;
+  minStock: number;
+  stockAlertActive: boolean;
+}
+
+export interface UpdateInventoryArticleDto extends CreateInventoryArticleDto {
+  isActive: boolean;
+}
+
+export interface WarehouseDto {
+  id: string;
+  name: string;
+  description?: string;
+  location?: string;
+  isActive: boolean;
+}
+
+export interface CreateWarehouseDto {
+  name: string;
+  description?: string;
+  location?: string;
+}
+
+export interface WarehouseStockDto {
+  articleId: string;
+  articleName: string;
+  internalCode?: string;
+  categoryName: string;
+  categoryColor?: string;
+  type: ArticleType;
+  warehouseId: string;
+  warehouseName: string;
+  quantity: number;
+  unitSymbol: string;
+  minStock: number;
+  lowStock: boolean;
+  lastUpdatedAt: string;
+}
+
+export interface StockMovementDto {
+  id: string;
+  articleId: string;
+  articleName: string;
+  warehouseId: string;
+  warehouseName: string;
+  type: MovementType;
+  quantity: number;
+  unitSymbol: string;
+  baseQuantity: number;
+  baseUnitSymbol: string;
+  reference?: string;
+  notes?: string;
+  movedAt: string;
+}
+
+export interface RegisterMovementDto {
+  articleId: string;
+  warehouseId: string;
+  type: MovementType;
+  quantity: number;
+  unitId: string;
+  reference?: string;
+  notes?: string;
+}
+
+export interface InitialInventoryItemDto {
+  articleId: string;
+  warehouseId: string;
+  quantity: number;
+  unitId: string;
+  notes?: string;
+}
+
+export interface RegisterInitialInventoryDto {
+  items: InitialInventoryItemDto[];
+}
+
+export interface StockAlertDto {
+  articleId: string;
+  articleName: string;
+  internalCode?: string;
+  unitSymbol: string;
+  currentStock: number;
+  minStock: number;
+}
+
+// ======================== Menu ========================
+
+export interface MenuCategoryDto {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  order: number;
+  isActive: boolean;
+  totalItems: number;
+}
+
+export interface CreateMenuCategoryDto {
+  name: string;
+  description?: string;
+  color?: string;
+  order: number;
+}
+
+export interface MenuItemDto {
+  id: string;
+  menuCategoryId: string;
+  categoryName: string;
+  categoryColor?: string;
+  name: string;
+  description?: string;
+  internalCode?: string;
+  price: number;
+  isActive: boolean;
+  availableForSale: boolean;
+  totalIngredients: number;
+  stationId?: string;
+  stationName?: string;
+}
+
+export interface MenuItemDetailDto extends MenuItemDto {
+  recipe: RecipeIngredientDto[];
+}
+
+export interface CreateMenuItemDto {
+  menuCategoryId: string;
+  name: string;
+  description?: string;
+  internalCode?: string;
+  price: number;
+  stationId?: string;
+}
+
+export interface UpdateMenuItemDto extends CreateMenuItemDto {
+  isActive: boolean;
+  availableForSale: boolean;
+}
+
+export interface RecipeIngredientDto {
+  id: string;
+  articleId: string;
+  articleName: string;
+  internalCode?: string;
+  unitId: string;
+  unitName: string;
+  unitSymbol: string;
+  quantity: number;
+  notes?: string;
+}
+
+export interface UpsertRecipeIngredientDto {
+  articleId: string;
+  unitId: string;
+  quantity: number;
+  notes?: string;
+}
+
+export interface DeductStockFromSaleDto {
+  warehouseId: string;
+  items: SaleItemDto[];
+}
+
+export interface SaleItemDto {
+  menuItemId: string;
+  quantity: number;
+}
+
+// ── POS ───────────────────────────────────────────────────────────────────
+
+export type StationType = 'Kitchen' | 'Bar' | 'Beverages' | 'HotKitchen' | 'Fries';
+export type OrderType = 'DineIn' | 'Takeout' | 'Delivery';
+export type OrderStatus = 'Draft' | 'Confirmed' | 'InPreparation' | 'Ready' | 'Delivered' | 'Cancelled';
+export type OrderItemStatus = 'Pending' | 'InPreparation' | 'Ready' | 'Cancelled';
+
+export interface WorkStationDto {
+  id: string;
+  name: string;
+  type: StationType;
+  isActive: boolean;
+}
+
+export interface CreateWorkStationDto {
+  name: string;
+  type: StationType;
+}
+
+export interface UpdateWorkStationDto {
+  name: string;
+  type: StationType;
+  isActive: boolean;
+}
+
+export interface OrderItemDto {
+  id: string;
+  menuItemId: string;
+  itemName: string;
+  itemCode?: string;
+  stationId?: string;
+  stationName?: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  notes?: string;
+  status: OrderItemStatus;
+}
+
+export interface OrderDto {
+  id: string;
+  number: number;
+  type: OrderType;
+  status: OrderStatus;
+  tableId?: string;
+  tableCode?: string;
+  tableName?: string;
+  customerName?: string;
+  deliveryAddress?: string;
+  notes?: string;
+  subtotal: number;
+  total: number;
+  createdAt: string;
+  confirmedAt?: string;
+  deliveredAt?: string;
+  totalItems: number;
+  items: OrderItemDto[];
+}
+
+export interface CreateOrderItemDto {
+  menuItemId: string;
+  quantity: number;
+  notes?: string;
+}
+
+export interface CreateOrderDto {
+  type: OrderType;
+  tableId?: string;
+  customerName?: string;
+  deliveryAddress?: string;
+  notes?: string;
+  items: CreateOrderItemDto[];
+}
+
+export interface StationItemDto {
+  orderItemId: string;
+  orderId: string;
+  orderNumber: number;
+  orderType: OrderType;
+  tableCode?: string;
+  customerName?: string;
+  itemName: string;
+  quantity: number;
+  notes?: string;
+  status: OrderItemStatus;
+  confirmedAt: string;
+}
+
+// ── Purchases ───────────────────────────────────────────────────────────────
+
+export interface SupplierDto {
+  id: string;
+  name: string;
+  taxId?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  contactName?: string;
+  isActive: boolean;
+  totalOrders: number;
+}
+
+export interface CreateSupplierDto {
+  name: string;
+  taxId?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  contactName?: string;
+}
+
+export interface UpdateSupplierDto extends CreateSupplierDto {
+  isActive: boolean;
+}
+
+export type PurchaseOrderStatus = 'Draft' | 'Sent' | 'Received' | 'Cancelled';
+
+export interface PurchaseOrderItemDto {
+  id: string;
+  articleId: string;
+  articleName: string;
+  internalCode?: string;
+  unitId: string;
+  unitSymbol: string;
+  quantityOrdered: number;
+  quantityReceived: number;
+  unitPrice: number;
+  totalPrice: number;
+  notes?: string;
+}
+
+export interface PurchaseOrderDto {
+  id: string;
+  orderNumber: string;
+  status: PurchaseOrderStatus;
+  supplierId: string;
+  supplierName: string;
+  issuedAt: string;
+  expectedAt?: string;
+  receivedAt?: string;
+  notes?: string;
+  subtotal: number;
+  total: number;
+  destinationWarehouseId?: string;
+  warehouseName?: string;
+  totalItems: number;
+  items: PurchaseOrderItemDto[];
+}
+
+export interface PurchaseOrderItemInputDto {
+  articleId: string;
+  unitId: string;
+  quantityOrdered: number;
+  unitPrice: number;
+  notes?: string;
+}
+
+export interface CreatePurchaseOrderDto {
+  supplierId: string;
+  expectedAt?: string;
+  notes?: string;
+  destinationWarehouseId?: string;
+  items: PurchaseOrderItemInputDto[];
+}
+
+export interface UpdatePurchaseOrderDto extends CreatePurchaseOrderDto {}
+
+export interface ReceptionItemDto {
+  purchaseOrderItemId: string;
+  quantityReceived: number;
+}
+
+export interface ReceivePurchaseOrderDto {
+  warehouseId: string;
+  items: ReceptionItemDto[];
+}
+

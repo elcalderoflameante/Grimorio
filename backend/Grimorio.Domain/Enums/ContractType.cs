@@ -1,7 +1,7 @@
 namespace Grimorio.Domain.Enums;
 
 /// <summary>
-/// Tipo de contrato del empleado.
+/// Type de contrato del empleado.
 /// Define la categoría de empleo (Tiempo completo, Tiempo parcial, etc.)
 /// </summary>
 public enum ContractType

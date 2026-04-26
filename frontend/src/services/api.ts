@@ -46,22 +46,64 @@ import type {
   PublicTableInfoDto,
   PublicCreateTableServiceRequestDto,
   SetTableServiceRequestStatusDto,
-  TableServiceRequestStatus
-  ,PublicRequestStatusDto
-  ,PublicActiveTableRequestDto
-  ,PayrollConfigurationDto
-  ,CreatePayrollConfigurationDto
-  ,EmployeePayrollSummaryDto
-  ,PayrollRoleDto
-  ,PayrollRoleFullDto
-  ,GeneratePayrollRolesResultDto
-  ,UpdatePayrollRoleStatusDto
-  ,PayrollAdvanceDto
-  ,CreatePayrollAdvanceDto
-  ,EmployeeConsumptionDto
-  ,CreateEmployeeConsumptionDto
-  ,PayrollAdjustmentDto
-  ,CreatePayrollAdjustmentDto
+  TableServiceRequestStatus,
+  PublicRequestStatusDto,
+  PublicActiveTableRequestDto,
+  PayrollConfigurationDto,
+  CreatePayrollConfigurationDto,
+  EmployeePayrollSummaryDto,
+  PayrollRoleDto,
+  PayrollRoleFullDto,
+  GeneratePayrollRolesResultDto,
+  UpdatePayrollRoleStatusDto,
+  PayrollAdvanceDto,
+  CreatePayrollAdvanceDto,
+  EmployeeConsumptionDto,
+  CreateEmployeeConsumptionDto,
+  PayrollAdjustmentDto,
+  CreatePayrollAdjustmentDto,
+  MeasurementUnitDto,
+  CreateMeasurementUnitDto,
+  UnitConversionDto,
+  CreateUnitConversionDto,
+  InventoryCategoryDto,
+  CreateInventoryCategoryDto,
+  InventoryArticleDto,
+  CreateInventoryArticleDto,
+  UpdateInventoryArticleDto,
+  WarehouseDto,
+  CreateWarehouseDto,
+  WarehouseStockDto,
+  StockMovementDto,
+  RegisterMovementDto,
+  RegisterInitialInventoryDto,
+  StockAlertDto,
+  ArticleType,
+  MovementType,
+  MenuCategoryDto,
+  CreateMenuCategoryDto,
+  MenuItemDto,
+  MenuItemDetailDto,
+  CreateMenuItemDto,
+  UpdateMenuItemDto,
+  RecipeIngredientDto,
+  UpsertRecipeIngredientDto,
+  DeductStockFromSaleDto,
+  WorkStationDto,
+  CreateWorkStationDto,
+  UpdateWorkStationDto,
+  OrderDto,
+  CreateOrderDto,
+  OrderItemDto,
+  StationItemDto,
+  CreateOrderItemDto,
+  SupplierDto,
+  CreateSupplierDto,
+  UpdateSupplierDto,
+  PurchaseOrderDto,
+  CreatePurchaseOrderDto,
+  UpdatePurchaseOrderDto,
+  ReceivePurchaseOrderDto,
 } from '../types';
 import { getDetailedError } from '../utils/errorHandler';
 
@@ -371,5 +413,186 @@ export const tableServiceApi = {
 
 // Export the external specialDateTemplateApi service
 export { specialDateTemplateApi } from './specialDateTemplateApi';
+
+// ======================== Inventario API ========================
+
+export const inventoryApi = {
+  // Unidades de medida
+  getUnits: (): Promise<AxiosResponse<MeasurementUnitDto[]>> =>
+    apiClient.get<MeasurementUnitDto[]>('/inventory/unidades'),
+  createUnit: (data: CreateMeasurementUnitDto): Promise<AxiosResponse<MeasurementUnitDto>> =>
+    apiClient.post<MeasurementUnitDto>('/inventory/unidades', data),
+  updateUnit: (id: string, data: CreateMeasurementUnitDto): Promise<AxiosResponse<MeasurementUnitDto>> =>
+    apiClient.put<MeasurementUnitDto>(`/inventory/unidades/${id}`, data),
+  deleteUnit: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/inventory/unidades/${id}`),
+
+  // Conversiones
+  getConversions: (): Promise<AxiosResponse<UnitConversionDto[]>> =>
+    apiClient.get<UnitConversionDto[]>('/inventory/conversiones'),
+  createConversion: (data: CreateUnitConversionDto): Promise<AxiosResponse<UnitConversionDto>> =>
+    apiClient.post<UnitConversionDto>('/inventory/conversiones', data),
+  deleteConversion: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/inventory/conversiones/${id}`),
+
+  // Categorías
+  getCategories: (): Promise<AxiosResponse<InventoryCategoryDto[]>> =>
+    apiClient.get<InventoryCategoryDto[]>('/inventory/categorias'),
+  createCategory: (data: CreateInventoryCategoryDto): Promise<AxiosResponse<InventoryCategoryDto>> =>
+    apiClient.post<InventoryCategoryDto>('/inventory/categorias', data),
+  updateCategory: (id: string, data: CreateInventoryCategoryDto): Promise<AxiosResponse<InventoryCategoryDto>> =>
+    apiClient.put<InventoryCategoryDto>(`/inventory/categorias/${id}`, data),
+  deleteCategory: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/inventory/categorias/${id}`),
+
+  // Artículos
+  getArticles: (params?: { activeOnly?: boolean; type?: ArticleType; categoryId?: string }): Promise<AxiosResponse<InventoryArticleDto[]>> =>
+    apiClient.get<InventoryArticleDto[]>('/inventory/articulos', { params }),
+  getArticle: (id: string): Promise<AxiosResponse<InventoryArticleDto>> =>
+    apiClient.get<InventoryArticleDto>(`/inventory/articulos/${id}`),
+  createArticle: (data: CreateInventoryArticleDto): Promise<AxiosResponse<InventoryArticleDto>> =>
+    apiClient.post<InventoryArticleDto>('/inventory/articulos', data),
+  updateArticle: (id: string, data: UpdateInventoryArticleDto): Promise<AxiosResponse<InventoryArticleDto>> =>
+    apiClient.put<InventoryArticleDto>(`/inventory/articulos/${id}`, data),
+  deleteArticle: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/inventory/articulos/${id}`),
+
+  // Bodegas
+  getWarehouses: (activeOnly?: boolean): Promise<AxiosResponse<WarehouseDto[]>> =>
+    apiClient.get<WarehouseDto[]>('/inventory/bodegas', { params: { activeOnly } }),
+  createWarehouse: (data: CreateWarehouseDto): Promise<AxiosResponse<WarehouseDto>> =>
+    apiClient.post<WarehouseDto>('/inventory/bodegas', data),
+  updateWarehouse: (id: string, data: WarehouseDto): Promise<AxiosResponse<WarehouseDto>> =>
+    apiClient.put<WarehouseDto>(`/inventory/bodegas/${id}`, data),
+  deleteWarehouse: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/inventory/bodegas/${id}`),
+
+  // Stock
+  getStock: (params?: { warehouseId?: string; categoryId?: string; lowStockOnly?: boolean }): Promise<AxiosResponse<WarehouseStockDto[]>> =>
+    apiClient.get<WarehouseStockDto[]>('/inventory/stock', { params }),
+  getAlerts: (): Promise<AxiosResponse<StockAlertDto[]>> =>
+    apiClient.get<StockAlertDto[]>('/inventory/alertas'),
+
+  // Movimientos
+  getMovements: (params?: {
+    articleId?: string;
+    warehouseId?: string;
+    type?: MovementType;
+    from?: string;
+    to?: string;
+    pageSize?: number;
+  }): Promise<AxiosResponse<StockMovementDto[]>> =>
+    apiClient.get<StockMovementDto[]>('/inventory/movimientos', { params }),
+  registerMovement: (data: RegisterMovementDto): Promise<AxiosResponse<StockMovementDto>> =>
+    apiClient.post<StockMovementDto>('/inventory/movimientos', data),
+  registerInitialInventory: (data: RegisterInitialInventoryDto): Promise<AxiosResponse<StockMovementDto[]>> =>
+    apiClient.post<StockMovementDto[]>('/inventory/movimientos/inventario-inicial', data),
+};
+
+// ======================== Menú API ========================
+
+export const menuApi = {
+  // Categorías
+  getCategories: (): Promise<AxiosResponse<MenuCategoryDto[]>> =>
+    apiClient.get<MenuCategoryDto[]>('/menu/categorias'),
+  createCategory: (data: CreateMenuCategoryDto): Promise<AxiosResponse<MenuCategoryDto>> =>
+    apiClient.post<MenuCategoryDto>('/menu/categorias', data),
+  updateCategory: (id: string, data: MenuCategoryDto): Promise<AxiosResponse<MenuCategoryDto>> =>
+    apiClient.put<MenuCategoryDto>(`/menu/categorias/${id}`, data),
+  deleteCategory: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/menu/categorias/${id}`),
+
+  // Items
+  getItems: (params?: { categoryId?: string; activeOnly?: boolean; availableOnly?: boolean }): Promise<AxiosResponse<MenuItemDto[]>> =>
+    apiClient.get<MenuItemDto[]>('/menu/items', { params }),
+  getItem: (id: string): Promise<AxiosResponse<MenuItemDetailDto>> =>
+    apiClient.get<MenuItemDetailDto>(`/menu/items/${id}`),
+  createItem: (data: CreateMenuItemDto): Promise<AxiosResponse<MenuItemDto>> =>
+    apiClient.post<MenuItemDto>('/menu/items', data),
+  updateItem: (id: string, data: UpdateMenuItemDto): Promise<AxiosResponse<MenuItemDto>> =>
+    apiClient.put<MenuItemDto>(`/menu/items/${id}`, data),
+  deleteItem: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/menu/items/${id}`),
+
+  // Receta
+  upsertRecipe: (itemId: string, ingredientes: UpsertRecipeIngredientDto[]): Promise<AxiosResponse<RecipeIngredientDto[]>> =>
+    apiClient.put<RecipeIngredientDto[]>(`/menu/items/${itemId}/receta`, ingredientes),
+  deleteIngredient: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/menu/receta/${id}`),
+
+  // Descuento por venta
+  deductStock: (data: DeductStockFromSaleDto): Promise<AxiosResponse<void>> =>
+    apiClient.post<void>('/menu/venta/descontar-stock', data),
+};
+
+// ======================== POS API ========================
+
+export const posApi = {
+  // Estaciones
+  getStations: (): Promise<AxiosResponse<WorkStationDto[]>> =>
+    apiClient.get<WorkStationDto[]>('/pos/estaciones'),
+  createStation: (data: CreateWorkStationDto): Promise<AxiosResponse<WorkStationDto>> =>
+    apiClient.post<WorkStationDto>('/pos/estaciones', data),
+  updateStation: (id: string, data: UpdateWorkStationDto): Promise<AxiosResponse<WorkStationDto>> =>
+    apiClient.put<WorkStationDto>(`/pos/estaciones/${id}`, data),
+  deleteStation: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/pos/estaciones/${id}`),
+
+  // Posición de mesas
+  updateTablePosition: (id: string, posX: number, posY: number): Promise<AxiosResponse<void>> =>
+    apiClient.patch<void>(`/pos/tables/${id}/position`, { posX, posY }),
+
+  // Órdenes
+  getOrders: (params?: { status?: string; type?: string; tableId?: string; activeOnly?: boolean }): Promise<AxiosResponse<OrderDto[]>> =>
+    apiClient.get<OrderDto[]>('/pos/ordenes', { params }),
+  getOrden: (id: string): Promise<AxiosResponse<OrderDto>> =>
+    apiClient.get<OrderDto>(`/pos/ordenes/${id}`),
+  createOrder: (data: CreateOrderDto): Promise<AxiosResponse<OrderDto>> =>
+    apiClient.post<OrderDto>('/pos/ordenes', data),
+  updateItems: (id: string, items: CreateOrderItemDto[]): Promise<AxiosResponse<OrderDto>> =>
+    apiClient.put<OrderDto>(`/pos/ordenes/${id}/items`, { items }),
+  confirmOrder: (id: string): Promise<AxiosResponse<OrderDto>> =>
+    apiClient.post<OrderDto>(`/pos/ordenes/${id}/confirmar`),
+  deliverOrder: (id: string): Promise<AxiosResponse<OrderDto>> =>
+    apiClient.post<OrderDto>(`/pos/ordenes/${id}/entregar`),
+  cancelOrder: (id: string): Promise<AxiosResponse<OrderDto>> =>
+    apiClient.post<OrderDto>(`/pos/ordenes/${id}/cancelar`),
+  setItemStatus: (id: string, estado: string): Promise<AxiosResponse<OrderItemDto>> =>
+    apiClient.patch<OrderItemDto>(`/pos/orden-items/${id}/estado`, { estado }),
+
+  // Monitor de estación
+  getStationItems: (estacionId: string): Promise<AxiosResponse<StationItemDto[]>> =>
+    apiClient.get<StationItemDto[]>(`/pos/estaciones/${estacionId}/items`),
+};
+
+export const purchasesApi = {
+  // Proveedores
+  getSuppliers: (activeOnly?: boolean): Promise<AxiosResponse<SupplierDto[]>> =>
+    apiClient.get<SupplierDto[]>('/purchases/proveedores', { params: activeOnly !== undefined ? { activeOnly } : undefined }),
+  createSupplier: (data: CreateSupplierDto): Promise<AxiosResponse<SupplierDto>> =>
+    apiClient.post<SupplierDto>('/purchases/proveedores', data),
+  updateSupplier: (id: string, data: UpdateSupplierDto): Promise<AxiosResponse<SupplierDto>> =>
+    apiClient.put<SupplierDto>(`/purchases/proveedores/${id}`, data),
+  deleteSupplier: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/purchases/proveedores/${id}`),
+
+  // Órdenes de compra
+  getOrders: (params?: { status?: string; supplierId?: string }): Promise<AxiosResponse<PurchaseOrderDto[]>> =>
+    apiClient.get<PurchaseOrderDto[]>('/purchases/ordenes', { params }),
+  getOrden: (id: string): Promise<AxiosResponse<PurchaseOrderDto>> =>
+    apiClient.get<PurchaseOrderDto>(`/purchases/ordenes/${id}`),
+  createOrden: (data: CreatePurchaseOrderDto): Promise<AxiosResponse<PurchaseOrderDto>> =>
+    apiClient.post<PurchaseOrderDto>('/purchases/ordenes', data),
+  updateOrden: (id: string, data: UpdatePurchaseOrderDto): Promise<AxiosResponse<PurchaseOrderDto>> =>
+    apiClient.put<PurchaseOrderDto>(`/purchases/ordenes/${id}`, data),
+  sendOrder: (id: string): Promise<AxiosResponse<PurchaseOrderDto>> =>
+    apiClient.post<PurchaseOrderDto>(`/purchases/ordenes/${id}/enviar`),
+  receiveOrder: (id: string, data: ReceivePurchaseOrderDto): Promise<AxiosResponse<PurchaseOrderDto>> =>
+    apiClient.post<PurchaseOrderDto>(`/purchases/ordenes/${id}/recibir`, data),
+  cancelOrder: (id: string): Promise<AxiosResponse<PurchaseOrderDto>> =>
+    apiClient.post<PurchaseOrderDto>(`/purchases/ordenes/${id}/cancelar`),
+  deleteOrden: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/purchases/ordenes/${id}`),
+};
 
 export default apiClient;

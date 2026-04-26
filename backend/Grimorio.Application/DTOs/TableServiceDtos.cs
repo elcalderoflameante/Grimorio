@@ -13,6 +13,10 @@ public class RestaurantTableDto
     public string PublicToken { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public string PublicUrl { get; set; } = string.Empty;
+    public int PosX { get; set; }
+    public int PosY { get; set; }
+    public string CurrentStatus { get; set; } = "Free";
+    public Guid? CurrentOrderId { get; set; }
 }
 
 public class PublicTableInfoDto

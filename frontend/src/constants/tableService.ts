@@ -11,11 +11,11 @@ export const REQUEST_TYPE_LABELS: Record<number, string> = {
 };
 
 export const REQUEST_STATUS_LABELS: Record<number, string> = {
-  1: 'Pendiente',
+  1: 'Pending',
   2: 'Tomada',
   3: 'En proceso',
   4: 'Completada',
-  5: 'Cancelada',
+  5: 'Cancelled',
 };
 
 export const REQUEST_STATUS_COLORS: Record<number, string> = {
