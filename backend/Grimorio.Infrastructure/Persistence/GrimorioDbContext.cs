@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Grimorio.Application.Abstractions;
 using Grimorio.Domain.Entities.Auth;
+using Grimorio.Domain.Entities.Billing;
 using Grimorio.Domain.Entities.Organization;
 using Grimorio.Domain.Entities.Scheduling;
 using Grimorio.Domain.Entities.Payroll;
@@ -65,6 +66,9 @@ public class GrimorioDbContext : DbContext
     public DbSet<WorkStation> WorkStations { get; set; } = null!;
     public DbSet<Order> Orders { get; set; } = null!;
     public DbSet<OrderItem> OrderItems { get; set; } = null!;
+    public DbSet<Customer> Customers { get; set; } = null!;
+    public DbSet<CashSession> CashSessions { get; set; } = null!;
+    public DbSet<OrderPayment> OrderPayments { get; set; } = null!;
 
     // === Menú ===
     public DbSet<MenuCategory> MenuCategories { get; set; } = null!;

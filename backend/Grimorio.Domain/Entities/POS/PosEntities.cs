@@ -95,6 +95,7 @@ public class Order : BaseEntity
     public OrderStatus Status { get; set; } = OrderStatus.Draft;
     public Guid? TableId { get; set; }
     public Guid? WaiterId { get; set; }
+    public Guid? CustomerId { get; set; }
     public string? CustomerName { get; set; }
     public string? DeliveryAddress { get; set; }
     public string? Notes { get; set; }
@@ -102,9 +103,12 @@ public class Order : BaseEntity
     public decimal Total { get; set; }
     public DateTime? ConfirmedAt { get; set; }
     public DateTime? DeliveredAt { get; set; }
+    public DateTime? PaidAt { get; set; }
 
     public virtual RestaurantTable? Table { get; set; }
+    public virtual Billing.Customer? Customer { get; set; }
     public virtual ICollection<OrderItem> Items { get; set; } = [];
+    public virtual Billing.OrderPayment? Payment { get; set; }
 }
 
 public class OrderItem : BaseEntity

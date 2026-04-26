@@ -364,6 +364,7 @@ internal static class PosMapper
         CreatedAt = o.CreatedAt,
         ConfirmedAt = o.ConfirmedAt,
         DeliveredAt = o.DeliveredAt,
+        PaidAt = o.PaidAt,
         TotalItems = o.Items.Count(i => !i.IsDeleted),
         Items = o.Items.Where(i => !i.IsDeleted).Select(MapOrderItem).ToList(),
     };

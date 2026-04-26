@@ -23,6 +23,9 @@ import {
   UnorderedListOutlined,
   ShoppingCartOutlined,
   ShoppingOutlined,
+  DollarOutlined,
+  BankOutlined,
+  ContactsOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
@@ -55,6 +58,8 @@ import CurrentStock from '../components/Inventory/CurrentStock';
 import StockMovements from '../components/Inventory/StockMovements';
 import SuppliersList from '../components/Purchases/SuppliersList';
 import PurchaseOrdersList from '../components/Purchases/PurchaseOrdersList';
+import CustomersList from '../components/Billing/CustomersList';
+import CashRegister from '../components/Billing/CashRegister';
 import { inventoryApi } from '../services/api';
 import type { StockAlertDto } from '../types';
 import type { MenuProps } from 'antd';
@@ -247,6 +252,15 @@ export default function Dashboard() {
         { key: 'purchases-orders', label: 'Órdenes de compra', icon: <ShoppingCartOutlined /> },
       ],
     },
+    {
+      key: 'billing',
+      label: 'Facturación',
+      icon: <DollarOutlined />,
+      children: [
+        { key: 'billing-cash', label: 'Caja', icon: <BankOutlined /> },
+        { key: 'billing-customers', label: 'Clientes', icon: <ContactsOutlined /> },
+      ],
+    },
   ], [hasPermission, alertasStock.length]);
 
   const userMenu: MenuProps['items'] = [
@@ -329,6 +343,10 @@ export default function Dashboard() {
         return <SuppliersList />;
       case 'purchases-orders':
         return <PurchaseOrdersList />;
+      case 'billing-cash':
+        return <CashRegister />;
+      case 'billing-customers':
+        return <CustomersList />;
       default:
         return <Welcome />;
     }

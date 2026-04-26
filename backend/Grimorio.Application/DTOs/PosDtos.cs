@@ -42,6 +42,7 @@ public class OrderDto
     public DateTime CreatedAt { get; set; }
     public DateTime? ConfirmedAt { get; set; }
     public DateTime? DeliveredAt { get; set; }
+    public DateTime? PaidAt { get; set; }
     public int TotalItems { get; set; }
     public List<OrderItemDto> Items { get; set; } = [];
 }

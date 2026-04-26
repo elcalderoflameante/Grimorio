@@ -595,4 +595,32 @@ export const purchasesApi = {
     apiClient.delete<void>(`/purchases/ordenes/${id}`),
 };
 
+import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto, CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, OrderPaymentDto, PayOrderDto } from '../types';
+
+export const customersApi = {
+  getAll: (params?: { activeOnly?: boolean; search?: string }): Promise<AxiosResponse<CustomerDto[]>> =>
+    apiClient.get<CustomerDto[]>('/customers', { params }),
+  create: (dto: CreateCustomerDto): Promise<AxiosResponse<CustomerDto>> =>
+    apiClient.post<CustomerDto>('/customers', dto),
+  update: (id: string, dto: UpdateCustomerDto): Promise<AxiosResponse<CustomerDto>> =>
+    apiClient.put<CustomerDto>(`/customers/${id}`, dto),
+  delete: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/customers/${id}`),
+};
+
+export const cashApi = {
+  getActiveSession: (): Promise<AxiosResponse<CashSessionDto>> =>
+    apiClient.get<CashSessionDto>('/cash/sesion-activa'),
+  getSessions: (params?: { from?: string; to?: string; pageSize?: number }): Promise<AxiosResponse<CashSessionDto[]>> =>
+    apiClient.get<CashSessionDto[]>('/cash/sesiones', { params }),
+  getSession: (id: string): Promise<AxiosResponse<CashSessionDto>> =>
+    apiClient.get<CashSessionDto>(`/cash/sesiones/${id}`),
+  openSession: (dto: OpenCashSessionDto): Promise<AxiosResponse<CashSessionDto>> =>
+    apiClient.post<CashSessionDto>('/cash/abrir', dto),
+  closeSession: (id: string, dto: CloseCashSessionDto): Promise<AxiosResponse<CashSessionDto>> =>
+    apiClient.post<CashSessionDto>(`/cash/sesiones/${id}/cerrar`, dto),
+  payOrder: (orderId: string, dto: PayOrderDto): Promise<AxiosResponse<OrderPaymentDto>> =>
+    apiClient.post<OrderPaymentDto>(`/cash/cobrar/${orderId}`, dto),
+};
+
 export default apiClient;

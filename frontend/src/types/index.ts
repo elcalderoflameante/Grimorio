@@ -1172,3 +1172,83 @@ export interface ReceivePurchaseOrderDto {
   items: ReceptionItemDto[];
 }
 
+
+// ── Billing: Clientes ─────────────────────────────────────────────────────────
+
+export interface CustomerDto {
+  id: string;
+  name: string;
+  taxId?: string;
+  taxIdType: 'Cedula' | 'Ruc' | 'Passport' | 'FinalConsumer';
+  address?: string;
+  phone?: string;
+  email?: string;
+  isActive: boolean;
+}
+
+export interface CreateCustomerDto {
+  name: string;
+  taxId?: string;
+  taxIdType: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface UpdateCustomerDto extends CreateCustomerDto {
+  isActive: boolean;
+}
+
+// ── Billing: Caja ─────────────────────────────────────────────────────────────
+
+export interface CashSessionDto {
+  id: string;
+  openedByName: string;
+  openingBalance: number;
+  openedAt: string;
+  closedAt?: string;
+  closedByName?: string;
+  actualCash?: number;
+  closeNotes?: string;
+  status: 'Open' | 'Closed';
+  totalCash: number;
+  totalCard: number;
+  totalTransfer: number;
+  totalQr: number;
+  totalSales: number;
+  totalOrders: number;
+  expectedCash: number;
+  cashDifference?: number;
+}
+
+export interface OpenCashSessionDto {
+  openingBalance: number;
+}
+
+export interface CloseCashSessionDto {
+  actualCash: number;
+  notes?: string;
+}
+
+// ── Billing: Cobro ────────────────────────────────────────────────────────────
+
+export interface OrderPaymentDto {
+  id: string;
+  orderId: string;
+  orderNumber: number;
+  customerId?: string;
+  customerName?: string;
+  customerTaxId?: string;
+  method: 'Cash' | 'Card' | 'Transfer' | 'QR';
+  amountPaid: number;
+  change: number;
+  orderTotal: number;
+  paidAt: string;
+}
+
+export interface PayOrderDto {
+  method: string;
+  amountPaid: number;
+  customerId?: string;
+  cashSessionId?: string;
+}
