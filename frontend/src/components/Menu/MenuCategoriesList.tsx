@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Table, Button, Modal, Form, Input, InputNumber, ColorPicker, Switch, Popconfirm, Space, Typography, message, Tag } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { menuApi } from '../../services/api';
@@ -8,7 +8,7 @@ import { formatError } from '../../utils/errorHandler';
 const { Title } = Typography;
 
 export default function MenuCategoriesList() {
-  const [categorias, setCategorias] = useState<MenuCategoryDto[]>([]);
+  const [categories, setCategories] = useState<MenuCategoryDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<MenuCategoryDto | null>(null);
@@ -16,7 +16,7 @@ export default function MenuCategoriesList() {
 
   const load = async () => {
     setLoading(true);
-    try { setCategorias((await menuApi.getCategories()).data); }
+    try { setCategories((await menuApi.getCategories()).data); }
     catch (e) { message.error(formatError(e)); }
     finally { setLoading(false); }
   };
@@ -25,7 +25,7 @@ export default function MenuCategoriesList() {
 
   const openModal = (c?: MenuCategoryDto) => {
     setEditing(c ?? null);
-    form.setFieldsValue(c ?? { nombre: '', descripcion: '', color: '#1677ff', orden: 0, esActiva: true });
+    form.setFieldsValue(c ?? { name: '', description: '', color: '#1677ff', order: 0, isActive: true });
     setModal(true);
   };
 
@@ -56,10 +56,10 @@ export default function MenuCategoriesList() {
         <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>Nueva categoría</Button>
       </div>
 
-      <Table dataSource={categorias} rowKey="id" loading={loading} size="small" pagination={false}
+      <Table dataSource={categories} rowKey="id" loading={loading} size="small" pagination={false}
         columns={[
           {
-            title: 'Nombre', key: 'nombre',
+            title: 'Nombre', key: 'name',
             render: (_: unknown, c: MenuCategoryDto) => (
               <Space>
                 {c.color && <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 3, background: c.color }} />}
@@ -67,14 +67,14 @@ export default function MenuCategoriesList() {
               </Space>
             ),
           },
-          { title: 'Descripción', dataIndex: 'descripcion', key: 'descripcion' },
-          { title: 'Orden', dataIndex: 'orden', key: 'orden', width: 80 },
+          { title: 'Descripción', dataIndex: 'description', key: 'description' },
+          { title: 'Orden', dataIndex: 'order', key: 'order', width: 80 },
           {
             title: 'Items', dataIndex: 'totalItems', key: 'totalItems', width: 80,
             render: (v: number) => <Tag color="blue">{v}</Tag>,
           },
           {
-            title: 'Estado', dataIndex: 'esActiva', key: 'esActiva', width: 90,
+            title: 'Estado', dataIndex: 'isActive', key: 'isActive', width: 90,
             render: (v: boolean) => <Tag color={v ? 'green' : 'default'}>{v ? 'Activa' : 'Inactiva'}</Tag>,
           },
           {
@@ -93,14 +93,14 @@ export default function MenuCategoriesList() {
 
       <Modal title={editing ? 'Editar categoría' : 'Nueva categoría'} open={modal} onOk={save} onCancel={() => setModal(false)} okText="Guardar">
         <Form form={form} layout="vertical">
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="descripcion" label="Descripción"><Input.TextArea rows={2} /></Form.Item>
+          <Form.Item name="name" label="Nombre" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item name="description" label="Descripción"><Input.TextArea rows={2} /></Form.Item>
           <Space>
             <Form.Item name="color" label="Color"><ColorPicker format="hex" /></Form.Item>
-            <Form.Item name="orden" label="Orden de visualización"><InputNumber min={0} /></Form.Item>
+            <Form.Item name="order" label="Orden de visualización"><InputNumber min={0} /></Form.Item>
           </Space>
           {editing && (
-            <Form.Item name="esActiva" label="Activa" valuePropName="checked"><Switch /></Form.Item>
+            <Form.Item name="isActive" label="Activa" valuePropName="checked"><Switch /></Form.Item>
           )}
         </Form>
       </Modal>
