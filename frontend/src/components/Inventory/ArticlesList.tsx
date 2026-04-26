@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState } from 'react';
 import {
   Table, Button, Modal, Form, Input, InputNumber, Select, Switch,
-  Popconfirm, Space, Typography, message, Tag, Badge
+  Popconfirm, Space, Typography, message, Tag, Badge, Row, Col
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, WarningOutlined } from '@ant-design/icons';
 import { inventoryApi } from '../../services/api';
@@ -191,38 +191,50 @@ export default function ArticlesList() {
           <Form.Item name="description" label="Descripción">
             <Input.TextArea rows={2} />
           </Form.Item>
-          <Space style={{ width: '100%' }} size="middle">
-            <Form.Item name="type" label="Tipo" rules={[{ required: true }]} style={{ flex: 1 }}>
-              <Select options={TIPO_OPTIONS} />
-            </Form.Item>
-            <Form.Item name="categoryId" label="Categoría" rules={[{ required: true }]} style={{ flex: 1 }}>
-              <Select
-                options={categorias.map(c => ({ label: c.name, value: c.id }))}
-                placeholder="Seleccionar"
-              />
-            </Form.Item>
-          </Space>
-          <Space style={{ width: '100%' }} size="middle">
-            <Form.Item name="baseUnitId" label="Unidad base" rules={[{ required: true }]} style={{ flex: 1 }}>
-              <Select
-                options={unidades.map(u => ({ label: `${u.name} (${u.symbol})`, value: u.id }))}
-                placeholder="Seleccionar"
-              />
-            </Form.Item>
-            <Form.Item name="minStock" label="Stock mínimo" style={{ flex: 1 }}>
-              <InputNumber style={{ width: '100%' }} min={0} />
-            </Form.Item>
-          </Space>
-          <Space>
-            <Form.Item name="stockAlertActive" label="Alerta de stock" valuePropName="checked">
-              <Switch />
-            </Form.Item>
-            {editing && (
-              <Form.Item name="isActive" label="Activo" valuePropName="checked">
+          <Row gutter={12}>
+            <Col span={8}>
+              <Form.Item name="type" label="Tipo" rules={[{ required: true }]}>
+                <Select options={TIPO_OPTIONS} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="categoryId" label="Categoría" rules={[{ required: true }]}>
+                <Select
+                  options={categorias.map(c => ({ label: c.name, value: c.id }))}
+                  placeholder="Seleccionar"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="baseUnitId" label="Unidad base" rules={[{ required: true }]}>
+                <Select
+                  options={unidades.map(u => ({ label: `${u.name} (${u.symbol})`, value: u.id }))}
+                  placeholder="Seleccionar"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={12} align="bottom">
+            <Col span={12}>
+              <Form.Item name="minStock" label="Stock mínimo">
+                <InputNumber style={{ width: '100%' }} min={0} />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item name="stockAlertActive" label="Alerta de stock" valuePropName="checked">
                 <Switch />
               </Form.Item>
+            </Col>
+            {editing && (
+              <Col span={6}>
+                <Form.Item name="isActive" label="Activo" valuePropName="checked">
+                  <Switch />
+                </Form.Item>
+              </Col>
             )}
-          </Space>
+          </Row>
         </Form>
       </Modal>
     </div>
