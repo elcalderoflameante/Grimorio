@@ -67,6 +67,7 @@ import SalesHistory from '../components/Billing/SalesHistory';
 import PaymentMethodsSettings from '../components/Billing/PaymentMethodsSettings';
 import TaxConfig from '../components/Billing/TaxConfig';
 import SriConfig from '../components/Billing/SriConfig';
+import ElectronicInvoices from '../components/Billing/ElectronicInvoices';
 import { inventoryApi } from '../services/api';
 import type { StockAlertDto } from '../types';
 import type { MenuProps } from 'antd';
@@ -269,7 +270,8 @@ export default function Dashboard() {
         { key: 'billing-customers', label: 'Clientes', icon: <ContactsOutlined /> },
         { key: 'billing-payment-methods', label: 'Medios de pago', icon: <DollarOutlined /> },
         { key: 'billing-tax-config', label: 'Config. fiscal (IVA)', icon: <PercentageOutlined /> },
-        { key: 'billing-sri', label: 'Facturación electrónica', icon: <SafetyCertificateOutlined /> },
+        { key: 'billing-sri', label: 'Config. SRI', icon: <SafetyCertificateOutlined /> },
+        { key: 'billing-electronic', label: 'Documentos electrónicos', icon: <FileTextOutlined /> },
       ],
     },
   ], [hasPermission, alertasStock.length]);
@@ -366,6 +368,8 @@ export default function Dashboard() {
         return <TaxConfig />;
       case 'billing-sri':
         return <SriConfig />;
+      case 'billing-electronic':
+        return <ElectronicInvoices />;
       default:
         return <Welcome />;
     }

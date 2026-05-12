@@ -685,6 +685,14 @@ export const sriApi = {
     apiClient.get<ElectronicDocumentDto[]>('/sri/documentos', { params }),
   getDocument: (id: string): Promise<AxiosResponse<ElectronicDocumentDto>> =>
     apiClient.get<ElectronicDocumentDto>(`/sri/documentos/${id}`),
+  generateInvoice: (orderPaymentId: string): Promise<AxiosResponse<ElectronicDocumentDto>> =>
+    apiClient.post<ElectronicDocumentDto>(`/sri/documentos/generar/${orderPaymentId}`),
+  retryInvoice: (id: string): Promise<AxiosResponse<ElectronicDocumentDto>> =>
+    apiClient.post<ElectronicDocumentDto>(`/sri/documentos/${id}/reintentar`),
+  downloadRideUrl: (id: string): string =>
+    `${apiClient.defaults.baseURL}/sri/documentos/${id}/ride`,
+  downloadXmlUrl: (id: string): string =>
+    `${apiClient.defaults.baseURL}/sri/documentos/${id}/xml`,
 };
 
 export default apiClient;

@@ -186,6 +186,7 @@ builder.Services.AddDataProtection();
 
 // === HTTP client para llamadas al SRI ===
 builder.Services.AddHttpClient();
+builder.Services.AddScoped<Grimorio.Infrastructure.Services.Sri.SriSoapClient>();
 
 builder.Services.AddControllers();
 builder.Services.AddSignalR();

@@ -48,6 +48,20 @@ public class UpsertBranchTaxConfigCommand : IRequest<BranchTaxConfigDto>
     public bool ObligadoContabilidad { get; set; }
 }
 
+// ── Factura Electrónica ───────────────────────────────────────────────────────
+
+public class GenerateElectronicInvoiceCommand : IRequest<ElectronicDocumentDto>
+{
+    public Guid OrderPaymentId { get; set; }
+    public Guid BranchId { get; set; }
+}
+
+public class RetryElectronicInvoiceCommand : IRequest<ElectronicDocumentDto>
+{
+    public Guid DocumentId { get; set; }
+    public Guid BranchId { get; set; }
+}
+
 // ── SRI Certificado ───────────────────────────────────────────────────────────
 
 public class UploadSriCertificateCommand : IRequest<SriCertificateStatusDto>

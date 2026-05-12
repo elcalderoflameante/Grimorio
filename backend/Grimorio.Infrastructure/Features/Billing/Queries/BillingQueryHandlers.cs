@@ -262,6 +262,27 @@ public class GetElectronicDocumentsHandler : IRequestHandler<GetElectronicDocume
     };
 }
 
+public class GetElectronicDocumentBytesHandler : IRequestHandler<GetElectronicDocumentBytesQuery, ElectronicDocumentBytesDto?>
+{
+    private readonly GrimorioDbContext _db;
+    public GetElectronicDocumentBytesHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<ElectronicDocumentBytesDto?> Handle(GetElectronicDocumentBytesQuery req, CancellationToken ct)
+    {
+        var d = await _db.ElectronicDocuments
+            .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId && !x.IsDeleted, ct);
+        if (d == null) return null;
+        return new ElectronicDocumentBytesDto
+        {
+            Id = d.Id,
+            NumeroFactura = d.NumeroFactura,
+            RidePdf = d.RidePdf,
+            XmlSigned = d.XmlSigned,
+            XmlAuthorized = d.XmlAuthorized,
+        };
+    }
+}
+
 public class GetElectronicDocumentDetailHandler : IRequestHandler<GetElectronicDocumentDetailQuery, ElectronicDocumentDto?>
 {
     private readonly GrimorioDbContext _db;

@@ -128,6 +128,60 @@ public class SriController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
+    [HttpPost("documentos/generar/{orderPaymentId:guid}")]
+    public async Task<IActionResult> GenerateInvoice(Guid orderPaymentId)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        try
+        {
+            var result = await _mediator.Send(new GenerateElectronicInvoiceCommand
+            {
+                OrderPaymentId = orderPaymentId,
+                BranchId = branchId,
+            });
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+        catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
+    }
+
+    [HttpPost("documentos/{id:guid}/reintentar")]
+    public async Task<IActionResult> RetryInvoice(Guid id)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        try
+        {
+            var result = await _mediator.Send(new RetryElectronicInvoiceCommand { DocumentId = id, BranchId = branchId });
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+        catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
+    }
+
+    [HttpGet("documentos/{id:guid}/ride")]
+    public async Task<IActionResult> DownloadRide(Guid id)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var doc = await _mediator.Send(new GetElectronicDocumentDetailQuery { Id = id, BranchId = branchId });
+        if (doc == null) return NotFound();
+        if (!doc.HasRide) return BadRequest("El RIDE aún no está disponible.");
+        var rawDoc = await _mediator.Send(new GetElectronicDocumentBytesQuery { Id = id, BranchId = branchId });
+        if (rawDoc?.RidePdf == null) return NotFound();
+        return File(rawDoc.RidePdf, "application/pdf", $"RIDE-{doc.NumeroFactura}.pdf");
+    }
+
+    [HttpGet("documentos/{id:guid}/xml")]
+    public async Task<IActionResult> DownloadXml(Guid id)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var rawDoc = await _mediator.Send(new GetElectronicDocumentBytesQuery { Id = id, BranchId = branchId });
+        if (rawDoc == null) return NotFound();
+        var xml = rawDoc.XmlAuthorized ?? rawDoc.XmlSigned;
+        if (xml == null) return BadRequest("XML no disponible.");
+        var bytes = System.Text.Encoding.UTF8.GetBytes(xml);
+        return File(bytes, "application/xml", $"FE-{rawDoc.NumeroFactura}.xml");
+    }
+
     // ── Prueba de conectividad con el SRI ─────────────────────────────────────
 
     [HttpPost("ping")]

@@ -80,3 +80,9 @@ public class GetElectronicDocumentDetailQuery : IRequest<ElectronicDocumentDto?>
     public Guid Id { get; set; }
     public Guid BranchId { get; set; }
 }
+
+public class GetElectronicDocumentBytesQuery : IRequest<ElectronicDocumentBytesDto?>
+{
+    public Guid Id { get; set; }
+    public Guid BranchId { get; set; }
+}

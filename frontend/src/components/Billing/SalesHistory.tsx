@@ -3,6 +3,7 @@ import { Table, Tag, Space, Typography, Button, DatePicker, Row, Col, Statistic,
 import { ReloadOutlined } from '@ant-design/icons';
 import type { OrderPaymentDto, PaymentLineDto } from '../../types';
 import { cashApi } from '../../services/api';
+import { GenerateInvoiceButton } from './ElectronicInvoices';
 import dayjs, { type Dayjs } from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -174,6 +175,17 @@ export default function SalesHistory() {
             align: 'right',
             width: 100,
             render: (v: number) => <Text strong>{formatMoney(v)}</Text>,
+          },
+          {
+            title: '',
+            width: 160,
+            render: (_: unknown, r: OrderPaymentDto) => (
+              <GenerateInvoiceButton
+                orderPaymentId={r.id}
+                documentType={r.documentType}
+                onSuccess={() => {}}
+              />
+            ),
           },
         ]}
       />

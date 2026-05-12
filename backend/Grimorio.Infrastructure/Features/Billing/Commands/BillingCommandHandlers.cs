@@ -4,6 +4,7 @@ using Grimorio.Application.Features.Inventory.Commands;
 using Grimorio.Domain.Entities.Billing;
 using Grimorio.Domain.Entities.Inventory;
 using Grimorio.Infrastructure.Persistence;
+using Grimorio.Infrastructure.Services.Sri;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -575,6 +576,204 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
                 }
             }
         }
+    }
+}
+
+// ── Factura Electrónica ───────────────────────────────────────────────────────
+
+public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectronicInvoiceCommand, ElectronicDocumentDto>
+{
+    private readonly GrimorioDbContext _db;
+    private readonly IDataProtectionProvider _dp;
+    private readonly SriSoapClient _soap;
+    private readonly ILogger<GenerateElectronicInvoiceHandler> _log;
+
+    public GenerateElectronicInvoiceHandler(
+        GrimorioDbContext db, IDataProtectionProvider dp,
+        SriSoapClient soap, ILogger<GenerateElectronicInvoiceHandler> log)
+    {
+        _db = db; _dp = dp; _soap = soap; _log = log;
+    }
+
+    public async Task<ElectronicDocumentDto> Handle(GenerateElectronicInvoiceCommand req, CancellationToken ct)
+    {
+        // ── Cargar datos necesarios ───────────────────────────────────────────
+        var payment = await _db.OrderPayments
+            .Include(p => p.Lines).ThenInclude(l => l.Config)
+            .Include(p => p.Customer)
+            .FirstOrDefaultAsync(p => p.Id == req.OrderPaymentId && p.BranchId == req.BranchId && !p.IsDeleted, ct)
+            ?? throw new KeyNotFoundException("Pago no encontrado.");
+
+        // Verificar que no tenga ya un documento autorizado
+        var existing = await _db.ElectronicDocuments
+            .FirstOrDefaultAsync(d => d.OrderPaymentId == req.OrderPaymentId && !d.IsDeleted
+                && d.Status == ElectronicDocumentStatus.Authorized, ct);
+        if (existing != null)
+            throw new InvalidOperationException("Este pago ya tiene una factura electrónica autorizada.");
+
+        var order = await _db.Orders
+            .FirstOrDefaultAsync(o => o.Id == payment.OrderId && !o.IsDeleted, ct)
+            ?? throw new KeyNotFoundException("Orden no encontrada.");
+
+        var items = await _db.OrderItems
+            .Include(i => i.MenuItem).ThenInclude(m => m!.TaxRate)
+            .Where(i => i.OrderId == order.Id && !i.IsDeleted)
+            .ToListAsync(ct);
+
+        var config = await _db.BranchTaxConfigs
+            .FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct)
+            ?? throw new InvalidOperationException("Configure los datos del emisor antes de emitir facturas.");
+
+        var sriCert = await _db.SriCertificates
+            .FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct)
+            ?? throw new InvalidOperationException("Cargue el certificado .p12 antes de emitir facturas.");
+
+        // ── Incrementar secuencial de forma atómica ────────────────────────
+        config.Secuencial += 1;
+        await _db.SaveChangesAsync(ct);
+        var secuencial = config.Secuencial;
+
+        // ── Generar clave de acceso ────────────────────────────────────────
+        var claveAcceso = SriKeyGenerator.Build(
+            payment.PaidAt.ToLocalTime(),
+            config.Ruc, config.Ambiente,
+            config.CodigoEstablecimiento, config.PuntoEmision,
+            secuencial);
+
+        var numeroFactura = $"{config.CodigoEstablecimiento.PadLeft(3, '0')}-{config.PuntoEmision.PadLeft(3, '0')}-{secuencial.ToString().PadLeft(9, '0')}";
+
+        // ── Crear registro preliminar ──────────────────────────────────────
+        var doc = new ElectronicDocument
+        {
+            BranchId = req.BranchId,
+            OrderPaymentId = req.OrderPaymentId,
+            ClaveAcceso = claveAcceso,
+            NumeroFactura = numeroFactura,
+            Secuencial = secuencial,
+            Environment = config.Ambiente,
+            Status = ElectronicDocumentStatus.Pending,
+            TotalSinImpuestos = order.TaxableBase15 + order.TaxableBase0 + order.TaxableBaseExempt,
+            TotalDescuento = 0m,
+            TotalIva = order.Iva15,
+            ImporteTotal = order.Total,
+        };
+        _db.ElectronicDocuments.Add(doc);
+        await _db.SaveChangesAsync(ct);
+
+        // ── Construir y firmar el XML ──────────────────────────────────────
+        try
+        {
+            var protector = _dp.CreateProtector("SriCertificate");
+            var certBytes = protector.Unprotect(sriCert.CertificateEncrypted);
+            var certPass = protector.Unprotect(sriCert.PasswordEncrypted);
+
+            var invoiceData = new SriInvoiceData(
+                config, payment, order, items, claveAcceso, secuencial, payment.Customer);
+
+            var unsignedXml = SriXmlBuilder.Build(invoiceData);
+            var signedXml = SriXmlSigner.Sign(unsignedXml, certBytes, certPass);
+
+            doc.XmlSigned = signedXml;
+            await _db.SaveChangesAsync(ct);
+
+            // ── Enviar al SRI ──────────────────────────────────────────────
+            doc.SentAt = DateTime.UtcNow;
+            var validateResult = await _soap.ValidarComprobanteAsync(signedXml, config.Ambiente, ct);
+
+            if (validateResult.Result == SriSubmitResult.Rejected)
+            {
+                doc.Status = ElectronicDocumentStatus.Rejected;
+                doc.ErrorMessage = string.Join("; ", validateResult.Messages);
+                await _db.SaveChangesAsync(ct);
+                return MapDoc(doc);
+            }
+
+            doc.Status = ElectronicDocumentStatus.Sent;
+            await _db.SaveChangesAsync(ct);
+
+            // ── Consultar autorización (hasta 3 reintentos con espera) ─────
+            SriAuthorizationResponse? authResult = null;
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                if (attempt > 0) await Task.Delay(3000, ct);
+                authResult = await _soap.AutorizarComprobanteAsync(claveAcceso, config.Ambiente, ct);
+                if (authResult.IsAuthorized) break;
+            }
+
+            if (authResult?.IsAuthorized == true)
+            {
+                doc.Status = ElectronicDocumentStatus.Authorized;
+                doc.NumeroAutorizacion = authResult.NumeroAutorizacion;
+                doc.FechaAutorizacion = authResult.FechaAutorizacion;
+                doc.XmlAuthorized = authResult.XmlAuthorizado;
+
+                // Generar RIDE
+                try
+                {
+                    doc.RidePdf = RideGenerator.Generate(config, doc, payment, order, items, payment.Customer);
+                }
+                catch (Exception ex)
+                {
+                    _log.LogWarning(ex, "No se pudo generar el RIDE para doc {Id}", doc.Id);
+                }
+            }
+            else
+            {
+                doc.RetryCount++;
+                doc.Status = ElectronicDocumentStatus.Sent; // quedó enviado, pendiente de autorización
+                doc.ErrorMessage = authResult != null
+                    ? string.Join("; ", authResult.Messages)
+                    : "No se recibió respuesta de autorización del SRI.";
+            }
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException)
+        {
+            doc.Status = ElectronicDocumentStatus.Rejected;
+            doc.ErrorMessage = ex.Message;
+            _log.LogError(ex, "Error generando factura electrónica doc {Id}", doc.Id);
+        }
+
+        await _db.SaveChangesAsync(ct);
+        return MapDoc(doc);
+    }
+
+    private static ElectronicDocumentDto MapDoc(ElectronicDocument d) => new()
+    {
+        Id = d.Id, OrderPaymentId = d.OrderPaymentId,
+        ClaveAcceso = d.ClaveAcceso, NumeroFactura = d.NumeroFactura,
+        Secuencial = d.Secuencial, Environment = d.Environment,
+        Status = d.Status.ToString(),
+        TotalSinImpuestos = d.TotalSinImpuestos, TotalDescuento = d.TotalDescuento,
+        TotalIva = d.TotalIva, ImporteTotal = d.ImporteTotal,
+        NumeroAutorizacion = d.NumeroAutorizacion, FechaAutorizacion = d.FechaAutorizacion,
+        ErrorMessage = d.ErrorMessage, SentAt = d.SentAt, RetryCount = d.RetryCount,
+        CreatedAt = d.CreatedAt,
+        HasRide = d.RidePdf != null && d.RidePdf.Length > 0,
+        HasXml = !string.IsNullOrEmpty(d.XmlAuthorized ?? d.XmlSigned),
+    };
+}
+
+public class RetryElectronicInvoiceHandler : IRequestHandler<RetryElectronicInvoiceCommand, ElectronicDocumentDto>
+{
+    private readonly GrimorioDbContext _db;
+    private readonly IMediator _mediator;
+    public RetryElectronicInvoiceHandler(GrimorioDbContext db, IMediator mediator) { _db = db; _mediator = mediator; }
+
+    public async Task<ElectronicDocumentDto> Handle(RetryElectronicInvoiceCommand req, CancellationToken ct)
+    {
+        var doc = await _db.ElectronicDocuments
+            .FirstOrDefaultAsync(d => d.Id == req.DocumentId && d.BranchId == req.BranchId && !d.IsDeleted, ct)
+            ?? throw new KeyNotFoundException("Documento no encontrado.");
+
+        if (doc.Status == ElectronicDocumentStatus.Authorized)
+            throw new InvalidOperationException("Este comprobante ya está autorizado.");
+
+        // Reenviar para consultar autorización (ya fue enviado)
+        return await _mediator.Send(new GenerateElectronicInvoiceCommand
+        {
+            OrderPaymentId = doc.OrderPaymentId,
+            BranchId = req.BranchId,
+        }, ct);
     }
 }
 

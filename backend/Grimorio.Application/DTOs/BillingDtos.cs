@@ -51,6 +51,15 @@ public class SriCertificateStatusDto
 
 // ── Documento Electrónico ─────────────────────────────────────────────────────
 
+public class ElectronicDocumentBytesDto
+{
+    public Guid Id { get; set; }
+    public string NumeroFactura { get; set; } = string.Empty;
+    public byte[]? RidePdf { get; set; }
+    public string? XmlSigned { get; set; }
+    public string? XmlAuthorized { get; set; }
+}
+
 public class ElectronicDocumentDto
 {
     public Guid Id { get; set; }
