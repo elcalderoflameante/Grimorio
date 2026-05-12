@@ -221,7 +221,6 @@ export default function ElectronicInvoices() {
                   <Tooltip title="Descargar respuesta XML del SRI">
                     <Button
                       size="small"
-                      danger
                       icon={<FileTextOutlined />}
                       onClick={() => handleDownload(
                         sriApi.downloadRespuestaSriUrl(r.id),

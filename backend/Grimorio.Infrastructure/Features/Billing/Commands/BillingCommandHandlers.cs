@@ -680,11 +680,12 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
             doc.SentAt = DateTime.UtcNow;
             var validateResult = await _soap.ValidarComprobanteAsync(signedXml, config.Ambiente, ct);
 
+            doc.XmlResponseSri = validateResult.RawXml;
+
             if (validateResult.Result == SriSubmitResult.Rejected)
             {
                 doc.Status = ElectronicDocumentStatus.Rejected;
                 doc.ErrorMessage = string.Join("; ", validateResult.Messages);
-                doc.XmlResponseSri = validateResult.RawXml;
                 await _db.SaveChangesAsync(ct);
                 return MapDoc(doc);
             }
@@ -700,6 +701,8 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
                 authResult = await _soap.AutorizarComprobanteAsync(claveAcceso, config.Ambiente, ct);
                 if (authResult.IsAuthorized) break;
             }
+
+            if (authResult != null) doc.XmlResponseSri = authResult.RawXml;
 
             if (authResult?.IsAuthorized == true)
             {
@@ -725,7 +728,6 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
                 doc.ErrorMessage = authResult != null
                     ? string.Join("; ", authResult.Messages)
                     : "No se recibió respuesta de autorización del SRI.";
-                if (authResult != null) doc.XmlResponseSri = authResult.RawXml;
             }
         }
         catch (Exception ex) when (ex is not InvalidOperationException)
@@ -838,12 +840,12 @@ public class RetryElectronicInvoiceHandler : IRequestHandler<RetryElectronicInvo
         try
         {
             var validateResult = await _soap.ValidarComprobanteAsync(doc.XmlSigned!, config.Ambiente, ct);
+            doc.XmlResponseSri = validateResult.RawXml;
 
             if (validateResult.Result == SriSubmitResult.Rejected)
             {
                 doc.Status = ElectronicDocumentStatus.Rejected;
                 doc.ErrorMessage = string.Join("; ", validateResult.Messages);
-                doc.XmlResponseSri = validateResult.RawXml;
                 await _db.SaveChangesAsync(ct);
                 return GenerateElectronicInvoiceHandler.MapDoc(doc);
             }
@@ -859,13 +861,14 @@ public class RetryElectronicInvoiceHandler : IRequestHandler<RetryElectronicInvo
                 if (authResult.IsAuthorized) break;
             }
 
+            if (authResult != null) doc.XmlResponseSri = authResult.RawXml;
+
             if (authResult?.IsAuthorized == true)
             {
                 doc.Status = ElectronicDocumentStatus.Authorized;
                 doc.NumeroAutorizacion = authResult.NumeroAutorizacion;
                 doc.FechaAutorizacion = authResult.FechaAutorizacion;
                 doc.XmlAuthorized = authResult.XmlAuthorizado;
-                doc.XmlResponseSri = null;
 
                 try
                 {
@@ -890,7 +893,6 @@ public class RetryElectronicInvoiceHandler : IRequestHandler<RetryElectronicInvo
                 doc.ErrorMessage = authResult != null
                     ? string.Join("; ", authResult.Messages)
                     : "No se recibió respuesta de autorización del SRI.";
-                if (authResult != null) doc.XmlResponseSri = authResult.RawXml;
             }
         }
         catch (Exception ex)
