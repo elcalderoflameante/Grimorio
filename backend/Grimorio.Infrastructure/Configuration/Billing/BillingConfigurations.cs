@@ -1,9 +1,63 @@
 using Grimorio.Domain.Entities.Billing;
+using Grimorio.Infrastructure.Configuration;
 using Grimorio.SharedKernel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Grimorio.Infrastructure.Configuration.Billing;
+
+public class TaxRateConfiguration : BaseEntityConfiguration<TaxRate>
+{
+    public override void Configure(EntityTypeBuilder<TaxRate> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("TaxRates", "billing");
+
+        builder.Property(x => x.Name).IsRequired().HasMaxLength(60);
+        builder.Property(x => x.SriCode).IsRequired().HasMaxLength(10);
+        builder.Property(x => x.Percentage).HasColumnType("numeric(5,2)");
+
+        builder.HasIndex(x => new { x.BranchId, x.SriCode })
+            .HasFilter("\"IsDeleted\" = false");
+        builder.HasIndex(x => new { x.BranchId, x.IsDefault })
+            .HasFilter("\"IsDeleted\" = false AND \"IsDefault\" = true");
+    }
+}
+
+public class BranchTaxConfigConfiguration : BaseEntityConfiguration<BranchTaxConfig>
+{
+    public override void Configure(EntityTypeBuilder<BranchTaxConfig> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("BranchTaxConfigs", "billing");
+
+        builder.Property(x => x.Ruc).IsRequired().HasMaxLength(13);
+        builder.Property(x => x.RazonSocial).IsRequired().HasMaxLength(300);
+        builder.Property(x => x.NombreComercial).HasMaxLength(300);
+        builder.Property(x => x.Direccion).IsRequired().HasMaxLength(300);
+        builder.Property(x => x.CodigoEstablecimiento).IsRequired().HasMaxLength(3);
+        builder.Property(x => x.PuntoEmision).IsRequired().HasMaxLength(3);
+        builder.Property(x => x.Ambiente).IsRequired().HasMaxLength(1);
+
+        builder.HasIndex(x => x.BranchId).IsUnique()
+            .HasFilter("\"IsDeleted\" = false");
+    }
+}
+
+public class PaymentMethodConfigConfiguration : IEntityTypeConfiguration<PaymentMethodConfig>
+{
+    public void Configure(EntityTypeBuilder<PaymentMethodConfig> builder)
+    {
+        builder.ToTable("PaymentMethodConfigs", "billing");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+        builder.Property(x => x.Name).IsRequired().HasMaxLength(64);
+        builder.Property(x => x.Color).HasMaxLength(32);
+        builder.Property(x => x.IsDeleted).HasDefaultValue(false);
+        builder.HasQueryFilter(x => !x.IsDeleted);
+        builder.HasIndex(x => x.SortOrder);
+    }
+}
 
 public class CustomerConfiguration : BaseEntityConfiguration<Customer>
 {
@@ -49,7 +103,6 @@ public class OrderPaymentConfiguration : BaseEntityConfiguration<OrderPayment>
 
         builder.Property(x => x.OrderAmount).HasColumnType("numeric(18,2)");
 
-        // Muchos pagos por orden (cuentas divididas y pagos parciales)
         builder.HasOne(x => x.Order)
             .WithMany(o => o.Payments)
             .HasForeignKey(x => x.OrderId)
@@ -84,5 +137,10 @@ public class PaymentLineConfiguration : BaseEntityConfiguration<PaymentLine>
             .WithMany(p => p.Lines)
             .HasForeignKey(x => x.OrderPaymentId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.Config)
+            .WithMany()
+            .HasForeignKey(x => x.PaymentMethodConfigId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

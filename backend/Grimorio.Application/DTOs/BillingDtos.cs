@@ -1,5 +1,69 @@
 namespace Grimorio.Application.DTOs;
 
+// ── TaxRate ───────────────────────────────────────────────────────────────────
+
+public class TaxRateDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Percentage { get; set; }
+    public string SriCode { get; set; } = string.Empty;
+    public bool IsDefault { get; set; }
+    public bool IsActive { get; set; }
+}
+
+public class UpsertTaxRateDto
+{
+    public string Name { get; set; } = string.Empty;
+    public decimal Percentage { get; set; }
+    public string SriCode { get; set; } = string.Empty;
+    public bool IsDefault { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
+// ── BranchTaxConfig ───────────────────────────────────────────────────────────
+
+public class BranchTaxConfigDto
+{
+    public Guid? Id { get; set; }
+    public string Ruc { get; set; } = string.Empty;
+    public string RazonSocial { get; set; } = string.Empty;
+    public string? NombreComercial { get; set; }
+    public string Direccion { get; set; } = string.Empty;
+    public string CodigoEstablecimiento { get; set; } = "001";
+    public string PuntoEmision { get; set; } = "001";
+    public string Ambiente { get; set; } = "1";
+}
+
+// ── PaymentMethodConfig ───────────────────────────────────────────────────────
+
+public class PaymentMethodConfigDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Color { get; set; } = "#1677ff";
+    public bool IsCash { get; set; }
+    public bool IsActive { get; set; }
+    public int SortOrder { get; set; }
+}
+
+public class CreatePaymentMethodConfigDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string Color { get; set; } = "#1677ff";
+    public bool IsCash { get; set; }
+    public int SortOrder { get; set; }
+}
+
+public class UpdatePaymentMethodConfigDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string Color { get; set; } = "#1677ff";
+    public bool IsCash { get; set; }
+    public bool IsActive { get; set; }
+    public int SortOrder { get; set; }
+}
+
 // ── Customer ──────────────────────────────────────────────────────────────────
 
 public class CustomerDto
@@ -37,6 +101,15 @@ public class UpdateCustomerDto
 
 // ── CashSession ───────────────────────────────────────────────────────────────
 
+public class PaymentMethodTotalDto
+{
+    public Guid MethodId { get; set; }
+    public string MethodName { get; set; } = string.Empty;
+    public string MethodColor { get; set; } = "#1677ff";
+    public bool IsCash { get; set; }
+    public decimal Total { get; set; }
+}
+
 public class CashSessionDto
 {
     public Guid Id { get; set; }
@@ -49,13 +122,10 @@ public class CashSessionDto
     public string? CloseNotes { get; set; }
     public string Status { get; set; } = string.Empty;
 
-    // Totales calculados desde líneas de pago
-    public decimal TotalCash { get; set; }
-    public decimal TotalCard { get; set; }
-    public decimal TotalTransfer { get; set; }
-    public decimal TotalQr { get; set; }
+    public List<PaymentMethodTotalDto> Totals { get; set; } = [];
     public decimal TotalSales { get; set; }
     public int TotalOrders { get; set; }
+    public decimal TotalCash => Totals.Where(t => t.IsCash).Sum(t => t.Total);
     public decimal ExpectedCash { get; set; }
     public decimal? CashDifference { get; set; }
 }
@@ -76,7 +146,10 @@ public class CloseCashSessionDto
 public class PaymentLineDto
 {
     public Guid Id { get; set; }
-    public string Method { get; set; } = string.Empty;
+    public Guid MethodId { get; set; }
+    public string MethodName { get; set; } = string.Empty;
+    public string MethodColor { get; set; } = "#1677ff";
+    public bool IsCash { get; set; }
     public decimal AmountTendered { get; set; }
     public decimal Change { get; set; }
     public decimal NetAmount => AmountTendered - Change;
@@ -87,9 +160,12 @@ public class OrderPaymentDto
     public Guid Id { get; set; }
     public Guid OrderId { get; set; }
     public int OrderNumber { get; set; }
+    public string? OrderType { get; set; }
     public Guid? CustomerId { get; set; }
     public string? CustomerName { get; set; }
     public string? CustomerTaxId { get; set; }
+    public string? TableCode { get; set; }
+    public string? TableName { get; set; }
     public string DocumentType { get; set; } = string.Empty;
     public decimal OrderAmount { get; set; }
     public DateTime PaidAt { get; set; }
@@ -98,7 +174,7 @@ public class OrderPaymentDto
 
 public class AddPaymentLineDto
 {
-    public string Method { get; set; } = "Cash";
+    public Guid MethodId { get; set; }
     public decimal AmountTendered { get; set; }
 }
 

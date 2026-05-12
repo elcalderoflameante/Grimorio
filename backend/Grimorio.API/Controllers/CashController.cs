@@ -16,6 +16,40 @@ public class CashController : ControllerBase
     private readonly IMediator _mediator;
     public CashController(IMediator mediator) => _mediator = mediator;
 
+    // ── Medios de pago ────────────────────────────────────────────────────────
+
+    [HttpGet("metodos-pago")]
+    public async Task<IActionResult> GetPaymentMethods([FromQuery] bool activeOnly = true)
+        => Ok(await _mediator.Send(new GetPaymentMethodsQuery { ActiveOnly = activeOnly }));
+
+    [HttpPost("metodos-pago")]
+    public async Task<IActionResult> CreatePaymentMethod([FromBody] CreatePaymentMethodConfigDto dto)
+    {
+        var result = await _mediator.Send(new CreatePaymentMethodCommand
+        {
+            Name = dto.Name, Color = dto.Color, IsCash = dto.IsCash, SortOrder = dto.SortOrder,
+        });
+        return Ok(result);
+    }
+
+    [HttpPut("metodos-pago/{id:guid}")]
+    public async Task<IActionResult> UpdatePaymentMethod(Guid id, [FromBody] UpdatePaymentMethodConfigDto dto)
+    {
+        var result = await _mediator.Send(new UpdatePaymentMethodCommand
+        {
+            Id = id, Name = dto.Name, Color = dto.Color,
+            IsCash = dto.IsCash, IsActive = dto.IsActive, SortOrder = dto.SortOrder,
+        });
+        return Ok(result);
+    }
+
+    [HttpDelete("metodos-pago/{id:guid}")]
+    public async Task<IActionResult> DeletePaymentMethod(Guid id)
+    {
+        await _mediator.Send(new DeletePaymentMethodCommand { Id = id });
+        return NoContent();
+    }
+
     // ── Sesión activa ─────────────────────────────────────────────────────────
 
     [HttpGet("sesion-activa")]
@@ -54,8 +88,7 @@ public class CashController : ControllerBase
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
         if (!TryGetUserId(out var userId)) return Unauthorized();
-        var userName = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
-            ?? User.FindFirst("name")?.Value ?? "Usuario";
+        var userName = BuildUserName();
 
         var result = await _mediator.Send(new OpenCashSessionCommand
         {
@@ -70,8 +103,7 @@ public class CashController : ControllerBase
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
         if (!TryGetUserId(out var userId)) return Unauthorized();
-        var userName = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
-            ?? User.FindFirst("name")?.Value ?? "Usuario";
+        var userName = BuildUserName();
 
         var result = await _mediator.Send(new CloseCashSessionCommand
         {
@@ -79,6 +111,19 @@ public class CashController : ControllerBase
             ActualCash = dto.ActualCash, Notes = dto.Notes,
         });
         return Ok(result);
+    }
+
+    // ── Ventas realizadas ─────────────────────────────────────────────────────
+
+    [HttpGet("ventas")]
+    public async Task<IActionResult> GetSales(
+        [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] int pageSize = 100)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        return Ok(await _mediator.Send(new GetSalesQuery
+        {
+            BranchId = branchId, FromUtc = from, ToUtc = to, PageSize = pageSize,
+        }));
     }
 
     // ── Cobro de orden ────────────────────────────────────────────────────────
@@ -102,7 +147,7 @@ public class CashController : ControllerBase
             CustomerId = dto.CustomerId, CashSessionId = dto.CashSessionId,
             Lines = dto.Lines.Select(l => new PaymentLineCommand
             {
-                Method = l.Method, AmountTendered = l.AmountTendered,
+                MethodId = l.MethodId, AmountTendered = l.AmountTendered,
             }).ToList(),
         });
         return Ok(result);
@@ -121,5 +166,13 @@ public class CashController : ControllerBase
         var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
             ?? User.FindFirst("sub")?.Value;
         return Guid.TryParse(claim, out userId);
+    }
+
+    private string BuildUserName()
+    {
+        var firstName = User.FindFirst("FirstName")?.Value ?? string.Empty;
+        var lastName = User.FindFirst("LastName")?.Value ?? string.Empty;
+        var full = $"{firstName} {lastName}".Trim();
+        return string.IsNullOrEmpty(full) ? "Usuario" : full;
     }
 }

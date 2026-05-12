@@ -17,7 +17,7 @@ interface Props {
   onChange: (customer: CustomerDto | null) => void;
 }
 
-export default function CustomerSelector({ branchId, value, onChange }: Props) {
+export default function CustomerSelector({ value, onChange }: Props) {
   const [customers, setCustomers] = useState<CustomerDto[]>([]);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);

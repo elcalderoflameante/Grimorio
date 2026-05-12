@@ -1,36 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Modal, Button, Space, Typography, Divider, InputNumber, Select, Tag,
   Alert, Spin, List, Tooltip, message,
 } from 'antd';
-import {
-  PlusOutlined, DeleteOutlined, DollarOutlined, CreditCardOutlined,
-  WifiOutlined, QrcodeOutlined, CheckCircleOutlined,
-} from '@ant-design/icons';
-import type { OrderDto, OrderPaymentDto, AddOrderPaymentDto, AddPaymentLineDto, CustomerDto } from '../../types';
-import { cashApi } from '../../services/api';
+import { PlusOutlined, DeleteOutlined, DollarOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import type { OrderDto, OrderPaymentDto, AddOrderPaymentDto, AddPaymentLineDto, CustomerDto, PaymentMethodConfigDto } from '../../types';
+import { cashApi, paymentMethodsApi } from '../../services/api';
 import CustomerSelector from './CustomerSelector';
 
 const { Text, Title } = Typography;
 
-const METHOD_OPTIONS = [
-  { value: 'Cash',     label: 'Efectivo',      icon: <DollarOutlined /> },
-  { value: 'Card',     label: 'Tarjeta',        icon: <CreditCardOutlined /> },
-  { value: 'Transfer', label: 'Transferencia',  icon: <WifiOutlined /> },
-  { value: 'QR',       label: 'QR',             icon: <QrcodeOutlined /> },
-];
-const METHOD_COLORS: Record<string, string> = {
-  Cash: 'green', Card: 'blue', Transfer: 'purple', QR: 'cyan',
-};
-const METHOD_LABELS: Record<string, string> = {
-  Cash: 'Efectivo', Card: 'Tarjeta', Transfer: 'Transferencia', QR: 'QR',
-};
 const DOC_OPTIONS = [
   { value: 'NotaDeVenta', label: 'Nota de Venta' },
   { value: 'Factura',     label: 'Factura (SRI)' },
 ];
 
-interface PaymentLine { method: string; amountTendered: number }
+interface PaymentLine { methodId: string; amountTendered: number }
 
 interface Props {
   order: OrderDto;
@@ -42,13 +27,14 @@ interface Props {
 
 export default function PayOrderModal({ order, open, onClose, onPaid, branchId }: Props) {
   const [existingPayments, setExistingPayments] = useState<OrderPaymentDto[]>([]);
+  const [methods, setMethods] = useState<PaymentMethodConfigDto[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [orderAmount, setOrderAmount] = useState<number>(0);
   const [docType, setDocType] = useState<string>('NotaDeVenta');
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
-  const [lines, setLines] = useState<PaymentLine[]>([{ method: 'Cash', amountTendered: 0 }]);
+  const [lines, setLines] = useState<PaymentLine[]>([]);
 
   const alreadyPaid = existingPayments.reduce((s, p) => s + p.orderAmount, 0);
   const remaining = Math.max(0, order.total - alreadyPaid);
@@ -56,19 +42,27 @@ export default function PayOrderModal({ order, open, onClose, onPaid, branchId }
 
   useEffect(() => {
     if (!open) return;
-    loadPayments();
+    Promise.all([loadPayments(), loadMethods()]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, order.id]);
 
+  // Inicializar la primera línea cuando se cargan los métodos
   useEffect(() => {
-    if (remaining > 0) {
+    if (methods.length > 0 && lines.length === 0) {
+      setLines([{ methodId: methods[0].id, amountTendered: 0 }]);
+    }
+  }, [lines.length, methods]);
+
+  useEffect(() => {
+    if (remaining > 0 && methods.length > 0) {
       setOrderAmount(parseFloat(remaining.toFixed(2)));
       setDocType('NotaDeVenta');
       setCustomer(null);
-      setLines([{ method: 'Cash', amountTendered: 0 }]);
+      setLines([{ methodId: methods[0].id, amountTendered: 0 }]);
     }
-  }, [remaining]);
+  }, [methods, remaining]);
 
-  const loadPayments = async () => {
+  const loadPayments = useCallback(async () => {
     setLoadingPayments(true);
     try {
       const r = await cashApi.getOrderPayments(order.id);
@@ -78,9 +72,21 @@ export default function PayOrderModal({ order, open, onClose, onPaid, branchId }
     } finally {
       setLoadingPayments(false);
     }
-  };
+  }, [order.id]);
 
-  const addLine = () => setLines(prev => [...prev, { method: 'Cash', amountTendered: 0 }]);
+  const loadMethods = useCallback(async () => {
+    try {
+      const r = await paymentMethodsApi.getAll(true);
+      setMethods(r.data);
+    } catch {
+      message.error('Error al cargar medios de pago');
+    }
+  }, []);
+
+  const addLine = () => {
+    if (methods.length === 0) return;
+    setLines(prev => [...prev, { methodId: methods[0].id, amountTendered: 0 }]);
+  };
 
   const removeLine = (idx: number) =>
     setLines(prev => prev.filter((_, i) => i !== idx));
@@ -88,9 +94,11 @@ export default function PayOrderModal({ order, open, onClose, onPaid, branchId }
   const updateLine = (idx: number, field: keyof PaymentLine, value: string | number) =>
     setLines(prev => prev.map((l, i) => i === idx ? { ...l, [field]: value } : l));
 
+  const getMethod = (id: string) => methods.find(m => m.id === id);
+
   const totalTendered = lines.reduce((s, l) => s + (l.amountTendered || 0), 0);
   const totalChange = Math.max(0, totalTendered - (orderAmount || 0));
-  const hasCashLine = lines.some(l => l.method === 'Cash');
+  const hasCashLine = lines.some(l => getMethod(l.methodId)?.isCash ?? false);
   const tenderCoversAmount = totalTendered >= (orderAmount || 0);
   const amountExceedsRemaining = (orderAmount || 0) > remaining + 0.01;
   const needsCustomer = docType === 'Factura' && !customer;
@@ -99,7 +107,7 @@ export default function PayOrderModal({ order, open, onClose, onPaid, branchId }
   const handlePay = async () => {
     if (!canSubmit) return;
     if (totalChange > 0 && !hasCashLine) {
-      message.warning('Hay excedente pero no hay línea de efectivo para dar vuelto.');
+      message.warning('Hay excedente pero ningún medio de pago acepta vuelto.');
       return;
     }
     setSaving(true);
@@ -108,7 +116,7 @@ export default function PayOrderModal({ order, open, onClose, onPaid, branchId }
         orderAmount,
         documentType: docType,
         customerId: customer?.id,
-        lines: lines.map(l => ({ method: l.method, amountTendered: l.amountTendered } as AddPaymentLineDto)),
+        lines: lines.map(l => ({ methodId: l.methodId, amountTendered: l.amountTendered } as AddPaymentLineDto)),
       };
       await cashApi.payOrder(order.id, dto);
       message.success('Cobro registrado');
@@ -120,6 +128,16 @@ export default function PayOrderModal({ order, open, onClose, onPaid, branchId }
       setSaving(false);
     }
   };
+
+  const methodOptions = methods.map(m => ({
+    value: m.id,
+    label: (
+      <Space>
+        <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: m.color }} />
+        {m.name}
+      </Space>
+    ),
+  }));
 
   return (
     <Modal
@@ -136,9 +154,27 @@ export default function PayOrderModal({ order, open, onClose, onPaid, branchId }
       destroyOnHidden
     >
       {/* Resumen */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-        <Text type="secondary">Total de la orden</Text>
-        <Text strong style={{ fontSize: 16 }}>${order.total.toFixed(2)}</Text>
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Text type="secondary">Subtotal</Text>
+          <Text>${order.subtotal.toFixed(2)}</Text>
+        </div>
+        {order.discountTotal > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <Text type="secondary">Descuento</Text>
+            <Text type="danger">-${order.discountTotal.toFixed(2)}</Text>
+          </div>
+        )}
+        {order.taxAmount > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <Text type="secondary">IVA</Text>
+            <Text>${order.taxAmount.toFixed(2)}</Text>
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+          <Text strong>Total</Text>
+          <Text strong style={{ fontSize: 16 }}>${order.total.toFixed(2)}</Text>
+        </div>
       </div>
 
       {/* Cobros ya registrados */}
@@ -158,8 +194,8 @@ export default function PayOrderModal({ order, open, onClose, onPaid, branchId }
                       {p.documentType === 'Factura' ? 'Factura' : 'Nota de Venta'}
                     </Tag>
                     {p.lines.map((l, li) => (
-                      <Tag key={li} color={METHOD_COLORS[l.method]}>
-                        {METHOD_LABELS[l.method]} ${l.netAmount.toFixed(2)}
+                      <Tag key={li} color={l.methodColor} style={{ borderColor: l.methodColor }}>
+                        {l.methodName} ${l.netAmount.toFixed(2)}
                       </Tag>
                     ))}
                     {p.customerName && <Text type="secondary">{p.customerName}</Text>}
@@ -187,9 +223,11 @@ export default function PayOrderModal({ order, open, onClose, onPaid, branchId }
         <Alert
           type="success"
           icon={<CheckCircleOutlined />}
-          message="Esta orden está completamente pagada."
+          title="Esta orden está completamente pagada."
           showIcon
         />
+      ) : methods.length === 0 ? (
+        <Alert type="warning" showIcon title="No hay medios de pago configurados. Ve a Configuración → Medios de pago." />
       ) : (
         <>
           <Title level={5} style={{ marginBottom: 12 }}>Nuevo cobro</Title>
@@ -254,21 +292,18 @@ export default function PayOrderModal({ order, open, onClose, onPaid, branchId }
             </div>
 
             {lines.map((line, idx) => {
-              // El vuelto se asigna a la última línea de efectivo
-              const cashLines = lines.map((l, i) => ({ ...l, i })).filter(l => l.method === 'Cash');
-              const isLastCash = cashLines.at(-1)?.i === idx;
+              const method = getMethod(line.methodId);
+              const cashLines = lines.map((l, i) => ({ ...l, i })).filter(l => getMethod(l.methodId)?.isCash);
+              const isLastCash = method?.isCash && cashLines.at(-1)?.i === idx;
               const lineChange = isLastCash ? totalChange : 0;
 
               return (
                 <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
                   <Select
-                    style={{ width: 150 }}
-                    value={line.method}
-                    onChange={v => updateLine(idx, 'method', v)}
-                    options={METHOD_OPTIONS.map(o => ({
-                      value: o.value,
-                      label: <Space>{o.icon}{o.label}</Space>,
-                    }))}
+                    style={{ width: 160 }}
+                    value={line.methodId}
+                    onChange={v => updateLine(idx, 'methodId', v)}
+                    options={methodOptions}
                   />
                   <InputNumber
                     style={{ flex: 1 }}
@@ -292,7 +327,7 @@ export default function PayOrderModal({ order, open, onClose, onPaid, branchId }
             })}
 
             {tenderCoversAmount && totalChange > 0 && !hasCashLine && (
-              <Alert type="warning" showIcon message="Agrega una línea de efectivo para dar el vuelto" style={{ marginTop: 8 }} />
+              <Alert type="warning" showIcon title="Agrega una línea de efectivo para dar el vuelto" style={{ marginTop: 8 }} />
             )}
             {!tenderCoversAmount && (orderAmount || 0) > 0 && (
               <Text type="danger" style={{ fontSize: 12 }}>
@@ -310,6 +345,7 @@ export default function PayOrderModal({ order, open, onClose, onPaid, branchId }
             loading={saving}
             disabled={!canSubmit}
             onClick={handlePay}
+            icon={<DollarOutlined />}
           >
             Confirmar cobro ${(orderAmount || 0).toFixed(2)}
           </Button>
