@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Table, Tag, Space, Typography, Button, DatePicker, Select,
-  message, Tooltip, Modal, Descriptions, Alert,
+  message, Tooltip, Modal, Descriptions, Alert, Spin,
 } from 'antd';
 import {
   ReloadOutlined, FilePdfOutlined, FileTextOutlined,
-  RedoOutlined, ThunderboltOutlined,
+  RedoOutlined, ThunderboltOutlined, CodeOutlined,
 } from '@ant-design/icons';
 import type { ElectronicDocumentDto } from '../../types';
 import { sriApi } from '../../services/api';
@@ -13,6 +13,32 @@ import dayjs, { type Dayjs } from 'dayjs';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
+
+function formatXml(xml: string): string {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xml, 'application/xml');
+    if (doc.querySelector('parsererror')) return xml;
+    const serializer = new XMLSerializer();
+    const raw = serializer.serializeToString(doc);
+    // Indentar manualmente
+    let indent = 0;
+    return raw
+      .replace(/>\s*</g, '><')
+      .replace(/(<[^/][^>]*[^/]>|<[^/][^>]*[^>]>)(?!.*<\/)/g, '$1')
+      .split(/(<[^>]+>)/)
+      .filter(Boolean)
+      .map(token => {
+        if (/^<\//.test(token)) indent = Math.max(0, indent - 1);
+        const line = '  '.repeat(indent) + token;
+        if (/^<[^/][^>]*[^/]>$/.test(token) && !/^<[^>]+\/>$/.test(token)) indent++;
+        return line;
+      })
+      .join('\n');
+  } catch {
+    return xml;
+  }
+}
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   Pending:    { label: 'Pendiente',   color: 'default' },
@@ -68,6 +94,8 @@ export default function ElectronicInvoices() {
   ]);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
   const [detailDoc, setDetailDoc] = useState<ElectronicDocumentDto | null>(null);
+  const [xmlModal, setXmlModal] = useState<{ doc: ElectronicDocumentDto; content: string } | null>(null);
+  const [xmlLoading, setXmlLoading] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,6 +128,18 @@ export default function ElectronicInvoices() {
       message.error(String(msg));
     } finally {
       setRetrying(null);
+    }
+  };
+
+  const handleViewXml = async (doc: ElectronicDocumentDto) => {
+    setXmlLoading(doc.id);
+    try {
+      const res = await sriApi.getRespuestaSriText(doc.id);
+      setXmlModal({ doc, content: formatXml(res.data) });
+    } catch {
+      message.error('No se pudo cargar la respuesta del SRI');
+    } finally {
+      setXmlLoading(null);
     }
   };
 
@@ -218,14 +258,12 @@ export default function ElectronicInvoices() {
                   </Tooltip>
                 )}
                 {r.hasXmlResponse && (
-                  <Tooltip title="Descargar respuesta XML del SRI">
+                  <Tooltip title="Ver respuesta del SRI">
                     <Button
                       size="small"
-                      icon={<FileTextOutlined />}
-                      onClick={() => handleDownload(
-                        sriApi.downloadRespuestaSriUrl(r.id),
-                        `RespuestaSRI-${r.numeroFactura}.xml`
-                      )}
+                      icon={<CodeOutlined />}
+                      loading={xmlLoading === r.id}
+                      onClick={() => handleViewXml(r)}
                     />
                   </Tooltip>
                 )}
@@ -253,6 +291,52 @@ export default function ElectronicInvoices() {
         width={640}
       >
         {detailDoc && <DocDetail doc={detailDoc} />}
+      </Modal>
+
+      <Modal
+        open={!!xmlModal}
+        onCancel={() => setXmlModal(null)}
+        title={
+          <Space>
+            <CodeOutlined />
+            <span>Respuesta SRI — {xmlModal?.doc.numeroFactura}</span>
+            <Tag color={STATUS_LABELS[xmlModal?.doc.status ?? '']?.color}>
+              {STATUS_LABELS[xmlModal?.doc.status ?? '']?.label}
+            </Tag>
+          </Space>
+        }
+        width={820}
+        footer={
+          <Button
+            icon={<FileTextOutlined />}
+            onClick={() => xmlModal && handleDownload(
+              sriApi.downloadRespuestaSriUrl(xmlModal.doc.id),
+              `RespuestaSRI-${xmlModal.doc.numeroFactura}.xml`
+            )}
+          >
+            Descargar XML
+          </Button>
+        }
+      >
+        {xmlLoading ? (
+          <div style={{ textAlign: 'center', padding: 32 }}><Spin /></div>
+        ) : (
+          <pre style={{
+            background: '#1e1e1e',
+            color: '#d4d4d4',
+            padding: 16,
+            borderRadius: 6,
+            fontSize: 11,
+            lineHeight: 1.5,
+            maxHeight: 520,
+            overflowY: 'auto',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-all',
+            margin: 0,
+          }}>
+            {xmlModal?.content}
+          </pre>
+        )}
       </Modal>
     </div>
   );

@@ -695,6 +695,8 @@ export const sriApi = {
     `${apiClient.defaults.baseURL}/sri/documentos/${id}/xml`,
   downloadRespuestaSriUrl: (id: string): string =>
     `${apiClient.defaults.baseURL}/sri/documentos/${id}/respuesta-sri`,
+  getRespuestaSriText: (id: string): Promise<AxiosResponse<string>> =>
+    apiClient.get<string>(`/sri/documentos/${id}/respuesta-sri`, { responseType: 'text' }),
 };
 
 export default apiClient;
