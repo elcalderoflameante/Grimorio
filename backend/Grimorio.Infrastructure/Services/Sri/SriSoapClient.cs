@@ -54,7 +54,7 @@ public class SriSoapClient
   </soapenv:Body>
 </soapenv:Envelope>";
 
-        var responseXml = await PostSoapAsync(endpoint, soap, "validarComprobante", ct);
+        var responseXml = await PostSoapAsync(endpoint, soap, ct);
         _log.LogDebug("SRI validarComprobante respuesta: {Xml}", responseXml);
         return ParseValidarResponse(responseXml);
     }
@@ -77,7 +77,7 @@ public class SriSoapClient
   </soapenv:Body>
 </soapenv:Envelope>";
 
-        var responseXml = await PostSoapAsync(endpoint, soap, "autorizarComprobante", ct);
+        var responseXml = await PostSoapAsync(endpoint, soap, ct);
         _log.LogDebug("SRI autorizarComprobante respuesta: {Xml}", responseXml);
         return ParseAutorizarResponse(responseXml, claveAcceso);
     }
@@ -85,14 +85,14 @@ public class SriSoapClient
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private async Task<string> PostSoapAsync(
-        string endpoint, string soap, string action, CancellationToken ct)
+        string endpoint, string soap, CancellationToken ct)
     {
         using var client = _httpFactory.CreateClient();
         client.Timeout = TimeSpan.FromSeconds(30);
 
         var content = new StringContent(soap, Encoding.UTF8, "text/xml");
         content.Headers.ContentType = new MediaTypeHeaderValue("text/xml") { CharSet = "UTF-8" };
-        content.Headers.Add("SOAPAction", action);
+        client.DefaultRequestHeaders.Add("SOAPAction", "\"\"");
 
         var response = await client.PostAsync(endpoint, content, ct);
         return await response.Content.ReadAsStringAsync(ct);
