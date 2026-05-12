@@ -243,16 +243,18 @@ public static class SriXmlSigner
 
     private static string ComputeDigest(XmlDocument doc, string xpath)
     {
-        // Usar C14N sobre el nodo referenciado
-        var nav = doc.CreateNavigator();
-        // SRI usa id minúscula en el comprobante; los nodos internos de firma usan Id mayúscula
-        var iter = nav!.Select(
-            xpath.StartsWith('#') ? $"//*[@Id='{xpath[1..]}' or @id='{xpath[1..]}']" : xpath);
-        if (!iter.MoveNext()) throw new InvalidOperationException($"Nodo {xpath} no encontrado.");
+        // XmlDsigC14NTransform solo acepta XmlDocument, XmlNodeList o Stream — no XmlNode directo
+        var xpathExpr = xpath.StartsWith('#')
+            ? $"//*[@Id='{xpath[1..]}' or @id='{xpath[1..]}']"
+            : xpath;
+
+        var nodeList = doc.SelectNodes(xpathExpr);
+        if (nodeList == null || nodeList.Count == 0)
+            throw new InvalidOperationException($"Nodo {xpath} no encontrado en el XML.");
 
         using var ms = new MemoryStream();
         var c14n = new XmlDsigC14NTransform();
-        c14n.LoadInput(iter.Current!.UnderlyingObject!);
+        c14n.LoadInput(nodeList);
         var output = (Stream)c14n.GetOutput(typeof(Stream));
         output.CopyTo(ms);
 
@@ -262,9 +264,13 @@ public static class SriXmlSigner
 
     private static string Canonicalize(XmlElement element)
     {
+        // Importar el elemento a un documento temporal para poder pasarlo como XmlDocument
+        var tmpDoc = new XmlDocument();
+        tmpDoc.AppendChild(tmpDoc.ImportNode(element, true));
+
         using var ms = new MemoryStream();
         var c14n = new XmlDsigC14NTransform();
-        c14n.LoadInput(element);
+        c14n.LoadInput(tmpDoc);
         var output = (Stream)c14n.GetOutput(typeof(Stream));
         output.CopyTo(ms);
         return Encoding.UTF8.GetString(ms.ToArray());
