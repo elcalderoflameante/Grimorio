@@ -75,7 +75,7 @@ public class GetInventoryArticlesHandler : IRequestHandler<GetInventoryArticlesQ
         var query = _db.InventoryArticles
             .Include(x => x.Category)
             .Include(x => x.BaseUnit)
-            .Include(x => x.Stocks.Where(s => !s.IsDeleted))
+            .Include(x => x.Stocks.Where(s => !s.IsDeleted && s.BranchId == req.BranchId))
             .Where(x => x.BranchId == req.BranchId);
 
         if (req.ActiveOnly == true) query = query.Where(x => x.IsActive);
@@ -122,7 +122,7 @@ public class GetInventoryArticleHandler : IRequestHandler<GetInventoryArticleQue
         var x = await _db.InventoryArticles
             .Include(a => a.Category)
             .Include(a => a.BaseUnit)
-            .Include(a => a.Stocks.Where(s => !s.IsDeleted))
+            .Include(a => a.Stocks.Where(s => !s.IsDeleted && s.BranchId == req.BranchId))
             .FirstOrDefaultAsync(a => a.Id == req.Id && a.BranchId == req.BranchId, ct);
         return x is null ? null : GetInventoryArticlesHandler.MapArticulo(x);
     }
@@ -158,7 +158,7 @@ public class GetCurrentStockHandler : IRequestHandler<GetCurrentStockQuery, List
         var articlesQuery = _db.InventoryArticles
             .Include(a => a.Category)
             .Include(a => a.BaseUnit)
-            .Include(a => a.Stocks.Where(s => !s.IsDeleted))
+            .Include(a => a.Stocks.Where(s => !s.IsDeleted && s.BranchId == req.BranchId))
                 .ThenInclude(s => s.Warehouse)
             .Where(a => a.BranchId == req.BranchId && a.IsActive);
 
@@ -171,7 +171,7 @@ public class GetCurrentStockHandler : IRequestHandler<GetCurrentStockQuery, List
 
         foreach (var a in articles)
         {
-            var stocks = a.Stocks.Where(s => !s.IsDeleted).ToList();
+            var stocks = a.Stocks.Where(s => !s.IsDeleted && s.BranchId == req.BranchId).ToList();
 
             if (!stocks.Any())
             {
@@ -294,4 +294,3 @@ public class GetStockAlertsHandler : IRequestHandler<GetStockAlertsQuery, List<S
         return stocks.Where(x => x.CurrentStock <= x.MinStock).OrderBy(x => x.ArticleName).ToList();
     }
 }
-

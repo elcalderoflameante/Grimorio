@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import {
   Table, Button, Modal, Form, Select, InputNumber, Input,
   Space, Typography, message, Tag, DatePicker
@@ -48,7 +48,7 @@ export default function StockMovements() {
   const [filterRango, setFilterRango] = useState<[string, string] | undefined>();
   const [form] = Form.useForm();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [m, a, b, u] = await Promise.all([
@@ -73,9 +73,9 @@ export default function StockMovements() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterArticulo, filterBodega, filterRango, filterTipo]);
 
-  useEffect(() => { load(); }, [filterArticulo, filterBodega, filterTipo, filterRango]);
+  useEffect(() => { load(); }, [load]);
 
   const registrar = async () => {
     const values = await form.validateFields();

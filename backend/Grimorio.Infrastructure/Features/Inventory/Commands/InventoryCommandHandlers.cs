@@ -312,18 +312,38 @@ public class RegisterMovementHandler : IRequestHandler<RegisterMovementCommand, 
             .FirstOrDefaultAsync(x => x.Id == req.ArticleId && x.BranchId == req.BranchId, ct)
             ?? throw new InvalidOperationException("Artículo no encontrado.");
 
-        var movementUnit = await _db.MeasurementUnits.FirstOrDefaultAsync(x => x.Id == req.UnitId, ct)
+        var warehouse = await _db.Warehouses
+            .FirstOrDefaultAsync(x => x.Id == req.WarehouseId && x.BranchId == req.BranchId, ct)
+            ?? throw new InvalidOperationException("Bodega no encontrada.");
+
+        var movementUnit = await _db.MeasurementUnits
+            .FirstOrDefaultAsync(x => x.Id == req.UnitId && x.BranchId == req.BranchId, ct)
             ?? throw new InvalidOperationException("Unit de medida no encontrada.");
 
         // Convertir a unidad base
         decimal baseQuantity = req.Quantity;
         if (req.UnitId != article.BaseUnitId)
         {
+            // Dirección directa: unidad_movimiento → unidad_base
             var conversion = await _db.UnitConversions.FirstOrDefaultAsync(
                 x => x.BranchId == req.BranchId && x.OriginUnitId == req.UnitId && x.DestinationUnitId == article.BaseUnitId, ct);
-            if (conversion is null)
-                throw new InvalidOperationException($"No existe conversión de {movementUnit.Name} a {article.BaseUnit!.Name}.");
-            baseQuantity = req.Quantity * conversion.Factor;
+
+            if (conversion != null)
+            {
+                baseQuantity = req.Quantity * conversion.Factor;
+            }
+            else
+            {
+                // Dirección inversa: unidad_base → unidad_movimiento (se invierte el factor)
+                var reverseConversion = await _db.UnitConversions.FirstOrDefaultAsync(
+                    x => x.BranchId == req.BranchId && x.OriginUnitId == article.BaseUnitId && x.DestinationUnitId == req.UnitId, ct);
+
+                if (reverseConversion is null)
+                    throw new InvalidOperationException(
+                        $"No existe conversión entre {movementUnit.Name} y {article.BaseUnit!.Name}.");
+
+                baseQuantity = req.Quantity / reverseConversion.Factor;
+            }
         }
 
         // Determinar si suma o resta según tipo de movimiento
@@ -335,7 +355,7 @@ public class RegisterMovementHandler : IRequestHandler<RegisterMovementCommand, 
 
         // Actualizar o crear WarehouseStock
         var stock = await _db.WarehouseStock.FirstOrDefaultAsync(
-            x => x.ArticleId == req.ArticleId && x.WarehouseId == req.WarehouseId, ct);
+            x => x.BranchId == req.BranchId && x.ArticleId == req.ArticleId && x.WarehouseId == req.WarehouseId, ct);
 
         if (stock is null)
         {
@@ -363,7 +383,6 @@ public class RegisterMovementHandler : IRequestHandler<RegisterMovementCommand, 
         _db.StockMovements.Add(movement);
         await _db.SaveChangesAsync(ct);
 
-        var warehouse = await _db.Warehouses.FirstAsync(x => x.Id == req.WarehouseId, ct);
         return new StockMovementDto
         {
             Id = movement.Id, ArticleId = article.Id, ArticleName = article.Name,

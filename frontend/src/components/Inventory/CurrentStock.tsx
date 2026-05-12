@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Table, Select, Space, Typography, message, Tag, Badge, Button } from 'antd';
 import { ReloadOutlined, WarningOutlined } from '@ant-design/icons';
 import { inventoryApi } from '../../services/api';
@@ -22,7 +22,7 @@ export default function CurrentStock() {
   const [filterCategoria, setFilterCategoria] = useState<string | undefined>();
   const [lowStockOnly, setLowStockOnly] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [s, b, c] = await Promise.all([
@@ -38,9 +38,9 @@ export default function CurrentStock() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterBodega, filterCategoria, lowStockOnly]);
 
-  useEffect(() => { load(); }, [filterBodega, filterCategoria, lowStockOnly]);
+  useEffect(() => { load(); }, [load]);
 
   const bajoStockCount = stock.filter(s => s.lowStock).length;
 

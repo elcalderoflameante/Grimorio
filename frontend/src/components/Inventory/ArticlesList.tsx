@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import {
   Table, Button, Modal, Form, Input, InputNumber, Select, Switch,
   Popconfirm, Space, Typography, message, Tag, Badge, Row, Col
@@ -34,16 +34,16 @@ export default function ArticlesList() {
   const [editing, setEditing] = useState<InventoryArticleDto | null>(null);
   const [form] = Form.useForm();
 
-  const loadCatalogos = async () => {
+  const loadCatalogos = useCallback(async () => {
     const [c, u] = await Promise.all([
       inventoryApi.getCategories(),
       inventoryApi.getUnits(),
     ]);
     setCategorias(c.data);
     setUnidades(u.data);
-  };
+  }, []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [a, c, u] = await Promise.all([
@@ -61,9 +61,9 @@ export default function ArticlesList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadCatalogos]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const openModal = async (a?: InventoryArticleDto) => {
     setEditing(a ?? null);
