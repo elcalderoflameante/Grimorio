@@ -601,7 +601,7 @@ export const purchasesApi = {
     apiClient.delete<void>(`/purchases/compras/${id}`),
 };
 
-import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto, CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, OrderPaymentDto, AddOrderPaymentDto, PaymentMethodConfigDto, CreatePaymentMethodConfigDto, UpdatePaymentMethodConfigDto, TaxRateDto, UpsertTaxRateDto, BranchTaxConfigDto } from '../types';
+import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto, CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, OrderPaymentDto, AddOrderPaymentDto, PaymentMethodConfigDto, CreatePaymentMethodConfigDto, UpdatePaymentMethodConfigDto, TaxRateDto, UpsertTaxRateDto, BranchTaxConfigDto, SriCertificateStatusDto, ElectronicDocumentDto } from '../types';
 
 export const customersApi = {
   getAll: (params?: { activeOnly?: boolean; search?: string }): Promise<AxiosResponse<CustomerDto[]>> =>
@@ -657,6 +657,34 @@ export const taxApi = {
     apiClient.get<BranchTaxConfigDto>('/tax/config'),
   upsertConfig: (dto: BranchTaxConfigDto): Promise<AxiosResponse<BranchTaxConfigDto>> =>
     apiClient.put<BranchTaxConfigDto>('/tax/config', dto),
+};
+
+export const sriApi = {
+  getConfig: (): Promise<AxiosResponse<BranchTaxConfigDto>> =>
+    apiClient.get<BranchTaxConfigDto>('/sri/config'),
+  upsertConfig: (dto: BranchTaxConfigDto): Promise<AxiosResponse<BranchTaxConfigDto>> =>
+    apiClient.put<BranchTaxConfigDto>('/sri/config', dto),
+
+  getCertificateStatus: (): Promise<AxiosResponse<SriCertificateStatusDto>> =>
+    apiClient.get<SriCertificateStatusDto>('/sri/certificado/estado'),
+  uploadCertificate: (file: File, password: string): Promise<AxiosResponse<SriCertificateStatusDto>> => {
+    const form = new FormData();
+    form.append('archivo', file);
+    form.append('contrasena', password);
+    return apiClient.post<SriCertificateStatusDto>('/sri/certificado', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  deleteCertificate: (): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>('/sri/certificado'),
+
+  ping: (ambiente = '1'): Promise<AxiosResponse<{ success: boolean; ambiente: string; error?: string }>> =>
+    apiClient.post('/sri/ping', null, { params: { ambiente } }),
+
+  getDocuments: (params?: { desde?: string; hasta?: string; estado?: string; pageSize?: number }): Promise<AxiosResponse<ElectronicDocumentDto[]>> =>
+    apiClient.get<ElectronicDocumentDto[]>('/sri/documentos', { params }),
+  getDocument: (id: string): Promise<AxiosResponse<ElectronicDocumentDto>> =>
+    apiClient.get<ElectronicDocumentDto>(`/sri/documentos/${id}`),
 };
 
 export default apiClient;

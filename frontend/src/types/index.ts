@@ -1386,4 +1386,37 @@ export interface BranchTaxConfigDto {
   codigoEstablecimiento: string;
   puntoEmision: string;
   ambiente: string;
+  contribuyenteEspecial?: string;
+  obligadoContabilidad?: boolean;
+  secuencial?: number;
+}
+
+export interface SriCertificateStatusDto {
+  hasCertificate: boolean;
+  fileName?: string;
+  expiresAt?: string;
+  isExpired?: boolean;
+  uploadedAt?: string;
+}
+
+export interface ElectronicDocumentDto {
+  id: string;
+  orderPaymentId: string;
+  claveAcceso: string;
+  numeroFactura: string;
+  secuencial: number;
+  environment: string;
+  status: string;
+  totalSinImpuestos: number;
+  totalDescuento: number;
+  totalIva: number;
+  importeTotal: number;
+  numeroAutorizacion?: string;
+  fechaAutorizacion?: string;
+  errorMessage?: string;
+  sentAt?: string;
+  retryCount: number;
+  createdAt: string;
+  hasRide: boolean;
+  hasXml: boolean;
 }

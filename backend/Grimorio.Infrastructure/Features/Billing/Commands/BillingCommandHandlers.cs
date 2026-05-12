@@ -7,6 +7,8 @@ using Grimorio.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.DataProtection;
+using Org.BouncyCastle.Pkcs;
 
 namespace Grimorio.Infrastructure.Features.Billing.Commands;
 
@@ -100,14 +102,95 @@ public class UpsertBranchTaxConfigHandler : IRequestHandler<UpsertBranchTaxConfi
         cfg.CodigoEstablecimiento = req.CodigoEstablecimiento.Trim();
         cfg.PuntoEmision = req.PuntoEmision.Trim();
         cfg.Ambiente = req.Ambiente;
+        cfg.ContribuyenteEspecial = req.ContribuyenteEspecial?.Trim();
+        cfg.ObligadoContabilidad = req.ObligadoContabilidad;
         await _db.SaveChangesAsync(ct);
-        return new BranchTaxConfigDto
+        return BillingMapper.MapBranchTaxConfig(cfg);
+    }
+}
+
+// ── SRI Certificado ───────────────────────────────────────────────────────────
+
+public class UploadSriCertificateHandler : IRequestHandler<UploadSriCertificateCommand, SriCertificateStatusDto>
+{
+    private readonly GrimorioDbContext _db;
+    private readonly Microsoft.AspNetCore.DataProtection.IDataProtector _protector;
+
+    public UploadSriCertificateHandler(GrimorioDbContext db,
+        Microsoft.AspNetCore.DataProtection.IDataProtectionProvider dp)
+    {
+        _db = db;
+        _protector = dp.CreateProtector("SriCertificate");
+    }
+
+    public async Task<SriCertificateStatusDto> Handle(UploadSriCertificateCommand req, CancellationToken ct)
+    {
+        // Validar que el archivo sea un .p12 válido antes de guardar
+        try
         {
-            Id = cfg.Id, Ruc = cfg.Ruc, RazonSocial = cfg.RazonSocial,
-            NombreComercial = cfg.NombreComercial, Direccion = cfg.Direccion,
-            CodigoEstablecimiento = cfg.CodigoEstablecimiento, PuntoEmision = cfg.PuntoEmision,
-            Ambiente = cfg.Ambiente,
-        };
+            var store = new Org.BouncyCastle.Pkcs.Pkcs12StoreBuilder().Build();
+            store.Load(new MemoryStream(req.CertificateBytes), req.Password.ToCharArray());
+            var alias = store.Aliases.Cast<string>().FirstOrDefault(a => store.IsKeyEntry(a))
+                ?? throw new InvalidOperationException("El archivo .p12 no contiene una clave privada válida.");
+
+            // Leer fecha de expiración del certificado
+            var certEntry = store.GetCertificate(alias);
+            var expiresAt = certEntry?.Certificate.NotAfter;
+
+            var existing = await _db.SriCertificates
+                .FirstOrDefaultAsync(x => x.BranchId == req.BranchId && !x.IsDeleted, ct);
+
+            if (existing != null)
+            {
+                existing.FileName = req.FileName;
+                existing.CertificateEncrypted = _protector.Protect(req.CertificateBytes);
+                existing.PasswordEncrypted = _protector.Protect(req.Password);
+                existing.ExpiresAt = expiresAt;
+            }
+            else
+            {
+                var cert = new SriCertificate
+                {
+                    BranchId = req.BranchId,
+                    FileName = req.FileName,
+                    CertificateEncrypted = _protector.Protect(req.CertificateBytes),
+                    PasswordEncrypted = _protector.Protect(req.Password),
+                    ExpiresAt = expiresAt,
+                };
+                _db.SriCertificates.Add(cert);
+            }
+
+            await _db.SaveChangesAsync(ct);
+
+            return new SriCertificateStatusDto
+            {
+                HasCertificate = true,
+                FileName = req.FileName,
+                ExpiresAt = expiresAt,
+                UploadedAt = DateTime.UtcNow.ToString("o"),
+            };
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException)
+        {
+            throw new InvalidOperationException(
+                "No se pudo leer el archivo .p12. Verifique que el archivo y la contraseña sean correctos.", ex);
+        }
+    }
+}
+
+public class DeleteSriCertificateHandler : IRequestHandler<DeleteSriCertificateCommand, bool>
+{
+    private readonly GrimorioDbContext _db;
+    public DeleteSriCertificateHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<bool> Handle(DeleteSriCertificateCommand req, CancellationToken ct)
+    {
+        var cert = await _db.SriCertificates
+            .FirstOrDefaultAsync(x => x.BranchId == req.BranchId && !x.IsDeleted, ct);
+        if (cert == null) return false;
+        cert.IsDeleted = true;
+        await _db.SaveChangesAsync(ct);
+        return true;
     }
 }
 
@@ -499,6 +582,15 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
 
 internal static class BillingMapper
 {
+    internal static BranchTaxConfigDto MapBranchTaxConfig(BranchTaxConfig c) => new()
+    {
+        Id = c.Id, Ruc = c.Ruc, RazonSocial = c.RazonSocial,
+        NombreComercial = c.NombreComercial, Direccion = c.Direccion,
+        CodigoEstablecimiento = c.CodigoEstablecimiento, PuntoEmision = c.PuntoEmision,
+        Ambiente = c.Ambiente, ContribuyenteEspecial = c.ContribuyenteEspecial,
+        ObligadoContabilidad = c.ObligadoContabilidad, Secuencial = c.Secuencial,
+    };
+
     internal static TaxRateDto MapTaxRate(TaxRate t) => new()
     {
         Id = t.Id, Name = t.Name, Percentage = t.Percentage,

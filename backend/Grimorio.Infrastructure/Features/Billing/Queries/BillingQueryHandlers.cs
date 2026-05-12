@@ -35,13 +35,7 @@ public class GetBranchTaxConfigHandler : IRequestHandler<GetBranchTaxConfigQuery
     {
         var cfg = await _db.BranchTaxConfigs.FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct);
         if (cfg == null) return null;
-        return new BranchTaxConfigDto
-        {
-            Id = cfg.Id, Ruc = cfg.Ruc, RazonSocial = cfg.RazonSocial,
-            NombreComercial = cfg.NombreComercial, Direccion = cfg.Direccion,
-            CodigoEstablecimiento = cfg.CodigoEstablecimiento, PuntoEmision = cfg.PuntoEmision,
-            Ambiente = cfg.Ambiente,
-        };
+        return BillingMapper.MapBranchTaxConfig(cfg);
     }
 }
 
@@ -202,5 +196,95 @@ public class GetSalesHandler : IRequestHandler<GetSalesQuery, List<OrderPaymentD
             p.Order?.Table?.Name,
             p.Order?.Type.ToString()
         )).ToList();
+    }
+}
+
+// ── SRI Certificado ───────────────────────────────────────────────────────────
+
+public class GetSriCertificateStatusHandler : IRequestHandler<GetSriCertificateStatusQuery, SriCertificateStatusDto>
+{
+    private readonly GrimorioDbContext _db;
+    public GetSriCertificateStatusHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<SriCertificateStatusDto> Handle(GetSriCertificateStatusQuery req, CancellationToken ct)
+    {
+        var cert = await _db.SriCertificates
+            .FirstOrDefaultAsync(x => x.BranchId == req.BranchId && !x.IsDeleted, ct);
+        if (cert == null)
+            return new SriCertificateStatusDto { HasCertificate = false };
+
+        return new SriCertificateStatusDto
+        {
+            HasCertificate = true,
+            FileName = cert.FileName,
+            ExpiresAt = cert.ExpiresAt,
+            UploadedAt = cert.CreatedAt.ToString("o"),
+        };
+    }
+}
+
+// ── Documentos Electrónicos ───────────────────────────────────────────────────
+
+public class GetElectronicDocumentsHandler : IRequestHandler<GetElectronicDocumentsQuery, List<ElectronicDocumentDto>>
+{
+    private readonly GrimorioDbContext _db;
+    public GetElectronicDocumentsHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<List<ElectronicDocumentDto>> Handle(GetElectronicDocumentsQuery req, CancellationToken ct)
+    {
+        var query = _db.ElectronicDocuments.Where(d => d.BranchId == req.BranchId && !d.IsDeleted);
+        if (req.FromUtc.HasValue) query = query.Where(d => d.CreatedAt >= req.FromUtc.Value);
+        if (req.ToUtc.HasValue) query = query.Where(d => d.CreatedAt <= req.ToUtc.Value);
+        if (!string.IsNullOrEmpty(req.Status) && Enum.TryParse<ElectronicDocumentStatus>(req.Status, true, out var statusEnum))
+            query = query.Where(d => d.Status == statusEnum);
+
+        var docs = await query
+            .OrderByDescending(d => d.CreatedAt)
+            .Take(req.PageSize)
+            .ToListAsync(ct);
+
+        return docs.Select(MapDoc).ToList();
+    }
+
+    private static ElectronicDocumentDto MapDoc(ElectronicDocument d) => new()
+    {
+        Id = d.Id, OrderPaymentId = d.OrderPaymentId,
+        ClaveAcceso = d.ClaveAcceso, NumeroFactura = d.NumeroFactura,
+        Secuencial = d.Secuencial, Environment = d.Environment,
+        Status = d.Status.ToString(),
+        TotalSinImpuestos = d.TotalSinImpuestos, TotalDescuento = d.TotalDescuento,
+        TotalIva = d.TotalIva, ImporteTotal = d.ImporteTotal,
+        NumeroAutorizacion = d.NumeroAutorizacion, FechaAutorizacion = d.FechaAutorizacion,
+        ErrorMessage = d.ErrorMessage, SentAt = d.SentAt, RetryCount = d.RetryCount,
+        CreatedAt = d.CreatedAt,
+        HasRide = d.RidePdf != null && d.RidePdf.Length > 0,
+        HasXml = !string.IsNullOrEmpty(d.XmlAuthorized ?? d.XmlSigned),
+    };
+}
+
+public class GetElectronicDocumentDetailHandler : IRequestHandler<GetElectronicDocumentDetailQuery, ElectronicDocumentDto?>
+{
+    private readonly GrimorioDbContext _db;
+    public GetElectronicDocumentDetailHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<ElectronicDocumentDto?> Handle(GetElectronicDocumentDetailQuery req, CancellationToken ct)
+    {
+        var d = await _db.ElectronicDocuments
+            .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId && !x.IsDeleted, ct);
+        if (d == null) return null;
+        return new ElectronicDocumentDto
+        {
+            Id = d.Id, OrderPaymentId = d.OrderPaymentId,
+            ClaveAcceso = d.ClaveAcceso, NumeroFactura = d.NumeroFactura,
+            Secuencial = d.Secuencial, Environment = d.Environment,
+            Status = d.Status.ToString(),
+            TotalSinImpuestos = d.TotalSinImpuestos, TotalDescuento = d.TotalDescuento,
+            TotalIva = d.TotalIva, ImporteTotal = d.ImporteTotal,
+            NumeroAutorizacion = d.NumeroAutorizacion, FechaAutorizacion = d.FechaAutorizacion,
+            ErrorMessage = d.ErrorMessage, SentAt = d.SentAt, RetryCount = d.RetryCount,
+            CreatedAt = d.CreatedAt,
+            HasRide = d.RidePdf != null && d.RidePdf.Length > 0,
+            HasXml = !string.IsNullOrEmpty(d.XmlAuthorized ?? d.XmlSigned),
+        };
     }
 }

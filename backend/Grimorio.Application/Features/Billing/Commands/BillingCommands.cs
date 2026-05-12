@@ -44,6 +44,23 @@ public class UpsertBranchTaxConfigCommand : IRequest<BranchTaxConfigDto>
     public string CodigoEstablecimiento { get; set; } = "001";
     public string PuntoEmision { get; set; } = "001";
     public string Ambiente { get; set; } = "1";
+    public string? ContribuyenteEspecial { get; set; }
+    public bool ObligadoContabilidad { get; set; }
+}
+
+// ── SRI Certificado ───────────────────────────────────────────────────────────
+
+public class UploadSriCertificateCommand : IRequest<SriCertificateStatusDto>
+{
+    public Guid BranchId { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public byte[] CertificateBytes { get; set; } = [];
+    public string Password { get; set; } = string.Empty;
+}
+
+public class DeleteSriCertificateCommand : IRequest<bool>
+{
+    public Guid BranchId { get; set; }
 }
 
 // ── PaymentMethodConfig ───────────────────────────────────────────────────────

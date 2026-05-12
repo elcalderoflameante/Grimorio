@@ -33,6 +33,48 @@ public class BranchTaxConfigDto
     public string CodigoEstablecimiento { get; set; } = "001";
     public string PuntoEmision { get; set; } = "001";
     public string Ambiente { get; set; } = "1";
+    public string? ContribuyenteEspecial { get; set; }
+    public bool ObligadoContabilidad { get; set; }
+    public long Secuencial { get; set; }
+}
+
+// ── SRI Certificado ───────────────────────────────────────────────────────────
+
+public class SriCertificateStatusDto
+{
+    public bool HasCertificate { get; set; }
+    public string? FileName { get; set; }
+    public DateTime? ExpiresAt { get; set; }
+    public bool IsExpired => ExpiresAt.HasValue && ExpiresAt.Value < DateTime.UtcNow;
+    public string? UploadedAt { get; set; }
+}
+
+// ── Documento Electrónico ─────────────────────────────────────────────────────
+
+public class ElectronicDocumentDto
+{
+    public Guid Id { get; set; }
+    public Guid OrderPaymentId { get; set; }
+    public string ClaveAcceso { get; set; } = string.Empty;
+    public string NumeroFactura { get; set; } = string.Empty;
+    public long Secuencial { get; set; }
+    public string Environment { get; set; } = "1";
+    public string Status { get; set; } = string.Empty;
+
+    public decimal TotalSinImpuestos { get; set; }
+    public decimal TotalDescuento { get; set; }
+    public decimal TotalIva { get; set; }
+    public decimal ImporteTotal { get; set; }
+
+    public string? NumeroAutorizacion { get; set; }
+    public DateTime? FechaAutorizacion { get; set; }
+    public string? ErrorMessage { get; set; }
+    public DateTime? SentAt { get; set; }
+    public int RetryCount { get; set; }
+    public DateTime CreatedAt { get; set; }
+
+    public bool HasRide { get; set; }
+    public bool HasXml { get; set; }
 }
 
 // ── PaymentMethodConfig ───────────────────────────────────────────────────────

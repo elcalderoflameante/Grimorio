@@ -58,3 +58,25 @@ public class GetSalesQuery : IRequest<List<OrderPaymentDto>>
     public DateTime? ToUtc { get; set; }
     public int PageSize { get; set; } = 100;
 }
+
+// ── SRI ───────────────────────────────────────────────────────────────────────
+
+public class GetSriCertificateStatusQuery : IRequest<SriCertificateStatusDto>
+{
+    public Guid BranchId { get; set; }
+}
+
+public class GetElectronicDocumentsQuery : IRequest<List<ElectronicDocumentDto>>
+{
+    public Guid BranchId { get; set; }
+    public DateTime? FromUtc { get; set; }
+    public DateTime? ToUtc { get; set; }
+    public string? Status { get; set; }
+    public int PageSize { get; set; } = 50;
+}
+
+public class GetElectronicDocumentDetailQuery : IRequest<ElectronicDocumentDto?>
+{
+    public Guid Id { get; set; }
+    public Guid BranchId { get; set; }
+}

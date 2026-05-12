@@ -34,6 +34,59 @@ public class BranchTaxConfig : BaseEntity
     public string CodigoEstablecimiento { get; set; } = "001";
     public string PuntoEmision { get; set; } = "001";
     public string Ambiente { get; set; } = "1";             // "1"=pruebas, "2"=producción
+    public string? ContribuyenteEspecial { get; set; }      // número de resolución si aplica
+    public bool ObligadoContabilidad { get; set; }
+    public long Secuencial { get; set; }                    // último secuencial emitido
+}
+
+// ── SriCertificate ────────────────────────────────────────────────────────────
+// Certificado .p12 cifrado para la firma electrónica XAdES-BES del SRI Ecuador
+
+public class SriCertificate : BaseEntity
+{
+    public string FileName { get; set; } = string.Empty;
+    public byte[] CertificateEncrypted { get; set; } = [];
+    public string PasswordEncrypted { get; set; } = string.Empty;
+    public DateTime? ExpiresAt { get; set; }
+}
+
+// ── ElectronicDocument ────────────────────────────────────────────────────────
+// Comprobante electrónico SRI: factura electrónica vinculada a un cobro
+
+public enum ElectronicDocumentStatus
+{
+    Pending = 1,       // Generado localmente, no enviado
+    Sent = 2,          // Enviado al SRI, pendiente de autorización
+    Authorized = 3,    // Autorizado por el SRI
+    Rejected = 4,      // Rechazado por el SRI
+    Cancelled = 5,     // Anulado
+}
+
+public class ElectronicDocument : BaseEntity
+{
+    public Guid OrderPaymentId { get; set; }
+    public string ClaveAcceso { get; set; } = string.Empty;        // 49 dígitos
+    public string NumeroFactura { get; set; } = string.Empty;      // 001-001-000000001
+    public long Secuencial { get; set; }
+    public string Environment { get; set; } = "1";
+    public ElectronicDocumentStatus Status { get; set; } = ElectronicDocumentStatus.Pending;
+
+    public decimal TotalSinImpuestos { get; set; }
+    public decimal TotalDescuento { get; set; }
+    public decimal TotalIva { get; set; }
+    public decimal ImporteTotal { get; set; }
+
+    public string? XmlSigned { get; set; }
+    public string? XmlAuthorized { get; set; }
+    public string? NumeroAutorizacion { get; set; }
+    public DateTime? FechaAutorizacion { get; set; }
+    public byte[]? RidePdf { get; set; }
+
+    public string? ErrorMessage { get; set; }
+    public DateTime? SentAt { get; set; }
+    public int RetryCount { get; set; }
+
+    public virtual OrderPayment? OrderPayment { get; set; }
 }
 
 // ── PaymentMethodConfig ───────────────────────────────────────────────────────

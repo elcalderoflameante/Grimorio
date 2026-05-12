@@ -181,6 +181,12 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserContext, HttpContextCurrentUserContext>();
 
+// === Data Protection (cifrado del certificado .p12 y contraseña SRI) ===
+builder.Services.AddDataProtection();
+
+// === HTTP client para llamadas al SRI ===
+builder.Services.AddHttpClient();
+
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
 builder.Services.AddFluentValidationAutoValidation();

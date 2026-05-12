@@ -60,9 +60,11 @@ public class GrimorioDbContext : DbContext
     public DbSet<PayrollRoleHeader> PayrollRoleHeaders { get; set; } = null!;
     public DbSet<PayrollRoleDetail> PayrollRoleDetails { get; set; } = null!;
 
-    // === Billing: Tax ===
+    // === Billing: Tax & SRI ===
     public DbSet<TaxRate> TaxRates { get; set; } = null!;
     public DbSet<BranchTaxConfig> BranchTaxConfigs { get; set; } = null!;
+    public DbSet<SriCertificate> SriCertificates { get; set; } = null!;
+    public DbSet<ElectronicDocument> ElectronicDocuments { get; set; } = null!;
 
     // === POS ===
     public DbSet<RestaurantTable> RestaurantTables { get; set; } = null!;

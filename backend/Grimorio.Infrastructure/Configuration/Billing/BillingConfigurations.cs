@@ -38,9 +38,55 @@ public class BranchTaxConfigConfiguration : BaseEntityConfiguration<BranchTaxCon
         builder.Property(x => x.CodigoEstablecimiento).IsRequired().HasMaxLength(3);
         builder.Property(x => x.PuntoEmision).IsRequired().HasMaxLength(3);
         builder.Property(x => x.Ambiente).IsRequired().HasMaxLength(1);
+        builder.Property(x => x.ContribuyenteEspecial).HasMaxLength(20);
+        builder.Property(x => x.Secuencial).HasDefaultValue(0L);
 
         builder.HasIndex(x => x.BranchId).IsUnique()
             .HasFilter("\"IsDeleted\" = false");
+    }
+}
+
+public class SriCertificateConfiguration : BaseEntityConfiguration<SriCertificate>
+{
+    public override void Configure(EntityTypeBuilder<SriCertificate> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("SriCertificates", "billing");
+
+        builder.Property(x => x.FileName).IsRequired().HasMaxLength(200);
+        builder.Property(x => x.PasswordEncrypted).IsRequired().HasMaxLength(2000);
+
+        builder.HasIndex(x => x.BranchId).IsUnique()
+            .HasFilter("\"IsDeleted\" = false");
+    }
+}
+
+public class ElectronicDocumentConfiguration : BaseEntityConfiguration<ElectronicDocument>
+{
+    public override void Configure(EntityTypeBuilder<ElectronicDocument> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("ElectronicDocuments", "billing");
+
+        builder.Property(x => x.ClaveAcceso).IsRequired().HasMaxLength(49);
+        builder.Property(x => x.NumeroFactura).IsRequired().HasMaxLength(17);
+        builder.Property(x => x.Environment).IsRequired().HasMaxLength(1);
+        builder.Property(x => x.NumeroAutorizacion).HasMaxLength(49);
+        builder.Property(x => x.ErrorMessage).HasMaxLength(2000);
+
+        builder.Property(x => x.TotalSinImpuestos).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.TotalDescuento).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.TotalIva).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.ImporteTotal).HasColumnType("numeric(18,2)");
+
+        builder.HasOne(x => x.OrderPayment)
+            .WithMany()
+            .HasForeignKey(x => x.OrderPaymentId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => x.ClaveAcceso).IsUnique();
+        builder.HasIndex(x => new { x.BranchId, x.Status });
+        builder.HasIndex(x => x.OrderPaymentId);
     }
 }
 

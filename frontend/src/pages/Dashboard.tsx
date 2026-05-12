@@ -28,6 +28,7 @@ import {
   ContactsOutlined,
   FileTextOutlined,
   PercentageOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
@@ -65,6 +66,7 @@ import CashRegister from '../components/Billing/CashRegister';
 import SalesHistory from '../components/Billing/SalesHistory';
 import PaymentMethodsSettings from '../components/Billing/PaymentMethodsSettings';
 import TaxConfig from '../components/Billing/TaxConfig';
+import SriConfig from '../components/Billing/SriConfig';
 import { inventoryApi } from '../services/api';
 import type { StockAlertDto } from '../types';
 import type { MenuProps } from 'antd';
@@ -267,6 +269,7 @@ export default function Dashboard() {
         { key: 'billing-customers', label: 'Clientes', icon: <ContactsOutlined /> },
         { key: 'billing-payment-methods', label: 'Medios de pago', icon: <DollarOutlined /> },
         { key: 'billing-tax-config', label: 'Config. fiscal (IVA)', icon: <PercentageOutlined /> },
+        { key: 'billing-sri', label: 'Facturación electrónica', icon: <SafetyCertificateOutlined /> },
       ],
     },
   ], [hasPermission, alertasStock.length]);
@@ -361,6 +364,8 @@ export default function Dashboard() {
         return <PaymentMethodsSettings />;
       case 'billing-tax-config':
         return <TaxConfig />;
+      case 'billing-sri':
+        return <SriConfig />;
       default:
         return <Welcome />;
     }
