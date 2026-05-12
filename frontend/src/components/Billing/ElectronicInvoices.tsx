@@ -181,6 +181,14 @@ export default function ElectronicInvoices() {
             ),
           },
           {
+            title: 'Error',
+            dataIndex: 'errorMessage',
+            ellipsis: true,
+            render: (v?: string) => v
+              ? <Tooltip title={v}><Text type="danger" style={{ fontSize: 12 }}>{v}</Text></Tooltip>
+              : null,
+          },
+          {
             title: 'Acciones',
             width: 140,
             render: (_: unknown, r: ElectronicDocumentDto) => (

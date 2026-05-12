@@ -37,6 +37,7 @@ public static class SriXmlBuilder
 
         w.WriteEndElement(); // factura
         w.WriteEndDocument();
+        w.Flush(); // vaciar buffer interno antes de leer el StringBuilder
 
         return sb.ToString();
     }

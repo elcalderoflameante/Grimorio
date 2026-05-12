@@ -245,8 +245,9 @@ public static class SriXmlSigner
     {
         // Usar C14N sobre el nodo referenciado
         var nav = doc.CreateNavigator();
+        // SRI usa id minúscula en el comprobante; los nodos internos de firma usan Id mayúscula
         var iter = nav!.Select(
-            xpath.StartsWith('#') ? $"//*[@Id='{xpath[1..]}']" : xpath);
+            xpath.StartsWith('#') ? $"//*[@Id='{xpath[1..]}' or @id='{xpath[1..]}']" : xpath);
         if (!iter.MoveNext()) throw new InvalidOperationException($"Nodo {xpath} no encontrado.");
 
         using var ms = new MemoryStream();
