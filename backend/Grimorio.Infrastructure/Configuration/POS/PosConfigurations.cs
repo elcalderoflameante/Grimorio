@@ -45,6 +45,13 @@ public class OrdenConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(x => x.DeliveryAddress).HasMaxLength(400);
         builder.Property(x => x.Notes).HasMaxLength(500);
         builder.Property(x => x.Subtotal).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.DiscountTotal).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.TaxableBase15).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.TaxableBase0).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.TaxableBaseExempt).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Iva15).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Ice).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.TaxAmount).HasColumnType("numeric(18,2)");
         builder.Property(x => x.Total).HasColumnType("numeric(18,2)");
 
         builder.HasOne(x => x.Table)
@@ -72,6 +79,9 @@ public class OrdenItemConfiguration : IEntityTypeConfiguration<OrderItem>
 
         builder.Property(x => x.Notes).HasMaxLength(300);
         builder.Property(x => x.UnitPrice).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.DiscountPct).HasColumnType("numeric(5,2)");
+        builder.Property(x => x.DiscountAmount).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.TaxAmount).HasColumnType("numeric(18,2)");
         builder.Property(x => x.TotalPrice).HasColumnType("numeric(18,2)");
 
         builder.HasOne(x => x.Order)
@@ -82,6 +92,11 @@ public class OrdenItemConfiguration : IEntityTypeConfiguration<OrderItem>
         builder.HasOne(x => x.Station)
             .WithMany(x => x.Items)
             .HasForeignKey(x => x.StationId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(x => x.TaxRate)
+            .WithMany()
+            .HasForeignKey(x => x.TaxRateId)
             .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(x => new { x.BranchId, x.OrderId });
@@ -122,6 +137,31 @@ public class RestaurantTableConfiguration : IEntityTypeConfiguration<RestaurantT
 
         builder.Property(x => x.PosX).HasDefaultValue(0);
         builder.Property(x => x.PosY).HasDefaultValue(0);
+    }
+}
+
+public class OrderItemIngredientChoiceConfiguration : IEntityTypeConfiguration<OrderItemIngredientChoice>
+{
+    public void Configure(EntityTypeBuilder<OrderItemIngredientChoice> builder)
+    {
+        builder.ToTable("OrderItemIngredientChoices", "pos");
+
+        builder.HasOne(x => x.OrderItem)
+            .WithMany(x => x.IngredientChoices)
+            .HasForeignKey(x => x.OrderItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.RecipeIngredient)
+            .WithMany()
+            .HasForeignKey(x => x.RecipeIngredientId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.ChosenArticle)
+            .WithMany()
+            .HasForeignKey(x => x.ChosenArticleId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => x.OrderItemId);
     }
 }
 

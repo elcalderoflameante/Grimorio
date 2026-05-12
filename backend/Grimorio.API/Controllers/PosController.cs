@@ -167,7 +167,7 @@ public class PosController : ControllerBase
         {
             OrderItemId = id,
             BranchId = branchId,
-            Status = body.Status,
+            Status = body.Estado,
         });
         return Ok(result);
     }
@@ -199,7 +199,7 @@ public class PosController : ControllerBase
         return claim != null && Guid.TryParse(claim, out userId);
     }
 
-    public class SetItemEstadoBody { public string Status { get; set; } = string.Empty; }
+    public class SetItemEstadoBody { public string Estado { get; set; } = string.Empty; }
     public class UpdateTablePositionDto { public int PosX { get; set; } public int PosY { get; set; } }
 }
 

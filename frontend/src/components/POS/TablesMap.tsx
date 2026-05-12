@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Badge, Button, Card, Empty, Spin, Tag, Tooltip, message } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { tableServiceApi } from '../../services/api';
@@ -8,22 +8,23 @@ import { formatError } from '../../utils/errorHandler';
 interface Props {
   branchId: string;
   onSelectTable: (table: RestaurantTableDto) => void;
+  refreshKey?: number;
 }
 
-export default function TablesMap({ branchId, onSelectTable }: Props) {
+export default function TablesMap({ branchId, onSelectTable, refreshKey }: Props) {
   const [tables, setTables] = useState<RestaurantTableDto[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await tableServiceApi.getTables(branchId);
       setTables(res.data.filter(m => m.isActive));
     } catch (e) { message.error(formatError(e)); }
     finally { setLoading(false); }
-  };
+  }, [branchId]);
 
-  useEffect(() => { load(); }, [branchId]);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   if (loading) return <Spin style={{ display: 'block', margin: '40px auto' }} />;
 
@@ -73,7 +74,7 @@ export default function TablesMap({ branchId, onSelectTable }: Props) {
                     <div style={{ fontSize: 18, fontWeight: 700 }}>{table.code}</div>
                     <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>{table.name}</div>
                     <Tag color={occupied ? 'error' : 'success'} style={{ fontSize: 11 }}>
-                      {occupied ? 'Occupied' : 'Free'}
+                      {occupied ? 'Ocupada' : 'Libre'}
                     </Tag>
                     {occupied && (
                       <Badge

@@ -1,4 +1,4 @@
-﻿using Grimorio.Application.DTOs;
+using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.POS.Commands;
 using Grimorio.Domain.Entities.POS;
 using Grimorio.Infrastructure.Persistence;
@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Grimorio.Infrastructure.Features.POS.Commands;
 
-// â”€â”€ Estaciones â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Estaciones ────────────────────────────────────────────────────────────────
 
 public class CreateWorkStationCommandHandler : IRequestHandler<CreateWorkStationCommand, WorkStationDto>
 {
@@ -69,7 +69,7 @@ public class DeleteWorkStationCommandHandler : IRequestHandler<DeleteWorkStation
     }
 }
 
-// â”€â”€ Mesas posiciÃ³n â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Mesas posición ────────────────────────────────────────────────────────────
 
 public class UpdateTablePositionCommandHandler : IRequestHandler<UpdateTablePositionCommand, bool>
 {
@@ -87,7 +87,7 @@ public class UpdateTablePositionCommandHandler : IRequestHandler<UpdateTablePosi
     }
 }
 
-// â”€â”€ Ã“rdenes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Órdenes ───────────────────────────────────────────────────────────────────
 
 public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, OrderDto>
 {
@@ -97,7 +97,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
     public async Task<OrderDto> Handle(CreateOrderCommand req, CancellationToken ct)
     {
         if (!Enum.TryParse<OrderType>(req.Type, out var orderType))
-            throw new InvalidOperationException($"Type de orden no vÃ¡lido: {req.Type}");
+            throw new InvalidOperationException($"Type de orden no válido: {req.Type}");
 
         var number = await _db.Orders
             .Where(o => o.BranchId == req.BranchId)
@@ -122,18 +122,22 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
         var menuItems = await _db.MenuItems
             .Where(m => itemMenuIds.Contains(m.Id) && !m.IsDeleted)
             .Include(m => m.Station)
+            .Include(m => m.TaxRate)
             .ToListAsync(ct);
 
-        decimal subtotal = 0;
+        decimal subtotal = 0, discountTotal = 0;
+        decimal base15 = 0, base0 = 0, baseExempt = 0, iva15 = 0, ice = 0;
         foreach (var itemDto in req.Items)
         {
             var menuItem = menuItems.FirstOrDefault(m => m.Id == itemDto.MenuItemId)
-                ?? throw new InvalidOperationException($"Ãtem no encontrado: {itemDto.MenuItemId}");
+                ?? throw new InvalidOperationException($"Ítem no encontrado: {itemDto.MenuItemId}");
 
-            var totalPrice = menuItem.Price * itemDto.Quantity;
-            subtotal += totalPrice;
+            var (discountAmt, taxableBase, taxAmt, totalPrice) = PosMapper.CalcItem(menuItem.Price, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage);
+            subtotal += menuItem.Price * itemDto.Quantity;
+            discountTotal += discountAmt;
+            PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, taxableBase, taxAmt, ref base15, ref base0, ref baseExempt, ref iva15, ref ice);
 
-            order.Items.Add(new OrderItem
+            var orderItem = new OrderItem
             {
                 Id = Guid.NewGuid(),
                 BranchId = req.BranchId,
@@ -141,14 +145,34 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
                 StationId = menuItem.StationId,
                 Quantity = itemDto.Quantity,
                 UnitPrice = menuItem.Price,
+                DiscountPct = itemDto.DiscountPct,
+                DiscountAmount = discountAmt,
+                TaxRateId = menuItem.TaxRateId,
+                TaxAmount = taxAmt,
                 TotalPrice = totalPrice,
                 Notes = itemDto.Notes?.Trim(),
                 Status = OrderItemStatus.Pending,
-            });
+            };
+            foreach (var choice in itemDto.IngredientChoices)
+                orderItem.IngredientChoices.Add(new OrderItemIngredientChoice
+                {
+                    BranchId = req.BranchId,
+                    RecipeIngredientId = choice.RecipeIngredientId,
+                    ChosenArticleId = choice.ChosenArticleId,
+                });
+            order.Items.Add(orderItem);
         }
 
         order.Subtotal = subtotal;
-        order.Total = subtotal;
+        order.DiscountTotal = discountTotal;
+        order.TaxableBase15 = base15;
+        order.TaxableBase0 = base0;
+        order.TaxableBaseExempt = baseExempt;
+        order.Iva15 = iva15;
+        order.Ice = ice;
+        order.TaxAmount = iva15 + ice;
+        // Precio inclusivo: Total = suma bruta - descuentos (IVA ya incluido)
+        order.Total = subtotal - discountTotal;
 
         _db.Orders.Add(order);
         await _db.SaveChangesAsync(ct);
@@ -162,6 +186,8 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
             .Include(o => o.Table)
             .Include(o => o.Items).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items).ThenInclude(i => i.Station)
+            .Include(o => o.Items).ThenInclude(i => i.IngredientChoices)
+                .ThenInclude(c => c.ChosenArticle)
             .FirstAsync(o => o.Id == id, ct);
         return PosMapper.MapOrder(order);
     }
@@ -177,29 +203,37 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
         var order = await _db.Orders
             .Include(o => o.Items)
             .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
-            ?? throw new InvalidOperationException("Order no encontrada.");
+            ?? throw new InvalidOperationException("Orden no encontrada.");
 
-        if (order.Status != OrderStatus.Draft)
-            throw new InvalidOperationException("Solo se pueden modificar Ã³rdenes en borrador.");
-
-        // Soft-delete existing items
-        foreach (var item in order.Items.Where(i => !i.IsDeleted))
-            item.IsDeleted = true;
+        if (order.Status == OrderStatus.Draft)
+        {
+            // Draft: reemplazar todos los ítems existentes
+            foreach (var item in order.Items.Where(i => !i.IsDeleted))
+                item.IsDeleted = true;
+        }
+        else if (order.Status != OrderStatus.Confirmed && order.Status != OrderStatus.InPreparation)
+        {
+            throw new InvalidOperationException("No se pueden agregar ítems en el estado actual de la orden.");
+        }
 
         var itemMenuIds = req.Items.Select(i => i.MenuItemId).Distinct().ToList();
         var menuItems = await _db.MenuItems
             .Where(m => itemMenuIds.Contains(m.Id) && !m.IsDeleted)
             .Include(m => m.Station)
+            .Include(m => m.TaxRate)
             .ToListAsync(ct);
 
-        decimal subtotal = 0;
+        decimal addedSubtotal = 0, addedDiscount = 0;
+        decimal addedBase15 = 0, addedBase0 = 0, addedBaseExempt = 0, addedIva15 = 0, addedIce = 0;
         foreach (var itemDto in req.Items)
         {
             var menuItem = menuItems.FirstOrDefault(m => m.Id == itemDto.MenuItemId)
-                ?? throw new InvalidOperationException($"Ãtem no encontrado: {itemDto.MenuItemId}");
+                ?? throw new InvalidOperationException($"Ítem no encontrado: {itemDto.MenuItemId}");
 
-            var totalPrice = menuItem.Price * itemDto.Quantity;
-            subtotal += totalPrice;
+            var (discountAmt, taxableBase, taxAmt, totalPrice) = PosMapper.CalcItem(menuItem.Price, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage);
+            addedSubtotal += menuItem.Price * itemDto.Quantity;
+            addedDiscount += discountAmt;
+            PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, taxableBase, taxAmt, ref addedBase15, ref addedBase0, ref addedBaseExempt, ref addedIva15, ref addedIce);
 
             var newItem = new OrderItem
             {
@@ -210,21 +244,58 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
                 StationId = menuItem.StationId,
                 Quantity = itemDto.Quantity,
                 UnitPrice = menuItem.Price,
+                DiscountPct = itemDto.DiscountPct,
+                DiscountAmount = discountAmt,
+                TaxRateId = menuItem.TaxRateId,
+                TaxAmount = taxAmt,
                 TotalPrice = totalPrice,
                 Notes = itemDto.Notes?.Trim(),
                 Status = OrderItemStatus.Pending,
             };
+            foreach (var choice in itemDto.IngredientChoices)
+                newItem.IngredientChoices.Add(new OrderItemIngredientChoice
+                {
+                    BranchId = req.BranchId,
+                    RecipeIngredientId = choice.RecipeIngredientId,
+                    ChosenArticleId = choice.ChosenArticleId,
+                });
             _db.OrderItems.Add(newItem);
         }
 
-        order.Subtotal = subtotal;
-        order.Total = subtotal;
+        if (order.Status == OrderStatus.Draft)
+        {
+            order.Subtotal = addedSubtotal;
+            order.DiscountTotal = addedDiscount;
+            order.TaxableBase15 = addedBase15;
+            order.TaxableBase0 = addedBase0;
+            order.TaxableBaseExempt = addedBaseExempt;
+            order.Iva15 = addedIva15;
+            order.Ice = addedIce;
+            order.TaxAmount = addedIva15 + addedIce;
+            order.Total = addedSubtotal - addedDiscount;
+        }
+        else
+        {
+            order.Subtotal += addedSubtotal;
+            order.DiscountTotal += addedDiscount;
+            order.TaxableBase15 += addedBase15;
+            order.TaxableBase0 += addedBase0;
+            order.TaxableBaseExempt += addedBaseExempt;
+            order.Iva15 += addedIva15;
+            order.Ice += addedIce;
+            order.TaxAmount += addedIva15 + addedIce;
+            order.Total += addedSubtotal - addedDiscount;
+        }
+
         await _db.SaveChangesAsync(ct);
 
         var updated = await _db.Orders
             .Include(o => o.Table)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.IngredientChoices.Where(c => !c.IsDeleted))
+                    .ThenInclude(c => c.ChosenArticle)
             .FirstAsync(o => o.Id == order.Id, ct);
         return PosMapper.MapOrder(updated);
     }
@@ -242,13 +313,13 @@ public class ConfirmOrderCommandHandler : IRequestHandler<ConfirmOrderCommand, O
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
             .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
-            ?? throw new InvalidOperationException("Order no encontrada.");
+            ?? throw new InvalidOperationException("Orden no encontrada.");
 
         if (order.Status != OrderStatus.Draft)
             throw new InvalidOperationException("La orden ya fue confirmada.");
 
         if (!order.Items.Any(i => !i.IsDeleted))
-            throw new InvalidOperationException("La orden no tiene Ã­tems.");
+            throw new InvalidOperationException("La orden no tiene ítems.");
 
         order.Status = OrderStatus.Confirmed;
         order.ConfirmedAt = DateTime.UtcNow;
@@ -269,7 +340,7 @@ public class DeliverOrderCommandHandler : IRequestHandler<DeliverOrderCommand, O
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
             .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
-            ?? throw new InvalidOperationException("Order no encontrada.");
+            ?? throw new InvalidOperationException("Orden no encontrada.");
 
         order.Status = OrderStatus.Delivered;
         order.DeliveredAt = DateTime.UtcNow;
@@ -290,7 +361,7 @@ public class CancelOrderCommandHandler : IRequestHandler<CancelOrderCommand, Ord
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
             .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
-            ?? throw new InvalidOperationException("Order no encontrada.");
+            ?? throw new InvalidOperationException("Orden no encontrada.");
 
         order.Status = OrderStatus.Cancelled;
         await _db.SaveChangesAsync(ct);
@@ -309,10 +380,10 @@ public class SetOrderItemStatusCommandHandler : IRequestHandler<SetOrderItemStat
             .Include(i => i.MenuItem)
             .Include(i => i.Station)
             .FirstOrDefaultAsync(i => i.Id == req.OrderItemId && i.BranchId == req.BranchId && !i.IsDeleted, ct)
-            ?? throw new InvalidOperationException("Ãtem de orden no encontrado.");
+            ?? throw new InvalidOperationException("Ítem de orden no encontrado.");
 
         if (!Enum.TryParse<OrderItemStatus>(req.Status, out var status))
-            throw new InvalidOperationException($"Status no vÃ¡lido: {req.Status}");
+            throw new InvalidOperationException($"Status no válido: {req.Status}");
 
         item.Status = status;
 
@@ -335,10 +406,50 @@ public class SetOrderItemStatusCommandHandler : IRequestHandler<SetOrderItemStat
     }
 }
 
-// â”€â”€ Mapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Mapper ────────────────────────────────────────────────────────────────────
 
 internal static class PosMapper
 {
+    // El precio ingresado en menú es precio final al público (incluye IVA).
+    // Este método extrae la base imponible y el IVA del precio inclusivo.
+    public static (decimal discountAmount, decimal taxableBase, decimal taxAmount, decimal totalPrice) CalcItem(
+        decimal unitPrice, int quantity, decimal discountPct, decimal? taxPct)
+    {
+        var gross = unitPrice * quantity;
+        var discountAmount = Math.Round(gross * (discountPct / 100m), 2);
+        var netInclusive = gross - discountAmount;
+        decimal taxableBase, taxAmount;
+        if (taxPct.HasValue && taxPct.Value > 0)
+        {
+            taxableBase = Math.Round(netInclusive / (1m + taxPct.Value / 100m), 2);
+            taxAmount = Math.Round(netInclusive - taxableBase, 2);
+        }
+        else
+        {
+            taxableBase = netInclusive;
+            taxAmount = 0m;
+        }
+        return (discountAmount, taxableBase, taxAmount, netInclusive);
+    }
+
+    public static void ClassifyTax(string? sriCode, decimal taxableBase, decimal taxAmt,
+        ref decimal base15, ref decimal base0, ref decimal baseExempt, ref decimal iva15, ref decimal ice)
+    {
+        if (sriCode == "10")
+        {
+            base15 += taxableBase;
+            iva15 += taxAmt;
+        }
+        else if (sriCode == "0" || sriCode == "8")
+        {
+            base0 += taxableBase;
+        }
+        else
+        {
+            baseExempt += taxableBase;
+        }
+    }
+
     public static WorkStationDto MapWorkStation(WorkStation e) => new()
     {
         Id = e.Id,
@@ -360,6 +471,13 @@ internal static class PosMapper
         DeliveryAddress = o.DeliveryAddress,
         Notes = o.Notes,
         Subtotal = o.Subtotal,
+        DiscountTotal = o.DiscountTotal,
+        TaxableBase15 = o.TaxableBase15,
+        TaxableBase0 = o.TaxableBase0,
+        TaxableBaseExempt = o.TaxableBaseExempt,
+        Iva15 = o.Iva15,
+        Ice = o.Ice,
+        TaxAmount = o.TaxAmount,
         Total = o.Total,
         CreatedAt = o.CreatedAt,
         ConfirmedAt = o.ConfirmedAt,
@@ -379,9 +497,22 @@ internal static class PosMapper
         StationName = i.Station?.Name,
         Quantity = i.Quantity,
         UnitPrice = i.UnitPrice,
+        DiscountPct = i.DiscountPct,
+        DiscountAmount = i.DiscountAmount,
+        TaxRateId = i.TaxRateId,
+        TaxRateName = i.TaxRate?.Name,
+        TaxRatePercentage = i.TaxRate?.Percentage,
+        TaxAmount = i.TaxAmount,
         TotalPrice = i.TotalPrice,
         Notes = i.Notes,
         Status = i.Status.ToString(),
+        IngredientChoices = i.IngredientChoices
+            .Where(c => !c.IsDeleted)
+            .Select(c => new IngredientChoiceDto
+            {
+                RecipeIngredientId = c.RecipeIngredientId,
+                ChosenArticleId = c.ChosenArticleId,
+                ChosenArticleName = c.ChosenArticle?.Name ?? string.Empty,
+            }).ToList(),
     };
 }
-

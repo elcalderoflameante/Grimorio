@@ -38,6 +38,13 @@ public class OrderDto
     public string? DeliveryAddress { get; set; }
     public string? Notes { get; set; }
     public decimal Subtotal { get; set; }
+    public decimal DiscountTotal { get; set; }
+    public decimal TaxableBase15 { get; set; }
+    public decimal TaxableBase0 { get; set; }
+    public decimal TaxableBaseExempt { get; set; }
+    public decimal Iva15 { get; set; }
+    public decimal Ice { get; set; }
+    public decimal TaxAmount { get; set; }
     public decimal Total { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? ConfirmedAt { get; set; }
@@ -45,6 +52,19 @@ public class OrderDto
     public DateTime? PaidAt { get; set; }
     public int TotalItems { get; set; }
     public List<OrderItemDto> Items { get; set; } = [];
+}
+
+public class IngredientChoiceDto
+{
+    public Guid RecipeIngredientId { get; set; }
+    public Guid ChosenArticleId { get; set; }
+    public string ChosenArticleName { get; set; } = string.Empty;
+}
+
+public class CreateIngredientChoiceDto
+{
+    public Guid RecipeIngredientId { get; set; }
+    public Guid ChosenArticleId { get; set; }
 }
 
 public class OrderItemDto
@@ -57,9 +77,16 @@ public class OrderItemDto
     public string? StationName { get; set; }
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
+    public decimal DiscountPct { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public Guid? TaxRateId { get; set; }
+    public string? TaxRateName { get; set; }
+    public decimal? TaxRatePercentage { get; set; }
+    public decimal TaxAmount { get; set; }
     public decimal TotalPrice { get; set; }
     public string? Notes { get; set; }
     public string Status { get; set; } = string.Empty;
+    public List<IngredientChoiceDto> IngredientChoices { get; set; } = [];
 }
 
 public class CreateOrderDto
@@ -76,7 +103,9 @@ public class CreateOrderItemDto
 {
     public Guid MenuItemId { get; set; }
     public int Quantity { get; set; }
+    public decimal DiscountPct { get; set; }
     public string? Notes { get; set; }
+    public List<CreateIngredientChoiceDto> IngredientChoices { get; set; } = [];
 }
 
 public class UpdateOrderItemsDto

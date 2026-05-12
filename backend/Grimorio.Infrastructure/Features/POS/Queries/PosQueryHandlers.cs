@@ -41,11 +41,14 @@ public class GetOrdersQueryHandler : IRequestHandler<GetOrdersQuery, List<OrderD
             .Include(o => o.Table)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.IngredientChoices.Where(c => !c.IsDeleted))
+                    .ThenInclude(c => c.ChosenArticle)
             .AsQueryable();
 
         if (req.ActiveOnly)
             query = query.Where(o =>
-                o.Status != OrderStatus.Delivered &&
+                o.PaidAt == null &&
                 o.Status != OrderStatus.Cancelled);
 
         if (!string.IsNullOrEmpty(req.Status) && Enum.TryParse<OrderStatus>(req.Status, out var orderStatus))
@@ -74,6 +77,9 @@ public class GetOrderDetailQueryHandler : IRequestHandler<GetOrderDetailQuery, O
             .Include(o => o.Table)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.IngredientChoices.Where(c => !c.IsDeleted))
+                    .ThenInclude(c => c.ChosenArticle)
             .FirstOrDefaultAsync(ct);
 
         return order == null ? null : PosMapper.MapOrder(order);

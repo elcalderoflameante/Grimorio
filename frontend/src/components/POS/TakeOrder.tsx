@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
 import {
   Button, Card, Col, Divider, Empty, InputNumber, List, Modal,
-  Row, Space, Spin, Tag, Typography, message, Input, Badge
+  Row, Space, Spin, Tag, Typography, message, Input, Badge, Alert
 } from 'antd';
 import {
   ArrowLeftOutlined, CheckOutlined,
-  DeleteOutlined, MinusOutlined, PlusOutlined, SendOutlined
+  DeleteOutlined, MinusOutlined, PlusOutlined, SendOutlined, QuestionCircleOutlined
 } from '@ant-design/icons';
 import { menuApi, posApi } from '../../services/api';
 import type {
   MenuCategoryDto, CreateOrderItemDto, MenuItemDto,
-  OrderDto, RestaurantTableDto, OrderType
+  OrderDto, RestaurantTableDto, OrderType,
+  CreateIngredientChoiceDto
 } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 
@@ -30,6 +31,23 @@ interface OrderLine {
   price: number;
   quantity: number;
   notes?: string;
+  ingredientChoices?: CreateIngredientChoiceDto[];
+}
+
+// Returns a human-readable label for the choices of a line
+function choicesLabel(choices: CreateIngredientChoiceDto[] | undefined, items: MenuItemDto[]): string | null {
+  if (!choices || choices.length === 0) return null;
+  const item = items.find(i => i.variableIngredients?.some(v => choices.some(c => c.recipeIngredientId === v.recipeIngredientId)));
+  if (!item) return null;
+  return choices.map(c => {
+    const slot = item.variableIngredients.find(v => v.recipeIngredientId === c.recipeIngredientId);
+    if (!slot) return '';
+    const allOptions = [
+      { articleId: slot.defaultArticleId, articleName: slot.defaultArticleName },
+      ...slot.alternatives,
+    ];
+    return allOptions.find(o => o.articleId === c.chosenArticleId)?.articleName ?? c.chosenArticleId;
+  }).filter(Boolean).join(', ');
 }
 
 export default function TakeOrder({ table, orderType, existingOrder, onClose, onConfirm }: Props) {
@@ -43,6 +61,12 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [obsModal, setObsModal] = useState<{ idx: number; obs: string } | null>(null);
+
+  // Variable ingredient choice modal
+  const [choiceTarget, setChoiceTarget] = useState<MenuItemDto | null>(null);
+  // recipeIngredientId → chosenArticleId (no defaults — must actively choose)
+  const [pendingChoices, setPendingChoices] = useState<Record<string, string>>({});
+  const [choiceError, setChoiceError] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -63,6 +87,10 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
             price: i.unitPrice,
             quantity: i.quantity,
             notes: i.notes,
+            ingredientChoices: i.ingredientChoices?.map(c => ({
+              recipeIngredientId: c.recipeIngredientId,
+              chosenArticleId: c.chosenArticleId,
+            })),
           }));
           setLines(linesFromOrder);
         }
@@ -70,18 +98,49 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
       finally { setLoading(false); }
     };
     loadData();
-  }, []);
+  }, [existingOrder]);
 
   const filteredItems = items.filter(i => i.menuCategoryId === activeCategory);
 
   const addItem = (item: MenuItemDto) => {
+    if (item.variableIngredients && item.variableIngredients.length > 0) {
+      setPendingChoices({});
+      setChoiceError(false);
+      setChoiceTarget(item);
+      return;
+    }
     setLines(prev => {
-      const existing = prev.findIndex(l => l.menuItemId === item.id);
+      const existing = prev.findIndex(l => l.menuItemId === item.id && !l.ingredientChoices?.length);
       if (existing >= 0) {
         return prev.map((l, i) => i === existing ? { ...l, quantity: l.quantity + 1 } : l);
       }
       return [...prev, { menuItemId: item.id, name: item.name, price: item.price, quantity: 1 }];
     });
+  };
+
+  const confirmChoices = () => {
+    if (!choiceTarget) return;
+    const missing = choiceTarget.variableIngredients.some(
+      slot => !pendingChoices[slot.recipeIngredientId]
+    );
+    if (missing) {
+      setChoiceError(true);
+      return;
+    }
+    const choices: CreateIngredientChoiceDto[] = choiceTarget.variableIngredients.map(slot => ({
+      recipeIngredientId: slot.recipeIngredientId,
+      chosenArticleId: pendingChoices[slot.recipeIngredientId],
+    }));
+    setLines(prev => [...prev, {
+      menuItemId: choiceTarget.id,
+      name: choiceTarget.name,
+      price: choiceTarget.price,
+      quantity: 1,
+      ingredientChoices: choices,
+    }]);
+    setChoiceTarget(null);
+    setPendingChoices({});
+    setChoiceError(false);
   };
 
   const changeQuantity = (idx: number, quantity: number) => {
@@ -96,6 +155,25 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
 
   const subtotal = lines.reduce((sum, l) => sum + l.price * l.quantity, 0);
 
+  // El precio en menú ya incluye IVA — extraemos la base y el impuesto
+  const fiscal = lines.reduce((acc, l) => {
+    const menuItem = items.find(i => i.id === l.menuItemId);
+    const sriCode = menuItem?.taxRateSriCode;
+    const taxPct = menuItem?.taxRatePercentage;
+    const gross = l.price * l.quantity;
+    if (sriCode === '10' && taxPct) {
+      const base = Math.round(gross / (1 + taxPct / 100) * 100) / 100;
+      const iva = Math.round((gross - base) * 100) / 100;
+      acc.base15 += base;
+      acc.iva15 += iva;
+    } else if (sriCode === '0' || sriCode === '8') {
+      acc.base0 += gross;
+    } else {
+      acc.baseExempt += gross;
+    }
+    return acc;
+  }, { base15: 0, base0: 0, baseExempt: 0, iva15: 0 });
+
   const handleSave = async (confirm: boolean) => {
     if (lines.length === 0) { message.warning('Agrega al menos un ítem'); return; }
     setSaving(true);
@@ -104,6 +182,7 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
         menuItemId: l.menuItemId,
         quantity: l.quantity,
         notes: l.notes,
+        ingredientChoices: l.ingredientChoices,
       }));
 
       let order: OrderDto;
@@ -200,7 +279,9 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
               <Empty description="Sin ítems en esta categoría" style={{ width: '100%' }} image={Empty.PRESENTED_IMAGE_SIMPLE} />
             )}
             {filteredItems.map(item => {
-              const inOrder = lines.find(l => l.menuItemId === item.id);
+              const inOrder = lines.filter(l => l.menuItemId === item.id);
+              const totalQty = inOrder.reduce((s, l) => s + l.quantity, 0);
+              const hasVariable = item.variableIngredients?.length > 0;
               return (
                 <Card
                   key={item.id}
@@ -210,15 +291,18 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
                   style={{
                     width: 130,
                     cursor: 'pointer',
-                    borderColor: inOrder ? '#1677ff' : undefined,
-                    background: inOrder ? '#e6f4ff' : undefined,
+                    borderColor: totalQty > 0 ? '#1677ff' : undefined,
+                    background: totalQty > 0 ? '#e6f4ff' : undefined,
                   }}
                   styles={{ body: { padding: '8px 10px' } }}
                 >
                   <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>{item.name}</div>
                   <div style={{ fontSize: 12, color: '#1677ff', marginTop: 4 }}>${item.price.toFixed(2)}</div>
-                  {inOrder && (
-                    <Badge count={inOrder.quantity} style={{ background: '#1677ff', fontSize: 11 }} />
+                  {hasVariable && (
+                    <QuestionCircleOutlined style={{ color: '#fa8c16', fontSize: 11, marginTop: 2 }} title="Tiene ingredientes variables" />
+                  )}
+                  {totalQty > 0 && (
+                    <Badge count={totalQty} style={{ background: '#1677ff', fontSize: 11 }} />
                   )}
                 </Card>
               );
@@ -237,50 +321,74 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
               <List
                 dataSource={lines}
                 style={{ flex: 1, overflowY: 'auto' }}
-                renderItem={(line, idx) => (
-                  <List.Item style={{ padding: '6px 0' }}>
-                    <div style={{ width: '100%' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text style={{ fontSize: 13, flex: 1 }}>{line.name}</Text>
+                renderItem={(line, idx) => {
+                  const label = choicesLabel(line.ingredientChoices, items);
+                  return (
+                    <List.Item style={{ padding: '6px 0' }}>
+                      <div style={{ width: '100%' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Text style={{ fontSize: 13, flex: 1 }}>{line.name}</Text>
+                          <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => removeLine(idx)} />
+                        </div>
+                        {label && (
+                          <Tag color="orange" style={{ fontSize: 11, marginTop: 2 }}>{label}</Tag>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                          <Button size="small" icon={<MinusOutlined />} onClick={() => changeQuantity(idx, line.quantity - 1)} />
+                          <InputNumber
+                            size="small"
+                            min={1}
+                            value={line.quantity}
+                            onChange={v => changeQuantity(idx, v ?? 1)}
+                            style={{ width: 50 }}
+                          />
+                          <Button size="small" icon={<PlusOutlined />} onClick={() => changeQuantity(idx, line.quantity + 1)} />
+                          <Text type="secondary" style={{ fontSize: 12, marginLeft: 'auto' }}>
+                            ${(line.price * line.quantity).toFixed(2)}
+                          </Text>
+                        </div>
                         <Button
-                          type="text"
+                          type="link"
                           size="small"
-                          danger
-                          icon={<DeleteOutlined />}
-                          onClick={() => removeLine(idx)}
-                        />
+                          style={{ padding: 0, fontSize: 11 }}
+                          onClick={() => setObsModal({ idx, obs: line.notes ?? '' })}
+                        >
+                          {line.notes ? `Obs: ${line.notes}` : '+ observación'}
+                        </Button>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                        <Button size="small" icon={<MinusOutlined />} onClick={() => changeQuantity(idx, line.quantity - 1)} />
-                        <InputNumber
-                          size="small"
-                          min={1}
-                          value={line.quantity}
-                          onChange={v => changeQuantity(idx, v ?? 1)}
-                          style={{ width: 50 }}
-                        />
-                        <Button size="small" icon={<PlusOutlined />} onClick={() => changeQuantity(idx, line.quantity + 1)} />
-                        <Text type="secondary" style={{ fontSize: 12, marginLeft: 'auto' }}>
-                          ${(line.price * line.quantity).toFixed(2)}
-                        </Text>
-                      </div>
-                      <Button
-                        type="link"
-                        size="small"
-                        style={{ padding: 0, fontSize: 11 }}
-                        onClick={() => setObsModal({ idx, obs: line.notes ?? '' })}
-                      >
-                        {line.notes ? `Obs: ${line.notes}` : '+ observación'}
-                      </Button>
-                    </div>
-                  </List.Item>
-                )}
+                    </List.Item>
+                  );
+                }}
               />
             )}
 
             <Divider style={{ margin: '8px 0' }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-              <Text strong>Total</Text>
+            {fiscal.base15 > 0 && (
+              <div style={{ marginBottom: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Text type="secondary" style={{ fontSize: 11 }}>Base 15%</Text>
+                  <Text style={{ fontSize: 11 }}>${fiscal.base15.toFixed(2)}</Text>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Text type="secondary" style={{ fontSize: 11 }}>IVA 15%</Text>
+                  <Text style={{ fontSize: 11, color: '#1677ff' }}>${fiscal.iva15.toFixed(2)}</Text>
+                </div>
+              </div>
+            )}
+            {fiscal.base0 > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text type="secondary" style={{ fontSize: 11 }}>Base 0%</Text>
+                <Text style={{ fontSize: 11 }}>${fiscal.base0.toFixed(2)}</Text>
+              </div>
+            )}
+            {fiscal.baseExempt > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text type="secondary" style={{ fontSize: 11 }}>Base exenta</Text>
+                <Text style={{ fontSize: 11 }}>${fiscal.baseExempt.toFixed(2)}</Text>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, borderTop: '1px solid #f0f0f0', paddingTop: 4 }}>
+              <Text strong>Total (IVA incluido)</Text>
               <Text strong style={{ fontSize: 16 }}>${subtotal.toFixed(2)}</Text>
             </div>
 
@@ -293,23 +401,10 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
             />
 
             <Space direction="vertical" style={{ width: '100%' }} size={6}>
-              <Button
-                type="primary"
-                icon={<SendOutlined />}
-                block
-                loading={saving}
-                disabled={lines.length === 0}
-                onClick={() => handleSave(true)}
-              >
+              <Button type="primary" icon={<SendOutlined />} block loading={saving} disabled={lines.length === 0} onClick={() => handleSave(true)}>
                 Enviar a cocina
               </Button>
-              <Button
-                icon={<CheckOutlined />}
-                block
-                loading={saving}
-                disabled={lines.length === 0}
-                onClick={() => handleSave(false)}
-              >
+              <Button icon={<CheckOutlined />} block loading={saving} disabled={lines.length === 0} onClick={() => handleSave(false)}>
                 Guardar borrador
               </Button>
             </Space>
@@ -337,6 +432,87 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
           value={obsModal?.obs}
           onChange={e => obsModal && setObsModal({ ...obsModal, obs: e.target.value })}
         />
+      </Modal>
+
+      {/* Modal selección de ingredientes variables */}
+      <Modal
+        title={choiceTarget?.name}
+        open={!!choiceTarget}
+        onOk={confirmChoices}
+        onCancel={() => { setChoiceTarget(null); setPendingChoices({}); setChoiceError(false); }}
+        okText="Agregar al pedido"
+        cancelText="Cancelar"
+        width={420}
+        okButtonProps={{ size: 'large' }}
+        cancelButtonProps={{ size: 'large' }}
+      >
+        {choiceTarget && (
+          <div style={{ paddingTop: 8 }}>
+            {choiceError && (
+              <Alert
+                type="error"
+                showIcon
+                title="Debes seleccionar una opción antes de continuar"
+                style={{ marginBottom: 16 }}
+              />
+            )}
+            {choiceTarget.variableIngredients.map((slot, slotIdx) => {
+              const allOptions = [
+                { articleId: slot.defaultArticleId, articleName: slot.defaultArticleName },
+                ...slot.alternatives,
+              ];
+              const chosen = pendingChoices[slot.recipeIngredientId];
+              const slotMissing = choiceError && !chosen;
+              return (
+                <div key={slot.recipeIngredientId}>
+                  {choiceTarget.variableIngredients.length > 1 && (
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
+                      {slotIdx === 0 ? 'Elige una opción:' : `Elige otra opción:`}
+                    </Text>
+                  )}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: slotIdx < choiceTarget.variableIngredients.length - 1 ? 20 : 0 }}>
+                    {allOptions.map(opt => {
+                      const selected = chosen === opt.articleId;
+                      return (
+                        <div
+                          key={opt.articleId}
+                          onClick={() => {
+                            setPendingChoices(prev => ({ ...prev, [slot.recipeIngredientId]: opt.articleId }));
+                            setChoiceError(false);
+                          }}
+                          style={{
+                            flex: '1 1 calc(33% - 10px)',
+                            minWidth: 100,
+                            padding: '14px 10px',
+                            borderRadius: 10,
+                            border: `2px solid ${selected ? '#1677ff' : slotMissing ? '#ff4d4f' : '#d9d9d9'}`,
+                            background: selected ? '#e6f4ff' : '#fff',
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                            transition: 'all 0.15s',
+                            userSelect: 'none',
+                          }}
+                        >
+                          <div style={{
+                            fontSize: 14,
+                            fontWeight: selected ? 600 : 400,
+                            color: selected ? '#1677ff' : '#262626',
+                            lineHeight: 1.3,
+                          }}>
+                            {opt.articleName}
+                          </div>
+                          {selected && (
+                            <CheckOutlined style={{ color: '#1677ff', fontSize: 12, marginTop: 4 }} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </Modal>
     </div>
   );

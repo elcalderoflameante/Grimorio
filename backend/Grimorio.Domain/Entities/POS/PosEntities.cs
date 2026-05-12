@@ -79,7 +79,6 @@ public enum StationType { Kitchen = 1, Bar = 2, Beverages = 3, HotKitchen = 4, F
 
 public class WorkStation : BaseEntity
 {
-    public Guid BranchId { get; set; }
     public string Name { get; set; } = string.Empty;
     public StationType Type { get; set; }
     public bool IsActive { get; set; } = true;
@@ -89,7 +88,6 @@ public class WorkStation : BaseEntity
 
 public class Order : BaseEntity
 {
-    public Guid BranchId { get; set; }
     public int Number { get; set; }
     public OrderType Type { get; set; }
     public OrderStatus Status { get; set; } = OrderStatus.Draft;
@@ -100,6 +98,13 @@ public class Order : BaseEntity
     public string? DeliveryAddress { get; set; }
     public string? Notes { get; set; }
     public decimal Subtotal { get; set; }
+    public decimal DiscountTotal { get; set; }
+    public decimal TaxableBase15 { get; set; }
+    public decimal TaxableBase0 { get; set; }
+    public decimal TaxableBaseExempt { get; set; }
+    public decimal Iva15 { get; set; }
+    public decimal Ice { get; set; }
+    public decimal TaxAmount { get; set; }
     public decimal Total { get; set; }
     public DateTime? ConfirmedAt { get; set; }
     public DateTime? DeliveredAt { get; set; }
@@ -113,12 +118,15 @@ public class Order : BaseEntity
 
 public class OrderItem : BaseEntity
 {
-    public Guid BranchId { get; set; }
     public Guid OrderId { get; set; }
     public Guid MenuItemId { get; set; }
     public Guid? StationId { get; set; }
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
+    public decimal DiscountPct { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public Guid? TaxRateId { get; set; }
+    public decimal TaxAmount { get; set; }
     public decimal TotalPrice { get; set; }
     public string? Notes { get; set; }
     public OrderItemStatus Status { get; set; } = OrderItemStatus.Pending;
@@ -126,4 +134,17 @@ public class OrderItem : BaseEntity
     public virtual Order? Order { get; set; }
     public virtual Menu.MenuItem? MenuItem { get; set; }
     public virtual WorkStation? Station { get; set; }
+    public virtual Billing.TaxRate? TaxRate { get; set; }
+    public virtual ICollection<OrderItemIngredientChoice> IngredientChoices { get; set; } = [];
+}
+
+public class OrderItemIngredientChoice : BaseEntity
+{
+    public Guid OrderItemId { get; set; }
+    public Guid RecipeIngredientId { get; set; }
+    public Guid ChosenArticleId { get; set; }
+
+    public virtual OrderItem? OrderItem { get; set; }
+    public virtual Menu.RecipeIngredient? RecipeIngredient { get; set; }
+    public virtual Inventory.InventoryArticle? ChosenArticle { get; set; }
 }
