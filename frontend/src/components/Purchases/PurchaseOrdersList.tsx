@@ -1,153 +1,153 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
-  Table, Button, Tag, Space, Popconfirm, message, Select, Tooltip,
+  Table, Button, Tag, Space, Popconfirm, message, Select, DatePicker,
+  Tooltip,
 } from 'antd';
 import {
-  PlusOutlined, EyeOutlined, SendOutlined, CheckOutlined,
-  CloseOutlined, DeleteOutlined, EditOutlined,
+  PlusOutlined, EyeOutlined, EditOutlined, StopOutlined, DeleteOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import type { PurchaseOrderDto, SupplierDto, PurchaseOrderStatus } from '../../types';
+import type { PurchaseDto, SupplierDto } from '../../types';
 import { purchasesApi } from '../../services/api';
-import PurchaseOrderForm from './PurchaseOrderForm';
-import PurchaseReception from './PurchaseReception';
+import PurchaseForm from './PurchaseForm';
 
-const ESTADO_COLOR: Record<PurchaseOrderStatus, string> = {
-  Draft: 'default',
-  Sent: 'blue',
-  Received: 'green',
-  Cancelled: 'red',
+const { RangePicker } = DatePicker;
+
+const DOC_TYPE_LABEL: Record<string, string> = {
+  Factura: 'Factura', NotaDeVenta: 'Nota de Venta', Comprobante: 'Comprobante',
+  LiquidacionCompra: 'Liquidación de Compra', Otro: 'Otro',
 };
 
-export default function PurchaseOrdersList() {
-  const [ordenes, setOrdenes] = useState<PurchaseOrderDto[]>([]);
+const STATUS_COLOR: Record<string, string> = { Registrada: 'green', Anulada: 'red' };
+
+export default function PurchasesList() {
+  const [compras, setCompras] = useState<PurchaseDto[]>([]);
   const [proveedores, setProveedores] = useState<SupplierDto[]>([]);
   const [loading, setLoading] = useState(false);
+
   const [filtroEstado, setFiltroEstado] = useState<string | undefined>();
   const [filtroProveedor, setFiltroProveedor] = useState<string | undefined>();
+  const [filtroFechas, setFiltroFechas] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
 
   const [formOpen, setFormOpen] = useState(false);
-  const [editingOrden, setEditingOrden] = useState<PurchaseOrderDto | null>(null);
-  const [viewingOrden, setViewingOrden] = useState<PurchaseOrderDto | null>(null);
-  const [recibiendo, setRecibiendo] = useState<PurchaseOrderDto | null>(null);
+  const [editando, setEditando] = useState<PurchaseDto | null>(null);
+  const [viendo, setViendo] = useState<PurchaseDto | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [orRes, pvRes] = await Promise.all([
-        purchasesApi.getOrders({ status: filtroEstado, supplierId: filtroProveedor }),
+      const [cRes, pvRes] = await Promise.all([
+        purchasesApi.getPurchases({
+          status: filtroEstado,
+          supplierId: filtroProveedor,
+          dateFrom: filtroFechas ? filtroFechas[0].startOf('day').toISOString() : undefined,
+          dateTo: filtroFechas ? filtroFechas[1].endOf('day').toISOString() : undefined,
+        }),
         purchasesApi.getSuppliers(),
       ]);
-      setOrdenes(orRes.data);
-      setProveedores(pvRes.data);
+      setCompras(cRes.data ?? []);
+      setProveedores(pvRes.data ?? []);
+    } catch {
+      message.error('Error al cargar compras');
     } finally {
       setLoading(false);
     }
-  }, [filtroEstado, filtroProveedor]);
+  }, [filtroEstado, filtroProveedor, filtroFechas]);
 
   useEffect(() => { load(); }, [load]);
 
-  const handleEnviar = async (id: string) => {
+  const handleAnular = async (id: string) => {
     try {
-      await purchasesApi.sendOrder(id);
-      message.success('Orden enviada al proveedor');
+      await purchasesApi.anularPurchase(id);
+      message.success('Compra anulada — el stock fue revertido');
       load();
     } catch {
-      message.error('Error al enviar orden');
-    }
-  };
-
-  const handleCancelar = async (id: string) => {
-    try {
-      await purchasesApi.cancelOrder(id);
-      message.success('Orden cancelada');
-      load();
-    } catch {
-      message.error('Error al cancelar orden');
+      message.error('Error al anular la compra');
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
-      await purchasesApi.deleteOrden(id);
-      message.success('Orden eliminada');
+      await purchasesApi.deletePurchase(id);
+      message.success('Compra eliminada');
       load();
     } catch {
-      message.error('Error al eliminar orden');
+      message.error('Error al eliminar la compra');
     }
   };
 
   const columns = [
-    { title: 'N° Orden', dataIndex: 'orderNumber', key: 'orderNumber', width: 130 },
+    {
+      title: 'Fecha',
+      dataIndex: 'documentDate',
+      key: 'documentDate',
+      width: 100,
+      render: (d: string) => dayjs(d).format('DD/MM/YY'),
+    },
+    {
+      title: 'Tipo',
+      dataIndex: 'documentType',
+      key: 'documentType',
+      width: 130,
+      render: (v: string) => DOC_TYPE_LABEL[v] ?? v,
+    },
+    {
+      title: 'N° Comprobante',
+      dataIndex: 'documentNumber',
+      key: 'documentNumber',
+      render: (v?: string) => v ?? '—',
+    },
+    { title: 'Proveedor', dataIndex: 'supplierName', key: 'supplierName', render: (v?: string) => v ?? <em style={{ color: '#aaa' }}>Sin proveedor</em> },
     {
       title: 'Estado',
       dataIndex: 'status',
       key: 'status',
-      width: 110,
-      render: (e: PurchaseOrderStatus) => <Tag color={ESTADO_COLOR[e]}>{e}</Tag>,
+      width: 100,
+      render: (s: string) => <Tag color={STATUS_COLOR[s] ?? 'default'}>{s}</Tag>,
     },
-    { title: 'Proveedor', dataIndex: 'supplierName', key: 'supplierName' },
-    {
-      title: 'Emisión',
-      dataIndex: 'issuedAt',
-      key: 'issuedAt',
-      width: 110,
-      render: (d: string) => dayjs(d).format('DD/MM/YY'),
-    },
-    {
-      title: 'Esperada',
-      dataIndex: 'expectedAt',
-      key: 'expectedAt',
-      width: 110,
-      render: (d?: string) => d ? dayjs(d).format('DD/MM/YY') : '—',
-    },
-    { title: 'Ítems', dataIndex: 'totalItems', key: 'totalItems', align: 'right' as const, width: 70 },
+    { title: 'Ítems', dataIndex: 'totalItems', key: 'totalItems', align: 'right' as const, width: 65 },
     {
       title: 'Total',
       dataIndex: 'total',
       key: 'total',
       align: 'right' as const,
-      width: 110,
-      render: (v: number) => `$${v.toFixed(2)}`,
+      width: 100,
+      render: (v: number) => `$${(v ?? 0).toFixed(2)}`,
     },
     { title: 'Bodega', dataIndex: 'warehouseName', key: 'warehouseName', render: (v?: string) => v ?? '—' },
     {
       title: '',
       key: 'actions',
-      width: 160,
-      render: (_: unknown, r: PurchaseOrderDto) => (
+      width: 130,
+      render: (_: unknown, r: PurchaseDto) => (
         <Space size={4}>
           <Tooltip title="Ver detalle">
-            <Button size="small" icon={<EyeOutlined />} onClick={() => setViewingOrden(r)} />
+            <Button size="small" icon={<EyeOutlined />} onClick={() => setViendo(r)} />
           </Tooltip>
-          {r.status === 'Draft' && (
+          {r.status === 'Registrada' && (
             <>
               <Tooltip title="Editar">
-                <Button size="small" icon={<EditOutlined />} onClick={() => { setEditingOrden(r); setFormOpen(true); }} />
+                <Button size="small" icon={<EditOutlined />} onClick={() => { setEditando(r); setFormOpen(true); }} />
               </Tooltip>
-              <Tooltip title="Enviar">
-                <Popconfirm title="¿Enviar esta orden al proveedor?" onConfirm={() => handleEnviar(r.id)} okText="Sí" cancelText="No">
-                  <Button size="small" type="primary" icon={<SendOutlined />} />
-                </Popconfirm>
-              </Tooltip>
-              <Tooltip title="Eliminar">
-                <Popconfirm title="¿Eliminar orden?" onConfirm={() => handleDelete(r.id)} okText="Sí" cancelText="No">
-                  <Button size="small" danger icon={<DeleteOutlined />} />
+              <Tooltip title="Anular">
+                <Popconfirm
+                  title="¿Anular esta compra?"
+                  description="Se revertirá el stock agregado al momento de la compra."
+                  onConfirm={() => handleAnular(r.id)}
+                  okText="Sí, anular"
+                  cancelText="No"
+                >
+                  <Button size="small" danger icon={<StopOutlined />} />
                 </Popconfirm>
               </Tooltip>
             </>
           )}
-          {r.status === 'Sent' && (
-            <>
-              <Tooltip title="Recibir mercadería">
-                <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => setRecibiendo(r)} />
-              </Tooltip>
-              <Tooltip title="Cancelar">
-                <Popconfirm title="¿Cancelar esta orden?" onConfirm={() => handleCancelar(r.id)} okText="Sí" cancelText="No">
-                  <Button size="small" danger icon={<CloseOutlined />} />
-                </Popconfirm>
-              </Tooltip>
-            </>
+          {r.status === 'Anulada' && (
+            <Tooltip title="Eliminar">
+              <Popconfirm title="¿Eliminar esta compra?" onConfirm={() => handleDelete(r.id)} okText="Sí" cancelText="No">
+                <Button size="small" danger icon={<DeleteOutlined />} />
+              </Popconfirm>
+            </Tooltip>
           )}
         </Space>
       ),
@@ -157,79 +157,76 @@ export default function PurchaseOrdersList() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-        <h2 style={{ margin: 0 }}>Órdenes de compra</h2>
+        <h2 style={{ margin: 0 }}>Compras</h2>
         <Space wrap>
           <Select
-            placeholder="Filtrar por estado"
+            placeholder="Estado"
             allowClear
-            style={{ width: 160 }}
+            style={{ width: 130 }}
             value={filtroEstado}
             onChange={setFiltroEstado}
             options={[
-              { value: 'Draft', label: 'Draft' },
-              { value: 'Sent', label: 'Sent' },
-              { value: 'Received', label: 'Received' },
-              { value: 'Cancelled', label: 'Cancelled' },
+              { value: 'Registrada', label: 'Registrada' },
+              { value: 'Anulada', label: 'Anulada' },
             ]}
           />
           <Select
-            placeholder="Filtrar por proveedor"
+            placeholder="Proveedor"
             allowClear
-            style={{ width: 200 }}
+            showSearch
+            style={{ width: 190 }}
             value={filtroProveedor}
             onChange={setFiltroProveedor}
             options={proveedores.map(p => ({ value: p.id, label: p.name }))}
-            showSearch
             filterOption={(input, opt) => (opt?.label as string ?? '').toLowerCase().includes(input.toLowerCase())}
           />
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingOrden(null); setFormOpen(true); }}>
-            Nueva orden
+          <RangePicker
+            format="DD/MM/YYYY"
+            value={filtroFechas}
+            onChange={v => setFiltroFechas(v as [dayjs.Dayjs, dayjs.Dayjs] | null)}
+            style={{ width: 230 }}
+          />
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => { setEditando(null); setFormOpen(true); }}
+          >
+            Nueva compra
           </Button>
         </Space>
       </div>
 
       <Table
         columns={columns}
-        dataSource={ordenes}
+        dataSource={compras}
         rowKey="id"
         loading={loading}
         pagination={{ pageSize: 20 }}
         size="small"
       />
 
-      {/* Ver detalle (solo lectura) */}
-      {viewingOrden && (
-        <PurchaseOrderForm
+      {/* Ver detalle */}
+      {viendo && (
+        <PurchaseForm
           open={true}
           readOnly
-          orden={viewingOrden}
+          compra={viendo}
           proveedores={proveedores}
-          onClose={() => setViewingOrden(null)}
-          onSaved={() => { setViewingOrden(null); load(); }}
+          onClose={() => setViendo(null)}
+          onSaved={() => { setViendo(null); load(); }}
         />
       )}
 
       {/* Crear / Editar */}
       {formOpen && (
-        <PurchaseOrderForm
+        <PurchaseForm
           open={formOpen}
-          orden={editingOrden}
+          compra={editando}
           proveedores={proveedores}
           onClose={() => setFormOpen(false)}
           onSaved={() => { setFormOpen(false); load(); }}
         />
       )}
-
-      {/* Recibir mercadería */}
-      {recibiendo && (
-        <PurchaseReception
-          open={true}
-          orden={recibiendo}
-          onClose={() => setRecibiendo(null)}
-          onSaved={() => { setRecibiendo(null); load(); }}
-        />
-      )}
     </div>
   );
 }
-

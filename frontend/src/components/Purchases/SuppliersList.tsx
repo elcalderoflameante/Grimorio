@@ -77,7 +77,7 @@ export default function SuppliersList() {
         <Tag color={r.isActive ? 'green' : 'default'}>{r.isActive ? 'Activo' : 'Inactivo'}</Tag>
       ),
     },
-    { title: 'Órdenes', dataIndex: 'totalOrders', key: 'totalOrders', align: 'right' as const },
+    { title: 'Compras', dataIndex: 'totalPurchases', key: 'totalPurchases', align: 'right' as const },
     {
       title: '', key: 'actions',
       render: (_: unknown, r: SupplierDto) => (

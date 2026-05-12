@@ -3,7 +3,7 @@ using MediatR;
 
 namespace Grimorio.Application.Features.Purchases.Commands;
 
-// ── Suppliers ───────────────────────────────────────────────────────────
+// ── Suppliers ──────────────────────────────────────────────────────────────────
 
 public class CreateSupplierCommand : IRequest<SupplierDto>
 {
@@ -35,50 +35,40 @@ public class DeleteSupplierCommand : IRequest<bool>
     public Guid BranchId { get; set; }
 }
 
-// ── Órdenes de compra ─────────────────────────────────────────────────────
+// ── Compras directas ──────────────────────────────────────────────────────────
 
-public class CreatePurchaseOrderCommand : IRequest<PurchaseOrderDto>
+public class CreatePurchaseCommand : IRequest<PurchaseDto>
 {
     public Guid BranchId { get; set; }
-    public Guid SupplierId { get; set; }
-    public DateTime? ExpectedAt { get; set; }
+    public int DocumentType { get; set; }
+    public string? DocumentNumber { get; set; }
+    public DateTime DocumentDate { get; set; }
+    public Guid? SupplierId { get; set; }
     public string? Notes { get; set; }
     public Guid? DestinationWarehouseId { get; set; }
-    public List<PurchaseOrderItemInputDto> Items { get; set; } = [];
+    public List<PurchaseItemInputDto> Items { get; set; } = [];
 }
 
-public class UpdatePurchaseOrderCommand : IRequest<PurchaseOrderDto>
+public class UpdatePurchaseCommand : IRequest<PurchaseDto>
 {
     public Guid Id { get; set; }
     public Guid BranchId { get; set; }
-    public Guid SupplierId { get; set; }
-    public DateTime? ExpectedAt { get; set; }
+    public int DocumentType { get; set; }
+    public string? DocumentNumber { get; set; }
+    public DateTime DocumentDate { get; set; }
+    public Guid? SupplierId { get; set; }
     public string? Notes { get; set; }
     public Guid? DestinationWarehouseId { get; set; }
-    public List<PurchaseOrderItemInputDto> Items { get; set; } = [];
+    public List<PurchaseItemInputDto> Items { get; set; } = [];
 }
 
-public class SendPurchaseOrderCommand : IRequest<PurchaseOrderDto>
+public class AnularPurchaseCommand : IRequest<PurchaseDto>
 {
     public Guid Id { get; set; }
     public Guid BranchId { get; set; }
 }
 
-public class ReceivePurchaseOrderCommand : IRequest<PurchaseOrderDto>
-{
-    public Guid Id { get; set; }
-    public Guid BranchId { get; set; }
-    public Guid WarehouseId { get; set; }
-    public List<ReceptionItemDto> Items { get; set; } = [];
-}
-
-public class CancelPurchaseOrderCommand : IRequest<PurchaseOrderDto>
-{
-    public Guid Id { get; set; }
-    public Guid BranchId { get; set; }
-}
-
-public class DeletePurchaseOrderCommand : IRequest<bool>
+public class DeletePurchaseCommand : IRequest<bool>
 {
     public Guid Id { get; set; }
     public Guid BranchId { get; set; }

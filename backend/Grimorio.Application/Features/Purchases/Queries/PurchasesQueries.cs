@@ -9,14 +9,16 @@ public class GetSuppliersQuery : IRequest<List<SupplierDto>>
     public bool? ActiveOnly { get; set; }
 }
 
-public class GetPurchaseOrdersQuery : IRequest<List<PurchaseOrderDto>>
+public class GetPurchasesQuery : IRequest<List<PurchaseDto>>
 {
     public Guid BranchId { get; set; }
     public string? Status { get; set; }
     public Guid? SupplierId { get; set; }
+    public DateTime? DateFrom { get; set; }
+    public DateTime? DateTo { get; set; }
 }
 
-public class GetPurchaseOrderDetailQuery : IRequest<PurchaseOrderDto?>
+public class GetPurchaseDetailQuery : IRequest<PurchaseDto?>
 {
     public Guid Id { get; set; }
     public Guid BranchId { get; set; }

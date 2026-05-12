@@ -1,5 +1,4 @@
 using Grimorio.Application.DTOs;
-using Grimorio.Application.Features.Purchases.Commands;
 using Grimorio.Application.Features.Purchases.Queries;
 using Grimorio.Infrastructure.Features.Purchases.Commands;
 using Grimorio.Infrastructure.Persistence;
@@ -20,9 +19,9 @@ public class GetSuppliersHandler : IRequestHandler<GetSuppliersQuery, List<Suppl
 
         var list = await query.OrderBy(p => p.Name).ToListAsync(ct);
 
-        var totales = await _db.PurchaseOrders
-            .Where(o => o.BranchId == req.BranchId && !o.IsDeleted)
-            .GroupBy(o => o.SupplierId)
+        var totales = await _db.Purchases
+            .Where(p => p.BranchId == req.BranchId && !p.IsDeleted && p.SupplierId != null)
+            .GroupBy(p => p.SupplierId!.Value)
             .Select(g => new { SupplierId = g.Key, Total = g.Count() })
             .ToListAsync(ct);
 
@@ -32,54 +31,70 @@ public class GetSuppliersHandler : IRequestHandler<GetSuppliersQuery, List<Suppl
     }
 }
 
-public class GetPurchaseOrdersHandler : IRequestHandler<GetPurchaseOrdersQuery, List<PurchaseOrderDto>>
+public class GetPurchasesHandler : IRequestHandler<GetPurchasesQuery, List<PurchaseDto>>
 {
     private readonly GrimorioDbContext _db;
-    public GetPurchaseOrdersHandler(GrimorioDbContext db) => _db = db;
+    public GetPurchasesHandler(GrimorioDbContext db) => _db = db;
 
-    public async Task<List<PurchaseOrderDto>> Handle(GetPurchaseOrdersQuery req, CancellationToken ct)
+    public async Task<List<PurchaseDto>> Handle(GetPurchasesQuery req, CancellationToken ct)
     {
-        var query = _db.PurchaseOrders
-            .Include(o => o.Supplier)
-            .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Article)
-            .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Unit)
-            .Where(o => o.BranchId == req.BranchId && !o.IsDeleted);
+        var query = _db.Purchases
+            .Include(p => p.Supplier)
+            .Include(p => p.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Article)
+            .Include(p => p.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Unit)
+            .Where(p => p.BranchId == req.BranchId && !p.IsDeleted);
 
         if (!string.IsNullOrWhiteSpace(req.Status) &&
-            Enum.TryParse<Domain.Entities.Purchases.PurchaseOrderStatus>(req.Status, out var status))
-            query = query.Where(o => o.Status == status);
+            Enum.TryParse<Domain.Entities.Purchases.PurchaseStatus>(req.Status, out var status))
+            query = query.Where(p => p.Status == status);
 
         if (req.SupplierId.HasValue)
-            query = query.Where(o => o.SupplierId == req.SupplierId.Value);
+            query = query.Where(p => p.SupplierId == req.SupplierId.Value);
 
-        var orders = await query.OrderByDescending(o => o.IssuedAt).ToListAsync(ct);
+        if (req.DateFrom.HasValue)
+            query = query.Where(p => p.DocumentDate >= req.DateFrom.Value);
 
-        var warehouseIds = orders.Where(o => o.DestinationWarehouseId.HasValue).Select(o => o.DestinationWarehouseId!.Value).Distinct().ToList();
-        var warehouses = await _db.Warehouses.Where(b => warehouseIds.Contains(b.Id)).ToDictionaryAsync(b => b.Id, b => b.Name, ct);
+        if (req.DateTo.HasValue)
+            query = query.Where(p => p.DocumentDate <= req.DateTo.Value);
 
-        return orders.Select(o => PurchasesMapper.MapOrder(o, o.DestinationWarehouseId.HasValue ? warehouses.GetValueOrDefault(o.DestinationWarehouseId.Value) : null)).ToList();
+        var purchases = await query.OrderByDescending(p => p.DocumentDate).ToListAsync(ct);
+
+        var warehouseIds = purchases
+            .Where(p => p.DestinationWarehouseId.HasValue)
+            .Select(p => p.DestinationWarehouseId!.Value)
+            .Distinct().ToList();
+
+        var warehouses = await _db.Warehouses
+            .Where(w => warehouseIds.Contains(w.Id))
+            .ToDictionaryAsync(w => w.Id, w => w.Name, ct);
+
+        return purchases.Select(p =>
+            PurchasesMapper.MapPurchase(p,
+                p.DestinationWarehouseId.HasValue ? warehouses.GetValueOrDefault(p.DestinationWarehouseId.Value) : null)
+        ).ToList();
     }
 }
 
-public class GetPurchaseOrderDetailHandler : IRequestHandler<GetPurchaseOrderDetailQuery, PurchaseOrderDto?>
+public class GetPurchaseDetailHandler : IRequestHandler<GetPurchaseDetailQuery, PurchaseDto?>
 {
     private readonly GrimorioDbContext _db;
-    public GetPurchaseOrderDetailHandler(GrimorioDbContext db) => _db = db;
+    public GetPurchaseDetailHandler(GrimorioDbContext db) => _db = db;
 
-    public async Task<PurchaseOrderDto?> Handle(GetPurchaseOrderDetailQuery req, CancellationToken ct)
+    public async Task<PurchaseDto?> Handle(GetPurchaseDetailQuery req, CancellationToken ct)
     {
-        var order = await _db.PurchaseOrders
-            .Include(o => o.Supplier)
-            .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Article)
-            .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Unit)
-            .FirstOrDefaultAsync(o => o.Id == req.Id && o.BranchId == req.BranchId && !o.IsDeleted, ct);
+        var purchase = await _db.Purchases
+            .Include(p => p.Supplier)
+            .Include(p => p.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Article)
+            .Include(p => p.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Unit)
+            .Include(p => p.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.TaxRate)
+            .FirstOrDefaultAsync(p => p.Id == req.Id && p.BranchId == req.BranchId && !p.IsDeleted, ct);
 
-        if (order == null) return null;
+        if (purchase == null) return null;
 
-        var warehouse = order.DestinationWarehouseId.HasValue
-            ? await _db.Warehouses.FindAsync([order.DestinationWarehouseId.Value], ct)
+        var warehouse = purchase.DestinationWarehouseId.HasValue
+            ? await _db.Warehouses.FindAsync([purchase.DestinationWarehouseId.Value], ct)
             : null;
 
-        return PurchasesMapper.MapOrder(order, warehouse?.Name);
+        return PurchasesMapper.MapPurchase(purchase, warehouse?.Name);
     }
 }

@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Grimorio.Infrastructure.Configuration.Purchases;
 
-public class ProveedorConfiguration : IEntityTypeConfiguration<Supplier>
+public class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
 {
     public void Configure(EntityTypeBuilder<Supplier> builder)
     {
@@ -22,44 +22,55 @@ public class ProveedorConfiguration : IEntityTypeConfiguration<Supplier>
     }
 }
 
-public class OrdenCompraConfiguration : IEntityTypeConfiguration<PurchaseOrder>
+public class PurchaseConfiguration : IEntityTypeConfiguration<Purchase>
 {
-    public void Configure(EntityTypeBuilder<PurchaseOrder> builder)
+    public void Configure(EntityTypeBuilder<Purchase> builder)
     {
-        builder.ToTable("PurchaseOrders", "purchases");
+        builder.ToTable("Purchases", "purchases");
 
-        builder.Property(x => x.OrderNumber).IsRequired().HasMaxLength(50);
-        builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(x => x.DocumentType).HasConversion<int>().IsRequired();
+        builder.Property(x => x.Status).HasConversion<int>().IsRequired();
+        builder.Property(x => x.DocumentNumber).HasMaxLength(50);
         builder.Property(x => x.Notes).HasMaxLength(500);
+
         builder.Property(x => x.Subtotal).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.DiscountTotal).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.TaxableBase15).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.TaxableBase0).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.TaxableBaseExempt).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Iva15).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Ice).HasColumnType("numeric(18,2)");
         builder.Property(x => x.Total).HasColumnType("numeric(18,2)");
 
         builder.HasOne(x => x.Supplier)
-            .WithMany(x => x.Orders)
+            .WithMany(x => x.Purchases)
             .HasForeignKey(x => x.SupplierId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Restrict)
+            .IsRequired(false);
 
-        builder.HasIndex(x => new { x.BranchId, x.OrderNumber })
-            .IsUnique().HasFilter("\"IsDeleted\" = false");
+        builder.HasIndex(x => new { x.BranchId, x.DocumentDate });
         builder.HasIndex(x => new { x.BranchId, x.Status });
+        builder.HasIndex(x => new { x.BranchId, x.SupplierId });
     }
 }
 
-public class OrdenCompraItemConfiguration : IEntityTypeConfiguration<PurchaseOrderItem>
+public class PurchaseItemConfiguration : IEntityTypeConfiguration<PurchaseItem>
 {
-    public void Configure(EntityTypeBuilder<PurchaseOrderItem> builder)
+    public void Configure(EntityTypeBuilder<PurchaseItem> builder)
     {
-        builder.ToTable("PurchaseOrderItems", "purchases");
+        builder.ToTable("PurchaseItems", "purchases");
 
-        builder.Property(x => x.QuantityOrdered).HasColumnType("numeric(18,4)").IsRequired();
-        builder.Property(x => x.QuantityReceived).HasColumnType("numeric(18,4)");
+        builder.Property(x => x.Quantity).HasColumnType("numeric(18,4)").IsRequired();
         builder.Property(x => x.UnitPrice).HasColumnType("numeric(18,4)");
+        builder.Property(x => x.DiscountPct).HasColumnType("numeric(5,2)");
+        builder.Property(x => x.DiscountAmount).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.TaxAmount).HasColumnType("numeric(18,2)");
         builder.Property(x => x.TotalPrice).HasColumnType("numeric(18,2)");
         builder.Property(x => x.Notes).HasMaxLength(300);
 
-        builder.HasOne(x => x.PurchaseOrder)
+        builder.HasOne(x => x.Purchase)
             .WithMany(x => x.Items)
-            .HasForeignKey(x => x.PurchaseOrderId)
+            .HasForeignKey(x => x.PurchaseId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(x => x.Article)
@@ -72,6 +83,11 @@ public class OrdenCompraItemConfiguration : IEntityTypeConfiguration<PurchaseOrd
             .HasForeignKey(x => x.UnitId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(x => x.PurchaseOrderId);
+        builder.HasOne(x => x.TaxRate)
+            .WithMany()
+            .HasForeignKey(x => x.TaxRateId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(x => x.PurchaseId);
     }
 }

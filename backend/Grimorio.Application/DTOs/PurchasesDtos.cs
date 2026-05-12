@@ -1,6 +1,6 @@
 namespace Grimorio.Application.DTOs;
 
-// ── Suppliers ───────────────────────────────────────────────────────────
+// ── Suppliers ──────────────────────────────────────────────────────────────────
 
 public class SupplierDto
 {
@@ -12,7 +12,7 @@ public class SupplierDto
     public string? Address { get; set; }
     public string? ContactName { get; set; }
     public bool IsActive { get; set; }
-    public int TotalOrders { get; set; }
+    public int TotalPurchases { get; set; }
 }
 
 public class CreateSupplierDto
@@ -30,28 +30,34 @@ public class UpdateSupplierDto : CreateSupplierDto
     public bool IsActive { get; set; }
 }
 
-// ── Órdenes de compra ─────────────────────────────────────────────────────
+// ── Compras directas ──────────────────────────────────────────────────────────
 
-public class PurchaseOrderDto
+public class PurchaseDto
 {
     public Guid Id { get; set; }
-    public string OrderNumber { get; set; } = string.Empty;
+    public string DocumentType { get; set; } = string.Empty;
+    public string? DocumentNumber { get; set; }
+    public DateTime DocumentDate { get; set; }
     public string Status { get; set; } = string.Empty;
-    public Guid SupplierId { get; set; }
-    public string SupplierName { get; set; } = string.Empty;
-    public DateTime IssuedAt { get; set; }
-    public DateTime? ExpectedAt { get; set; }
-    public DateTime? ReceivedAt { get; set; }
+    public Guid? SupplierId { get; set; }
+    public string? SupplierName { get; set; }
     public string? Notes { get; set; }
-    public decimal Subtotal { get; set; }
-    public decimal Total { get; set; }
     public Guid? DestinationWarehouseId { get; set; }
     public string? WarehouseName { get; set; }
+    // Desglose fiscal SRI
+    public decimal Subtotal { get; set; }
+    public decimal DiscountTotal { get; set; }
+    public decimal TaxableBase15 { get; set; }
+    public decimal TaxableBase0 { get; set; }
+    public decimal TaxableBaseExempt { get; set; }
+    public decimal Iva15 { get; set; }
+    public decimal Ice { get; set; }
+    public decimal Total { get; set; }
     public int TotalItems { get; set; }
-    public List<PurchaseOrderItemDto> Items { get; set; } = [];
+    public List<PurchaseItemDto> Items { get; set; } = [];
 }
 
-public class PurchaseOrderItemDto
+public class PurchaseItemDto
 {
     public Guid Id { get; set; }
     public Guid ArticleId { get; set; }
@@ -59,48 +65,47 @@ public class PurchaseOrderItemDto
     public string? InternalCode { get; set; }
     public Guid UnitId { get; set; }
     public string UnitSymbol { get; set; } = string.Empty;
-    public decimal QuantityOrdered { get; set; }
-    public decimal QuantityReceived { get; set; }
+    public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
+    public decimal DiscountPct { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public Guid? TaxRateId { get; set; }
+    public string? TaxRateName { get; set; }
+    public decimal? TaxRatePercentage { get; set; }
+    public decimal TaxAmount { get; set; }
     public decimal TotalPrice { get; set; }
     public string? Notes { get; set; }
 }
 
-public class CreatePurchaseOrderDto
+public class CreatePurchaseDto
 {
-    public Guid SupplierId { get; set; }
-    public DateTime? ExpectedAt { get; set; }
+    public int DocumentType { get; set; }
+    public string? DocumentNumber { get; set; }
+    public DateTime DocumentDate { get; set; }
+    public Guid? SupplierId { get; set; }
     public string? Notes { get; set; }
     public Guid? DestinationWarehouseId { get; set; }
-    public List<PurchaseOrderItemInputDto> Items { get; set; } = [];
+    public List<PurchaseItemInputDto> Items { get; set; } = [];
 }
 
-public class UpdatePurchaseOrderDto
+public class UpdatePurchaseDto
 {
-    public Guid SupplierId { get; set; }
-    public DateTime? ExpectedAt { get; set; }
+    public int DocumentType { get; set; }
+    public string? DocumentNumber { get; set; }
+    public DateTime DocumentDate { get; set; }
+    public Guid? SupplierId { get; set; }
     public string? Notes { get; set; }
     public Guid? DestinationWarehouseId { get; set; }
-    public List<PurchaseOrderItemInputDto> Items { get; set; } = [];
+    public List<PurchaseItemInputDto> Items { get; set; } = [];
 }
 
-public class PurchaseOrderItemInputDto
+public class PurchaseItemInputDto
 {
     public Guid ArticleId { get; set; }
     public Guid UnitId { get; set; }
-    public decimal QuantityOrdered { get; set; }
+    public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
+    public decimal DiscountPct { get; set; }
+    public Guid? TaxRateId { get; set; }
     public string? Notes { get; set; }
-}
-
-public class ReceivePurchaseOrderDto
-{
-    public Guid WarehouseId { get; set; }
-    public List<ReceptionItemDto> Items { get; set; } = [];
-}
-
-public class ReceptionItemDto
-{
-    public Guid PurchaseOrderItemId { get; set; }
-    public decimal QuantityReceived { get; set; }
 }
