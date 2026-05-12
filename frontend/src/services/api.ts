@@ -1,4 +1,4 @@
-import axios, { type AxiosResponse } from 'axios';
+import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import type {
   UserDto,
   CreateUserDto,
@@ -100,15 +100,18 @@ import type {
   SupplierDto,
   CreateSupplierDto,
   UpdateSupplierDto,
-  PurchaseOrderDto,
-  CreatePurchaseOrderDto,
-  UpdatePurchaseOrderDto,
-  ReceivePurchaseOrderDto,
+  PurchaseDto,
+  CreatePurchaseDto,
+  UpdatePurchaseDto,
 } from '../types';
 import { getDetailedError } from '../utils/errorHandler';
 
 const defaultApiBaseUrl = '/api';
 const API_BASE_URL = import.meta.env.VITE_API_URL || defaultApiBaseUrl;
+
+export interface AxiosRequestConfigWithSkipLog extends AxiosRequestConfig {
+  skipErrorLog?: boolean;
+}
 
 // Crear instancia de axios
 const apiClient = axios.create({
@@ -147,8 +150,11 @@ apiClient.interceptors.response.use(
       }
     }
     
+    const errorConfig = error.config as { skipErrorLog?: boolean } | undefined;
+    const skipErrorLog = errorConfig?.skipErrorLog === true;
+    
     // Log detallado para debugging (solo en desarrollo)
-    if (import.meta.env.DEV) {
+    if (import.meta.env.DEV && !skipErrorLog) {
       console.error('[API Error]', getDetailedError(error));
     }
     
@@ -346,7 +352,11 @@ export const scheduleShiftApi = {
   getByEmployee: (employeeId: string, year: number, month: number): Promise<AxiosResponse<ShiftAssignmentDto[]>> =>
     apiClient.get<ShiftAssignmentDto[]>(`/scheduling/employees/${employeeId}/shifts`, { params: { year, month } }),
   generate: (year: number, month: number, weeklyFreeDaysPattern?: number[]): Promise<AxiosResponse<ShiftGenerationResultDto>> =>
-    apiClient.post<ShiftGenerationResultDto>('/scheduling/shifts/generate', { year, month, weeklyFreeDaysPattern }),
+    apiClient.post<ShiftGenerationResultDto>('/scheduling/shifts/generate', {
+      year,
+      month,
+      ...(weeklyFreeDaysPattern ? { weeklyFreeDaysPattern } : {})
+    }),
   generateWeekly: (
     year: number,
     month: number,
@@ -359,7 +369,7 @@ export const scheduleShiftApi = {
       month,
       rangeStartDate,
       rangeEndDate,
-      weeklyFreeDaysPattern
+      ...(weeklyFreeDaysPattern ? { weeklyFreeDaysPattern } : {})
     }),
   getFreeEmployees: (branchId: string, date: string): Promise<AxiosResponse<EmployeeDto[]>> =>
     apiClient.get<EmployeeDto[]>('/scheduling/shifts/free-employees', { params: { branchId, date } }),
@@ -576,26 +586,22 @@ export const purchasesApi = {
   deleteSupplier: (id: string): Promise<AxiosResponse<void>> =>
     apiClient.delete<void>(`/purchases/proveedores/${id}`),
 
-  // Órdenes de compra
-  getOrders: (params?: { status?: string; supplierId?: string }): Promise<AxiosResponse<PurchaseOrderDto[]>> =>
-    apiClient.get<PurchaseOrderDto[]>('/purchases/ordenes', { params }),
-  getOrden: (id: string): Promise<AxiosResponse<PurchaseOrderDto>> =>
-    apiClient.get<PurchaseOrderDto>(`/purchases/ordenes/${id}`),
-  createOrden: (data: CreatePurchaseOrderDto): Promise<AxiosResponse<PurchaseOrderDto>> =>
-    apiClient.post<PurchaseOrderDto>('/purchases/ordenes', data),
-  updateOrden: (id: string, data: UpdatePurchaseOrderDto): Promise<AxiosResponse<PurchaseOrderDto>> =>
-    apiClient.put<PurchaseOrderDto>(`/purchases/ordenes/${id}`, data),
-  sendOrder: (id: string): Promise<AxiosResponse<PurchaseOrderDto>> =>
-    apiClient.post<PurchaseOrderDto>(`/purchases/ordenes/${id}/enviar`),
-  receiveOrder: (id: string, data: ReceivePurchaseOrderDto): Promise<AxiosResponse<PurchaseOrderDto>> =>
-    apiClient.post<PurchaseOrderDto>(`/purchases/ordenes/${id}/recibir`, data),
-  cancelOrder: (id: string): Promise<AxiosResponse<PurchaseOrderDto>> =>
-    apiClient.post<PurchaseOrderDto>(`/purchases/ordenes/${id}/cancelar`),
-  deleteOrden: (id: string): Promise<AxiosResponse<void>> =>
-    apiClient.delete<void>(`/purchases/ordenes/${id}`),
+  // Compras directas
+  getPurchases: (params?: { status?: string; supplierId?: string; dateFrom?: string; dateTo?: string }): Promise<AxiosResponse<PurchaseDto[]>> =>
+    apiClient.get<PurchaseDto[]>('/purchases/compras', { params }),
+  getPurchase: (id: string): Promise<AxiosResponse<PurchaseDto>> =>
+    apiClient.get<PurchaseDto>(`/purchases/compras/${id}`),
+  createPurchase: (data: CreatePurchaseDto): Promise<AxiosResponse<PurchaseDto>> =>
+    apiClient.post<PurchaseDto>('/purchases/compras', data),
+  updatePurchase: (id: string, data: UpdatePurchaseDto): Promise<AxiosResponse<PurchaseDto>> =>
+    apiClient.put<PurchaseDto>(`/purchases/compras/${id}`, data),
+  anularPurchase: (id: string): Promise<AxiosResponse<PurchaseDto>> =>
+    apiClient.post<PurchaseDto>(`/purchases/compras/${id}/anular`),
+  deletePurchase: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/purchases/compras/${id}`),
 };
 
-import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto, CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, OrderPaymentDto, PayOrderDto } from '../types';
+import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto, CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, OrderPaymentDto, AddOrderPaymentDto, PaymentMethodConfigDto, CreatePaymentMethodConfigDto, UpdatePaymentMethodConfigDto, TaxRateDto, UpsertTaxRateDto, BranchTaxConfigDto } from '../types';
 
 export const customersApi = {
   getAll: (params?: { activeOnly?: boolean; search?: string }): Promise<AxiosResponse<CustomerDto[]>> =>
@@ -608,9 +614,20 @@ export const customersApi = {
     apiClient.delete<void>(`/customers/${id}`),
 };
 
+export const paymentMethodsApi = {
+  getAll: (activeOnly = true): Promise<AxiosResponse<PaymentMethodConfigDto[]>> =>
+    apiClient.get<PaymentMethodConfigDto[]>('/cash/metodos-pago', { params: { activeOnly } }),
+  create: (dto: CreatePaymentMethodConfigDto): Promise<AxiosResponse<PaymentMethodConfigDto>> =>
+    apiClient.post<PaymentMethodConfigDto>('/cash/metodos-pago', dto),
+  update: (id: string, dto: UpdatePaymentMethodConfigDto): Promise<AxiosResponse<PaymentMethodConfigDto>> =>
+    apiClient.put<PaymentMethodConfigDto>(`/cash/metodos-pago/${id}`, dto),
+  remove: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/cash/metodos-pago/${id}`),
+};
+
 export const cashApi = {
   getActiveSession: (): Promise<AxiosResponse<CashSessionDto>> =>
-    apiClient.get<CashSessionDto>('/cash/sesion-activa'),
+    apiClient.get<CashSessionDto>('/cash/sesion-activa', { skipErrorLog: true } as AxiosRequestConfigWithSkipLog),
   getSessions: (params?: { from?: string; to?: string; pageSize?: number }): Promise<AxiosResponse<CashSessionDto[]>> =>
     apiClient.get<CashSessionDto[]>('/cash/sesiones', { params }),
   getSession: (id: string): Promise<AxiosResponse<CashSessionDto>> =>
@@ -623,6 +640,23 @@ export const cashApi = {
     apiClient.get<OrderPaymentDto[]>(`/cash/ordenes/${orderId}/pagos`),
   payOrder: (orderId: string, dto: AddOrderPaymentDto): Promise<AxiosResponse<OrderPaymentDto>> =>
     apiClient.post<OrderPaymentDto>(`/cash/cobrar/${orderId}`, dto),
+  getSales: (params?: { from?: string; to?: string; pageSize?: number }): Promise<AxiosResponse<OrderPaymentDto[]>> =>
+    apiClient.get<OrderPaymentDto[]>('/cash/ventas', { params }),
+};
+
+export const taxApi = {
+  getTaxRates: (activeOnly = false): Promise<AxiosResponse<TaxRateDto[]>> =>
+    apiClient.get<TaxRateDto[]>('/tax/tarifas', { params: { activeOnly } }),
+  createTaxRate: (dto: UpsertTaxRateDto): Promise<AxiosResponse<TaxRateDto>> =>
+    apiClient.post<TaxRateDto>('/tax/tarifas', dto),
+  updateTaxRate: (id: string, dto: UpsertTaxRateDto): Promise<AxiosResponse<TaxRateDto>> =>
+    apiClient.put<TaxRateDto>(`/tax/tarifas/${id}`, dto),
+  deleteTaxRate: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/tax/tarifas/${id}`),
+  getConfig: (): Promise<AxiosResponse<BranchTaxConfigDto>> =>
+    apiClient.get<BranchTaxConfigDto>('/tax/config'),
+  upsertConfig: (dto: BranchTaxConfigDto): Promise<AxiosResponse<BranchTaxConfigDto>> =>
+    apiClient.put<BranchTaxConfigDto>('/tax/config', dto),
 };
 
 export default apiClient;

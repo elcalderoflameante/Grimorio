@@ -427,6 +427,88 @@ namespace Grimorio.Infrastructure.Migrations
                     b.ToTable("UserRoles", "auth");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Billing.BranchTaxConfig", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Ambiente")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .HasColumnType("character varying(1)");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CodigoEstablecimiento")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Direccion")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("NombreComercial")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("PuntoEmision")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<string>("RazonSocial")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Ruc")
+                        .IsRequired()
+                        .HasMaxLength(13)
+                        .HasColumnType("character varying(13)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.ToTable("BranchTaxConfigs", "billing");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Billing.CashSession", b =>
                 {
                     b.Property<Guid>("Id")
@@ -692,10 +774,10 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
-                    b.Property<int>("Method")
-                        .HasColumnType("integer");
-
                     b.Property<Guid>("OrderPaymentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PaymentMethodConfigId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("UpdatedAt")
@@ -712,9 +794,120 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.HasIndex("OrderPaymentId");
 
+                    b.HasIndex("PaymentMethodConfigId");
+
                     b.HasIndex("BranchId", "IsDeleted");
 
                     b.ToTable("PaymentLines", "billing");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Billing.PaymentMethodConfig", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsCash")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SortOrder");
+
+                    b.ToTable("PaymentMethodConfigs", "billing");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Billing.TaxRate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<decimal>("Percentage")
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<string>("SriCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("BranchId", "IsDefault")
+                        .HasFilter("\"IsDeleted\" = false AND \"IsDefault\" = true");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("BranchId", "SriCode")
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("TaxRates", "billing");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.InventoryArticle", b =>
@@ -1338,6 +1531,9 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid?>("StationId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("TaxRateId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1353,6 +1549,8 @@ namespace Grimorio.Infrastructure.Migrations
                     b.HasIndex("MenuCategoryId");
 
                     b.HasIndex("StationId");
+
+                    b.HasIndex("TaxRateId");
 
                     b.HasIndex("BranchId", "IsActive");
 
@@ -1395,6 +1593,9 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<bool>("IsVariable")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid>("MenuItemId")
                         .HasColumnType("uuid");
 
@@ -1431,6 +1632,64 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("RecipeIngredients", "menu");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Menu.RecipeIngredientAlternative", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("ArticleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("RecipeIngredientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ArticleId");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("RecipeIngredientId", "ArticleId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("RecipeIngredientAlternatives", "menu");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Organization.Branch", b =>
@@ -1965,8 +2224,17 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasMaxLength(400)
                         .HasColumnType("character varying(400)");
 
+                    b.Property<decimal>("DiscountTotal")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("Ice")
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<decimal>("Iva15")
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(500)
@@ -1988,6 +2256,18 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.Property<Guid?>("TableId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("TaxableBase0")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("TaxableBase15")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("TaxableBaseExempt")
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<decimal>("Total")
                         .HasColumnType("numeric(18,2)");
@@ -2041,6 +2321,12 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid?>("DeletedBy")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("DiscountAmount")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("DiscountPct")
+                        .HasColumnType("numeric(5,2)");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
@@ -2065,6 +2351,12 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<decimal>("TaxAmount")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid?>("TaxRateId")
+                        .HasColumnType("uuid");
+
                     b.Property<decimal>("TotalPrice")
                         .HasColumnType("numeric(18,2)");
 
@@ -2083,12 +2375,64 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.HasIndex("OrderId");
 
+                    b.HasIndex("TaxRateId");
+
                     b.HasIndex("BranchId", "OrderId");
 
                     b.HasIndex("StationId", "Status")
                         .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("OrderItems", "pos");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderItemIngredientChoice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChosenArticleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("OrderItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RecipeIngredientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChosenArticleId");
+
+                    b.HasIndex("OrderItemId");
+
+                    b.HasIndex("RecipeIngredientId");
+
+                    b.ToTable("OrderItemIngredientChoices", "pos");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.POS.RestaurantTable", b =>
@@ -2689,7 +3033,7 @@ namespace Grimorio.Infrastructure.Migrations
                     b.ToTable("PayrollRoleHeaders", "payroll");
                 });
 
-            modelBuilder.Entity("Grimorio.Domain.Entities.Purchases.PurchaseOrder", b =>
+            modelBuilder.Entity("Grimorio.Domain.Entities.Purchases.Purchase", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -2713,37 +3057,49 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid?>("DestinationWarehouseId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime?>("ExpectedAt")
+                    b.Property<decimal>("DiscountTotal")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime>("DocumentDate")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DocumentNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("DocumentType")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Ice")
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<DateTime>("IssuedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<decimal>("Iva15")
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<string>("OrderNumber")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime?>("ReceivedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
 
                     b.Property<decimal>("Subtotal")
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<Guid>("SupplierId")
+                    b.Property<Guid?>("SupplierId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal>("TaxableBase0")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("TaxableBase15")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("TaxableBaseExempt")
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<decimal>("Total")
                         .HasColumnType("numeric(18,2)");
@@ -2758,16 +3114,16 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.HasIndex("SupplierId");
 
-                    b.HasIndex("BranchId", "OrderNumber")
-                        .IsUnique()
-                        .HasFilter("\"IsDeleted\" = false");
+                    b.HasIndex("BranchId", "DocumentDate");
 
                     b.HasIndex("BranchId", "Status");
 
-                    b.ToTable("PurchaseOrders", "purchases");
+                    b.HasIndex("BranchId", "SupplierId");
+
+                    b.ToTable("Purchases", "purchases");
                 });
 
-            modelBuilder.Entity("Grimorio.Domain.Entities.Purchases.PurchaseOrderItem", b =>
+            modelBuilder.Entity("Grimorio.Domain.Entities.Purchases.PurchaseItem", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -2791,6 +3147,12 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid?>("DeletedBy")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("DiscountAmount")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("DiscountPct")
+                        .HasColumnType("numeric(5,2)");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
@@ -2798,14 +3160,17 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
-                    b.Property<Guid>("PurchaseOrderId")
+                    b.Property<Guid>("PurchaseId")
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("QuantityOrdered")
+                    b.Property<decimal>("Quantity")
                         .HasColumnType("numeric(18,4)");
 
-                    b.Property<decimal>("QuantityReceived")
-                        .HasColumnType("numeric(18,4)");
+                    b.Property<decimal>("TaxAmount")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid?>("TaxRateId")
+                        .HasColumnType("uuid");
 
                     b.Property<decimal>("TotalPrice")
                         .HasColumnType("numeric(18,2)");
@@ -2826,11 +3191,13 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.HasIndex("ArticleId");
 
-                    b.HasIndex("PurchaseOrderId");
+                    b.HasIndex("PurchaseId");
+
+                    b.HasIndex("TaxRateId");
 
                     b.HasIndex("UnitId");
 
-                    b.ToTable("PurchaseOrderItems", "purchases");
+                    b.ToTable("PurchaseItems", "purchases");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Purchases.Supplier", b =>
@@ -3517,6 +3884,14 @@ namespace Grimorio.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Grimorio.Domain.Entities.Billing.PaymentMethodConfig", "Config")
+                        .WithMany()
+                        .HasForeignKey("PaymentMethodConfigId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Config");
+
                     b.Navigation("Payment");
                 });
 
@@ -3617,9 +3992,16 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasForeignKey("StationId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("Grimorio.Domain.Entities.Billing.TaxRate", "TaxRate")
+                        .WithMany()
+                        .HasForeignKey("TaxRateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Category");
 
                     b.Navigation("Station");
+
+                    b.Navigation("TaxRate");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Menu.RecipeIngredient", b =>
@@ -3647,6 +4029,25 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("MenuItem");
 
                     b.Navigation("Unit");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Menu.RecipeIngredientAlternative", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Inventory.InventoryArticle", "Article")
+                        .WithMany()
+                        .HasForeignKey("ArticleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.Menu.RecipeIngredient", "RecipeIngredient")
+                        .WithMany("Alternatives")
+                        .HasForeignKey("RecipeIngredientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Article");
+
+                    b.Navigation("RecipeIngredient");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Organization.Employee", b =>
@@ -3736,11 +4137,45 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasForeignKey("StationId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("Grimorio.Domain.Entities.Billing.TaxRate", "TaxRate")
+                        .WithMany()
+                        .HasForeignKey("TaxRateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("MenuItem");
 
                     b.Navigation("Order");
 
                     b.Navigation("Station");
+
+                    b.Navigation("TaxRate");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderItemIngredientChoice", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Inventory.InventoryArticle", "ChosenArticle")
+                        .WithMany()
+                        .HasForeignKey("ChosenArticleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.POS.OrderItem", "OrderItem")
+                        .WithMany("IngredientChoices")
+                        .HasForeignKey("OrderItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.Menu.RecipeIngredient", "RecipeIngredient")
+                        .WithMany()
+                        .HasForeignKey("RecipeIngredientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ChosenArticle");
+
+                    b.Navigation("OrderItem");
+
+                    b.Navigation("RecipeIngredient");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.POS.TableServiceRequest", b =>
@@ -3809,18 +4244,17 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("Employee");
                 });
 
-            modelBuilder.Entity("Grimorio.Domain.Entities.Purchases.PurchaseOrder", b =>
+            modelBuilder.Entity("Grimorio.Domain.Entities.Purchases.Purchase", b =>
                 {
                     b.HasOne("Grimorio.Domain.Entities.Purchases.Supplier", "Supplier")
-                        .WithMany("Orders")
+                        .WithMany("Purchases")
                         .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Supplier");
                 });
 
-            modelBuilder.Entity("Grimorio.Domain.Entities.Purchases.PurchaseOrderItem", b =>
+            modelBuilder.Entity("Grimorio.Domain.Entities.Purchases.PurchaseItem", b =>
                 {
                     b.HasOne("Grimorio.Domain.Entities.Inventory.InventoryArticle", "Article")
                         .WithMany()
@@ -3828,11 +4262,16 @@ namespace Grimorio.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Grimorio.Domain.Entities.Purchases.PurchaseOrder", "PurchaseOrder")
+                    b.HasOne("Grimorio.Domain.Entities.Purchases.Purchase", "Purchase")
                         .WithMany("Items")
-                        .HasForeignKey("PurchaseOrderId")
+                        .HasForeignKey("PurchaseId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.Billing.TaxRate", "TaxRate")
+                        .WithMany()
+                        .HasForeignKey("TaxRateId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Grimorio.Domain.Entities.Inventory.MeasurementUnit", "Unit")
                         .WithMany()
@@ -3842,7 +4281,9 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.Navigation("Article");
 
-                    b.Navigation("PurchaseOrder");
+                    b.Navigation("Purchase");
+
+                    b.Navigation("TaxRate");
 
                     b.Navigation("Unit");
                 });
@@ -4030,6 +4471,11 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("Recipe");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Menu.RecipeIngredient", b =>
+                {
+                    b.Navigation("Alternatives");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Organization.Branch", b =>
                 {
                     b.Navigation("Employees");
@@ -4056,6 +4502,11 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("Payments");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderItem", b =>
+                {
+                    b.Navigation("IngredientChoices");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.POS.RestaurantTable", b =>
                 {
                     b.Navigation("Orders");
@@ -4073,14 +4524,14 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("Details");
                 });
 
-            modelBuilder.Entity("Grimorio.Domain.Entities.Purchases.PurchaseOrder", b =>
+            modelBuilder.Entity("Grimorio.Domain.Entities.Purchases.Purchase", b =>
                 {
                     b.Navigation("Items");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Purchases.Supplier", b =>
                 {
-                    b.Navigation("Orders");
+                    b.Navigation("Purchases");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Scheduling.SpecialDate", b =>

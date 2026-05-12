@@ -102,7 +102,7 @@ export default function Profile() {
   }, [user?.userId, passwordForm]);
 
   if (!user) {
-    return <Alert message="Usuario no autenticado" type="error" />;
+    return <Alert title="Usuario no autenticado" type="error" />;
   }
 
   return (

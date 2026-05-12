@@ -26,6 +26,8 @@ import {
   DollarOutlined,
   BankOutlined,
   ContactsOutlined,
+  FileTextOutlined,
+  PercentageOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
@@ -57,9 +59,12 @@ import ArticlesList from '../components/Inventory/ArticlesList';
 import CurrentStock from '../components/Inventory/CurrentStock';
 import StockMovements from '../components/Inventory/StockMovements';
 import SuppliersList from '../components/Purchases/SuppliersList';
-import PurchaseOrdersList from '../components/Purchases/PurchaseOrdersList';
+import PurchasesList from '../components/Purchases/PurchaseOrdersList';
 import CustomersList from '../components/Billing/CustomersList';
 import CashRegister from '../components/Billing/CashRegister';
+import SalesHistory from '../components/Billing/SalesHistory';
+import PaymentMethodsSettings from '../components/Billing/PaymentMethodsSettings';
+import TaxConfig from '../components/Billing/TaxConfig';
 import { inventoryApi } from '../services/api';
 import type { StockAlertDto } from '../types';
 import type { MenuProps } from 'antd';
@@ -249,7 +254,7 @@ export default function Dashboard() {
       icon: <ShoppingOutlined />,
       children: [
         { key: 'purchases-suppliers', label: 'Proveedores', icon: <TeamOutlined /> },
-        { key: 'purchases-orders', label: 'Órdenes de compra', icon: <ShoppingCartOutlined /> },
+        { key: 'purchases-orders', label: 'Compras', icon: <ShoppingCartOutlined /> },
       ],
     },
     {
@@ -258,7 +263,10 @@ export default function Dashboard() {
       icon: <DollarOutlined />,
       children: [
         { key: 'billing-cash', label: 'Caja', icon: <BankOutlined /> },
+        { key: 'billing-sales', label: 'Ventas', icon: <FileTextOutlined /> },
         { key: 'billing-customers', label: 'Clientes', icon: <ContactsOutlined /> },
+        { key: 'billing-payment-methods', label: 'Medios de pago', icon: <DollarOutlined /> },
+        { key: 'billing-tax-config', label: 'Config. fiscal (IVA)', icon: <PercentageOutlined /> },
       ],
     },
   ], [hasPermission, alertasStock.length]);
@@ -342,11 +350,17 @@ export default function Dashboard() {
       case 'purchases-suppliers':
         return <SuppliersList />;
       case 'purchases-orders':
-        return <PurchaseOrdersList />;
+        return <PurchasesList />;
       case 'billing-cash':
         return <CashRegister />;
+      case 'billing-sales':
+        return <SalesHistory />;
       case 'billing-customers':
         return <CustomersList />;
+      case 'billing-payment-methods':
+        return <PaymentMethodsSettings />;
+      case 'billing-tax-config':
+        return <TaxConfig />;
       default:
         return <Welcome />;
     }
@@ -370,6 +384,7 @@ export default function Dashboard() {
     <Layout style={{ minHeight: '100vh', width: '100%', overflowX: 'hidden' }}>
       {/* Sider (menú lateral) */}
       <Sider
+        className="dashboard-sider"
         trigger={null}
         collapsible
         collapsed={siderCollapsed}
@@ -418,7 +433,7 @@ export default function Dashboard() {
             }}
           />
         </div>
-        <div style={{ flex: 1, overflow: 'auto' }}>
+        <div className="dashboard-sider-menu-scroll">
           <Menu
             theme="dark"
             mode="inline"
@@ -497,7 +512,7 @@ export default function Dashboard() {
               icon={<WarningOutlined />}
               showIcon
               style={{ marginBottom: 16, cursor: 'pointer' }}
-              message={`${alertasStock.length} artículo${alertasStock.length > 1 ? 's' : ''} con stock bajo mínimo`}
+              title={`${alertasStock.length} artículo${alertasStock.length > 1 ? 's' : ''} con stock bajo mínimo`}
               description={alertasStock.slice(0, 3).map(a => `${a.articleName}: ${a.currentStock}/${a.minStock} ${a.unitSymbol}`).join(' · ') + (alertasStock.length > 3 ? ' ...' : '')}
               onClick={() => setSelectedMenu('inv-stock')}
             />
@@ -512,6 +527,7 @@ export default function Dashboard() {
         placement="left"
         onClose={() => setDrawerVisible(false)}
         open={drawerVisible}
+        styles={{ body: { padding: 0, overflowY: 'auto' } }}
       >
         <Menu
           theme="light"

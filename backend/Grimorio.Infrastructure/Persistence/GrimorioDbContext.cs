@@ -60,13 +60,19 @@ public class GrimorioDbContext : DbContext
     public DbSet<PayrollRoleHeader> PayrollRoleHeaders { get; set; } = null!;
     public DbSet<PayrollRoleDetail> PayrollRoleDetails { get; set; } = null!;
 
+    // === Billing: Tax ===
+    public DbSet<TaxRate> TaxRates { get; set; } = null!;
+    public DbSet<BranchTaxConfig> BranchTaxConfigs { get; set; } = null!;
+
     // === POS ===
     public DbSet<RestaurantTable> RestaurantTables { get; set; } = null!;
     public DbSet<TableServiceRequest> TableServiceRequests { get; set; } = null!;
     public DbSet<WorkStation> WorkStations { get; set; } = null!;
     public DbSet<Order> Orders { get; set; } = null!;
     public DbSet<OrderItem> OrderItems { get; set; } = null!;
+    public DbSet<OrderItemIngredientChoice> OrderItemIngredientChoices { get; set; } = null!;
     public DbSet<Customer> Customers { get; set; } = null!;
+    public DbSet<PaymentMethodConfig> PaymentMethodConfigs { get; set; } = null!;
     public DbSet<CashSession> CashSessions { get; set; } = null!;
     public DbSet<OrderPayment> OrderPayments { get; set; } = null!;
     public DbSet<PaymentLine> PaymentLines { get; set; } = null!;
@@ -75,11 +81,12 @@ public class GrimorioDbContext : DbContext
     public DbSet<MenuCategory> MenuCategories { get; set; } = null!;
     public DbSet<MenuItem> MenuItems { get; set; } = null!;
     public DbSet<RecipeIngredient> RecipeIngredients { get; set; } = null!;
+    public DbSet<RecipeIngredientAlternative> RecipeIngredientAlternatives { get; set; } = null!;
 
     // === Purchases ===
     public DbSet<Supplier> Suppliers { get; set; } = null!;
-    public DbSet<PurchaseOrder> PurchaseOrders { get; set; } = null!;
-    public DbSet<PurchaseOrderItem> PurchaseOrderItems { get; set; } = null!;
+    public DbSet<Purchase> Purchases { get; set; } = null!;
+    public DbSet<PurchaseItem> PurchaseItems { get; set; } = null!;
 
     // === Inventario ===
     public DbSet<MeasurementUnit> MeasurementUnits { get; set; } = null!;

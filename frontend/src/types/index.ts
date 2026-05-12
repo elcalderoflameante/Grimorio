@@ -932,6 +932,20 @@ export interface CreateMenuCategoryDto {
   order: number;
 }
 
+export interface RecipeIngredientAlternativeDto {
+  articleId: string;
+  articleName: string;
+}
+
+export interface VariableIngredientSlotDto {
+  recipeIngredientId: string;
+  quantity: number;
+  unitSymbol: string;
+  defaultArticleId: string;
+  defaultArticleName: string;
+  alternatives: RecipeIngredientAlternativeDto[];
+}
+
 export interface MenuItemDto {
   id: string;
   menuCategoryId: string;
@@ -946,6 +960,11 @@ export interface MenuItemDto {
   totalIngredients: number;
   stationId?: string;
   stationName?: string;
+  taxRateId?: string;
+  taxRateName?: string;
+  taxRatePercentage?: number;
+  taxRateSriCode?: string;
+  variableIngredients: VariableIngredientSlotDto[];
 }
 
 export interface MenuItemDetailDto extends MenuItemDto {
@@ -959,6 +978,7 @@ export interface CreateMenuItemDto {
   internalCode?: string;
   price: number;
   stationId?: string;
+  taxRateId?: string;
 }
 
 export interface UpdateMenuItemDto extends CreateMenuItemDto {
@@ -976,6 +996,8 @@ export interface RecipeIngredientDto {
   unitSymbol: string;
   quantity: number;
   notes?: string;
+  isVariable: boolean;
+  alternatives: RecipeIngredientAlternativeDto[];
 }
 
 export interface UpsertRecipeIngredientDto {
@@ -983,6 +1005,19 @@ export interface UpsertRecipeIngredientDto {
   unitId: string;
   quantity: number;
   notes?: string;
+  isVariable: boolean;
+  alternativeArticleIds: string[];
+}
+
+export interface IngredientChoiceDto {
+  recipeIngredientId: string;
+  chosenArticleId: string;
+  chosenArticleName: string;
+}
+
+export interface CreateIngredientChoiceDto {
+  recipeIngredientId: string;
+  chosenArticleId: string;
 }
 
 export interface DeductStockFromSaleDto {
@@ -1029,9 +1064,16 @@ export interface OrderItemDto {
   stationName?: string;
   quantity: number;
   unitPrice: number;
+  discountPct: number;
+  discountAmount: number;
+  taxRateId?: string;
+  taxRateName?: string;
+  taxRatePercentage?: number;
+  taxAmount: number;
   totalPrice: number;
   notes?: string;
   status: OrderItemStatus;
+  ingredientChoices: IngredientChoiceDto[];
 }
 
 export interface OrderDto {
@@ -1046,6 +1088,13 @@ export interface OrderDto {
   deliveryAddress?: string;
   notes?: string;
   subtotal: number;
+  discountTotal: number;
+  taxableBase15: number;
+  taxableBase0: number;
+  taxableBaseExempt: number;
+  iva15: number;
+  ice: number;
+  taxAmount: number;
   total: number;
   createdAt: string;
   confirmedAt?: string;
@@ -1058,6 +1107,7 @@ export interface CreateOrderItemDto {
   menuItemId: string;
   quantity: number;
   notes?: string;
+  ingredientChoices?: CreateIngredientChoiceDto[];
 }
 
 export interface CreateOrderDto {
@@ -1094,7 +1144,7 @@ export interface SupplierDto {
   address?: string;
   contactName?: string;
   isActive: boolean;
-  totalOrders: number;
+  totalPurchases: number;
 }
 
 export interface CreateSupplierDto {
@@ -1110,67 +1160,71 @@ export interface UpdateSupplierDto extends CreateSupplierDto {
   isActive: boolean;
 }
 
-export type PurchaseOrderStatus = 'Draft' | 'Sent' | 'Received' | 'Cancelled';
+export type PurchaseStatus = 'Registrada' | 'Anulada';
 
-export interface PurchaseOrderItemDto {
+export interface PurchaseItemDto {
   id: string;
   articleId: string;
   articleName: string;
   internalCode?: string;
   unitId: string;
   unitSymbol: string;
-  quantityOrdered: number;
-  quantityReceived: number;
+  quantity: number;
   unitPrice: number;
+  discountPct: number;
+  discountAmount: number;
+  taxRateId?: string;
+  taxRateName?: string;
+  taxRatePercentage?: number;
+  taxAmount: number;
   totalPrice: number;
   notes?: string;
 }
 
-export interface PurchaseOrderDto {
+export interface PurchaseDto {
   id: string;
-  orderNumber: string;
-  status: PurchaseOrderStatus;
-  supplierId: string;
-  supplierName: string;
-  issuedAt: string;
-  expectedAt?: string;
-  receivedAt?: string;
+  documentType: string;
+  documentNumber?: string;
+  documentDate: string;
+  status: PurchaseStatus;
+  supplierId?: string;
+  supplierName?: string;
   notes?: string;
-  subtotal: number;
-  total: number;
   destinationWarehouseId?: string;
   warehouseName?: string;
+  subtotal: number;
+  discountTotal: number;
+  taxableBase15: number;
+  taxableBase0: number;
+  taxableBaseExempt: number;
+  iva15: number;
+  ice: number;
+  total: number;
   totalItems: number;
-  items: PurchaseOrderItemDto[];
+  items: PurchaseItemDto[];
 }
 
-export interface PurchaseOrderItemInputDto {
+export interface PurchaseItemInputDto {
   articleId: string;
   unitId: string;
-  quantityOrdered: number;
+  quantity: number;
   unitPrice: number;
+  discountPct: number;
+  taxRateId?: string;
   notes?: string;
 }
 
-export interface CreatePurchaseOrderDto {
-  supplierId: string;
-  expectedAt?: string;
+export interface CreatePurchaseDto {
+  documentType: number;
+  documentNumber?: string;
+  documentDate: string;
+  supplierId?: string;
   notes?: string;
   destinationWarehouseId?: string;
-  items: PurchaseOrderItemInputDto[];
+  items: PurchaseItemInputDto[];
 }
 
-export interface UpdatePurchaseOrderDto extends CreatePurchaseOrderDto {}
-
-export interface ReceptionItemDto {
-  purchaseOrderItemId: string;
-  quantityReceived: number;
-}
-
-export interface ReceivePurchaseOrderDto {
-  warehouseId: string;
-  items: ReceptionItemDto[];
-}
+export type UpdatePurchaseDto = CreatePurchaseDto;
 
 
 // ── Billing: Clientes ─────────────────────────────────────────────────────────
@@ -1199,7 +1253,41 @@ export interface UpdateCustomerDto extends CreateCustomerDto {
   isActive: boolean;
 }
 
+// ── Billing: Métodos de pago ──────────────────────────────────────────────────
+
+export interface PaymentMethodConfigDto {
+  id: string;
+  name: string;
+  color: string;
+  isCash: boolean;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface CreatePaymentMethodConfigDto {
+  name: string;
+  color: string;
+  isCash: boolean;
+  sortOrder: number;
+}
+
+export interface UpdatePaymentMethodConfigDto {
+  name: string;
+  color: string;
+  isCash: boolean;
+  isActive: boolean;
+  sortOrder: number;
+}
+
 // ── Billing: Caja ─────────────────────────────────────────────────────────────
+
+export interface PaymentMethodTotalDto {
+  methodId: string;
+  methodName: string;
+  methodColor: string;
+  isCash: boolean;
+  total: number;
+}
 
 export interface CashSessionDto {
   id: string;
@@ -1211,10 +1299,8 @@ export interface CashSessionDto {
   actualCash?: number;
   closeNotes?: string;
   status: 'Open' | 'Closed';
-  totalCash: number;
-  totalCard: number;
-  totalTransfer: number;
-  totalQr: number;
+  totals: PaymentMethodTotalDto[];
+  totalCash: number;   // computed by backend: sum of isCash totals
   totalSales: number;
   totalOrders: number;
   expectedCash: number;
@@ -1234,7 +1320,10 @@ export interface CloseCashSessionDto {
 
 export interface PaymentLineDto {
   id: string;
-  method: 'Cash' | 'Card' | 'Transfer' | 'QR';
+  methodId: string;
+  methodName: string;
+  methodColor: string;
+  isCash: boolean;
   amountTendered: number;
   change: number;
   netAmount: number;
@@ -1244,9 +1333,12 @@ export interface OrderPaymentDto {
   id: string;
   orderId: string;
   orderNumber: number;
+  orderType?: string;
   customerId?: string;
   customerName?: string;
   customerTaxId?: string;
+  tableCode?: string;
+  tableName?: string;
   documentType: 'NotaDeVenta' | 'Factura';
   orderAmount: number;
   paidAt: string;
@@ -1254,7 +1346,7 @@ export interface OrderPaymentDto {
 }
 
 export interface AddPaymentLineDto {
-  method: string;
+  methodId: string;
   amountTendered: number;
 }
 
@@ -1264,4 +1356,34 @@ export interface AddOrderPaymentDto {
   customerId?: string;
   cashSessionId?: string;
   lines: AddPaymentLineDto[];
+}
+
+// ── Billing: IVA y configuración fiscal ──────────────────────────────────────
+
+export interface TaxRateDto {
+  id: string;
+  name: string;
+  percentage: number;
+  sriCode: string;
+  isDefault: boolean;
+  isActive: boolean;
+}
+
+export interface UpsertTaxRateDto {
+  name: string;
+  percentage: number;
+  sriCode: string;
+  isDefault: boolean;
+  isActive: boolean;
+}
+
+export interface BranchTaxConfigDto {
+  id?: string;
+  ruc: string;
+  razonSocial: string;
+  nombreComercial?: string;
+  direccion: string;
+  codigoEstablecimiento: string;
+  puntoEmision: string;
+  ambiente: string;
 }

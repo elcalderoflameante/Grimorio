@@ -15,10 +15,21 @@ public class GetRestaurantTablesQueryHandler : IRequestHandler<GetRestaurantTabl
 
     public async Task<List<RestaurantTableDto>> Handle(GetRestaurantTablesQuery request, CancellationToken cancellationToken)
     {
-        return await _context.RestaurantTables
+        var tables = await _context.RestaurantTables
             .Where(x => x.BranchId == request.BranchId && !x.IsDeleted)
             .OrderBy(x => x.Code)
-            .Select(x => new RestaurantTableDto
+            .Include(x => x.Orders.Where(o =>
+                !o.IsDeleted &&
+                o.Status != OrderStatus.Draft &&
+                o.Status != OrderStatus.Cancelled &&
+                o.Status != OrderStatus.Delivered &&
+                o.PaidAt == null))
+            .ToListAsync(cancellationToken);
+
+        return tables.Select(x =>
+        {
+            var activeOrder = x.Orders.FirstOrDefault();
+            return new RestaurantTableDto
             {
                 Id = x.Id,
                 BranchId = x.BranchId,
@@ -29,8 +40,10 @@ public class GetRestaurantTablesQueryHandler : IRequestHandler<GetRestaurantTabl
                 PublicToken = x.PublicToken,
                 IsActive = x.IsActive,
                 PublicUrl = $"/mesa/{x.PublicToken}",
-            })
-            .ToListAsync(cancellationToken);
+                CurrentStatus = activeOrder != null ? "Occupied" : "Free",
+                CurrentOrderId = activeOrder?.Id,
+            };
+        }).ToList();
     }
 }
 
