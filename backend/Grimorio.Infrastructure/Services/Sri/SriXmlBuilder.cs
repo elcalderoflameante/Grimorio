@@ -20,26 +20,27 @@ public static class SriXmlBuilder
 {
     public static string Build(SriInvoiceData d)
     {
-        var sb = new StringBuilder();
+        // MemoryStream garantiza encoding UTF-8 real — StringBuilder usa UTF-16 internamente
+        using var ms = new MemoryStream();
         var settings = new XmlWriterSettings { Encoding = new UTF8Encoding(false), Indent = true };
 
-        using var w = XmlWriter.Create(sb, settings);
+        using (var w = XmlWriter.Create(ms, settings))
+        {
+            w.WriteStartDocument();
+            w.WriteStartElement("factura");
+            w.WriteAttributeString("id", "comprobante");
+            w.WriteAttributeString("version", "2.1.0");
 
-        w.WriteStartDocument();
-        w.WriteStartElement("factura");
-        w.WriteAttributeString("id", "comprobante");
-        w.WriteAttributeString("version", "2.1.0");
+            WriteInfoTributaria(w, d);
+            WriteInfoFactura(w, d);
+            WriteDetalles(w, d);
+            WriteInfoAdicional(w, d);
 
-        WriteInfoTributaria(w, d);
-        WriteInfoFactura(w, d);
-        WriteDetalles(w, d);
-        WriteInfoAdicional(w, d);
+            w.WriteEndElement(); // factura
+            w.WriteEndDocument();
+        }
 
-        w.WriteEndElement(); // factura
-        w.WriteEndDocument();
-        w.Flush(); // vaciar buffer interno antes de leer el StringBuilder
-
-        return sb.ToString();
+        return new UTF8Encoding(false).GetString(ms.ToArray());
     }
 
     private static void WriteInfoTributaria(XmlWriter w, SriInvoiceData d)

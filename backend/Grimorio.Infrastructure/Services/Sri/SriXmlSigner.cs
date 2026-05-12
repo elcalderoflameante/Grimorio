@@ -108,11 +108,13 @@ public static class SriXmlSigner
 
         doc.DocumentElement.AppendChild(sigElement);
 
-        // ── Serializar XML firmado ────────────────────────────────────────────
-        var sb = new StringBuilder();
-        using var writer = XmlWriter.Create(sb, new XmlWriterSettings { Encoding = new UTF8Encoding(false), Indent = true });
-        doc.WriteTo(writer);
-        return sb.ToString();
+        // ── Serializar XML firmado en UTF-8 real (MemoryStream, no StringBuilder) ──
+        using var ms = new MemoryStream();
+        using (var writer = XmlWriter.Create(ms, new XmlWriterSettings { Encoding = new UTF8Encoding(false), Indent = true }))
+        {
+            doc.WriteTo(writer);
+        }
+        return new UTF8Encoding(false).GetString(ms.ToArray());
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
