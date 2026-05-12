@@ -76,6 +76,13 @@ class OrderApiService {
                 'menuItemId': i.menuItemId,
                 'quantity': i.quantity,
                 if (i.notes != null && i.notes!.isNotEmpty) 'notes': i.notes,
+                if (i.ingredientChoices.isNotEmpty)
+                  'ingredientChoices': i.ingredientChoices
+                      .map((c) => {
+                            'recipeIngredientId': c.recipeIngredientId,
+                            'chosenArticleId': c.chosenArticleId,
+                          })
+                      .toList(),
               })
           .toList(),
     });
