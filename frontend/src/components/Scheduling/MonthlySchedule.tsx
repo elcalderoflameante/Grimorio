@@ -687,17 +687,14 @@ export const MonthlySchedule = () => {
       try {
         const year = selectedMonth.year();
         const monthNumber = selectedMonth.month() + 1;
-        // Patrón solicitado: semana 1 = 1 libre, semana 2 = 2 libres, semana 3 = 1 libre, semana 4 = 2 libres.
-        const weeklyFreeDaysPattern = [1, 2, 1, 2];
         const result = viewMode === 'week'
           ? await scheduleShiftApi.generateWeekly(
               year,
               monthNumber,
               selectedWeekStart.startOf('week').format('YYYY-MM-DD'),
-              selectedWeekStart.endOf('week').format('YYYY-MM-DD'),
-              weeklyFreeDaysPattern
+              selectedWeekStart.endOf('week').format('YYYY-MM-DD')
             )
-          : await scheduleShiftApi.generate(year, monthNumber, weeklyFreeDaysPattern);
+          : await scheduleShiftApi.generate(year, monthNumber);
         const { warnings, totalShiftsGenerated, totalShiftsNotCovered } = result.data;
       
       if (warnings && warnings.length > 0) {
@@ -771,6 +768,15 @@ export const MonthlySchedule = () => {
     return [...baseWithoutPreviewDates, ...boardPreviewAssignments];
   }, [shifts, boardPreviewAssignments]);
 
+  const statsShiftsForMonth = useMemo(() => {
+    const monthStart = selectedMonth.startOf('month');
+    const monthEnd = selectedMonth.endOf('month');
+    return statsShifts.filter((shift) => {
+      const shiftDate = dayjs(shift.date);
+      return !shiftDate.isBefore(monthStart, 'day') && !shiftDate.isAfter(monthEnd, 'day');
+    });
+  }, [statsShifts, selectedMonth]);
+
   const shiftsByDate = useMemo(() => {
     const map = new Map<string, ShiftAssignmentDto[]>();
     shifts.forEach((shift) => {
@@ -803,6 +809,10 @@ export const MonthlySchedule = () => {
   const weekTableData = useMemo(() => {
     const data: WeekTableRow[] = [];
     const freeDayColors = getColorVariants(freeDayColor);
+    const abbrevName = (full: string) => {
+      const parts = full.trim().split(' ');
+      return parts.length < 2 ? full : `${parts[0][0]}. ${parts.slice(1).join(' ')}`;
+    };
 
     // Obtener el número máximo de turnos en un día
     const maxShiftsPerDay = Math.max(...weekShifts.map(w => w.dayShifts.length), 1);
@@ -823,25 +833,26 @@ export const MonthlySchedule = () => {
         row[date.format('YYYY-MM-DD')] = shift ? (
           <div
             style={{
-              fontSize: '11px',
-              padding: '2px 4px',
+              fontSize: '10px',
+              padding: '1px 3px',
               backgroundColor: colors.bg,
               border: `0.5px solid ${colors.border}`,
-              borderRadius: '4px',
-              minHeight: '38px',
+              borderRadius: '3px',
+              minHeight: '26px',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              marginBottom: '1px',
             }}
             onClick={() => openEditModal(shift)}
           >
-            <div style={{ fontWeight: 600, color: colors.text }}>
+            <div style={{ fontWeight: 700, color: colors.text, lineHeight: 1.2 }}>
               {startTime}-{endTime}
             </div>
-            <div style={{ color: '#333', fontWeight: 500 }}>{shift.employeeName}</div>
-            <div style={{ color: colors.text, fontSize: '10px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {shift.workAreaName} / {shift.workRoleName}
+            <div style={{ color: '#333', fontWeight: 500, lineHeight: 1.2 }}>{abbrevName(shift.employeeName)}</div>
+            <div style={{ color: colors.text, fontSize: '9px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
+              {shift.workAreaName}
             </div>
           </div>
         ) : null;
@@ -858,23 +869,23 @@ export const MonthlySchedule = () => {
       freeRow[key] = (
         <div
           style={{
-            fontSize: '11px',
-            padding: '2px 4px',
+            fontSize: '9px',
+            padding: '1px 3px',
             backgroundColor: freeDayColors.bg,
             border: `0.5px dashed ${freeDayColors.border}`,
-            borderRadius: '4px',
-            minHeight: '38px',
-            maxHeight: '80px',
+            borderRadius: '3px',
+            minHeight: '20px',
+            maxHeight: '70px',
             overflowY: 'auto',
           }}
         >
-          <div style={{ fontWeight: 600, color: freeDayColors.text, marginBottom: 2 }}>Libres</div>
+          <div style={{ fontWeight: 700, color: freeDayColors.text, marginBottom: 1, lineHeight: 1.2 }}>Libres</div>
           {freeEmployees.length === 0 && (
-            <div style={{ color: '#999' }}>Sin libres</div>
+            <div style={{ color: '#999' }}>—</div>
           )}
           {freeEmployees.map((employee) => (
-            <div key={employee.id} style={{ color: '#333' }}>
-              {employee.firstName} {employee.lastName}
+            <div key={employee.id} style={{ color: '#555', lineHeight: 1.2 }}>
+              {employee.firstName[0]}. {employee.lastName}
             </div>
           ))}
         </div>
@@ -890,7 +901,7 @@ export const MonthlySchedule = () => {
     weekShifts.forEach(({ date, dayName }) => {
       columns.push({
         title: (
-          <div style={{ textAlign: 'center', fontWeight: 600, fontSize: '12px' }}>
+          <div style={{ textAlign: 'center', fontWeight: 600, fontSize: '11px' }}>
             {dayName} {date.format('DD/MM')}
           </div>
         ),
@@ -906,26 +917,22 @@ export const MonthlySchedule = () => {
 
   // Obtener empleados únicos con turnos en el mes, incluyendo hireDate
   const employeesWithShifts = useMemo(() => {
-    const monthShifts = statsShifts.filter(shift => 
-      dayjs(shift.date).isSame(selectedMonth, 'month')
-    );
     const uniqueEmployeeMap = new Map(
-      monthShifts.map(s => [
-        s.employeeId, 
-        { 
-          id: s.employeeId, 
+      statsShiftsForMonth.map(s => [
+        s.employeeId,
+        {
+          id: s.employeeId,
           name: s.employeeName,
-          hireDate: eligibleEmployees.find(e => e.id === s.employeeId)?.hireDate || undefined
+          hireDate: eligibleEmployees.find(e => e.id === s.employeeId)?.hireDate || undefined,
         }
       ])
     );
     return Array.from(uniqueEmployeeMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [statsShifts, selectedMonth, eligibleEmployees]);
+  }, [statsShiftsForMonth, eligibleEmployees]);
 
   const employeeStatsSummary = useMemo(() => {
     const summary: Record<string, { shiftCount: number; totalHours: number }> = {};
-    statsShifts.forEach((shift) => {
-      if (!dayjs(shift.date).isSame(selectedMonth, 'month')) return;
+    statsShiftsForMonth.forEach((shift) => {
       if (!summary[shift.employeeId]) {
         summary[shift.employeeId] = { shiftCount: 0, totalHours: 0 };
       }
@@ -933,7 +940,7 @@ export const MonthlySchedule = () => {
       summary[shift.employeeId].totalHours += shift.workedHours;
     });
     return summary;
-  }, [statsShifts, selectedMonth]);
+  }, [statsShiftsForMonth]);
 
   const employeeFreeDaysSummary = useMemo(() => {
     const summary: Record<string, {
@@ -960,10 +967,10 @@ export const MonthlySchedule = () => {
       }
 
       const assignedDates = new Set(
-        statsShifts
+        statsShiftsForMonth
           .filter(s => s.employeeId === employee.id)
           .map(s => dayjs(s.date))
-          .filter(d => d.isSame(selectedMonth, 'month') && !d.isBefore(validMonthStart, 'day'))
+          .filter(d => !d.isBefore(validMonthStart, 'day'))
           .map(d => d.format('YYYY-MM-DD')),
       );
 
@@ -1002,7 +1009,7 @@ export const MonthlySchedule = () => {
     });
 
     return summary;
-  }, [statsShifts, selectedMonth, eligibleEmployees]);
+  }, [statsShiftsForMonth, selectedMonth, eligibleEmployees]);
 
   const createModalEmployees = useMemo(() => {
     if (!selectedWorkRoleId) return eligibleEmployees;
@@ -1085,6 +1092,7 @@ export const MonthlySchedule = () => {
                       label: 'Vista de Semana',
                       children: (
                         <div style={{ width: '100%', overflowX: 'auto' }}>
+                        <style>{`.week-schedule-table .ant-table-cell { padding: 2px 3px !important; }`}</style>
                         <div ref={weekPrintRef} style={{ background: '#fff', padding: isExporting ? 8 : 12, minWidth: isExporting ? 1120 : 0, width: isExporting ? 1120 : '100%', maxWidth: '100%', fontSize: isExporting ? 9 : undefined }}>
                           {isExporting && (
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
@@ -1137,7 +1145,8 @@ export const MonthlySchedule = () => {
                               bordered
                               size="small"
                               scroll={{ x: 'max-content' }}
-                              style={{ fontSize: '12px', width: '100%' }}
+                              style={{ fontSize: '10px', width: '100%' }}
+                              className="week-schedule-table"
                             />
                           </Space>
                         </div>
@@ -1280,7 +1289,7 @@ export const MonthlySchedule = () => {
                             employeeId={selectedEmployeeId}
                             employeeName={employeesWithShifts.find(e => e.id === selectedEmployeeId)?.name || ''}
                             hireDate={employeesWithShifts.find(e => e.id === selectedEmployeeId)?.hireDate}
-                            shifts={shifts}
+                            shifts={statsShiftsForMonth}
                             currentMonth={selectedMonth}
                           />
                         ) : (

@@ -223,7 +223,7 @@ public class GetMonthlyShiftsQueryHandler : IRequestHandler<GetMonthlyShiftsQuer
         var endDate = startDate.AddMonths(1).AddDays(-1);
 
         return await _context.ShiftAssignments
-            .Where(sa => sa.Date >= startDate && sa.Date <= endDate && !sa.IsDeleted && sa.BranchId == request.BranchId)
+            .Where(sa => sa.Date.Date >= startDate.Date && sa.Date.Date <= endDate.Date && !sa.IsDeleted && sa.BranchId == request.BranchId)
             .Include(sa => sa.Employee)
             .Include(sa => sa.WorkArea)
             .Include(sa => sa.WorkRole)

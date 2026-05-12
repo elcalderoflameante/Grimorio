@@ -30,6 +30,7 @@ import {
   CloseOutlined,
   DeleteOutlined,
   InfoCircleOutlined,
+  PrinterOutlined,
   RobotOutlined,
   LeftOutlined,
   RightOutlined,
@@ -116,6 +117,39 @@ export const WeeklyScheduleBoard = ({
   onPreviewAssignmentsChange,
 }: WeeklyScheduleBoardProps) => {
   const { branchId } = useAuth();
+
+  // -------------------------------------------------------------------------
+  // Impresión
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    const id = 'wsb-print-styles';
+    if (document.getElementById(id)) return;
+    const el = document.createElement('style');
+    el.id = id;
+    el.textContent = `
+      @media print {
+        @page { size: A4 landscape; margin: 7mm; }
+        body * { visibility: hidden !important; }
+        #wsb-print-view, #wsb-print-view * { visibility: visible !important; }
+        #wsb-print-view {
+          position: fixed !important;
+          top: 0 !important; left: 0 !important;
+          width: 100% !important;
+          background: white !important;
+          padding: 0 !important;
+          box-sizing: border-box !important;
+          font-family: Arial, Helvetica, sans-serif !important;
+        }
+      }
+    `;
+    document.head.appendChild(el);
+    return () => { document.getElementById(id)?.remove(); };
+  }, []);
+
+  const handlePrint = useCallback(() => window.print(), []);
+
+  const abbrevName = (first: string, last: string) =>
+    `${first.charAt(0).toUpperCase()}. ${last}`;
 
   // -------------------------------------------------------------------------
   // Estado
@@ -324,7 +358,6 @@ export const WeeklyScheduleBoard = ({
         selectedMonth.month() + 1,
         rangeStart.format('YYYY-MM-DD'),
         rangeEnd.format('YYYY-MM-DD'),
-        [1, 2, 1, 2],
       );
 
       const generated: ShiftAssignmentDto[] = result.data.assignments ?? [];
@@ -615,6 +648,13 @@ export const WeeklyScheduleBoard = ({
           <Col>
             <Space>
               <Button
+                icon={<PrinterOutlined />}
+                onClick={handlePrint}
+                disabled={loadingTemplates}
+              >
+                Imprimir / PDF
+              </Button>
+              <Button
                 icon={<RobotOutlined />}
                 onClick={handleAutoFill}
                 loading={autofilling}
@@ -648,7 +688,7 @@ export const WeeklyScheduleBoard = ({
           <Alert
             type="warning"
             showIcon
-            message={`Faltan ${totalSlots - filledSlots} cupo(s) por asignar para completar la semana.`}
+            title={`Faltan ${totalSlots - filledSlots} cupo(s) por asignar para completar la semana.`}
           />
         )}
 
@@ -770,7 +810,7 @@ export const WeeklyScheduleBoard = ({
           {/* ── Panel derecho: tablero semanal ─────────────────────────── */}
           <Col xs={24} lg={19}>
             <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
-              <Row gutter={[6, 0]} style={{ flexWrap: 'nowrap', minWidth: 700 }}>
+              <Row gutter={[4, 0]} style={{ flexWrap: 'nowrap', minWidth: 640 }}>
                 {weekDays.map(day => {
                   const dateStr = day.format('YYYY-MM-DD');
                   const dow = day.day();
@@ -791,23 +831,23 @@ export const WeeklyScheduleBoard = ({
                   );
 
                   return (
-                    <Col key={dateStr} style={{ flex: '1 1 0', minWidth: 110 }}>
+                    <Col key={dateStr} style={{ flex: '1 1 0', minWidth: 90 }}>
                       {/* Cabecera del día */}
                       <div
                         style={{
                           textAlign: 'center',
-                          padding: '6px 4px',
+                          padding: '3px 2px',
                           borderRadius: '6px 6px 0 0',
                           background: isToday ? '#1677ff' : '#f0f2f5',
                           color: isToday ? '#fff' : isLockedDay ? '#999' : '#333',
                           opacity: isLockedDay ? 0.7 : 1,
                           fontWeight: 600,
-                          fontSize: 13,
-                          marginBottom: 4,
+                          fontSize: 11,
+                          marginBottom: 3,
                         }}
                       >
                         <div>{DAY_LABELS[dow]}</div>
-                        <div style={{ fontWeight: 400, fontSize: 11 }}>
+                        <div style={{ fontWeight: 400, fontSize: 10 }}>
                           {day.format('DD/MM')}
                         </div>
                       </div>
@@ -848,13 +888,13 @@ export const WeeklyScheduleBoard = ({
                                 style={{
                                   background: `${color}20`,
                                   borderBottom: `1px solid ${color}40`,
-                                  padding: '3px 6px',
+                                  padding: '2px 4px',
                                 }}
                               >
                                 <div
                                   style={{
                                     fontWeight: 600,
-                                    fontSize: 11,
+                                    fontSize: 10,
                                     color,
                                     whiteSpace: 'nowrap',
                                     overflow: 'hidden',
@@ -863,8 +903,8 @@ export const WeeklyScheduleBoard = ({
                                 >
                                   {tmpl.workRoleName}
                                 </div>
-                                <div style={{ fontSize: 10, color: '#888' }}>
-                                  {tmpl.startTime.substring(0, 5)} - {tmpl.endTime.substring(0, 5)}
+                                <div style={{ fontSize: 9, color: '#888' }}>
+                                  {tmpl.startTime.substring(0, 5)}-{tmpl.endTime.substring(0, 5)}
                                 </div>
                               </div>
 
@@ -888,9 +928,9 @@ export const WeeklyScheduleBoard = ({
                                       }}
                                       onDragLeave={() => setDragOverSlot(null)}
                                       style={{
-                                        minHeight: 32,
-                                        marginBottom: 3,
-                                        borderRadius: 4,
+                                        minHeight: 24,
+                                        marginBottom: 2,
+                                        borderRadius: 3,
                                         border: isDragOver
                                           ? `2px dashed ${color}`
                                           : hasEmployee
@@ -901,7 +941,7 @@ export const WeeklyScheduleBoard = ({
                                           : hasEmployee
                                           ? `${color}10`
                                           : '#fafafa',
-                                        padding: '3px 5px',
+                                        padding: '2px 4px',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'space-between',
@@ -917,7 +957,7 @@ export const WeeklyScheduleBoard = ({
                                           >
                                             <span
                                               style={{
-                                                fontSize: 11,
+                                                fontSize: 10,
                                                 overflow: 'hidden',
                                                 textOverflow: 'ellipsis',
                                                 whiteSpace: 'nowrap',
@@ -925,30 +965,23 @@ export const WeeklyScheduleBoard = ({
                                                 color: '#222',
                                               }}
                                             >
-                                              {slot.employee!.firstName} {slot.employee!.lastName}
+                                              {abbrevName(slot.employee!.firstName, slot.employee!.lastName)}
                                             </span>
                                           </Tooltip>
-                                          <Tooltip title="Quitar">
-                                            <CloseOutlined
-                                              style={{
-                                                fontSize: 10,
-                                                color: '#999',
-                                                cursor: 'pointer',
-                                                flexShrink: 0,
-                                              }}
-                                              onClick={() => clearSlot(key)}
-                                            />
-                                          </Tooltip>
+                                          <CloseOutlined
+                                            style={{ fontSize: 9, color: '#bbb', cursor: 'pointer', flexShrink: 0 }}
+                                            onClick={() => clearSlot(key)}
+                                          />
                                         </>
                                       ) : (
                                         <span
                                           style={{
-                                            fontSize: 11,
+                                            fontSize: 10,
                                             color: isDragOver ? color : '#bfbfbf',
                                             fontStyle: 'italic',
                                           }}
                                         >
-                                          {isDragOver ? 'Soltar aquí' : 'Sin asignar'}
+                                          {isDragOver ? 'Soltar' : '—'}
                                         </span>
                                       )}
                                     </div>
@@ -962,38 +995,29 @@ export const WeeklyScheduleBoard = ({
 
                       <div
                         style={{
-                          marginTop: 6,
-                          padding: '6px 5px',
+                          marginTop: 4,
+                          padding: '3px 4px',
                           border: '1px dashed #d9d9d9',
-                          borderRadius: 6,
+                          borderRadius: 4,
                           background: isLockedDay ? '#fafafa' : '#fcfcfc',
                           opacity: isLockedDay ? 0.7 : 1,
                         }}
                       >
-                        <div
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 600,
-                            color: '#666',
-                            marginBottom: 4,
-                          }}
-                        >
-                          Libres ese día
+                        <div style={{ fontSize: 9, fontWeight: 600, color: '#888', marginBottom: 2 }}>
+                          Libres
                         </div>
                         {unassignedEmployeesForDay.length === 0 ? (
-                          <div style={{ fontSize: 11, color: '#bfbfbf', fontStyle: 'italic' }}>
-                            Sin empleados libres
-                          </div>
+                          <div style={{ fontSize: 9, color: '#ccc', fontStyle: 'italic' }}>—</div>
                         ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                             {unassignedEmployeesForDay.map(employee => (
                               <div
                                 key={`${dateStr}-${employee.id}`}
                                 style={{
-                                  fontSize: 11,
-                                  color: '#444',
-                                  padding: '2px 4px',
-                                  borderRadius: 4,
+                                  fontSize: 9,
+                                  color: '#666',
+                                  padding: '1px 3px',
+                                  borderRadius: 3,
                                   background: '#f5f5f5',
                                   whiteSpace: 'nowrap',
                                   overflow: 'hidden',
@@ -1001,7 +1025,7 @@ export const WeeklyScheduleBoard = ({
                                 }}
                                 title={`${employee.firstName} ${employee.lastName}`}
                               >
-                                {employee.firstName} {employee.lastName}
+                                {abbrevName(employee.firstName, employee.lastName)}
                               </div>
                             ))}
                           </div>
@@ -1064,6 +1088,151 @@ export const WeeklyScheduleBoard = ({
           </Space>
         </Row>
       </Space>
+
+      {/* ── Vista solo impresión — A4 horizontal ─────────────────────────── */}
+      <div
+        id="wsb-print-view"
+        style={{
+          position: 'absolute',
+          left: '-9999px',
+          top: 0,
+          width: '277mm',
+          overflow: 'hidden',
+          pointerEvents: 'none',
+        }}
+      >
+        {/* Encabezado */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
+          borderBottom: '0.5mm solid #333', paddingBottom: '2mm', marginBottom: '3mm',
+        }}>
+          <div>
+            <div style={{ fontSize: '11pt', fontWeight: 700, letterSpacing: '0.05em' }}>
+              HORARIO SEMANAL
+            </div>
+          </div>
+          <div style={{ textAlign: 'right', fontSize: '8pt', color: '#444' }}>
+            Semana del {weekStart.format('DD/MM/YYYY')} al {weekStart.add(6, 'day').format('DD/MM/YYYY')}
+          </div>
+        </div>
+
+        {/* 7 columnas de días */}
+        <div style={{ display: 'flex', gap: '2mm' }}>
+          {weekDays.map(day => {
+            const dateStr = day.format('YYYY-MM-DD');
+            const dow = day.day();
+            const isToday = day.isSame(dayjs(), 'day');
+            const isLocked = !day.isSame(selectedMonth, 'month');
+            const dayTemplates = templates.filter(t => t.dayOfWeek === dow);
+            const daySlots = Object.values(slots).filter(s => s.date === dateStr);
+            const assignedIds = new Set(daySlots.filter(s => s.employee).map(s => s.employee!.id));
+            const freeEmployees = eligibleEmployees.filter(e => !assignedIds.has(e.id));
+
+            return (
+              <div key={`print-${dateStr}`} style={{ flex: '1 1 0', minWidth: 0 }}>
+                {/* Cabecera del día */}
+                <div style={{
+                  background: isToday ? '#1677ff' : isLocked ? '#bdbdbd' : '#434343',
+                  color: 'white',
+                  textAlign: 'center',
+                  padding: '1.5mm 1mm',
+                  borderRadius: '1mm 1mm 0 0',
+                  marginBottom: '1mm',
+                }}>
+                  <div style={{ fontSize: '8pt', fontWeight: 700 }}>{DAY_LABELS[dow]}</div>
+                  <div style={{ fontSize: '7pt', fontWeight: 400 }}>{day.format('DD/MM')}</div>
+                </div>
+
+                {/* Plantillas */}
+                {dayTemplates.length === 0 ? (
+                  <div style={{
+                    fontSize: '7pt', color: '#aaa', textAlign: 'center',
+                    padding: '2mm', border: '0.3mm dashed #ccc', borderRadius: '1mm',
+                  }}>
+                    Libre
+                  </div>
+                ) : dayTemplates.map(tmpl => {
+                  const color = areaColors[tmpl.workAreaId] ?? '#4096ff';
+                  const templateSlots = daySlots.filter(s => s.templateId === tmpl.id);
+                  return (
+                    <div key={`print-${tmpl.id}-${dateStr}`} style={{
+                      marginBottom: '1.5mm',
+                      border: `0.3mm solid ${color}70`,
+                      borderRadius: '0.8mm',
+                      overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        background: `${color}20`,
+                        borderBottom: `0.3mm solid ${color}50`,
+                        padding: '1mm 1.5mm',
+                      }}>
+                        <div style={{
+                          fontSize: '7pt', fontWeight: 700, color,
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>
+                          {tmpl.workRoleName}
+                        </div>
+                        <div style={{ fontSize: '6pt', color: '#555' }}>
+                          {tmpl.startTime.substring(0, 5)} – {tmpl.endTime.substring(0, 5)}
+                        </div>
+                      </div>
+                      <div style={{ padding: '0.5mm' }}>
+                        {templateSlots.map((slot, idx) => (
+                          <div key={idx} style={{
+                            fontSize: '7pt',
+                            padding: '0.6mm 1mm',
+                            borderTop: idx > 0 ? '0.2mm solid #eee' : 'none',
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                            color: slot.employee ? '#111' : '#aaa',
+                            fontStyle: slot.employee ? 'normal' : 'italic',
+                          }}>
+                            {slot.employee
+                              ? `${slot.employee.firstName} ${slot.employee.lastName}`
+                              : 'Sin asignar'}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Empleados libres ese día */}
+                {freeEmployees.length > 0 && (
+                  <div style={{
+                    border: '0.3mm dashed #ccc', borderRadius: '0.8mm',
+                    padding: '1mm', marginTop: '1mm',
+                  }}>
+                    <div style={{ fontSize: '6pt', fontWeight: 700, color: '#888', marginBottom: '0.5mm' }}>
+                      Libres
+                    </div>
+                    {freeEmployees.map(emp => (
+                      <div key={emp.id} style={{
+                        fontSize: '6.5pt', color: '#555',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>
+                        {emp.firstName} {emp.lastName}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Pie de página */}
+        <div style={{
+          marginTop: '3mm', borderTop: '0.3mm solid #ddd',
+          paddingTop: '1.5mm', fontSize: '6pt', color: '#aaa',
+          display: 'flex', justifyContent: 'space-between',
+        }}>
+          <span>Generado el {dayjs().format('DD/MM/YYYY HH:mm')}</span>
+          <span>
+            {Object.values(slots).filter(s => s.employee).length} turno(s) asignado(s) /{' '}
+            {Object.values(slots).length} cupo(s) total
+          </span>
+        </div>
+      </div>
     </Spin>
   );
 };

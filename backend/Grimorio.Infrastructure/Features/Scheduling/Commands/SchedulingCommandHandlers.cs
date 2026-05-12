@@ -10,6 +10,8 @@ namespace Grimorio.Infrastructure.Features.Scheduling.Commands;
 
 public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonthlyShiftsCommand, ShiftGenerationResultDto>
 {
+    private const int MaxConsecutiveWorkDays = 6;
+
     private readonly GrimorioDbContext _context;
 
     public GenerateMonthlyShiftsCommandHandler(GrimorioDbContext context) => _context = context;
@@ -166,6 +168,28 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             .GroupBy(ewr => ewr.EmployeeId)
             .ToDictionary(g => g.Key, g => g.Select(x => x.WorkRoleId).Distinct().Count());
 
+        var schedulableEmployees = employeeWorkRoles
+            .Where(ewr => ewr.Employee != null)
+            .Select(ewr => ewr.Employee!)
+            .GroupBy(e => e.Id)
+            .Select(g => g.First())
+            .ToList();
+
+        var roleIdsByEmployee = employeeWorkRoles
+            .GroupBy(ewr => ewr.EmployeeId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.WorkRoleId).Distinct().ToHashSet());
+
+        var demandByDateAndRole = BuildDemandByDateAndRole(startDate, endDate, shiftTemplates, specialDates);
+        var restPlans = BuildMonthlyRestPlans(
+            schedulableEmployees,
+            roleIdsByEmployee,
+            demandByDateAndRole,
+            availabilityByEmployee,
+            startDate,
+            endDate,
+            generationStartDate,
+            generationEndDate);
+
         warnings.AddRange(BuildPreGenerationWarnings(
             generationStartDate,
             generationEndDate,
@@ -247,13 +271,15 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                         .Where(c => c.Employee != null)
                         .Where(c => IsEmployeeAvailable(c.Employee!.Id, currentDate, availabilityByEmployee))
                         .Where(c => !IsEmployeeAlreadyAssigned(c.Employee!.Id, currentDate, assignedDatesByEmployee))
-                        .Where(c => CanAssignByFreeDays(c, daysInMonth, assignedDatesByEmployee, currentDate, startDate, request.WeeklyFreeDaysPattern))
+                        .Where(c => !IsPreferredRestDate(c.Employee!.Id, currentDate, restPlans))
+                        .Where(c => CanAssignByFreeDays(c, daysInMonth, assignedDatesByEmployee))
+                        .Where(c => CanAssignByMaxConsecutiveDays(c.Employee!.Id, currentDate, assignedDatesByEmployee))
                         .Where(c => CanAssignByHours(c.Employee!, currentDate, startDate, template.StartTime, template.EndTime, template.BreakDuration, template.LunchDuration, weeklyHoursByEmployee))
                         .OrderByDescending(c => c.IsPrimary)
+                        .ThenBy(c => c.Priority)
                         .ThenBy(c => GetEmployeeRoleCount(c.EmployeeId, roleCountByEmployee))
                         .ThenByDescending(c => GetRemainingDaysToAssign(c, daysInMonth, assignedDatesByEmployee))
                         .ThenBy(c => WillUseWeeklyExtraHours(c.Employee!, currentDate, startDate, template.StartTime, template.EndTime, template.BreakDuration, template.LunchDuration, weeklyHoursByEmployee))
-                        .ThenBy(c => c.Priority)
                         .ThenBy(c => GetEmployeeHours(c.Employee!.Id, hoursByEmployee))
                         .ThenBy(c => GetEmployeeAssignedDays(c.Employee!.Id, assignedDatesByEmployee))
                         .ToList();
@@ -315,7 +341,6 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             weeklyHoursByEmployee,
             daysInMonth,
             startDate,
-            request.WeeklyFreeDaysPattern,
             assignmentsToCreate);
 
         warnings.AddRange(
@@ -366,6 +391,14 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             }
         }
 
+        warnings.AddRange(BuildRestComplianceWarnings(
+            employeesToValidate,
+            restPlans,
+            assignedDatesByEmployee,
+            startDate,
+            endDate,
+            daysInMonth));
+
         var employeeNames = employeeWorkRoles
             .Where(ewr => ewr.Employee != null)
             .Select(ewr => ewr.Employee!)
@@ -409,9 +442,17 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
             TotalShiftsGenerated = assignments.Count,
             TotalShiftsNotCovered = warnings
                 .Where(w => w.WorkAreaName != "Cuota empleado")
+                .Where(w => w.WorkAreaName != "Descanso empleado")
                 .Where(w => !w.Reason.StartsWith("PreCheck:", StringComparison.OrdinalIgnoreCase))
                 .Sum(w => w.RequiredCount - w.AssignedCount)
         };
+    }
+
+    private sealed class EmployeeRestPlan
+    {
+        public Guid EmployeeId { get; init; }
+        public HashSet<DateTime> PreferredRestDates { get; init; } = new();
+        public Dictionary<int, int> WeeklyRestTargets { get; init; } = new();
     }
 
     private static bool IsEmployeeAvailable(Guid employeeId, DateTime date, Dictionary<Guid, HashSet<DateTime>> availabilityByEmployee)
@@ -430,6 +471,357 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         return dates.Contains(date.Date);
     }
 
+    private static bool IsPreferredRestDate(Guid employeeId, DateTime date, Dictionary<Guid, EmployeeRestPlan> restPlans)
+        => restPlans.TryGetValue(employeeId, out var plan) && plan.PreferredRestDates.Contains(date.Date);
+
+    private static bool CanAssignByMaxConsecutiveDays(
+        Guid employeeId,
+        DateTime dateToAssign,
+        Dictionary<Guid, HashSet<DateTime>> assignedDatesByEmployee)
+    {
+        var dates = assignedDatesByEmployee.TryGetValue(employeeId, out var current)
+            ? new HashSet<DateTime>(current)
+            : new HashSet<DateTime>();
+
+        dates.Add(dateToAssign.Date);
+
+        var consecutive = 1;
+        var cursor = dateToAssign.Date.AddDays(-1);
+        while (dates.Contains(cursor))
+        {
+            consecutive++;
+            cursor = cursor.AddDays(-1);
+        }
+
+        cursor = dateToAssign.Date.AddDays(1);
+        while (dates.Contains(cursor))
+        {
+            consecutive++;
+            cursor = cursor.AddDays(1);
+        }
+
+        return consecutive <= MaxConsecutiveWorkDays;
+    }
+
+    private static Dictionary<(DateTime Date, Guid WorkRoleId), int> BuildDemandByDateAndRole(
+        DateTime monthStart,
+        DateTime monthEnd,
+        List<ShiftTemplate> shiftTemplates,
+        List<SpecialDate> specialDates)
+    {
+        var specialDateDict = specialDates.ToDictionary(sd => sd.Date.Date);
+        var result = new Dictionary<(DateTime Date, Guid WorkRoleId), int>();
+
+        for (var currentDate = monthStart.Date; currentDate <= monthEnd.Date; currentDate = currentDate.AddDays(1))
+        {
+            var templatesForDay = specialDateDict.TryGetValue(currentDate, out var specialDate) && specialDate.Templates.Any()
+                ? specialDate.Templates.Select(t => (t.WorkRoleId, t.RequiredCount))
+                : shiftTemplates
+                    .Where(t => t.DayOfWeek == currentDate.DayOfWeek)
+                    .Select(t => (t.WorkRoleId, t.RequiredCount));
+
+            foreach (var template in templatesForDay)
+            {
+                var key = (currentDate, template.WorkRoleId);
+                result[key] = result.TryGetValue(key, out var current)
+                    ? current + template.RequiredCount
+                    : template.RequiredCount;
+            }
+        }
+
+        return result;
+    }
+
+    private static Dictionary<Guid, EmployeeRestPlan> BuildMonthlyRestPlans(
+        List<Employee> employees,
+        Dictionary<Guid, HashSet<Guid>> roleIdsByEmployee,
+        Dictionary<(DateTime Date, Guid WorkRoleId), int> demandByDateAndRole,
+        Dictionary<Guid, HashSet<DateTime>> availabilityByEmployee,
+        DateTime monthStart,
+        DateTime monthEnd,
+        DateTime generationStartDate,
+        DateTime generationEndDate)
+    {
+        var result = new Dictionary<Guid, EmployeeRestPlan>();
+
+        foreach (var employee in employees.Where(e => e.ContractType != Domain.Enums.ContractType.PartTime))
+        {
+            var freeDays = Math.Clamp(employee.FreeDaysPerMonth, 0, (monthEnd.Date - monthStart.Date).Days + 1);
+            var weeklyTargets = BuildWeeklyRestTargets(freeDays, monthStart, monthEnd);
+            var preferredDates = new HashSet<DateTime>();
+
+            foreach (var target in weeklyTargets.Where(t => t.Value > 0))
+            {
+                var weekDates = GetDatesForWeekIndex(monthStart, monthEnd, target.Key)
+                    .Where(d => d >= generationStartDate.Date && d <= generationEndDate.Date)
+                    .Where(d => !preferredDates.Contains(d))
+                    .ToList();
+
+                var remaining = Math.Min(target.Value, weekDates.Count);
+                while (remaining > 0 && weekDates.Count > 0)
+                {
+                    if (remaining >= 2)
+                    {
+                        var pair = FindLowestImpactConsecutivePair(
+                            weekDates,
+                            employee.Id,
+                            roleIdsByEmployee,
+                            demandByDateAndRole,
+                            availabilityByEmployee);
+
+                        if (pair != null)
+                        {
+                            preferredDates.Add(pair.Value.First);
+                            preferredDates.Add(pair.Value.Second);
+                            weekDates.Remove(pair.Value.First);
+                            weekDates.Remove(pair.Value.Second);
+                            remaining -= 2;
+                            continue;
+                        }
+                    }
+
+                    var bestSingle = weekDates
+                        .OrderBy(d => GetRestImpactScore(employee.Id, d, roleIdsByEmployee, demandByDateAndRole, availabilityByEmployee))
+                        .ThenBy(d => d.Day)
+                        .First();
+
+                    preferredDates.Add(bestSingle);
+                    weekDates.Remove(bestSingle);
+                    remaining--;
+                }
+            }
+
+            result[employee.Id] = new EmployeeRestPlan
+            {
+                EmployeeId = employee.Id,
+                PreferredRestDates = preferredDates,
+                WeeklyRestTargets = weeklyTargets
+            };
+        }
+
+        return result;
+    }
+
+    private static Dictionary<int, int> BuildWeeklyRestTargets(int freeDaysPerMonth, DateTime monthStart, DateTime monthEnd)
+    {
+        var weekCount = GetWeekIndex(monthEnd, monthStart) + 1;
+        var targets = Enumerable.Range(0, weekCount).ToDictionary(i => i, _ => 0);
+        var remaining = freeDaysPerMonth;
+        var primaryWeekCount = Math.Min(4, weekCount);
+
+        for (var i = 0; i < primaryWeekCount && remaining > 0; i++)
+        {
+            targets[i]++;
+            remaining--;
+        }
+
+        var preferredExtraOrder = new[] { 1, 3, 0, 2 };
+        foreach (var weekIndex in preferredExtraOrder.Where(i => i < primaryWeekCount))
+        {
+            if (remaining <= 0)
+                break;
+
+            if (targets[weekIndex] >= 2)
+                continue;
+
+            targets[weekIndex]++;
+            remaining--;
+        }
+
+        while (remaining > 0)
+        {
+            var weekIndex = targets
+                .OrderBy(kvp => kvp.Value)
+                .ThenBy(kvp => kvp.Key)
+                .First().Key;
+
+            targets[weekIndex]++;
+            remaining--;
+        }
+
+        return targets;
+    }
+
+    private static List<DateTime> GetDatesForWeekIndex(DateTime monthStart, DateTime monthEnd, int weekIndex)
+    {
+        var weekStart = monthStart.Date.AddDays(weekIndex * 7);
+        var weekEnd = weekStart.AddDays(6);
+        if (weekEnd > monthEnd.Date)
+            weekEnd = monthEnd.Date;
+
+        var dates = new List<DateTime>();
+        for (var date = weekStart; date <= weekEnd; date = date.AddDays(1))
+            dates.Add(date);
+
+        return dates;
+    }
+
+    private static (DateTime First, DateTime Second)? FindLowestImpactConsecutivePair(
+        List<DateTime> dates,
+        Guid employeeId,
+        Dictionary<Guid, HashSet<Guid>> roleIdsByEmployee,
+        Dictionary<(DateTime Date, Guid WorkRoleId), int> demandByDateAndRole,
+        Dictionary<Guid, HashSet<DateTime>> availabilityByEmployee)
+    {
+        return dates
+            .OrderBy(d => d)
+            .Zip(dates.OrderBy(d => d).Skip(1), (first, second) => (first, second))
+            .Where(pair => pair.second == pair.first.AddDays(1))
+            .OrderBy(pair =>
+                GetRestImpactScore(employeeId, pair.first, roleIdsByEmployee, demandByDateAndRole, availabilityByEmployee)
+                + GetRestImpactScore(employeeId, pair.second, roleIdsByEmployee, demandByDateAndRole, availabilityByEmployee))
+            .ThenBy(pair => pair.first.Day)
+            .Select(pair => ((DateTime First, DateTime Second)?)pair)
+            .FirstOrDefault();
+    }
+
+    private static int GetRestImpactScore(
+        Guid employeeId,
+        DateTime date,
+        Dictionary<Guid, HashSet<Guid>> roleIdsByEmployee,
+        Dictionary<(DateTime Date, Guid WorkRoleId), int> demandByDateAndRole,
+        Dictionary<Guid, HashSet<DateTime>> availabilityByEmployee)
+    {
+        var score = 0;
+        if (roleIdsByEmployee.TryGetValue(employeeId, out var roleIds))
+        {
+            foreach (var roleId in roleIds)
+            {
+                if (demandByDateAndRole.TryGetValue((date.Date, roleId), out var demand))
+                    score += demand;
+            }
+        }
+
+        if (availabilityByEmployee.TryGetValue(employeeId, out var unavailableDates)
+            && unavailableDates.Contains(date.Date))
+            score -= 100;
+
+        return score;
+    }
+
+    private static List<ShiftGenerationWarningDto> BuildRestComplianceWarnings(
+        List<Employee> employees,
+        Dictionary<Guid, EmployeeRestPlan> restPlans,
+        Dictionary<Guid, HashSet<DateTime>> assignedDatesByEmployee,
+        DateTime monthStart,
+        DateTime monthEnd,
+        int daysInMonth,
+        bool includeQuotaWarning = false)
+    {
+        var warnings = new List<ShiftGenerationWarningDto>();
+
+        foreach (var employee in employees.Where(e => e.ContractType != Domain.Enums.ContractType.PartTime))
+        {
+            var assignedDates = assignedDatesByEmployee.TryGetValue(employee.Id, out var dates)
+                ? dates
+                : new HashSet<DateTime>();
+
+            var assignedDays = assignedDates.Count;
+            var requiredWorkingDays = Math.Max(0, daysInMonth - employee.FreeDaysPerMonth);
+            var actualFreeDays = daysInMonth - assignedDays;
+
+            if (includeQuotaWarning && actualFreeDays != employee.FreeDaysPerMonth)
+            {
+                warnings.Add(new ShiftGenerationWarningDto
+                {
+                    Date = monthStart,
+                    DayOfWeek = monthStart.DayOfWeek,
+                    WorkAreaName = "Cuota empleado",
+                    WorkRoleName = "(No aplica)",
+                    RequiredCount = requiredWorkingDays,
+                    AssignedCount = assignedDays,
+                    Reason = $"Empleado {employee.FirstName} {employee.LastName}: configurado para {employee.FreeDaysPerMonth} dias libres al mes, obtuvo {actualFreeDays}. Trabajo {assignedDays} de {requiredWorkingDays} dias esperados."
+                });
+            }
+
+            if (restPlans.TryGetValue(employee.Id, out var plan))
+            {
+                var preferredWorked = plan.PreferredRestDates
+                    .Where(assignedDates.Contains)
+                    .OrderBy(d => d)
+                    .ToList();
+
+                if (preferredWorked.Count > 0)
+                {
+                    warnings.Add(new ShiftGenerationWarningDto
+                    {
+                        Date = preferredWorked.First(),
+                        DayOfWeek = preferredWorked.First().DayOfWeek,
+                        WorkAreaName = "Descanso empleado",
+                        WorkRoleName = "(No aplica)",
+                        RequiredCount = 0,
+                        AssignedCount = 0,
+                        Reason = $"Empleado {employee.FirstName} {employee.LastName}: no se pudieron respetar {preferredWorked.Count} descanso(s) preferidos por cobertura. Fechas trabajadas que eran descanso sugerido: {string.Join(", ", preferredWorked.Select(d => d.ToString("dd/MM")))}."
+                    });
+                }
+
+                foreach (var target in plan.WeeklyRestTargets.Where(t => t.Value >= 2))
+                {
+                    var weekDates = GetDatesForWeekIndex(monthStart, monthEnd, target.Key);
+                    var freeDates = weekDates
+                        .Where(d => !assignedDates.Contains(d))
+                        .OrderBy(d => d)
+                        .ToList();
+
+                    var hasConsecutiveRest = freeDates
+                        .Zip(freeDates.Skip(1), (first, second) => (first, second))
+                        .Any(pair => pair.second == pair.first.AddDays(1));
+
+                    if (!hasConsecutiveRest)
+                    {
+                        warnings.Add(new ShiftGenerationWarningDto
+                        {
+                            Date = weekDates.First(),
+                            DayOfWeek = weekDates.First().DayOfWeek,
+                            WorkAreaName = "Descanso empleado",
+                            WorkRoleName = "(No aplica)",
+                            RequiredCount = target.Value,
+                            AssignedCount = freeDates.Count,
+                            Reason = $"Empleado {employee.FirstName} {employee.LastName}: la semana {target.Key + 1} necesitaba {target.Value} dias libres y se intento que fueran consecutivos, pero no quedo ningun bloque consecutivo. Descansos reales: {(freeDates.Count == 0 ? "ninguno" : string.Join(", ", freeDates.Select(d => d.ToString("dd/MM"))))}."
+                        });
+                    }
+                }
+            }
+
+            var maxRun = GetMaxConsecutiveAssignedDays(assignedDates, monthStart, monthEnd);
+            if (maxRun > MaxConsecutiveWorkDays)
+            {
+                warnings.Add(new ShiftGenerationWarningDto
+                {
+                    Date = monthStart,
+                    DayOfWeek = monthStart.DayOfWeek,
+                    WorkAreaName = "Descanso empleado",
+                    WorkRoleName = "(No aplica)",
+                    RequiredCount = MaxConsecutiveWorkDays,
+                    AssignedCount = maxRun,
+                    Reason = $"Empleado {employee.FirstName} {employee.LastName}: quedo con una racha de {maxRun} dias trabajados seguidos, superior al maximo permitido de {MaxConsecutiveWorkDays}."
+                });
+            }
+        }
+
+        return warnings;
+    }
+
+    private static int GetMaxConsecutiveAssignedDays(HashSet<DateTime> assignedDates, DateTime monthStart, DateTime monthEnd)
+    {
+        var max = 0;
+        var current = 0;
+        for (var date = monthStart.Date; date <= monthEnd.Date; date = date.AddDays(1))
+        {
+            if (assignedDates.Contains(date))
+            {
+                current++;
+                max = Math.Max(max, current);
+            }
+            else
+            {
+                current = 0;
+            }
+        }
+
+        return max;
+    }
+
     private static List<(DateTime Date, DayOfWeek DayOfWeek, Guid WorkAreaId, Guid WorkRoleId, TimeSpan StartTime, TimeSpan EndTime, TimeSpan? BreakDuration, TimeSpan? LunchDuration, string? Notes, string WorkAreaName, string WorkRoleName, int MissingCount)> AutoAssignUncoveredSlots(
         List<(DateTime Date, DayOfWeek DayOfWeek, Guid WorkAreaId, Guid WorkRoleId, TimeSpan StartTime, TimeSpan EndTime, TimeSpan? BreakDuration, TimeSpan? LunchDuration, string? Notes, string WorkAreaName, string WorkRoleName, int MissingCount)> uncoveredSlots,
         Guid branchId,
@@ -441,7 +833,6 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
         Dictionary<Guid, Dictionary<int, decimal>> weeklyHoursByEmployee,
         int daysInMonth,
         DateTime monthStart,
-        List<int>? weeklyFreeDaysPattern,
         List<ShiftAssignment> assignmentsToCreate)
     {
         var unresolved = new List<(DateTime Date, DayOfWeek DayOfWeek, Guid WorkAreaId, Guid WorkRoleId, TimeSpan StartTime, TimeSpan EndTime, TimeSpan? BreakDuration, TimeSpan? LunchDuration, string? Notes, string WorkAreaName, string WorkRoleName, int MissingCount)>();
@@ -462,13 +853,14 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
                     .Where(c => c.Employee != null)
                     .Where(c => IsEmployeeAvailable(c.Employee!.Id, slot.Date, availabilityByEmployee))
                     .Where(c => !IsEmployeeAlreadyAssigned(c.Employee!.Id, slot.Date, assignedDatesByEmployee))
-                    .Where(c => CanAssignByFreeDays(c, daysInMonth, assignedDatesByEmployee, slot.Date, monthStart, weeklyFreeDaysPattern))
+                    .Where(c => CanAssignByFreeDays(c, daysInMonth, assignedDatesByEmployee))
+                    .Where(c => CanAssignByMaxConsecutiveDays(c.Employee!.Id, slot.Date, assignedDatesByEmployee))
                     .Where(c => CanAssignByHours(c.Employee!, slot.Date, monthStart, slot.StartTime, slot.EndTime, slot.BreakDuration, slot.LunchDuration, weeklyHoursByEmployee))
                     .OrderByDescending(c => c.IsPrimary)
+                    .ThenBy(c => c.Priority)
                     .ThenBy(c => GetEmployeeRoleCount(c.EmployeeId, roleCountByEmployee))
                     .ThenByDescending(c => GetRemainingDaysToAssign(c, daysInMonth, assignedDatesByEmployee))
                     .ThenBy(c => WillUseWeeklyExtraHours(c.Employee!, slot.Date, monthStart, slot.StartTime, slot.EndTime, slot.BreakDuration, slot.LunchDuration, weeklyHoursByEmployee))
-                    .ThenBy(c => c.Priority)
                     .ThenBy(c => GetEmployeeHours(c.Employee!.Id, hoursByEmployee))
                     .ThenBy(c => GetEmployeeAssignedDays(c.Employee!.Id, assignedDatesByEmployee))
                     .ToList();
@@ -524,30 +916,13 @@ public class GenerateMonthlyShiftsCommandHandler : IRequestHandler<GenerateMonth
     private static bool CanAssignByFreeDays(
         EmployeeWorkRole ewr,
         int daysInMonth,
-        Dictionary<Guid, HashSet<DateTime>> assignedDatesByEmployee,
-        DateTime dateToAssign,
-        DateTime monthStart,
-        List<int>? weeklyFreeDaysPattern)
+        Dictionary<Guid, HashSet<DateTime>> assignedDatesByEmployee)
     {
         if (ewr.Employee == null)
             return false;
 
         if (ewr.Employee.ContractType == Domain.Enums.ContractType.PartTime)
             return true;
-
-        if (weeklyFreeDaysPattern != null && weeklyFreeDaysPattern.Count > 0)
-        {
-            var weekIndex = GetWeekIndex(dateToAssign, monthStart);
-            var offDaysForWeek = weekIndex < weeklyFreeDaysPattern.Count
-                ? weeklyFreeDaysPattern[weekIndex]
-                : weeklyFreeDaysPattern[^1];
-            var daysInThisWeek = GetDaysInWeekIndex(monthStart, weekIndex);
-            var maxWorkingDaysThisWeek = Math.Max(0, daysInThisWeek - offDaysForWeek);
-            var assignedDaysInWeek = GetEmployeeAssignedDaysInWeek(ewr.EmployeeId, weekIndex, monthStart, assignedDatesByEmployee);
-
-            if (assignedDaysInWeek >= maxWorkingDaysThisWeek)
-                return false;
-        }
 
         var freeDaysPerMonth = ewr.Employee.FreeDaysPerMonth;
         var requiredWorkingDays = Math.Max(0, daysInMonth - freeDaysPerMonth);
