@@ -78,6 +78,7 @@ public class ElectronicDocument : BaseEntity
 
     public string? XmlSigned { get; set; }
     public string? XmlAuthorized { get; set; }
+    public string? XmlResponseSri { get; set; }     // respuesta XML cruda del SRI al rechazar
     public string? NumeroAutorizacion { get; set; }
     public DateTime? FechaAutorizacion { get; set; }
     public byte[]? RidePdf { get; set; }

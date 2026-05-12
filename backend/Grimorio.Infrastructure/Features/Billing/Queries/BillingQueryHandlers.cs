@@ -259,6 +259,7 @@ public class GetElectronicDocumentsHandler : IRequestHandler<GetElectronicDocume
         CreatedAt = d.CreatedAt,
         HasRide = d.RidePdf != null && d.RidePdf.Length > 0,
         HasXml = !string.IsNullOrEmpty(d.XmlAuthorized ?? d.XmlSigned),
+        HasXmlResponse = !string.IsNullOrEmpty(d.XmlResponseSri),
     };
 }
 
@@ -279,6 +280,7 @@ public class GetElectronicDocumentBytesHandler : IRequestHandler<GetElectronicDo
             RidePdf = d.RidePdf,
             XmlSigned = d.XmlSigned,
             XmlAuthorized = d.XmlAuthorized,
+            XmlResponseSri = d.XmlResponseSri,
         };
     }
 }

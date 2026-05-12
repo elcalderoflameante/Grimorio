@@ -170,6 +170,17 @@ public class SriController : ControllerBase
         return File(rawDoc.RidePdf, "application/pdf", $"RIDE-{doc.NumeroFactura}.pdf");
     }
 
+    [HttpGet("documentos/{id:guid}/respuesta-sri")]
+    public async Task<IActionResult> DownloadRespuestaSri(Guid id)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var rawDoc = await _mediator.Send(new GetElectronicDocumentBytesQuery { Id = id, BranchId = branchId });
+        if (rawDoc == null) return NotFound();
+        if (string.IsNullOrEmpty(rawDoc.XmlResponseSri)) return BadRequest("No hay respuesta del SRI almacenada para este documento.");
+        var bytes = System.Text.Encoding.UTF8.GetBytes(rawDoc.XmlResponseSri);
+        return File(bytes, "application/xml", $"RespuestaSRI-{rawDoc.NumeroFactura}.xml");
+    }
+
     [HttpGet("documentos/{id:guid}/xml")]
     public async Task<IActionResult> DownloadXml(Guid id)
     {

@@ -1419,4 +1419,5 @@ export interface ElectronicDocumentDto {
   createdAt: string;
   hasRide: boolean;
   hasXml: boolean;
+  hasXmlResponse: boolean;
 }

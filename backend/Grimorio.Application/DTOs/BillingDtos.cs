@@ -58,6 +58,7 @@ public class ElectronicDocumentBytesDto
     public byte[]? RidePdf { get; set; }
     public string? XmlSigned { get; set; }
     public string? XmlAuthorized { get; set; }
+    public string? XmlResponseSri { get; set; }
 }
 
 public class ElectronicDocumentDto
@@ -84,6 +85,7 @@ public class ElectronicDocumentDto
 
     public bool HasRide { get; set; }
     public bool HasXml { get; set; }
+    public bool HasXmlResponse { get; set; }
 }
 
 // ── PaymentMethodConfig ───────────────────────────────────────────────────────

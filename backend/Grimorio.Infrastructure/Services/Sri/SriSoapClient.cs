@@ -7,14 +7,15 @@ namespace Grimorio.Infrastructure.Services.Sri;
 
 public enum SriSubmitResult { Received, Rejected }
 
-public record SriValidateResponse(SriSubmitResult Result, List<string> Messages);
+public record SriValidateResponse(SriSubmitResult Result, List<string> Messages, string RawXml);
 
 public record SriAuthorizationResponse(
     bool IsAuthorized,
     string? NumeroAutorizacion,
     DateTime? FechaAutorizacion,
     string? XmlAuthorizado,
-    List<string> Messages);
+    List<string> Messages,
+    string RawXml);
 
 // Cliente SOAP para los webservices del SRI Ecuador
 public class SriSoapClient
@@ -100,7 +101,7 @@ public class SriSoapClient
     private static SriValidateResponse ParseValidarResponse(string xml)
     {
         var doc = new XmlDocument();
-        try { doc.LoadXml(xml); } catch { return new(SriSubmitResult.Rejected, ["Respuesta inválida del SRI"]); }
+        try { doc.LoadXml(xml); } catch { return new(SriSubmitResult.Rejected, ["Respuesta inválida del SRI"], xml); }
 
         // El estado está en RespuestaRecepcionComprobante/estado
         var estadoNodes = doc.GetElementsByTagName("estado");
@@ -115,18 +116,18 @@ public class SriSoapClient
         if (messages.Count == 0 && result == SriSubmitResult.Rejected)
             messages.Add($"El SRI devolvió estado: {(string.IsNullOrEmpty(estado) ? "desconocido" : estado)}");
 
-        return new(result, messages);
+        return new(result, messages, xml);
     }
 
     private static SriAuthorizationResponse ParseAutorizarResponse(string xml, string claveAcceso)
     {
         var doc = new XmlDocument();
         try { doc.LoadXml(xml); }
-        catch { return new(false, null, null, null, ["Respuesta inválida del SRI"]); }
+        catch { return new(false, null, null, null, ["Respuesta inválida del SRI"], xml); }
 
         var autNodes = doc.GetElementsByTagName("autorizacion");
         if (autNodes.Count == 0)
-            return new(false, null, null, null, ["Sin nodo de autorización en respuesta del SRI"]);
+            return new(false, null, null, null, ["Sin nodo de autorización en respuesta del SRI"], xml);
 
         var aut = autNodes[0]!;
         var estado = aut.SelectSingleNode("estado")?.InnerText?.Trim() ?? "";
@@ -143,7 +144,7 @@ public class SriSoapClient
         if (messages.Count == 0 && !autorizado)
             messages.Add($"El SRI devolvió estado: {(string.IsNullOrEmpty(estado) ? "desconocido" : estado)}");
 
-        return new(autorizado, numeroAut, fechaDate, comprobante, messages);
+        return new(autorizado, numeroAut, fechaDate, comprobante, messages, xml);
     }
 
     // El SRI usa <mensaje> tanto como contenedor como elemento hijo con el texto.

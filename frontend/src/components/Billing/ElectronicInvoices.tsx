@@ -217,6 +217,19 @@ export default function ElectronicInvoices() {
                     />
                   </Tooltip>
                 )}
+                {r.hasXmlResponse && (
+                  <Tooltip title="Descargar respuesta XML del SRI">
+                    <Button
+                      size="small"
+                      danger
+                      icon={<FileTextOutlined />}
+                      onClick={() => handleDownload(
+                        sriApi.downloadRespuestaSriUrl(r.id),
+                        `RespuestaSRI-${r.numeroFactura}.xml`
+                      )}
+                    />
+                  </Tooltip>
+                )}
                 {(r.status === 'Rejected' || r.status === 'Sent' || r.status === 'Pending') && (
                   <Tooltip title="Reintentar envío al SRI">
                     <Button
