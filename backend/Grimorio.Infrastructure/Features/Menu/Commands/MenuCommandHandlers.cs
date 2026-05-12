@@ -69,14 +69,15 @@ public class CreateItemMenuHandler : IRequestHandler<CreateMenuItemCommand, Menu
             BranchId = req.BranchId, MenuCategoryId = req.MenuCategoryId,
             Name = req.Name, Description = req.Description,
             InternalCode = req.InternalCode, Price = req.Price,
-            StationId = req.StationId,
+            StationId = req.StationId, TaxRateId = req.TaxRateId,
         };
         _db.MenuItems.Add(item);
         await _db.SaveChangesAsync(ct);
 
         var cat = await _db.MenuCategories.FindAsync([req.MenuCategoryId], ct);
         var est = req.StationId.HasValue ? await _db.WorkStations.FindAsync([req.StationId.Value], ct) : null;
-        return MenuMapper.MapItem(item, cat?.Name ?? string.Empty, cat?.Color, 0, est?.Name);
+        var tax = req.TaxRateId.HasValue ? await _db.TaxRates.FindAsync([req.TaxRateId.Value], ct) : null;
+        return MenuMapper.MapItem(item, cat?.Name ?? string.Empty, cat?.Color, 0, est?.Name, tax);
     }
 }
 
@@ -98,12 +99,14 @@ public class UpdateItemMenuHandler : IRequestHandler<UpdateMenuItemCommand, Menu
         item.Price = req.Price; item.IsActive = req.IsActive;
         item.AvailableForSale = req.AvailableForSale;
         item.StationId = req.StationId;
+        item.TaxRateId = req.TaxRateId;
         await _db.SaveChangesAsync(ct);
 
         string? stationName = item.StationId.HasValue
             ? (await _db.WorkStations.FindAsync([item.StationId.Value], ct))?.Name
             : null;
-        return MenuMapper.MapItem(item, item.Category?.Name ?? string.Empty, item.Category?.Color, 0, stationName);
+        var taxRate = item.TaxRateId.HasValue ? await _db.TaxRates.FindAsync([item.TaxRateId.Value], ct) : null;
+        return MenuMapper.MapItem(item, item.Category?.Name ?? string.Empty, item.Category?.Color, 0, stationName, taxRate);
     }
 }
 
@@ -129,7 +132,6 @@ public class UpsertRecipeHandler : IRequestHandler<UpsertRecipeCommand, List<Rec
 
     public async Task<List<RecipeIngredientDto>> Handle(UpsertRecipeCommand req, CancellationToken ct)
     {
-        // Eliminar ingredients actuales y reemplazar con los nuevos
         var existentes = await _db.RecipeIngredients
             .Where(x => x.MenuItemId == req.MenuItemId && x.BranchId == req.BranchId)
             .ToListAsync(ct);
@@ -137,27 +139,48 @@ public class UpsertRecipeHandler : IRequestHandler<UpsertRecipeCommand, List<Rec
 
         foreach (var ing in req.Ingredients)
         {
-            _db.RecipeIngredients.Add(new RecipeIngredient
+            var recipeIng = new RecipeIngredient
             {
                 BranchId = req.BranchId, MenuItemId = req.MenuItemId,
                 ArticleId = ing.ArticleId, UnitId = ing.UnitId,
                 Quantity = ing.Quantity, Notes = ing.Notes,
-            });
+                IsVariable = ing.IsVariable,
+            };
+            _db.RecipeIngredients.Add(recipeIng);
+
+            foreach (var altId in ing.AlternativeArticleIds)
+            {
+                _db.RecipeIngredientAlternatives.Add(new RecipeIngredientAlternative
+                {
+                    BranchId = req.BranchId,
+                    RecipeIngredientId = recipeIng.Id,
+                    ArticleId = altId,
+                });
+            }
         }
         await _db.SaveChangesAsync(ct);
 
-        return await _db.RecipeIngredients
+        var result = await _db.RecipeIngredients
             .Include(r => r.Article)
             .Include(r => r.Unit)
-            .Where(r => r.MenuItemId == req.MenuItemId && r.BranchId == req.BranchId)
-            .Select(r => new RecipeIngredientDto
-            {
-                Id = r.Id, ArticleId = r.ArticleId,
-                ArticleName = r.Article!.Name, InternalCode = r.Article.InternalCode,
-                UnitId = r.UnitId, UnitName = r.Unit!.Name,
-                UnitSymbol = r.Unit.Symbol, Quantity = r.Quantity, Notes = r.Notes,
-            })
+            .Include(r => r.Alternatives.Where(a => !a.IsDeleted))
+                .ThenInclude(a => a.Article)
+            .Where(r => r.MenuItemId == req.MenuItemId && r.BranchId == req.BranchId && !r.IsDeleted)
             .ToListAsync(ct);
+
+        return result.Select(r => new RecipeIngredientDto
+        {
+            Id = r.Id, ArticleId = r.ArticleId,
+            ArticleName = r.Article?.Name ?? string.Empty, InternalCode = r.Article?.InternalCode,
+            UnitId = r.UnitId, UnitName = r.Unit?.Name ?? string.Empty,
+            UnitSymbol = r.Unit?.Symbol ?? string.Empty, Quantity = r.Quantity, Notes = r.Notes,
+            IsVariable = r.IsVariable,
+            Alternatives = r.Alternatives.Where(a => !a.IsDeleted).Select(a => new RecipeIngredientAlternativeDto
+            {
+                ArticleId = a.ArticleId,
+                ArticleName = a.Article?.Name ?? string.Empty,
+            }).ToList(),
+        }).ToList();
     }
 }
 
@@ -188,15 +211,27 @@ public class DescontarStockVentaHandler : IRequestHandler<DeductStockFromSaleCom
         foreach (var saleItem in req.Items)
         {
             var recipe = await _db.RecipeIngredients
-                .Where(r => r.MenuItemId == saleItem.MenuItemId && r.BranchId == req.BranchId)
+                .Where(r => r.MenuItemId == saleItem.MenuItemId && r.BranchId == req.BranchId && !r.IsDeleted)
                 .ToListAsync(ct);
+
+            List<Grimorio.Domain.Entities.POS.OrderItemIngredientChoice> choices = [];
+            if (saleItem.OrderItemId.HasValue)
+            {
+                choices = await _db.OrderItemIngredientChoices
+                    .Where(c => c.OrderItemId == saleItem.OrderItemId.Value && !c.IsDeleted)
+                    .ToListAsync(ct);
+            }
 
             foreach (var ingredient in recipe)
             {
+                var articleId = ingredient.IsVariable
+                    ? (choices.FirstOrDefault(c => c.RecipeIngredientId == ingredient.Id)?.ChosenArticleId ?? ingredient.ArticleId)
+                    : ingredient.ArticleId;
+
                 await _mediator.Send(new RegisterMovementCommand
                 {
                     BranchId = req.BranchId,
-                    ArticleId = ingredient.ArticleId,
+                    ArticleId = articleId,
                     WarehouseId = req.WarehouseId,
                     Type = Grimorio.Domain.Entities.Inventory.MovementType.SaleDeduction,
                     Quantity = ingredient.Quantity * saleItem.Quantity,
@@ -211,7 +246,9 @@ public class DescontarStockVentaHandler : IRequestHandler<DeductStockFromSaleCom
 
 internal static class MenuMapper
 {
-    internal static MenuItemDto MapItem(MenuItem item, string categoryName, string? categoriaColor, int totalIngredients = 0, string? stationName = null) =>
+    internal static MenuItemDto MapItem(MenuItem item, string categoryName, string? categoriaColor,
+        int totalIngredients = 0, string? stationName = null,
+        Grimorio.Domain.Entities.Billing.TaxRate? taxRate = null) =>
         new()
         {
             Id = item.Id, MenuCategoryId = item.MenuCategoryId,
@@ -220,7 +257,9 @@ internal static class MenuMapper
             InternalCode = item.InternalCode, Price = item.Price,
             IsActive = item.IsActive, AvailableForSale = item.AvailableForSale,
             TotalIngredients = totalIngredients,
-            StationId = item.StationId,
-            StationName = stationName,
+            StationId = item.StationId, StationName = stationName,
+            TaxRateId = item.TaxRateId,
+            TaxRateName = taxRate?.Name ?? item.TaxRate?.Name,
+            TaxRatePercentage = taxRate?.Percentage ?? item.TaxRate?.Percentage,
         };
 }

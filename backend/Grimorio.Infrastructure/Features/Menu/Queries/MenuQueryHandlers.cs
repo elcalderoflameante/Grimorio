@@ -39,32 +39,59 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
         var query = _db.MenuItems
             .Include(x => x.Category)
             .Include(x => x.Station)
+            .Include(x => x.TaxRate)
             .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.Article)
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.Unit)
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.Alternatives.Where(a => !a.IsDeleted))
+                    .ThenInclude(a => a.Article)
             .Where(x => x.BranchId == req.BranchId);
 
         if (req.CategoryId.HasValue) query = query.Where(x => x.MenuCategoryId == req.CategoryId.Value);
         if (req.ActiveOnly == true) query = query.Where(x => x.IsActive);
         if (req.AvailableOnly == true) query = query.Where(x => x.AvailableForSale);
 
-        return await query
+        var items = await query
             .OrderBy(x => x.Category!.Order).ThenBy(x => x.Name)
-            .Select(x => new MenuItemDto
-            {
-                Id = x.Id,
-                MenuCategoryId = x.MenuCategoryId,
-                CategoryName = x.Category!.Name,
-                CategoryColor = x.Category.Color,
-                Name = x.Name,
-                Description = x.Description,
-                InternalCode = x.InternalCode,
-                Price = x.Price,
-                IsActive = x.IsActive,
-                AvailableForSale = x.AvailableForSale,
-                TotalIngredients = x.Recipe.Count(r => !r.IsDeleted),
-                StationId = x.StationId,
-                StationName = x.Station != null ? x.Station.Name : null,
-            })
             .ToListAsync(ct);
+
+        return items.Select(x => new MenuItemDto
+        {
+            Id = x.Id,
+            MenuCategoryId = x.MenuCategoryId,
+            CategoryName = x.Category?.Name ?? string.Empty,
+            CategoryColor = x.Category?.Color,
+            Name = x.Name,
+            Description = x.Description,
+            InternalCode = x.InternalCode,
+            Price = x.Price,
+            IsActive = x.IsActive,
+            AvailableForSale = x.AvailableForSale,
+            TotalIngredients = x.Recipe.Count(r => !r.IsDeleted),
+            StationId = x.StationId,
+            StationName = x.Station?.Name,
+            TaxRateId = x.TaxRateId,
+            TaxRateName = x.TaxRate?.Name,
+            TaxRatePercentage = x.TaxRate?.Percentage,
+            TaxRateSriCode = x.TaxRate?.SriCode,
+            VariableIngredients = x.Recipe
+                .Where(r => !r.IsDeleted && r.IsVariable)
+                .Select(r => new VariableIngredientSlotDto
+                {
+                    RecipeIngredientId = r.Id,
+                    Quantity = r.Quantity,
+                    UnitSymbol = r.Unit?.Symbol ?? string.Empty,
+                    DefaultArticleId = r.ArticleId,
+                    DefaultArticleName = r.Article?.Name ?? string.Empty,
+                    Alternatives = r.Alternatives.Where(a => !a.IsDeleted).Select(a => new RecipeIngredientAlternativeDto
+                    {
+                        ArticleId = a.ArticleId,
+                        ArticleName = a.Article?.Name ?? string.Empty,
+                    }).ToList(),
+                }).ToList(),
+        }).ToList();
     }
 }
 
@@ -82,6 +109,9 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
                 .ThenInclude(r => r.Article)
             .Include(x => x.Recipe.Where(r => !r.IsDeleted))
                 .ThenInclude(r => r.Unit)
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.Alternatives.Where(a => !a.IsDeleted))
+                    .ThenInclude(a => a.Article)
             .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId, ct);
 
         if (item is null) return null;
@@ -101,6 +131,21 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
             TotalIngredients = item.Recipe.Count,
             StationId = item.StationId,
             StationName = item.Station?.Name,
+            VariableIngredients = item.Recipe
+                .Where(r => !r.IsDeleted && r.IsVariable)
+                .Select(r => new VariableIngredientSlotDto
+                {
+                    RecipeIngredientId = r.Id,
+                    Quantity = r.Quantity,
+                    UnitSymbol = r.Unit?.Symbol ?? string.Empty,
+                    DefaultArticleId = r.ArticleId,
+                    DefaultArticleName = r.Article?.Name ?? string.Empty,
+                    Alternatives = r.Alternatives.Where(a => !a.IsDeleted).Select(a => new RecipeIngredientAlternativeDto
+                    {
+                        ArticleId = a.ArticleId,
+                        ArticleName = a.Article?.Name ?? string.Empty,
+                    }).ToList(),
+                }).ToList(),
             Recipe = item.Recipe.Select(r => new RecipeIngredientDto
             {
                 Id = r.Id,
@@ -112,6 +157,12 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
                 UnitSymbol = r.Unit?.Symbol ?? string.Empty,
                 Quantity = r.Quantity,
                 Notes = r.Notes,
+                IsVariable = r.IsVariable,
+                Alternatives = r.Alternatives.Where(a => !a.IsDeleted).Select(a => new RecipeIngredientAlternativeDto
+                {
+                    ArticleId = a.ArticleId,
+                    ArticleName = a.Article?.Name ?? string.Empty,
+                }).ToList(),
             }).ToList(),
         };
     }

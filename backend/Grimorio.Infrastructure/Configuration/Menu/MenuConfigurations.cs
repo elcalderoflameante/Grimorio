@@ -44,6 +44,11 @@ public class ItemMenuConfiguration : BaseEntityConfiguration<MenuItem>
             .HasForeignKey(x => x.StationId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        builder.HasOne(x => x.TaxRate)
+            .WithMany()
+            .HasForeignKey(x => x.TaxRateId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasIndex(x => new { x.BranchId, x.MenuCategoryId });
         builder.HasIndex(x => new { x.BranchId, x.IsActive });
     }
@@ -75,6 +80,28 @@ public class RecipeIngredientConfiguration : BaseEntityConfiguration<RecipeIngre
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(x => new { x.MenuItemId, x.ArticleId })
+            .IsUnique().HasFilter("\"IsDeleted\" = false");
+    }
+}
+
+public class RecipeIngredientAlternativeConfiguration : BaseEntityConfiguration<RecipeIngredientAlternative>
+{
+    public override void Configure(EntityTypeBuilder<RecipeIngredientAlternative> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("RecipeIngredientAlternatives", "menu");
+
+        builder.HasOne(x => x.RecipeIngredient)
+            .WithMany(x => x.Alternatives)
+            .HasForeignKey(x => x.RecipeIngredientId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.Article)
+            .WithMany()
+            .HasForeignKey(x => x.ArticleId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => new { x.RecipeIngredientId, x.ArticleId })
             .IsUnique().HasFilter("\"IsDeleted\" = false");
     }
 }

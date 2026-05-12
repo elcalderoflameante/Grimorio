@@ -90,7 +90,7 @@ public class MenuController : ControllerBase
             BranchId = branchId, MenuCategoryId = dto.MenuCategoryId,
             Name = dto.Name, Description = dto.Description,
             InternalCode = dto.InternalCode, Price = dto.Price,
-            StationId = dto.StationId,
+            StationId = dto.StationId, TaxRateId = dto.TaxRateId,
         });
         return Ok(result);
     }
@@ -105,7 +105,7 @@ public class MenuController : ControllerBase
             Name = dto.Name, Description = dto.Description,
             InternalCode = dto.InternalCode, Price = dto.Price,
             IsActive = dto.IsActive, AvailableForSale = dto.AvailableForSale,
-            StationId = dto.StationId,
+            StationId = dto.StationId, TaxRateId = dto.TaxRateId,
         });
         return Ok(result);
     }
