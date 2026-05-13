@@ -223,6 +223,8 @@ public class OrderPaymentDto
     public decimal OrderAmount { get; set; }
     public DateTime PaidAt { get; set; }
     public List<PaymentLineDto> Lines { get; set; } = [];
+    public Guid? ElectronicDocumentId { get; set; }
+    public string? ElectronicDocumentStatus { get; set; }
 }
 
 public class AddPaymentLineDto

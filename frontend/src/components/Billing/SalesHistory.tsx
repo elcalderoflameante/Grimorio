@@ -178,12 +178,14 @@ export default function SalesHistory() {
           },
           {
             title: '',
-            width: 160,
+            width: 180,
             render: (_: unknown, r: OrderPaymentDto) => (
               <GenerateInvoiceButton
                 orderPaymentId={r.id}
                 documentType={r.documentType}
-                onSuccess={() => {}}
+                electronicDocumentId={r.electronicDocumentId}
+                electronicDocumentStatus={r.electronicDocumentStatus}
+                onSuccess={load}
               />
             ),
           },

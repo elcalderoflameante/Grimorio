@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 using System.Security.Cryptography.Xml;
 using System.Text;
 using System.Xml;
@@ -9,110 +8,117 @@ using Org.BouncyCastle.Security;
 
 namespace Grimorio.Infrastructure.Services.Sri;
 
-// Firma el XML de factura con XAdES-BES según el estándar del SRI Ecuador.
-// Usa SHA-1 y RSA tal como exige la especificación técnica del SRI.
+// Firma XML de factura con XAdES-BES según la especificación técnica del SRI Ecuador.
+// SHA-1 y RSA-SHA1 son obligatorios según dicha especificación.
 public static class SriXmlSigner
 {
-    private const string XadesNs = "http://uri.etsi.org/01903/v1.3.2#";
-    private const string XmlDsigNs = "http://www.w3.org/2000/09/xmldsig#";
+    private const string EtsiNs  = "http://uri.etsi.org/01903/v1.3.2#";
+    private const string XmlDsNs = "http://www.w3.org/2000/09/xmldsig#";
 
     public static string Sign(string unsignedXml, byte[] p12Bytes, string p12Password)
     {
-        // ── Cargar certificado desde .p12 ─────────────────────────────────────
+        // ── Cargar certificado y clave privada desde .p12 ─────────────────────
         var store = new Pkcs12StoreBuilder().Build();
         store.Load(new MemoryStream(p12Bytes), p12Password.ToCharArray());
         var alias = store.Aliases.Cast<string>().First(a => store.IsKeyEntry(a));
 
-        var bouncyCert = store.GetCertificate(alias).Certificate;
-        var bouncyKey = (RsaPrivateCrtKeyParameters)store.GetKey(alias).Key;
+        var bCert = store.GetCertificate(alias).Certificate;
+        var bKey  = (RsaPrivateCrtKeyParameters)store.GetKey(alias).Key;
 
-        // Convertir a tipos .NET para operaciones criptográficas
-        var rsaParams = new RSAParameters
-        {
-            Modulus = bouncyKey.Modulus.ToByteArrayUnsigned(),
-            Exponent = bouncyKey.PublicExponent.ToByteArrayUnsigned(),
-            D = bouncyKey.Exponent.ToByteArrayUnsigned(),
-            P = bouncyKey.P.ToByteArrayUnsigned(),
-            Q = bouncyKey.Q.ToByteArrayUnsigned(),
-            DP = bouncyKey.DP.ToByteArrayUnsigned(),
-            DQ = bouncyKey.DQ.ToByteArrayUnsigned(),
-            InverseQ = bouncyKey.QInv.ToByteArrayUnsigned(),
-        };
         using var rsa = RSA.Create();
-        rsa.ImportParameters(rsaParams);
+        rsa.ImportParameters(new RSAParameters
+        {
+            Modulus  = bKey.Modulus.ToByteArrayUnsigned(),
+            Exponent = bKey.PublicExponent.ToByteArrayUnsigned(),
+            D        = bKey.Exponent.ToByteArrayUnsigned(),
+            P        = bKey.P.ToByteArrayUnsigned(),
+            Q        = bKey.Q.ToByteArrayUnsigned(),
+            DP       = bKey.DP.ToByteArrayUnsigned(),
+            DQ       = bKey.DQ.ToByteArrayUnsigned(),
+            InverseQ = bKey.QInv.ToByteArrayUnsigned(),
+        });
+        var certB64 = Convert.ToBase64String(bCert.GetEncoded());
 
-        var certDer = bouncyCert.GetEncoded();
-        using var dotnetCert = new X509Certificate2(certDer);
-        var certB64 = Convert.ToBase64String(certDer);
+        // ── IDs únicos para nodos de firma ────────────────────────────────────
+        var rnd           = new Random().Next(100000, 999999).ToString();
+        var sigId         = $"Signature{rnd}";
+        var signedPropsId = $"Signature{rnd}-SignedProperties{rnd}";
+        var keyInfoId     = $"Signature{rnd}-KeyInfo";
+        var refId         = $"Reference-ID-{rnd}";
+        var objId         = $"Signature{rnd}-Object{rnd}";
 
-        // ── Cargar XML y preparar el documento ────────────────────────────────
+        // ── Cargar documento XML ──────────────────────────────────────────────
         var doc = new XmlDocument { PreserveWhitespace = true };
         doc.LoadXml(unsignedXml);
 
+        // ── PASO 1: digest del comprobante ANTES de agregar nodos de firma ────
+        // Si se calcula después, el contenido del elemento <factura> cambiaría.
+        string digestDoc = ComputeDigestById(doc, "comprobante");
+
         var signingTime = DateTime.UtcNow;
 
-        // ── IDs únicos para los nodos de la firma ─────────────────────────────
-        var sigId = "Signature";
-        var certId = "Certificate1";
-        var signedPropsId = "SignedProperties";
-        var keyInfoId = "KeyInfoId-Signature";
+        // ── PASO 2: construir ds:Signature con KeyInfo y Object ───────────────
+        var sigEl = doc.CreateElement("ds", "Signature", XmlDsNs);
+        sigEl.SetAttribute("Id", sigId);
 
-        // ── Construir KeyInfo ─────────────────────────────────────────────────
         var keyInfo = BuildKeyInfo(doc, certB64, rsa, keyInfoId);
-        doc.DocumentElement!.AppendChild(keyInfo);
+        sigEl.AppendChild(keyInfo);
 
-        // ── Construir QualifyingProperties (XAdES) ───────────────────────────
-        var qualProps = BuildQualifyingProperties(doc, sigId, signedPropsId, signingTime, bouncyCert, certB64);
-        var objNode = doc.CreateElement("ds", "Object", XmlDsigNs);
-        objNode.SetAttribute("Id", "QualifyingProperties");
-        objNode.AppendChild(qualProps);
-        // Añadir temporalmente para calcular digest
-        doc.DocumentElement.AppendChild(objNode);
+        var qualProps = BuildQualifyingProperties(doc, sigId, signedPropsId, refId,
+                                                  signingTime, bCert, certB64);
+        var objEl = doc.CreateElement("ds", "Object", XmlDsNs);
+        objEl.SetAttribute("Id", objId);
+        objEl.AppendChild(qualProps);
+        sigEl.AppendChild(objEl);
 
-        // ── Calcular digests ──────────────────────────────────────────────────
-        string digestDoc = ComputeDigest(doc, "#comprobante");
-        string digestKeyInfo = ComputeDigest(doc, "#" + keyInfoId);
-        string digestSignedProps = ComputeDigest(doc, "#" + signedPropsId);
+        // ── PASO 3: añadir sigEl al doc para establecer contexto de namespaces ─
+        // Es necesario para que C14N calcule xmlns:ds como heredado del padre,
+        // igual que ocurrirá cuando el verificador del SRI valide los digests.
+        doc.DocumentElement!.AppendChild(sigEl);
 
-        // Remover nodos temporales del doc original
-        doc.DocumentElement.RemoveChild(keyInfo);
-        doc.DocumentElement.RemoveChild(objNode);
+        // ── PASO 4: calcular digests con el contexto correcto de NS ──────────
+        string digestKeyInfo     = ComputeDigestById(doc, keyInfoId);
+        string digestSignedProps = ComputeDigestById(doc, signedPropsId);
 
-        // ── Construir SignedInfo ──────────────────────────────────────────────
-        var signedInfo = BuildSignedInfo(doc, sigId, digestDoc, digestKeyInfo, digestSignedProps, keyInfoId, signedPropsId);
+        // ── PASO 5: construir SignedInfo e insertarlo como primer hijo de sigEl
+        // Orden de referencias según especificación XAdES-BES del SRI:
+        //   SignedProperties → KeyInfo → comprobante
+        var signedInfo = BuildSignedInfo(doc, digestDoc, digestKeyInfo, digestSignedProps,
+                                         keyInfoId, signedPropsId, refId);
+        sigEl.InsertBefore(signedInfo, sigEl.FirstChild);
 
-        // ── Firmar el SignedInfo ──────────────────────────────────────────────
-        // Canonicalizar SignedInfo antes de firmar
-        string c14nSignedInfo = Canonicalize(signedInfo);
-        byte[] signedInfoBytes = Encoding.UTF8.GetBytes(c14nSignedInfo);
-        byte[] signature = rsa.SignData(signedInfoBytes, HashAlgorithmName.SHA1, RSASignaturePadding.Pkcs1);
-        string signatureB64 = Convert.ToBase64String(signature);
+        // ── PASO 6: canonicalizar SignedInfo desde su posición en el documento ─
+        // Usar SelectNodes desde sigEl asegura que xmlns:ds se herede del padre
+        // y no aparezca redundantemente en ds:SignedInfo — igual que hará el SRI.
+        var ns     = new XmlNamespaceManager(doc.NameTable);
+        ns.AddNamespace("ds", XmlDsNs);
+        var siList = sigEl.SelectNodes("ds:SignedInfo", ns)!;
 
-        // ── Ensamblar el elemento <ds:Signature> completo ────────────────────
-        var sigElement = doc.CreateElement("ds", "Signature", XmlDsigNs);
-        sigElement.SetAttribute("Id", sigId);
+        using var siMs = new MemoryStream();
+        var siC14n = new XmlDsigC14NTransform();
+        siC14n.LoadInput(siList);
+        ((Stream)siC14n.GetOutput(typeof(Stream))).CopyTo(siMs);
 
-        sigElement.AppendChild(signedInfo);
+        // ── PASO 7: firmar ────────────────────────────────────────────────────
+        byte[] sigBytes = rsa.SignData(siMs.ToArray(), HashAlgorithmName.SHA1, RSASignaturePadding.Pkcs1);
+        string sigB64   = Convert.ToBase64String(sigBytes);
 
-        var sigValue = doc.CreateElement("ds", "SignatureValue", XmlDsigNs);
-        sigValue.SetAttribute("Id", "SignatureValue");
-        sigValue.InnerText = signatureB64;
-        sigElement.AppendChild(sigValue);
+        // ── PASO 8: insertar SignatureValue entre SignedInfo y KeyInfo ─────────
+        var sigVal = doc.CreateElement("ds", "SignatureValue", XmlDsNs);
+        sigVal.SetAttribute("Id", $"SignatureValue{rnd}");
+        sigVal.InnerText = sigB64;
+        sigEl.InsertBefore(sigVal, keyInfo);
+        // Estructura final: SignedInfo → SignatureValue → KeyInfo → Object
 
-        sigElement.AppendChild(keyInfo);
-
-        var obj2 = doc.CreateElement("ds", "Object", XmlDsigNs);
-        obj2.SetAttribute("Id", "QualifyingProperties");
-        obj2.AppendChild(qualProps);
-        sigElement.AppendChild(obj2);
-
-        doc.DocumentElement.AppendChild(sigElement);
-
-        // ── Serializar XML firmado en UTF-8 real (MemoryStream, no StringBuilder) ──
+        // ── Serializar XML firmado en UTF-8 real ──────────────────────────────
+        // Indent=false es crítico: el indentado agregaría nodos de texto con
+        // espacios dentro de ds:SignedInfo que no estaban al momento de firmar,
+        // haciendo que la canonicalización del SRI difiera de la nuestra.
         using var ms = new MemoryStream();
-        using (var writer = XmlWriter.Create(ms, new XmlWriterSettings { Encoding = new UTF8Encoding(false), Indent = true }))
+        using (var w = XmlWriter.Create(ms, new XmlWriterSettings
+               { Encoding = new UTF8Encoding(false), Indent = false }))
         {
-            doc.WriteTo(writer);
+            doc.WriteTo(w);
         }
         return new UTF8Encoding(false).GetString(ms.ToArray());
     }
@@ -121,160 +127,150 @@ public static class SriXmlSigner
 
     private static XmlElement BuildKeyInfo(XmlDocument doc, string certB64, RSA rsa, string keyInfoId)
     {
-        var keyInfo = doc.CreateElement("ds", "KeyInfo", XmlDsigNs);
-        keyInfo.SetAttribute("Id", keyInfoId);
+        var ki = doc.CreateElement("ds", "KeyInfo", XmlDsNs);
+        ki.SetAttribute("Id", keyInfoId);
 
-        var x509Data = doc.CreateElement("ds", "X509Data", XmlDsigNs);
-        var x509Cert = doc.CreateElement("ds", "X509Certificate", XmlDsigNs);
-        x509Cert.InnerText = certB64;
-        x509Data.AppendChild(x509Cert);
-        keyInfo.AppendChild(x509Data);
+        var x509d = doc.CreateElement("ds", "X509Data", XmlDsNs);
+        var x509c = doc.CreateElement("ds", "X509Certificate", XmlDsNs);
+        x509c.InnerText = certB64;
+        x509d.AppendChild(x509c);
+        ki.AppendChild(x509d);
 
-        var keyValue = doc.CreateElement("ds", "KeyValue", XmlDsigNs);
-        var rsaKeyValue = doc.CreateElement("ds", "RSAKeyValue", XmlDsigNs);
-        var rsaParams = rsa.ExportParameters(false);
-        var modulus = doc.CreateElement("ds", "Modulus", XmlDsigNs);
-        modulus.InnerText = Convert.ToBase64String(rsaParams.Modulus!);
-        var exponent = doc.CreateElement("ds", "Exponent", XmlDsigNs);
-        exponent.InnerText = Convert.ToBase64String(rsaParams.Exponent!);
-        rsaKeyValue.AppendChild(modulus);
-        rsaKeyValue.AppendChild(exponent);
-        keyValue.AppendChild(rsaKeyValue);
-        keyInfo.AppendChild(keyValue);
+        var kv    = doc.CreateElement("ds", "KeyValue", XmlDsNs);
+        var rsakv = doc.CreateElement("ds", "RSAKeyValue", XmlDsNs);
+        var p     = rsa.ExportParameters(false);
+        var mod   = doc.CreateElement("ds", "Modulus", XmlDsNs);
+        mod.InnerText = Convert.ToBase64String(p.Modulus!);
+        var exp = doc.CreateElement("ds", "Exponent", XmlDsNs);
+        exp.InnerText = Convert.ToBase64String(p.Exponent!);
+        rsakv.AppendChild(mod);
+        rsakv.AppendChild(exp);
+        kv.AppendChild(rsakv);
+        ki.AppendChild(kv);
 
-        return keyInfo;
+        return ki;
     }
 
     private static XmlElement BuildQualifyingProperties(
-        XmlDocument doc, string sigId, string signedPropsId,
+        XmlDocument doc, string sigId, string signedPropsId, string refId,
         DateTime signingTime, Org.BouncyCastle.X509.X509Certificate cert, string certB64)
     {
-        var certHash = SHA1.HashData(cert.GetEncoded());
-        var certHashB64 = Convert.ToBase64String(certHash);
+        var certHashB64 = Convert.ToBase64String(SHA1.HashData(cert.GetEncoded()));
+        var issuer      = cert.IssuerDN.ToString();
+        var serial      = cert.SerialNumber.ToString();
 
-        var issuer = cert.IssuerDN.ToString();
-        var serial = cert.SerialNumber.ToString();
-
-        var qp = doc.CreateElement("xades", "QualifyingProperties", XadesNs);
+        var qp = doc.CreateElement("etsi", "QualifyingProperties", EtsiNs);
         qp.SetAttribute("Target", "#" + sigId);
 
-        var sp = doc.CreateElement("xades", "SignedProperties", XadesNs);
+        var sp = doc.CreateElement("etsi", "SignedProperties", EtsiNs);
         sp.SetAttribute("Id", signedPropsId);
 
-        var ssp = doc.CreateElement("xades", "SignedSignatureProperties", XadesNs);
+        // ── SignedSignatureProperties ─────────────────────────────────────────
+        var ssp = doc.CreateElement("etsi", "SignedSignatureProperties", EtsiNs);
 
-        var st = doc.CreateElement("xades", "SigningTime", XadesNs);
+        var st = doc.CreateElement("etsi", "SigningTime", EtsiNs);
         st.InnerText = signingTime.ToString("yyyy-MM-ddTHH:mm:ssZ");
         ssp.AppendChild(st);
 
-        var sc = doc.CreateElement("xades", "SigningCertificate", XadesNs);
-        var xcert = doc.CreateElement("xades", "Cert", XadesNs);
-        var cd = doc.CreateElement("xades", "CertDigest", XadesNs);
-        var dm = doc.CreateElement("ds", "DigestMethod", XmlDsigNs);
+        var sc  = doc.CreateElement("etsi", "SigningCertificate", EtsiNs);
+        var xc  = doc.CreateElement("etsi", "Cert", EtsiNs);
+        var cd  = doc.CreateElement("etsi", "CertDigest", EtsiNs);
+        var dm  = doc.CreateElement("ds", "DigestMethod", XmlDsNs);
         dm.SetAttribute("Algorithm", "http://www.w3.org/2000/09/xmldsig#sha1");
-        var dv = doc.CreateElement("ds", "DigestValue", XmlDsigNs);
+        var dv = doc.CreateElement("ds", "DigestValue", XmlDsNs);
         dv.InnerText = certHashB64;
         cd.AppendChild(dm); cd.AppendChild(dv);
-        xcert.AppendChild(cd);
+        xc.AppendChild(cd);
 
-        var isx = doc.CreateElement("xades", "IssuerSerial", XadesNs);
-        var xin = doc.CreateElement("ds", "X509IssuerName", XmlDsigNs);
+        var isx = doc.CreateElement("etsi", "IssuerSerial", EtsiNs);
+        var xin = doc.CreateElement("ds", "X509IssuerName", XmlDsNs);
         xin.InnerText = issuer;
-        var xsn = doc.CreateElement("ds", "X509SerialNumber", XmlDsigNs);
+        var xsn = doc.CreateElement("ds", "X509SerialNumber", XmlDsNs);
         xsn.InnerText = serial;
         isx.AppendChild(xin); isx.AppendChild(xsn);
-        xcert.AppendChild(isx);
-        sc.AppendChild(xcert);
+        xc.AppendChild(isx);
+        sc.AppendChild(xc);
         ssp.AppendChild(sc);
         sp.AppendChild(ssp);
+
+        // ── SignedDataObjectProperties ────────────────────────────────────────
+        var sdop = doc.CreateElement("etsi", "SignedDataObjectProperties", EtsiNs);
+        var dof  = doc.CreateElement("etsi", "DataObjectFormat", EtsiNs);
+        dof.SetAttribute("ObjectReference", "#" + refId);
+        var desc = doc.CreateElement("etsi", "Description", EtsiNs);
+        desc.InnerText = "contenido comprobante";
+        var mime = doc.CreateElement("etsi", "MimeType", EtsiNs);
+        mime.InnerText = "text/xml";
+        dof.AppendChild(desc); dof.AppendChild(mime);
+        sdop.AppendChild(dof);
+        sp.AppendChild(sdop);
+
         qp.AppendChild(sp);
         return qp;
     }
 
     private static XmlElement BuildSignedInfo(
-        XmlDocument doc, string sigId,
+        XmlDocument doc,
         string digestDoc, string digestKeyInfo, string digestSignedProps,
-        string keyInfoId, string signedPropsId)
+        string keyInfoId, string signedPropsId, string refId)
     {
-        var si = doc.CreateElement("ds", "SignedInfo", XmlDsigNs);
+        var si = doc.CreateElement("ds", "SignedInfo", XmlDsNs);
 
-        var cm = doc.CreateElement("ds", "CanonicalizationMethod", XmlDsigNs);
+        var cm = doc.CreateElement("ds", "CanonicalizationMethod", XmlDsNs);
         cm.SetAttribute("Algorithm", "http://www.w3.org/TR/2001/REC-xml-c14n-20010315");
         si.AppendChild(cm);
 
-        var sm = doc.CreateElement("ds", "SignatureMethod", XmlDsigNs);
+        var sm = doc.CreateElement("ds", "SignatureMethod", XmlDsNs);
         sm.SetAttribute("Algorithm", "http://www.w3.org/2000/09/xmldsig#rsa-sha1");
         si.AppendChild(sm);
 
-        si.AppendChild(BuildReference(doc, "#comprobante", "comprobante", digestDoc, enveloped: true));
-        si.AppendChild(BuildReference(doc, "#" + keyInfoId, null, digestKeyInfo));
-        si.AppendChild(BuildReference(doc, "#" + signedPropsId, "SignedPropertiesId", digestSignedProps,
+        // Orden obligatorio según especificación SRI: SignedProperties → KeyInfo → comprobante
+        si.AppendChild(MakeRef(doc, "#" + signedPropsId, null, digestSignedProps,
             type: "http://uri.etsi.org/01903#SignedProperties"));
+        si.AppendChild(MakeRef(doc, "#" + keyInfoId, null, digestKeyInfo));
+        si.AppendChild(MakeRef(doc, "#comprobante", refId, digestDoc, enveloped: true));
 
         return si;
     }
 
-    private static XmlElement BuildReference(
-        XmlDocument doc, string uri, string? id, string digestValue,
-        bool enveloped = false, string? type = null)
+    private static XmlElement MakeRef(XmlDocument doc, string uri, string? id,
+        string digestValue, bool enveloped = false, string? type = null)
     {
-        var r = doc.CreateElement("ds", "Reference", XmlDsigNs);
+        var r = doc.CreateElement("ds", "Reference", XmlDsNs);
         r.SetAttribute("URI", uri);
-        if (id != null) r.SetAttribute("Id", id);
+        if (id   != null) r.SetAttribute("Id",   id);
         if (type != null) r.SetAttribute("Type", type);
 
         if (enveloped)
         {
-            var transforms = doc.CreateElement("ds", "Transforms", XmlDsigNs);
-            var t = doc.CreateElement("ds", "Transform", XmlDsigNs);
+            var xf = doc.CreateElement("ds", "Transforms", XmlDsNs);
+            var t  = doc.CreateElement("ds", "Transform",  XmlDsNs);
             t.SetAttribute("Algorithm", "http://www.w3.org/2000/09/xmldsig#enveloped-signature");
-            transforms.AppendChild(t);
-            r.AppendChild(transforms);
+            xf.AppendChild(t);
+            r.AppendChild(xf);
         }
 
-        var dm = doc.CreateElement("ds", "DigestMethod", XmlDsigNs);
+        var dm = doc.CreateElement("ds", "DigestMethod", XmlDsNs);
         dm.SetAttribute("Algorithm", "http://www.w3.org/2000/09/xmldsig#sha1");
         r.AppendChild(dm);
 
-        var dv = doc.CreateElement("ds", "DigestValue", XmlDsigNs);
+        var dv = doc.CreateElement("ds", "DigestValue", XmlDsNs);
         dv.InnerText = digestValue;
         r.AppendChild(dv);
 
         return r;
     }
 
-    private static string ComputeDigest(XmlDocument doc, string xpath)
+    private static string ComputeDigestById(XmlDocument doc, string elementId)
     {
-        // XmlDsigC14NTransform solo acepta XmlDocument, XmlNodeList o Stream — no XmlNode directo
-        var xpathExpr = xpath.StartsWith('#')
-            ? $"//*[@Id='{xpath[1..]}' or @id='{xpath[1..]}']"
-            : xpath;
-
-        var nodeList = doc.SelectNodes(xpathExpr);
+        var nodeList = doc.SelectNodes($"//*[@Id='{elementId}' or @id='{elementId}']");
         if (nodeList == null || nodeList.Count == 0)
-            throw new InvalidOperationException($"Nodo {xpath} no encontrado en el XML.");
+            throw new InvalidOperationException($"Elemento con Id='{elementId}' no encontrado en el XML.");
 
         using var ms = new MemoryStream();
-        var c14n = new XmlDsigC14NTransform();
+        var c14n     = new XmlDsigC14NTransform();
         c14n.LoadInput(nodeList);
-        var output = (Stream)c14n.GetOutput(typeof(Stream));
-        output.CopyTo(ms);
-
-        var hash = SHA1.HashData(ms.ToArray());
-        return Convert.ToBase64String(hash);
-    }
-
-    private static string Canonicalize(XmlElement element)
-    {
-        // Importar el elemento a un documento temporal para poder pasarlo como XmlDocument
-        var tmpDoc = new XmlDocument();
-        tmpDoc.AppendChild(tmpDoc.ImportNode(element, true));
-
-        using var ms = new MemoryStream();
-        var c14n = new XmlDsigC14NTransform();
-        c14n.LoadInput(tmpDoc);
-        var output = (Stream)c14n.GetOutput(typeof(Stream));
-        output.CopyTo(ms);
-        return Encoding.UTF8.GetString(ms.ToArray());
+        ((Stream)c14n.GetOutput(typeof(Stream))).CopyTo(ms);
+        return Convert.ToBase64String(SHA1.HashData(ms.ToArray()));
     }
 }

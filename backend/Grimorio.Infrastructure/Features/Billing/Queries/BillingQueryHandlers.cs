@@ -188,13 +188,20 @@ public class GetSalesHandler : IRequestHandler<GetSalesQuery, List<OrderPaymentD
             .Take(req.PageSize)
             .ToListAsync(ct);
 
+        var paymentIds = payments.Select(p => p.Id).ToList();
+        var elDocs = await _db.ElectronicDocuments
+            .Where(d => paymentIds.Contains(d.OrderPaymentId) && !d.IsDeleted)
+            .ToListAsync(ct);
+        var elDocByPayment = elDocs.ToDictionary(d => d.OrderPaymentId);
+
         return payments.Select(p => BillingMapper.MapPayment(
             p,
             p.Order?.Number ?? 0,
             p.Customer,
             p.Order?.Table?.Code,
             p.Order?.Table?.Name,
-            p.Order?.Type.ToString()
+            p.Order?.Type.ToString(),
+            elDocByPayment.GetValueOrDefault(p.Id)
         )).ToList();
     }
 }

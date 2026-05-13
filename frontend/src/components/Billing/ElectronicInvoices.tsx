@@ -346,14 +346,57 @@ export default function ElectronicInvoices() {
 interface GenerateInvoiceButtonProps {
   orderPaymentId: string;
   documentType: string;
+  electronicDocumentId?: string;
+  electronicDocumentStatus?: string;
   onSuccess?: (doc: ElectronicDocumentDto) => void;
 }
 
-export function GenerateInvoiceButton({ orderPaymentId, documentType, onSuccess }: GenerateInvoiceButtonProps) {
+export function GenerateInvoiceButton({
+  orderPaymentId,
+  documentType,
+  electronicDocumentId,
+  electronicDocumentStatus,
+  onSuccess,
+}: GenerateInvoiceButtonProps) {
   const [loading, setLoading] = useState(false);
 
   if (documentType !== 'Factura') return null;
 
+  // Factura ya autorizada — no se puede modificar
+  if (electronicDocumentStatus === 'Authorized') {
+    const s = STATUS_LABELS['Authorized'];
+    return <Tag color={s.color}>{s.label}</Tag>;
+  }
+
+  // Factura existente pero no autorizada — reintentar con el mismo documento
+  if (electronicDocumentId && electronicDocumentStatus) {
+    const s = STATUS_LABELS[electronicDocumentStatus] ?? { label: electronicDocumentStatus, color: 'default' };
+    const handleRetry = async () => {
+      setLoading(true);
+      try {
+        const res = await sriApi.retryInvoice(electronicDocumentId);
+        const newStatus = STATUS_LABELS[res.data.status]?.label ?? res.data.status;
+        message.success(`Factura ${res.data.numeroFactura}: ${newStatus}`);
+        onSuccess?.(res.data);
+      } catch (err: unknown) {
+        const msg = (err as { response?: { data?: string } })?.response?.data ?? 'Error al reintentar';
+        message.error(String(msg));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    return (
+      <Space size={4}>
+        <Tag color={s.color}>{s.label}</Tag>
+        <Tooltip title="Reintentar envío al SRI">
+          <Button size="small" icon={<RedoOutlined />} loading={loading} onClick={handleRetry} />
+        </Tooltip>
+      </Space>
+    );
+  }
+
+  // Sin documento — generar por primera vez
   const handleGenerate = async () => {
     setLoading(true);
     try {
@@ -371,12 +414,7 @@ export function GenerateInvoiceButton({ orderPaymentId, documentType, onSuccess 
 
   return (
     <Tooltip title="Generar factura electrónica SRI">
-      <Button
-        size="small"
-        icon={<ThunderboltOutlined />}
-        loading={loading}
-        onClick={handleGenerate}
-      >
+      <Button size="small" icon={<ThunderboltOutlined />} loading={loading} onClick={handleGenerate}>
         Factura electrónica
       </Button>
     </Tooltip>

@@ -1343,6 +1343,8 @@ export interface OrderPaymentDto {
   orderAmount: number;
   paidAt: string;
   lines: PaymentLineDto[];
+  electronicDocumentId?: string;
+  electronicDocumentStatus?: string;
 }
 
 export interface AddPaymentLineDto {
