@@ -10,6 +10,8 @@ public enum CashSessionStatus { Open = 1, Closed = 2 }
 
 public enum DocumentType { NotaDeVenta = 1, Factura = 2 }
 
+public enum CardPaymentType { Credit = 1, Debit = 2 }
+
 // ── TaxRate ───────────────────────────────────────────────────────────────────
 // Tarifas de IVA configurables por sucursal (15%, 5%, 0% según SRI Ecuador)
 
@@ -17,7 +19,7 @@ public class TaxRate : BaseEntity
 {
     public string Name { get; set; } = string.Empty;        // "IVA 15%", "IVA 0%"
     public decimal Percentage { get; set; }                  // 15, 5, 0
-    public string SriCode { get; set; } = string.Empty;     // "10"=15%, "8"=5%, "0"=0% (códigos SRI)
+    public string SriCode { get; set; } = string.Empty;     // codigoPorcentaje SRI: "4"=15%, "8"=8%(feriado), "0"=0%, "6"=exento
     public bool IsDefault { get; set; }
     public bool IsActive { get; set; } = true;
 }
@@ -36,6 +38,7 @@ public class BranchTaxConfig : BaseEntity
     public string Ambiente { get; set; } = "1";             // "1"=pruebas, "2"=producción
     public string? ContribuyenteEspecial { get; set; }      // número de resolución si aplica
     public bool ObligadoContabilidad { get; set; }
+    public long SecuencialInicial { get; set; } = 1;       // primer secuencial a emitir (configurable)
     public long Secuencial { get; set; }                    // último secuencial emitido
 }
 
@@ -90,6 +93,21 @@ public class ElectronicDocument : BaseEntity
     public virtual OrderPayment? OrderPayment { get; set; }
 }
 
+// ── SmtpConfig ────────────────────────────────────────────────────────────────
+// Configuración SMTP por sucursal para envío de facturas electrónicas por correo
+
+public class SmtpConfig : BaseEntity
+{
+    public string Host { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+    public string Username { get; set; } = string.Empty;
+    public string PasswordEncrypted { get; set; } = string.Empty;
+    public string FromEmail { get; set; } = string.Empty;
+    public string FromName { get; set; } = string.Empty;
+    public bool EnableSsl { get; set; } = true;
+    public bool IsActive { get; set; } = true;
+}
+
 // ── PaymentMethodConfig ───────────────────────────────────────────────────────
 // Medios de pago configurables (Efectivo, Tarjeta, Transferencia, etc.)
 // No hereda BaseEntity porque no es por sucursal ni requiere auditoría completa.
@@ -100,9 +118,17 @@ public class PaymentMethodConfig
     public string Name { get; set; } = string.Empty;
     public string Color { get; set; } = "#1677ff";
     public bool IsCash { get; set; }
+    public bool IsCard { get; set; }
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }
     public bool IsDeleted { get; set; }
+}
+
+public class CardBank : BaseEntity
+{
+    public string Name { get; set; } = string.Empty;
+    public bool IsActive { get; set; } = true;
+    public int SortOrder { get; set; }
 }
 
 // ── Customer ──────────────────────────────────────────────────────────────────
@@ -161,7 +187,31 @@ public class PaymentLine : BaseEntity
     public Guid PaymentMethodConfigId { get; set; }
     public decimal AmountTendered { get; set; }
     public decimal Change { get; set; }
+    public CardPaymentType? CardPaymentType { get; set; }
+    public Guid? CardBankId { get; set; }
+    public string? CardBankName { get; set; }
+    public string? CardBrand { get; set; }
+    public string? AuthorizationNumber { get; set; }
 
     public virtual OrderPayment? Payment { get; set; }
     public virtual PaymentMethodConfig? Config { get; set; }
+}
+
+// ── InvoiceTemplate ───────────────────────────────────────────────────────────
+// Plantilla visual para el RIDE PDF y el correo de factura electrónica
+
+public class InvoiceTemplate : BaseEntity
+{
+    public string? LogoBase64 { get; set; }
+    public string PrimaryColor { get; set; } = "#1677ff";
+    public string AccentColor { get; set; } = "#e6f4ff";
+    public string PdfBlocksJson { get; set; } = InvoiceTemplate.DefaultPdfBlocks;
+    public string EmailSubject { get; set; } = "Factura Electrónica {numeroFactura} — {razonSocial}";
+    public string EmailBlocksJson { get; set; } = InvoiceTemplate.DefaultEmailBlocks;
+
+    public const string DefaultPdfBlocks =
+        """[{"id":"header","type":"header","visible":true,"label":"Encabezado","primaryColor":"#1677ff","showLogo":true},{"id":"customer","type":"customer","visible":true,"label":"Datos del comprador","showEmail":true,"showPhone":true,"showAddress":true},{"id":"items","type":"items","visible":true,"label":"Detalle de productos","showAuxCode":false,"showDiscount":true},{"id":"payments","type":"payments","visible":true,"label":"Forma de pago"},{"id":"totals","type":"totals","visible":true,"label":"Totales","showZeroLines":true},{"id":"footer","type":"footer","visible":true,"label":"Pie de página","customText":"¡Gracias por su compra!"}]""";
+
+    public const string DefaultEmailBlocks =
+        """[{"id":"header","type":"header","visible":true,"label":"Encabezado","bgColor":"#1677ff","title":"Factura Electrónica","subtitle":"Documento autorizado por el SRI Ecuador"},{"id":"greeting","type":"greeting","visible":true,"label":"Saludo","text":"Estimado/a {nombreCliente},"},{"id":"message","type":"message","visible":true,"label":"Mensaje principal","text":"Adjunto encontrará el RIDE (Representación Impresa del Documento Electrónico) de su factura autorizada por el SRI Ecuador."},{"id":"invoice_summary","type":"invoice_summary","visible":true,"label":"Resumen de factura"},{"id":"legal_note","type":"legal_note","visible":true,"label":"Nota legal","text":"Este documento tiene validez legal ante el Servicio de Rentas Internas (SRI) del Ecuador."},{"id":"footer","type":"footer","visible":true,"label":"Pie de correo","text":"Generado por Grimorio"}]""";
 }

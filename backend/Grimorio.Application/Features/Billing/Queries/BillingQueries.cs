@@ -19,6 +19,12 @@ public class GetPaymentMethodsQuery : IRequest<List<PaymentMethodConfigDto>>
     public bool ActiveOnly { get; set; } = true;
 }
 
+public class GetCardBanksQuery : IRequest<List<CardBankDto>>
+{
+    public Guid BranchId { get; set; }
+    public bool ActiveOnly { get; set; } = true;
+}
+
 public class GetCustomersQuery : IRequest<List<CustomerDto>>
 {
     public Guid BranchId { get; set; }
@@ -59,6 +65,13 @@ public class GetSalesQuery : IRequest<List<OrderPaymentDto>>
     public int PageSize { get; set; } = 100;
 }
 
+// ── SmtpConfig ────────────────────────────────────────────────────────────────
+
+public class GetSmtpConfigQuery : IRequest<SmtpConfigDto?>
+{
+    public Guid BranchId { get; set; }
+}
+
 // ── SRI ───────────────────────────────────────────────────────────────────────
 
 public class GetSriCertificateStatusQuery : IRequest<SriCertificateStatusDto>
@@ -84,5 +97,10 @@ public class GetElectronicDocumentDetailQuery : IRequest<ElectronicDocumentDto?>
 public class GetElectronicDocumentBytesQuery : IRequest<ElectronicDocumentBytesDto?>
 {
     public Guid Id { get; set; }
+    public Guid BranchId { get; set; }
+}
+
+public class GetInvoiceTemplateQuery : IRequest<InvoiceTemplateDto>
+{
     public Guid BranchId { get; set; }
 }

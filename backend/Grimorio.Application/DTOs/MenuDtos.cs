@@ -42,6 +42,7 @@ public class MenuItemDto
     public string? TaxRateName { get; set; }
     public decimal? TaxRatePercentage { get; set; }
     public string? TaxRateSriCode { get; set; }
+    public bool HasVariableIngredients { get; set; }
     public List<VariableIngredientSlotDto> VariableIngredients { get; set; } = [];
 }
 

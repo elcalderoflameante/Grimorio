@@ -62,6 +62,9 @@ public class OrdenConfiguration : IEntityTypeConfiguration<Order>
         builder.HasIndex(x => new { x.BranchId, x.Status })
             .HasFilter("\"IsDeleted\" = false");
 
+        builder.HasIndex(x => new { x.BranchId, x.PaidAt, x.Status, x.CreatedAt })
+            .HasFilter("\"IsDeleted\" = false");
+
         builder.HasIndex(x => new { x.BranchId, x.Number });
     }
 }

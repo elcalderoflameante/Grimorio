@@ -37,6 +37,7 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
     public async Task<List<MenuItemDto>> Handle(GetMenuItemsQuery req, CancellationToken ct)
     {
         var query = _db.MenuItems
+            .AsNoTracking()
             .Include(x => x.Category)
             .Include(x => x.Station)
             .Include(x => x.TaxRate)
@@ -53,7 +54,37 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
         if (req.ActiveOnly == true) query = query.Where(x => x.IsActive);
         if (req.AvailableOnly == true) query = query.Where(x => x.AvailableForSale);
 
+        if (req.Lightweight)
+        {
+            return await query
+                .OrderBy(x => x.Category!.Order)
+                .ThenBy(x => x.Name)
+                .Select(x => new MenuItemDto
+                {
+                    Id = x.Id,
+                    MenuCategoryId = x.MenuCategoryId,
+                    CategoryName = x.Category != null ? x.Category.Name : string.Empty,
+                    CategoryColor = x.Category != null ? x.Category.Color : null,
+                    Name = x.Name,
+                    Description = x.Description,
+                    InternalCode = x.InternalCode,
+                    Price = x.Price,
+                    IsActive = x.IsActive,
+                    AvailableForSale = x.AvailableForSale,
+                    TotalIngredients = x.Recipe.Count(r => !r.IsDeleted),
+                    StationId = x.StationId,
+                    StationName = x.Station != null ? x.Station.Name : null,
+                    TaxRateId = x.TaxRateId,
+                    TaxRateName = x.TaxRate != null ? x.TaxRate.Name : null,
+                    TaxRatePercentage = x.TaxRate != null ? x.TaxRate.Percentage : null,
+                    TaxRateSriCode = x.TaxRate != null ? x.TaxRate.SriCode : null,
+                    HasVariableIngredients = x.Recipe.Any(r => !r.IsDeleted && r.IsVariable),
+                })
+                .ToListAsync(ct);
+        }
+
         var items = await query
+            .AsSplitQuery()
             .OrderBy(x => x.Category!.Order).ThenBy(x => x.Name)
             .ToListAsync(ct);
 
@@ -76,6 +107,7 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
             TaxRateName = x.TaxRate?.Name,
             TaxRatePercentage = x.TaxRate?.Percentage,
             TaxRateSriCode = x.TaxRate?.SriCode,
+            HasVariableIngredients = x.Recipe.Any(r => !r.IsDeleted && r.IsVariable),
             VariableIngredients = x.Recipe
                 .Where(r => !r.IsDeleted && r.IsVariable)
                 .Select(r => new VariableIngredientSlotDto
@@ -131,6 +163,11 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
             TotalIngredients = item.Recipe.Count,
             StationId = item.StationId,
             StationName = item.Station?.Name,
+            TaxRateId = item.TaxRateId,
+            TaxRateName = item.TaxRate?.Name,
+            TaxRatePercentage = item.TaxRate?.Percentage,
+            TaxRateSriCode = item.TaxRate?.SriCode,
+            HasVariableIngredients = item.Recipe.Any(r => !r.IsDeleted && r.IsVariable),
             VariableIngredients = item.Recipe
                 .Where(r => !r.IsDeleted && r.IsVariable)
                 .Select(r => new VariableIngredientSlotDto
@@ -167,4 +204,3 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
         };
     }
 }
-

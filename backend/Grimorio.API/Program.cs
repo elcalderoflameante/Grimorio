@@ -187,6 +187,8 @@ builder.Services.AddDataProtection();
 // === HTTP client para llamadas al SRI ===
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<Grimorio.Infrastructure.Services.Sri.SriSoapClient>();
+builder.Services.AddScoped<Grimorio.Infrastructure.Services.Email.IEmailService,
+                           Grimorio.Infrastructure.Services.Email.SmtpEmailService>();
 
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
@@ -268,6 +270,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<TableServiceHub>(AppConstants.Hubs.TableServicePath);
+app.MapHub<KitchenHub>(AppConstants.Hubs.KitchenPath);
 
 app.Run();
 

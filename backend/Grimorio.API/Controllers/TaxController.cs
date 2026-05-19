@@ -57,30 +57,6 @@ public class TaxController : ControllerBase
         return NoContent();
     }
 
-    // ── Configuración fiscal de la sucursal ───────────────────────────────────
-
-    [HttpGet("config")]
-    public async Task<IActionResult> GetConfig()
-    {
-        if (!TryGetBranchId(out var branchId)) return Unauthorized();
-        var result = await _mediator.Send(new GetBranchTaxConfigQuery { BranchId = branchId });
-        return result is null ? NotFound() : Ok(result);
-    }
-
-    [HttpPut("config")]
-    public async Task<IActionResult> UpsertConfig([FromBody] BranchTaxConfigDto dto)
-    {
-        if (!TryGetBranchId(out var branchId)) return Unauthorized();
-        var result = await _mediator.Send(new UpsertBranchTaxConfigCommand
-        {
-            BranchId = branchId, Ruc = dto.Ruc, RazonSocial = dto.RazonSocial,
-            NombreComercial = dto.NombreComercial, Direccion = dto.Direccion,
-            CodigoEstablecimiento = dto.CodigoEstablecimiento, PuntoEmision = dto.PuntoEmision,
-            Ambiente = dto.Ambiente,
-        });
-        return Ok(result);
-    }
-
     private bool TryGetBranchId(out Guid branchId)
     {
         var claim = User.FindFirst(AppConstants.Claims.BranchId)?.Value;

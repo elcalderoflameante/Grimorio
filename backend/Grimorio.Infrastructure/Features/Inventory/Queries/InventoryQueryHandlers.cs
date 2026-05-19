@@ -156,6 +156,7 @@ public class GetCurrentStockHandler : IRequestHandler<GetCurrentStockQuery, List
     {
         // Parte de artículos para mostrar también los que tienen stock 0 (sin movimientos aún)
         var articlesQuery = _db.InventoryArticles
+            .AsNoTracking()
             .Include(a => a.Category)
             .Include(a => a.BaseUnit)
             .Include(a => a.Stocks.Where(s => !s.IsDeleted && s.BranchId == req.BranchId))
@@ -277,9 +278,10 @@ public class GetStockAlertsHandler : IRequestHandler<GetStockAlertsQuery, List<S
     public async Task<List<StockAlertDto>> Handle(GetStockAlertsQuery req, CancellationToken ct)
     {
         var stocks = await _db.WarehouseStock
-            .Include(x => x.Article).ThenInclude(a => a!.BaseUnit)
+            .AsNoTracking()
             .Where(x => x.BranchId == req.BranchId && x.Article!.StockAlertActive && x.Article.IsActive)
             .GroupBy(x => new { x.ArticleId, x.Article!.Name, x.Article.InternalCode, x.Article.MinStock, Symbol = x.Article.BaseUnit!.Symbol })
+            .Where(g => g.Sum(s => s.Quantity) <= g.Key.MinStock)
             .Select(g => new StockAlertDto
             {
                 ArticleId = g.Key.ArticleId,
@@ -291,6 +293,6 @@ public class GetStockAlertsHandler : IRequestHandler<GetStockAlertsQuery, List<S
             })
             .ToListAsync(ct);
 
-        return stocks.Where(x => x.CurrentStock <= x.MinStock).OrderBy(x => x.ArticleName).ToList();
+        return stocks.OrderBy(x => x.ArticleName).ToList();
     }
 }

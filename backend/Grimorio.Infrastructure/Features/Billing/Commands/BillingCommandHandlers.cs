@@ -3,13 +3,18 @@ using Grimorio.Application.Features.Billing.Commands;
 using Grimorio.Application.Features.Inventory.Commands;
 using Grimorio.Domain.Entities.Billing;
 using Grimorio.Domain.Entities.Inventory;
+using Grimorio.Domain.Entities.Menu;
+using Grimorio.Domain.Entities.POS;
+using Grimorio.Infrastructure.Features.Billing.Queries;
 using Grimorio.Infrastructure.Persistence;
+using Grimorio.Infrastructure.Services.Email;
 using Grimorio.Infrastructure.Services.Sri;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.DataProtection;
 using Org.BouncyCastle.Pkcs;
+using System.Text.Json;
 
 namespace Grimorio.Infrastructure.Features.Billing.Commands;
 
@@ -82,6 +87,62 @@ public class DeleteTaxRateHandler : IRequestHandler<DeleteTaxRateCommand, bool>
     }
 }
 
+// ── SmtpConfig ────────────────────────────────────────────────────────────────
+
+public class UpsertSmtpConfigHandler : IRequestHandler<UpsertSmtpConfigCommand, SmtpConfigDto>
+{
+    private readonly GrimorioDbContext _db;
+    private readonly IDataProtector _protector;
+    public UpsertSmtpConfigHandler(GrimorioDbContext db, IDataProtectionProvider dp)
+    {
+        _db = db;
+        _protector = dp.CreateProtector("SmtpPassword");
+    }
+
+    public async Task<SmtpConfigDto> Handle(UpsertSmtpConfigCommand req, CancellationToken ct)
+    {
+        var cfg = await _db.SmtpConfigs.FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct);
+        if (cfg == null)
+        {
+            cfg = new SmtpConfig { BranchId = req.BranchId };
+            _db.SmtpConfigs.Add(cfg);
+        }
+
+        cfg.Host = req.Host.Trim();
+        cfg.Port = req.Port;
+        cfg.Username = req.Username.Trim();
+        cfg.FromEmail = req.FromEmail.Trim();
+        cfg.FromName = req.FromName.Trim();
+        cfg.EnableSsl = req.EnableSsl;
+        cfg.IsActive = req.IsActive;
+
+        if (!string.IsNullOrWhiteSpace(req.Password))
+            cfg.PasswordEncrypted = _protector.Protect(req.Password);
+
+        await _db.SaveChangesAsync(ct);
+
+        return new SmtpConfigDto
+        {
+            Host = cfg.Host, Port = cfg.Port, Username = cfg.Username,
+            FromEmail = cfg.FromEmail, FromName = cfg.FromName,
+            EnableSsl = cfg.EnableSsl, IsActive = cfg.IsActive,
+            HasPassword = !string.IsNullOrEmpty(cfg.PasswordEncrypted),
+        };
+    }
+}
+
+public class TestSmtpConnectionHandler : IRequestHandler<TestSmtpConnectionCommand, bool>
+{
+    private readonly IEmailService _email;
+    public TestSmtpConnectionHandler(IEmailService email) => _email = email;
+
+    public async Task<bool> Handle(TestSmtpConnectionCommand req, CancellationToken ct)
+    {
+        await _email.SendTestEmailAsync(req.BranchId, req.ToEmail, ct);
+        return true;
+    }
+}
+
 // ── BranchTaxConfig ───────────────────────────────────────────────────────────
 
 public class UpsertBranchTaxConfigHandler : IRequestHandler<UpsertBranchTaxConfigCommand, BranchTaxConfigDto>
@@ -97,6 +158,10 @@ public class UpsertBranchTaxConfigHandler : IRequestHandler<UpsertBranchTaxConfi
             cfg = new BranchTaxConfig { BranchId = req.BranchId };
             _db.BranchTaxConfigs.Add(cfg);
         }
+        var ptoChanged = cfg.CodigoEstablecimiento != req.CodigoEstablecimiento.Trim()
+                      || cfg.PuntoEmision != req.PuntoEmision.Trim();
+        var seqChanged = cfg.SecuencialInicial != req.SecuencialInicial;
+
         cfg.Ruc = req.Ruc.Trim(); cfg.RazonSocial = req.RazonSocial.Trim();
         cfg.NombreComercial = req.NombreComercial?.Trim();
         cfg.Direccion = req.Direccion.Trim();
@@ -105,6 +170,12 @@ public class UpsertBranchTaxConfigHandler : IRequestHandler<UpsertBranchTaxConfi
         cfg.Ambiente = req.Ambiente;
         cfg.ContribuyenteEspecial = req.ContribuyenteEspecial?.Trim();
         cfg.ObligadoContabilidad = req.ObligadoContabilidad;
+        cfg.SecuencialInicial = Math.Max(1, req.SecuencialInicial);
+
+        // Si cambia el punto de emisión o el secuencial inicial, resetear el contador.
+        if (ptoChanged || seqChanged)
+            cfg.Secuencial = cfg.SecuencialInicial - 1;
+
         await _db.SaveChangesAsync(ct);
         return BillingMapper.MapBranchTaxConfig(cfg);
     }
@@ -210,6 +281,7 @@ public class CreatePaymentMethodHandler : IRequestHandler<CreatePaymentMethodCom
             Name = req.Name.Trim(),
             Color = req.Color,
             IsCash = req.IsCash,
+            IsCard = req.IsCard,
             IsActive = true,
             SortOrder = req.SortOrder,
         };
@@ -233,6 +305,7 @@ public class UpdatePaymentMethodHandler : IRequestHandler<UpdatePaymentMethodCom
         entity.Name = req.Name.Trim();
         entity.Color = req.Color;
         entity.IsCash = req.IsCash;
+        entity.IsCard = req.IsCard;
         entity.IsActive = req.IsActive;
         entity.SortOrder = req.SortOrder;
         await _db.SaveChangesAsync(ct);
@@ -262,6 +335,70 @@ public class DeletePaymentMethodHandler : IRequestHandler<DeletePaymentMethodCom
 }
 
 // ── Customers ─────────────────────────────────────────────────────────────────
+
+public class CreateCardBankHandler : IRequestHandler<CreateCardBankCommand, CardBankDto>
+{
+    private readonly GrimorioDbContext _db;
+    public CreateCardBankHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<CardBankDto> Handle(CreateCardBankCommand req, CancellationToken ct)
+    {
+        var name = req.Name.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+            throw new InvalidOperationException("Ingresa el nombre del banco.");
+
+        var entity = new CardBank
+        {
+            Id = Guid.NewGuid(),
+            BranchId = req.BranchId,
+            Name = name,
+            IsActive = true,
+            SortOrder = req.SortOrder,
+        };
+        _db.CardBanks.Add(entity);
+        await _db.SaveChangesAsync(ct);
+        return BillingMapper.MapCardBank(entity);
+    }
+}
+
+public class UpdateCardBankHandler : IRequestHandler<UpdateCardBankCommand, CardBankDto>
+{
+    private readonly GrimorioDbContext _db;
+    public UpdateCardBankHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<CardBankDto> Handle(UpdateCardBankCommand req, CancellationToken ct)
+    {
+        var entity = await _db.CardBanks
+            .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId && !x.IsDeleted, ct)
+            ?? throw new KeyNotFoundException("Banco no encontrado.");
+
+        entity.Name = req.Name.Trim();
+        entity.IsActive = req.IsActive;
+        entity.SortOrder = req.SortOrder;
+        await _db.SaveChangesAsync(ct);
+        return BillingMapper.MapCardBank(entity);
+    }
+}
+
+public class DeleteCardBankHandler : IRequestHandler<DeleteCardBankCommand, bool>
+{
+    private readonly GrimorioDbContext _db;
+    public DeleteCardBankHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<bool> Handle(DeleteCardBankCommand req, CancellationToken ct)
+    {
+        var entity = await _db.CardBanks
+            .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId && !x.IsDeleted, ct)
+            ?? throw new KeyNotFoundException("Banco no encontrado.");
+
+        var inUse = await _db.PaymentLines.AnyAsync(l => l.CardBankId == req.Id, ct);
+        if (inUse) entity.IsActive = false;
+        else entity.IsDeleted = true;
+
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
+}
 
 public class CreateCustomerHandler : IRequestHandler<CreateCustomerCommand, CustomerDto>
 {
@@ -408,6 +545,33 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
             throw new InvalidOperationException("Uno o más medios de pago no existen.");
 
         var methodMap = methods.ToDictionary(m => m.Id);
+        var cardLines = req.Lines.Where(l => methodMap[l.MethodId].IsCard).ToList();
+        var bankIds = cardLines
+            .Select(l => l.CardBankId)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+        var bankMap = bankIds.Count == 0
+            ? new Dictionary<Guid, CardBank>()
+            : await _db.CardBanks
+                .Where(b => bankIds.Contains(b.Id) && b.BranchId == req.BranchId && b.IsActive && !b.IsDeleted)
+                .ToDictionaryAsync(b => b.Id, ct);
+
+        foreach (var line in cardLines)
+        {
+            if (!Enum.TryParse<CardPaymentType>(line.CardPaymentType, true, out _))
+                throw new InvalidOperationException("Selecciona si la tarjeta es de credito o debito.");
+
+            if (!line.CardBankId.HasValue || !bankMap.ContainsKey(line.CardBankId.Value))
+                throw new InvalidOperationException("Selecciona un banco valido para el cobro con tarjeta.");
+
+            if (string.IsNullOrWhiteSpace(line.CardBrand))
+                throw new InvalidOperationException("Selecciona el tipo de tarjeta.");
+
+            if (string.IsNullOrWhiteSpace(line.AuthorizationNumber))
+                throw new InvalidOperationException("Ingresa el numero de autorizacion de la tarjeta.");
+        }
 
         var order = await _db.Orders
             .Include(o => o.Payments)
@@ -469,6 +633,22 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
         {
             var method = methodMap[l.MethodId];
             var change = 0m;
+            CardPaymentType? cardPaymentType = null;
+            Guid? cardBankId = null;
+            string? cardBankName = null;
+            string? cardBrand = null;
+            string? authorizationNumber = null;
+
+            if (method.IsCard)
+            {
+                Enum.TryParse<CardPaymentType>(l.CardPaymentType, true, out var parsedCardType);
+                cardPaymentType = parsedCardType;
+                cardBankId = l.CardBankId;
+                cardBankName = l.CardBankId.HasValue ? bankMap[l.CardBankId.Value].Name : null;
+                cardBrand = l.CardBrand?.Trim();
+                authorizationNumber = l.AuthorizationNumber?.Trim();
+            }
+
             if (method.IsCash && remainingChange > 0)
             {
                 change = Math.Min(remainingChange, l.AmountTendered);
@@ -481,6 +661,11 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
                 PaymentMethodConfigId = l.MethodId,
                 AmountTendered = l.AmountTendered,
                 Change = change,
+                CardPaymentType = cardPaymentType,
+                CardBankId = cardBankId,
+                CardBankName = cardBankName,
+                CardBrand = cardBrand,
+                AuthorizationNumber = authorizationNumber,
                 Config = method,
             };
         }).ToList();
@@ -586,13 +771,15 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
     private readonly GrimorioDbContext _db;
     private readonly IDataProtectionProvider _dp;
     private readonly SriSoapClient _soap;
+    private readonly IEmailService _email;
     private readonly ILogger<GenerateElectronicInvoiceHandler> _log;
 
     public GenerateElectronicInvoiceHandler(
         GrimorioDbContext db, IDataProtectionProvider dp,
-        SriSoapClient soap, ILogger<GenerateElectronicInvoiceHandler> log)
+        SriSoapClient soap, IEmailService email,
+        ILogger<GenerateElectronicInvoiceHandler> log)
     {
-        _db = db; _dp = dp; _soap = soap; _log = log;
+        _db = db; _dp = dp; _soap = soap; _email = email; _log = log;
     }
 
     public async Task<ElectronicDocumentDto> Handle(GenerateElectronicInvoiceCommand req, CancellationToken ct)
@@ -628,6 +815,10 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
             .FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct)
             ?? throw new InvalidOperationException("Cargue el certificado .p12 antes de emitir facturas.");
 
+        var invoiceTemplateEntity = await _db.InvoiceTemplates
+            .FirstOrDefaultAsync(t => t.BranchId == req.BranchId && !t.IsDeleted, ct);
+        var invoiceTemplate = GetInvoiceTemplateHandler.BuildDto(invoiceTemplateEntity ?? new InvoiceTemplate());
+
         // ── Incrementar secuencial de forma atómica ────────────────────────
         config.Secuencial += 1;
         await _db.SaveChangesAsync(ct);
@@ -635,7 +826,7 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
 
         // ── Generar clave de acceso ────────────────────────────────────────
         var claveAcceso = SriKeyGenerator.Build(
-            payment.PaidAt.ToLocalTime(),
+            EcuadorTime.FromUtc(payment.PaidAt),
             config.Ruc, config.Ambiente,
             config.CodigoEstablecimiento, config.PuntoEmision,
             secuencial);
@@ -714,11 +905,33 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
                 // Generar RIDE
                 try
                 {
-                    doc.RidePdf = RideGenerator.Generate(config, doc, payment, order, items, payment.Customer);
+                    doc.RidePdf = RideGenerator.Generate(config, doc, payment, order, items, payment.Customer, invoiceTemplate);
                 }
                 catch (Exception ex)
                 {
                     _log.LogWarning(ex, "No se pudo generar el RIDE para doc {Id}", doc.Id);
+                }
+
+                // Enviar correo al cliente (silencioso: el correo no afecta la factura)
+                if (doc.RidePdf != null && payment.Customer?.Email != null)
+                {
+                    try
+                    {
+                        await _email.SendInvoiceAsync(
+                            req.BranchId,
+                            payment.Customer.Email,
+                            payment.Customer.Name,
+                            doc.NumeroFactura,
+                            config.RazonSocial,
+                            doc.ImporteTotal,
+                            doc.RidePdf,
+                            doc.XmlAuthorized ?? doc.XmlSigned,
+                            ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        _log.LogWarning(ex, "No se pudo enviar el correo para doc {Id}", doc.Id);
+                    }
                 }
             }
             else
@@ -763,13 +976,15 @@ public class RetryElectronicInvoiceHandler : IRequestHandler<RetryElectronicInvo
     private readonly GrimorioDbContext _db;
     private readonly SriSoapClient _soap;
     private readonly IDataProtectionProvider _dp;
+    private readonly IEmailService _email;
     private readonly ILogger<RetryElectronicInvoiceHandler> _log;
 
     public RetryElectronicInvoiceHandler(
         GrimorioDbContext db, SriSoapClient soap,
-        IDataProtectionProvider dp, ILogger<RetryElectronicInvoiceHandler> log)
+        IDataProtectionProvider dp, IEmailService email,
+        ILogger<RetryElectronicInvoiceHandler> log)
     {
-        _db = db; _soap = soap; _dp = dp; _log = log;
+        _db = db; _soap = soap; _dp = dp; _email = email; _log = log;
     }
 
     public async Task<ElectronicDocumentDto> Handle(RetryElectronicInvoiceCommand req, CancellationToken ct)
@@ -786,9 +1001,12 @@ public class RetryElectronicInvoiceHandler : IRequestHandler<RetryElectronicInvo
             .FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct)
             ?? throw new InvalidOperationException("Configure los datos del emisor.");
 
-        // Si no tiene XML firmado (fallo antes de firmarlo), hay que regenerarlo
-        // usando el MISMO secuencial y clave de acceso que ya tiene el documento
-        if (string.IsNullOrEmpty(doc.XmlSigned))
+        var retryTemplateEntity = await _db.InvoiceTemplates
+            .FirstOrDefaultAsync(t => t.BranchId == req.BranchId && !t.IsDeleted, ct);
+        var retryTemplate = GetInvoiceTemplateHandler.BuildDto(retryTemplateEntity ?? new InvoiceTemplate());
+
+        // Regenerar la firma usando el MISMO secuencial y clave de acceso.
+        // Esto permite que un reintento corrija XML firmado con una version anterior del firmador.
         {
             var sriCert = await _db.SriCertificates
                 .FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct)
@@ -880,9 +1098,31 @@ public class RetryElectronicInvoiceHandler : IRequestHandler<RetryElectronicInvo
                         .Include(i => i.MenuItem).ThenInclude(m => m!.TaxRate)
                         .Where(i => i.OrderId == order!.Id && !i.IsDeleted).ToListAsync(ct);
 
-                    doc.RidePdf = RideGenerator.Generate(config, doc, payment!, order!, items, payment!.Customer);
+                    doc.RidePdf = RideGenerator.Generate(config, doc, payment!, order!, items, payment!.Customer, retryTemplate);
+
+                    // Enviar correo al cliente tras autorización en reintento
+                    if (doc.RidePdf != null && payment.Customer?.Email != null)
+                    {
+                        try
+                        {
+                            await _email.SendInvoiceAsync(
+                                doc.BranchId,
+                                payment.Customer.Email,
+                                payment.Customer.Name,
+                                doc.NumeroFactura,
+                                config.RazonSocial,
+                                doc.ImporteTotal,
+                                doc.RidePdf,
+                                doc.XmlAuthorized ?? doc.XmlSigned,
+                                ct);
+                        }
+                        catch (Exception ex)
+                        {
+                            _log.LogWarning(ex, "No se pudo enviar el correo en reintento para doc {Id}", doc.Id);
+                        }
+                    }
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (!(ex.Message.Contains("correo")))
                 {
                     _log.LogWarning(ex, "No se pudo generar el RIDE en reintento para doc {Id}", doc.Id);
                 }
@@ -917,7 +1157,8 @@ internal static class BillingMapper
         NombreComercial = c.NombreComercial, Direccion = c.Direccion,
         CodigoEstablecimiento = c.CodigoEstablecimiento, PuntoEmision = c.PuntoEmision,
         Ambiente = c.Ambiente, ContribuyenteEspecial = c.ContribuyenteEspecial,
-        ObligadoContabilidad = c.ObligadoContabilidad, Secuencial = c.Secuencial,
+        ObligadoContabilidad = c.ObligadoContabilidad,
+        SecuencialInicial = c.SecuencialInicial, Secuencial = c.Secuencial,
     };
 
     internal static TaxRateDto MapTaxRate(TaxRate t) => new()
@@ -929,7 +1170,12 @@ internal static class BillingMapper
     internal static PaymentMethodConfigDto MapPaymentMethod(PaymentMethodConfig m) => new()
     {
         Id = m.Id, Name = m.Name, Color = m.Color,
-        IsCash = m.IsCash, IsActive = m.IsActive, SortOrder = m.SortOrder,
+        IsCash = m.IsCash, IsCard = m.IsCard, IsActive = m.IsActive, SortOrder = m.SortOrder,
+    };
+
+    internal static CardBankDto MapCardBank(CardBank b) => new()
+    {
+        Id = b.Id, Name = b.Name, IsActive = b.IsActive, SortOrder = b.SortOrder,
     };
 
     internal static CustomerDto MapCustomer(Customer c) => new()
@@ -996,10 +1242,91 @@ internal static class BillingMapper
             MethodName = l.Config?.Name ?? string.Empty,
             MethodColor = l.Config?.Color ?? "#1677ff",
             IsCash = l.Config?.IsCash ?? false,
+            IsCard = l.Config?.IsCard ?? false,
             AmountTendered = l.AmountTendered,
             Change = l.Change,
+            CardPaymentType = l.CardPaymentType?.ToString(),
+            CardBankId = l.CardBankId,
+            CardBankName = l.CardBankName,
+            CardBrand = l.CardBrand,
+            AuthorizationNumber = l.AuthorizationNumber,
         }).ToList(),
         ElectronicDocumentId = elDoc?.Id,
         ElectronicDocumentStatus = elDoc?.Status.ToString(),
     };
+}
+
+// ── UpsertInvoiceTemplateHandler ─────────────────────────────────────────────
+
+public class UpsertInvoiceTemplateHandler : IRequestHandler<UpsertInvoiceTemplateCommand, InvoiceTemplateDto>
+{
+    private static readonly JsonSerializerOptions JsonOpts =
+        new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true };
+
+    private readonly GrimorioDbContext _db;
+    public UpsertInvoiceTemplateHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<InvoiceTemplateDto> Handle(UpsertInvoiceTemplateCommand req, CancellationToken ct)
+    {
+        var template = await _db.InvoiceTemplates
+            .FirstOrDefaultAsync(t => t.BranchId == req.BranchId && !t.IsDeleted, ct);
+
+        if (template == null)
+        {
+            template = new InvoiceTemplate { BranchId = req.BranchId, CreatedBy = req.UserId };
+            _db.InvoiceTemplates.Add(template);
+        }
+        else
+        {
+            template.UpdatedAt = DateTime.UtcNow;
+            template.UpdatedBy = req.UserId;
+        }
+
+        template.LogoBase64 = req.LogoBase64;
+        template.PrimaryColor = req.PrimaryColor;
+        template.AccentColor = req.AccentColor;
+        template.EmailSubject = req.EmailSubject;
+        template.PdfBlocksJson = JsonSerializer.Serialize(req.PdfBlocks, JsonOpts);
+        template.EmailBlocksJson = JsonSerializer.Serialize(req.EmailBlocks, JsonOpts);
+
+        await _db.SaveChangesAsync(ct);
+        return GetInvoiceTemplateHandler.BuildDto(template);
+    }
+}
+
+// ── GenerateInvoicePreviewPdfHandler ─────────────────────────────────────────
+
+public class GenerateInvoicePreviewPdfHandler : IRequestHandler<GenerateInvoicePreviewPdfCommand, byte[]>
+{
+    private readonly GrimorioDbContext _db;
+    public GenerateInvoicePreviewPdfHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<byte[]> Handle(GenerateInvoicePreviewPdfCommand req, CancellationToken ct)
+    {
+        var config = await _db.BranchTaxConfigs
+            .FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct)
+            ?? new BranchTaxConfig
+            {
+                RazonSocial = "Mi Empresa S.A.",
+                NombreComercial = "Mi Negocio",
+                Ruc = "1790000000001",
+                Direccion = "Av. Principal 123 y Secundaria",
+                CodigoEstablecimiento = "001",
+                PuntoEmision = "001",
+                Ambiente = "1",
+                ObligadoContabilidad = true,
+            };
+
+        var dto = new InvoiceTemplateDto
+        {
+            LogoBase64 = req.Template.LogoBase64,
+            PrimaryColor = req.Template.PrimaryColor,
+            AccentColor = req.Template.AccentColor,
+            PdfBlocks = req.Template.PdfBlocks,
+            EmailSubject = req.Template.EmailSubject,
+            EmailBlocks = req.Template.EmailBlocks,
+        };
+
+        return RideGenerator.GeneratePreview(config, dto);
+    }
 }

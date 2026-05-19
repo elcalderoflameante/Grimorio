@@ -22,6 +22,7 @@ public static class AppConstants
     public static class Hubs
     {
         public const string TableServicePath = "/hubs/table-service";
+        public const string KitchenPath = "/hubs/kitchen";
     }
 
     public static class Scheduling

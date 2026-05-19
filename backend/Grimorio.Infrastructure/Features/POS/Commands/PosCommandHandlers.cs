@@ -202,8 +202,14 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
     {
         var order = await _db.Orders
             .Include(o => o.Items)
+            .Include(o => o.Payments)
             .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
             ?? throw new InvalidOperationException("Orden no encontrada.");
+
+        var paidAmount = order.Payments.Where(p => !p.IsDeleted).Sum(p => p.OrderAmount);
+        var isFullyPaid = order.PaidAt.HasValue || paidAmount >= order.Total - 0.01m;
+        if (isFullyPaid)
+            throw new InvalidOperationException("No se pueden agregar ítems a una orden que ya está pagada.");
 
         if (order.Status == OrderStatus.Draft)
         {
@@ -490,6 +496,7 @@ internal static class PosMapper
     public static OrderItemDto MapOrderItem(OrderItem i) => new()
     {
         Id = i.Id,
+        OrderId = i.OrderId,
         MenuItemId = i.MenuItemId,
         ItemName = i.MenuItem?.Name ?? string.Empty,
         ItemCode = i.MenuItem?.InternalCode,

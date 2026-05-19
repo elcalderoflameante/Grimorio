@@ -54,6 +54,20 @@ public class OrderDto
     public List<OrderItemDto> Items { get; set; } = [];
 }
 
+public class ActiveOrderSummaryDto
+{
+    public Guid Id { get; set; }
+    public int Number { get; set; }
+    public string Type { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string? TableCode { get; set; }
+    public string? CustomerName { get; set; }
+    public decimal Total { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? ConfirmedAt { get; set; }
+    public int TotalItems { get; set; }
+}
+
 public class IngredientChoiceDto
 {
     public Guid RecipeIngredientId { get; set; }
@@ -70,6 +84,7 @@ public class CreateIngredientChoiceDto
 public class OrderItemDto
 {
     public Guid Id { get; set; }
+    public Guid OrderId { get; set; }
     public Guid MenuItemId { get; set; }
     public string ItemName { get; set; } = string.Empty;
     public string? ItemCode { get; set; }
@@ -128,4 +143,6 @@ public class StationItemDto
     public string? Notes { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime ConfirmedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public List<IngredientChoiceDto> IngredientChoices { get; set; } = [];
 }

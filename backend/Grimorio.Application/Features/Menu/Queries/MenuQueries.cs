@@ -14,6 +14,7 @@ public class GetMenuItemsQuery : IRequest<List<MenuItemDto>>
     public Guid? CategoryId { get; set; }
     public bool? ActiveOnly { get; set; }
     public bool? AvailableOnly { get; set; }
+    public bool Lightweight { get; set; }
 }
 
 public class GetMenuItemDetailQuery : IRequest<MenuItemDetailDto?>

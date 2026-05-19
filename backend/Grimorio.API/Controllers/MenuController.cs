@@ -63,13 +63,15 @@ public class MenuController : ControllerBase
     public async Task<IActionResult> GetItems(
         [FromQuery] Guid? categoryId,
         [FromQuery] bool? activeOnly,
-        [FromQuery] bool? availableOnly)
+        [FromQuery] bool? availableOnly,
+        [FromQuery] bool lightweight = false)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
         return Ok(await _mediator.Send(new GetMenuItemsQuery
         {
             BranchId = branchId, CategoryId = categoryId,
             ActiveOnly = activeOnly, AvailableOnly = availableOnly,
+            Lightweight = lightweight,
         }));
     }
 
@@ -160,4 +162,3 @@ public class MenuController : ControllerBase
         return Guid.TryParse(claim, out branchId);
     }
 }
-

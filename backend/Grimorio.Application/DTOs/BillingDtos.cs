@@ -35,6 +35,7 @@ public class BranchTaxConfigDto
     public string Ambiente { get; set; } = "1";
     public string? ContribuyenteEspecial { get; set; }
     public bool ObligadoContabilidad { get; set; }
+    public long SecuencialInicial { get; set; } = 1;
     public long Secuencial { get; set; }
 }
 
@@ -88,6 +89,32 @@ public class ElectronicDocumentDto
     public bool HasXmlResponse { get; set; }
 }
 
+// ── SmtpConfig ────────────────────────────────────────────────────────────────
+
+public class SmtpConfigDto
+{
+    public string Host { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+    public string Username { get; set; } = string.Empty;
+    public string FromEmail { get; set; } = string.Empty;
+    public string FromName { get; set; } = string.Empty;
+    public bool EnableSsl { get; set; } = true;
+    public bool IsActive { get; set; } = true;
+    public bool HasPassword { get; set; }
+}
+
+public class UpsertSmtpConfigDto
+{
+    public string Host { get; set; } = string.Empty;
+    public int Port { get; set; } = 587;
+    public string Username { get; set; } = string.Empty;
+    public string? Password { get; set; }   // null = mantener contraseña actual
+    public string FromEmail { get; set; } = string.Empty;
+    public string FromName { get; set; } = string.Empty;
+    public bool EnableSsl { get; set; } = true;
+    public bool IsActive { get; set; } = true;
+}
+
 // ── PaymentMethodConfig ───────────────────────────────────────────────────────
 
 public class PaymentMethodConfigDto
@@ -96,6 +123,7 @@ public class PaymentMethodConfigDto
     public string Name { get; set; } = string.Empty;
     public string Color { get; set; } = "#1677ff";
     public bool IsCash { get; set; }
+    public bool IsCard { get; set; }
     public bool IsActive { get; set; }
     public int SortOrder { get; set; }
 }
@@ -105,6 +133,7 @@ public class CreatePaymentMethodConfigDto
     public string Name { get; set; } = string.Empty;
     public string Color { get; set; } = "#1677ff";
     public bool IsCash { get; set; }
+    public bool IsCard { get; set; }
     public int SortOrder { get; set; }
 }
 
@@ -113,6 +142,28 @@ public class UpdatePaymentMethodConfigDto
     public string Name { get; set; } = string.Empty;
     public string Color { get; set; } = "#1677ff";
     public bool IsCash { get; set; }
+    public bool IsCard { get; set; }
+    public bool IsActive { get; set; }
+    public int SortOrder { get; set; }
+}
+
+public class CardBankDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public int SortOrder { get; set; }
+}
+
+public class CreateCardBankDto
+{
+    public string Name { get; set; } = string.Empty;
+    public int SortOrder { get; set; }
+}
+
+public class UpdateCardBankDto
+{
+    public string Name { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public int SortOrder { get; set; }
 }
@@ -203,9 +254,15 @@ public class PaymentLineDto
     public string MethodName { get; set; } = string.Empty;
     public string MethodColor { get; set; } = "#1677ff";
     public bool IsCash { get; set; }
+    public bool IsCard { get; set; }
     public decimal AmountTendered { get; set; }
     public decimal Change { get; set; }
     public decimal NetAmount => AmountTendered - Change;
+    public string? CardPaymentType { get; set; }
+    public Guid? CardBankId { get; set; }
+    public string? CardBankName { get; set; }
+    public string? CardBrand { get; set; }
+    public string? AuthorizationNumber { get; set; }
 }
 
 public class OrderPaymentDto
@@ -231,6 +288,10 @@ public class AddPaymentLineDto
 {
     public Guid MethodId { get; set; }
     public decimal AmountTendered { get; set; }
+    public string? CardPaymentType { get; set; }
+    public Guid? CardBankId { get; set; }
+    public string? CardBrand { get; set; }
+    public string? AuthorizationNumber { get; set; }
 }
 
 public class AddOrderPaymentDto
@@ -240,4 +301,62 @@ public class AddOrderPaymentDto
     public Guid? CustomerId { get; set; }
     public Guid? CashSessionId { get; set; }
     public List<AddPaymentLineDto> Lines { get; set; } = [];
+}
+
+// ── InvoiceTemplate ───────────────────────────────────────────────────────────
+
+public class PdfBlockDto
+{
+    public string Id { get; set; } = "";
+    public string Type { get; set; } = "";
+    public bool Visible { get; set; } = true;
+    public string Label { get; set; } = "";
+    // header
+    public string PrimaryColor { get; set; } = "#1677ff";
+    public bool ShowLogo { get; set; } = true;
+    // customer
+    public bool ShowEmail { get; set; } = true;
+    public bool ShowPhone { get; set; } = true;
+    public bool ShowAddress { get; set; } = true;
+    // items
+    public bool ShowAuxCode { get; set; } = false;
+    public bool ShowDiscount { get; set; } = true;
+    // totals
+    public bool ShowZeroLines { get; set; } = true;
+    // footer
+    public string? CustomText { get; set; }
+}
+
+public class EmailBlockDto
+{
+    public string Id { get; set; } = "";
+    public string Type { get; set; } = "";
+    public bool Visible { get; set; } = true;
+    public string Label { get; set; } = "";
+    // header
+    public string BgColor { get; set; } = "#1677ff";
+    public string? Title { get; set; }
+    public string? Subtitle { get; set; }
+    // text blocks (greeting, message, legal_note, footer)
+    public string? Text { get; set; }
+}
+
+public class InvoiceTemplateDto
+{
+    public string? LogoBase64 { get; set; }
+    public string PrimaryColor { get; set; } = "#1677ff";
+    public string AccentColor { get; set; } = "#e6f4ff";
+    public List<PdfBlockDto> PdfBlocks { get; set; } = [];
+    public string EmailSubject { get; set; } = "Factura Electrónica {numeroFactura} — {razonSocial}";
+    public List<EmailBlockDto> EmailBlocks { get; set; } = [];
+}
+
+public class UpsertInvoiceTemplateDto
+{
+    public string? LogoBase64 { get; set; }
+    public string PrimaryColor { get; set; } = "#1677ff";
+    public string AccentColor { get; set; } = "#e6f4ff";
+    public List<PdfBlockDto> PdfBlocks { get; set; } = [];
+    public string EmailSubject { get; set; } = "Factura Electrónica {numeroFactura} — {razonSocial}";
+    public List<EmailBlockDto> EmailBlocks { get; set; } = [];
 }

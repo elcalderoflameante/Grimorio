@@ -261,5 +261,7 @@ internal static class MenuMapper
             TaxRateId = item.TaxRateId,
             TaxRateName = taxRate?.Name ?? item.TaxRate?.Name,
             TaxRatePercentage = taxRate?.Percentage ?? item.TaxRate?.Percentage,
+            TaxRateSriCode = taxRate?.SriCode ?? item.TaxRate?.SriCode,
+            HasVariableIngredients = item.Recipe.Any(r => !r.IsDeleted && r.IsVariable),
         };
 }

@@ -138,7 +138,8 @@ public class SriSoapClient
         bool autorizado = estado.Equals("AUTORIZADO", StringComparison.OrdinalIgnoreCase);
 
         DateTime? fechaDate = null;
-        if (DateTime.TryParse(fechaAut, out var fd)) fechaDate = fd;
+        if (DateTime.TryParse(fechaAut, null, System.Globalization.DateTimeStyles.None, out var fd))
+            fechaDate = fd.Kind == DateTimeKind.Utc ? fd : fd.ToUniversalTime();
 
         var messages = ExtractMensajes(doc);
         if (messages.Count == 0 && !autorizado)

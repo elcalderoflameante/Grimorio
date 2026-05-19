@@ -65,6 +65,8 @@ public class GrimorioDbContext : DbContext
     public DbSet<BranchTaxConfig> BranchTaxConfigs { get; set; } = null!;
     public DbSet<SriCertificate> SriCertificates { get; set; } = null!;
     public DbSet<ElectronicDocument> ElectronicDocuments { get; set; } = null!;
+    public DbSet<SmtpConfig> SmtpConfigs { get; set; } = null!;
+    public DbSet<InvoiceTemplate> InvoiceTemplates { get; set; } = null!;
 
     // === POS ===
     public DbSet<RestaurantTable> RestaurantTables { get; set; } = null!;
@@ -75,6 +77,7 @@ public class GrimorioDbContext : DbContext
     public DbSet<OrderItemIngredientChoice> OrderItemIngredientChoices { get; set; } = null!;
     public DbSet<Customer> Customers { get; set; } = null!;
     public DbSet<PaymentMethodConfig> PaymentMethodConfigs { get; set; } = null!;
+    public DbSet<CardBank> CardBanks { get; set; } = null!;
     public DbSet<CashSession> CashSessions { get; set; } = null!;
     public DbSet<OrderPayment> OrderPayments { get; set; } = null!;
     public DbSet<PaymentLine> PaymentLines { get; set; } = null!;

@@ -69,12 +69,9 @@ public static class SriXmlBuilder
         var customer = d.Customer;
         var payment = d.Payment;
 
-        // Calcular totales desde los ítems (ya calculados por el backend del POS)
-        var order = d.Order;
-        decimal totalSinImpuestos = order.TaxableBase15 + order.TaxableBase0 + order.TaxableBaseExempt;
-        decimal totalDescuento = 0m; // descuentos ya incorporados en base imponible
-        decimal totalIva = order.Iva15;
-        decimal importeTotal = order.Total;
+        var taxGroups = ComputeTaxGroups(d.Items);
+        decimal totalSinImpuestos = taxGroups.Sum(g => g.TaxableBase);
+        decimal importeTotal = d.Order.Total;
 
         // Identificación del comprador
         string tipoId, idComprador, razonComprador;
@@ -96,7 +93,7 @@ public static class SriXmlBuilder
         }
 
         w.WriteStartElement("infoFactura");
-        w.WriteElementString("fechaEmision", payment.PaidAt.ToString("dd/MM/yyyy"));
+        w.WriteElementString("fechaEmision", EcuadorTime.FromUtc(payment.PaidAt).ToString("dd/MM/yyyy"));
         w.WriteElementString("dirEstablecimiento", c.Direccion);
         if (!string.IsNullOrEmpty(c.ContribuyenteEspecial))
             w.WriteElementString("contribuyenteEspecial", c.ContribuyenteEspecial);
@@ -105,16 +102,11 @@ public static class SriXmlBuilder
         w.WriteElementString("razonSocialComprador", razonComprador);
         w.WriteElementString("identificacionComprador", idComprador);
         w.WriteElementString("totalSinImpuestos", Fmt(totalSinImpuestos));
-        w.WriteElementString("totalDescuento", Fmt(totalDescuento));
+        w.WriteElementString("totalDescuento", Fmt(0));
 
         w.WriteStartElement("totalConImpuestos");
-        WriteTotalImpuesto(w, "2", "10", order.TaxableBase15, order.Iva15);   // IVA 15%
-        if (order.TaxableBase0 > 0)
-            WriteTotalImpuesto(w, "2", "0", order.TaxableBase0, 0m);           // IVA 0%
-        if (order.TaxableBaseExempt > 0)
-            WriteTotalImpuesto(w, "2", "6", order.TaxableBaseExempt, 0m);      // Exento
-        if (order.Ice > 0)
-            WriteTotalImpuesto(w, "3", "3051", order.Ice, order.Ice);          // ICE
+        foreach (var g in taxGroups)
+            WriteTotalImpuesto(w, "2", g.SriCode, g.TaxableBase, g.TaxAmt);
         w.WriteEndElement(); // totalConImpuestos
 
         w.WriteElementString("propina", Fmt(0));
@@ -145,48 +137,75 @@ public static class SriXmlBuilder
         w.WriteEndElement();
     }
 
+    private record TaxGroup(string SriCode, decimal Percentage, decimal TaxableBase, decimal TaxAmt);
+
+    private static List<TaxGroup> ComputeTaxGroups(List<OrderItem> items)
+    {
+        return items
+            .GroupBy(i => new
+            {
+                SriCode = i.MenuItem?.TaxRate?.SriCode ?? "6",
+                Percentage = i.MenuItem?.TaxRate?.Percentage ?? 0m,
+            })
+            .Select(g =>
+            {
+                var pct = g.Key.Percentage;
+                decimal taxableBase = 0, taxAmt = 0;
+                foreach (var item in g)
+                {
+                    var net = item.UnitPrice * item.Quantity
+                              - Math.Round(item.UnitPrice * item.Quantity * (item.DiscountPct / 100m), 2);
+                    if (pct > 0)
+                    {
+                        var b = Math.Round(net / (1m + pct / 100m), 2);
+                        taxableBase += b;
+                        taxAmt += Math.Round(net - b, 2);
+                    }
+                    else { taxableBase += net; }
+                }
+                return new TaxGroup(g.Key.SriCode, pct, taxableBase, taxAmt);
+            })
+            .OrderBy(g => g.Percentage)
+            .ToList();
+    }
+
     private static void WriteDetalles(XmlWriter w, SriInvoiceData d)
     {
         w.WriteStartElement("detalles");
         foreach (var item in d.Items)
         {
             var menuItem = item.MenuItem;
-            var taxPct = menuItem?.TaxRate?.Percentage;
-            var sriCode = menuItem?.TaxRate?.SriCode;
+            var taxRate = menuItem?.TaxRate;
+            var pct = taxRate?.Percentage ?? 0m;
+            var sriCode = taxRate?.SriCode ?? "6";
 
-            // Calcular base imponible por línea (precio ya incluye IVA)
             var gross = item.UnitPrice * item.Quantity;
             var discount = Math.Round(gross * (item.DiscountPct / 100m), 2);
-            var netInclusive = gross - discount;
+            var net = gross - discount;
             decimal taxableBase, taxAmt;
-            if (taxPct.HasValue && taxPct.Value > 0)
+            if (pct > 0)
             {
-                taxableBase = Math.Round(netInclusive / (1m + taxPct.Value / 100m), 2);
-                taxAmt = Math.Round(netInclusive - taxableBase, 2);
+                taxableBase = Math.Round(net / (1m + pct / 100m), 2);
+                taxAmt = Math.Round(net - taxableBase, 2);
             }
-            else { taxableBase = netInclusive; taxAmt = 0m; }
+            else { taxableBase = net; taxAmt = 0m; }
 
             w.WriteStartElement("detalle");
             w.WriteElementString("codigoPrincipal", menuItem?.InternalCode ?? item.MenuItemId.ToString()[..8]);
             w.WriteElementString("descripcion", menuItem?.Name ?? item.MenuItemId.ToString()[..8]);
             w.WriteElementString("cantidad", item.Quantity.ToString("F6", System.Globalization.CultureInfo.InvariantCulture));
-            w.WriteElementString("precioUnitario", (item.UnitPrice / (1m + (taxPct ?? 0m) / 100m)).ToString("F6", System.Globalization.CultureInfo.InvariantCulture));
+            w.WriteElementString("precioUnitario", (net / (pct > 0 ? 1m + pct / 100m : 1m)).ToString("F6", System.Globalization.CultureInfo.InvariantCulture));
             w.WriteElementString("descuento", Fmt(discount));
             w.WriteElementString("precioTotalSinImpuesto", Fmt(taxableBase));
 
             w.WriteStartElement("impuestos");
-            if (taxAmt > 0 || taxableBase > 0)
-            {
-                var codigoPct = sriCode == "10" ? "10" : sriCode == "0" || sriCode == "8" ? "0" : "6";
-                var tarifa = taxPct.HasValue && taxPct.Value > 0 ? taxPct.Value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "0.00";
-                w.WriteStartElement("impuesto");
-                w.WriteElementString("codigo", "2");
-                w.WriteElementString("codigoPorcentaje", codigoPct);
-                w.WriteElementString("tarifa", tarifa);
-                w.WriteElementString("baseImponible", Fmt(taxableBase));
-                w.WriteElementString("valor", Fmt(taxAmt));
-                w.WriteEndElement();
-            }
+            w.WriteStartElement("impuesto");
+            w.WriteElementString("codigo", "2");
+            w.WriteElementString("codigoPorcentaje", sriCode);
+            w.WriteElementString("tarifa", pct > 0 ? pct.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "0.00");
+            w.WriteElementString("baseImponible", Fmt(taxableBase));
+            w.WriteElementString("valor", Fmt(taxAmt));
+            w.WriteEndElement(); // impuesto
             w.WriteEndElement(); // impuestos
 
             w.WriteEndElement(); // detalle

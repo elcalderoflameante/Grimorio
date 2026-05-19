@@ -1,10 +1,12 @@
-﻿using Grimorio.Application.DTOs;
+﻿using Grimorio.API.Hubs;
+using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.POS.Commands;
 using Grimorio.Application.Features.POS.Queries;
 using Grimorio.SharedKernel.Constants;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 
 namespace Grimorio.API.Controllers;
 
@@ -14,8 +16,13 @@ namespace Grimorio.API.Controllers;
 public class PosController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IHubContext<KitchenHub> _kitchenHub;
 
-    public PosController(IMediator mediator) => _mediator = mediator;
+    public PosController(IMediator mediator, IHubContext<KitchenHub> kitchenHub)
+    {
+        _mediator = mediator;
+        _kitchenHub = kitchenHub;
+    }
 
     // ── Estaciones ──────────────────────────────────────────────────────────
 
@@ -93,6 +100,13 @@ public class PosController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("ordenes/activas/resumen")]
+    public async Task<IActionResult> GetActiveOrderSummaries()
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        return Ok(await _mediator.Send(new GetActiveOrderSummariesQuery { BranchId = branchId }));
+    }
+
     [HttpGet("ordenes/{id:guid}")]
     public async Task<IActionResult> GetOrder(Guid id)
     {
@@ -132,6 +146,37 @@ public class PosController : ControllerBase
             BranchId = branchId,
             Items = dto.Items,
         });
+
+        // Notificar a cada estación los ítems nuevos (Pending) del pedido actualizado
+        var confirmedAt = result.ConfirmedAt ?? result.CreatedAt;
+        var newItemsByStation = result.Items
+            .Where(i => i.StationId.HasValue && i.Status == "Pending")
+            .GroupBy(i => i.StationId!.Value);
+        foreach (var group in newItemsByStation)
+        {
+            var payload = group.Select(i => new
+            {
+                orderItemId = i.Id,
+                orderId = result.Id,
+                orderNumber = result.Number,
+                orderType = result.Type,
+                tableCode = result.TableCode,
+                customerName = result.CustomerName,
+                itemName = i.ItemName,
+                quantity = i.Quantity,
+                notes = i.Notes,
+                status = i.Status,
+                confirmedAt,
+                ingredientChoices = i.IngredientChoices.Select(c => new
+                {
+                    chosenArticleName = c.ChosenArticleName,
+                }),
+            });
+            await _kitchenHub.Clients
+                .Group(KitchenHub.GetStationGroup(group.Key))
+                .SendAsync(KitchenHub.NewItemsEvent, payload);
+        }
+
         return Ok(result);
     }
 
@@ -140,6 +185,37 @@ public class PosController : ControllerBase
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
         var result = await _mediator.Send(new ConfirmOrderCommand { OrderId = id, BranchId = branchId });
+
+        // Notificar a cada estación sus nuevos ítems
+        var confirmedAt = result.ConfirmedAt ?? result.CreatedAt;
+        var itemsByStation = result.Items
+            .Where(i => i.StationId.HasValue)
+            .GroupBy(i => i.StationId!.Value);
+        foreach (var group in itemsByStation)
+        {
+            var payload = group.Select(i => new
+            {
+                orderItemId = i.Id,
+                orderId = result.Id,
+                orderNumber = result.Number,
+                orderType = result.Type,
+                tableCode = result.TableCode,
+                customerName = result.CustomerName,
+                itemName = i.ItemName,
+                quantity = i.Quantity,
+                notes = i.Notes,
+                status = i.Status,
+                confirmedAt,
+                ingredientChoices = i.IngredientChoices.Select(c => new
+                {
+                    chosenArticleName = c.ChosenArticleName,
+                }),
+            });
+            await _kitchenHub.Clients
+                .Group(KitchenHub.GetStationGroup(group.Key))
+                .SendAsync(KitchenHub.NewItemsEvent, payload);
+        }
+
         return Ok(result);
     }
 
@@ -156,6 +232,12 @@ public class PosController : ControllerBase
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
         var result = await _mediator.Send(new CancelOrderCommand { OrderId = id, BranchId = branchId });
+
+        // Notificar a todas las estaciones de la sucursal que la orden fue cancelada
+        await _kitchenHub.Clients
+            .Group(KitchenHub.GetBranchGroup(branchId))
+            .SendAsync(KitchenHub.OrderCancelledEvent, new { orderId = result.Id });
+
         return Ok(result);
     }
 
@@ -169,6 +251,20 @@ public class PosController : ControllerBase
             BranchId = branchId,
             Status = body.Estado,
         });
+
+        // Notificar a la estación correspondiente el cambio de estado
+        if (result.StationId.HasValue)
+        {
+            await _kitchenHub.Clients
+                .Group(KitchenHub.GetStationGroup(result.StationId.Value))
+                .SendAsync(KitchenHub.ItemUpdatedEvent, new
+                {
+                    orderItemId = result.Id,
+                    orderId = result.OrderId,
+                    status = result.Status,
+                });
+        }
+
         return Ok(result);
     }
 
@@ -179,6 +275,21 @@ public class PosController : ControllerBase
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
         var result = await _mediator.Send(new GetItemsByStationQuery { StationId = id, BranchId = branchId });
+        return Ok(result);
+    }
+
+    [HttpGet("estaciones/{id:guid}/completados")]
+    public async Task<IActionResult> GetCompletedStationItems(Guid id, [FromQuery] DateOnly? date = null)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        // Ecuador es UTC-5 sin DST; calculamos "hoy" en hora local ecuatoriana
+        var todayEcuador = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(-5));
+        var result = await _mediator.Send(new GetCompletedStationItemsQuery
+        {
+            StationId = id,
+            BranchId = branchId,
+            Date = date ?? todayEcuador,
+        });
         return Ok(result);
     }
 
@@ -202,4 +313,3 @@ public class PosController : ControllerBase
     public class SetItemEstadoBody { public string Estado { get; set; } = string.Empty; }
     public class UpdateTablePositionDto { public int PosX { get; set; } public int PosY { get; set; } }
 }
-

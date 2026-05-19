@@ -3,6 +3,7 @@ using System;
 using Grimorio.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Grimorio.Infrastructure.Migrations
 {
     [DbContext(typeof(GrimorioDbContext))]
-    partial class GrimorioDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260514022224_AddInvoiceTemplate")]
+    partial class AddInvoiceTemplate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -682,69 +685,6 @@ namespace Grimorio.Infrastructure.Migrations
                     b.ToTable("Customers", "billing");
                 });
 
-            modelBuilder.Entity("Grimorio.Domain.Entities.Billing.CardBank", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<Guid>("CreatedBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("DeletedBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BranchId");
-
-                    b.HasIndex("IsDeleted");
-
-                    b.HasIndex("BranchId", "IsDeleted");
-
-                    b.HasIndex("BranchId", "Name")
-                        .IsUnique()
-                        .HasFilter("\"IsDeleted\" = false");
-
-                    b.HasIndex("BranchId", "SortOrder");
-
-                    b.ToTable("CardBanks", "billing");
-                });
-
             modelBuilder.Entity("Grimorio.Domain.Entities.Billing.ElectronicDocument", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1018,27 +958,8 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<decimal>("AmountTendered")
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<string>("AuthorizationNumber")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
                     b.Property<Guid>("BranchId")
                         .HasColumnType("uuid");
-
-                    b.Property<Guid?>("CardBankId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CardBankName")
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<string>("CardBrand")
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<string>("CardPaymentType")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
 
                     b.Property<decimal>("Change")
                         .HasColumnType("numeric(18,2)");
@@ -1078,8 +999,6 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.HasIndex("BranchId");
 
-                    b.HasIndex("CardBankId");
-
                     b.HasIndex("IsDeleted");
 
                     b.HasIndex("OrderPaymentId");
@@ -1107,9 +1026,6 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsCash")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsCard")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsDeleted")
@@ -2732,9 +2648,6 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.HasIndex("BranchId", "Number");
 
-                    b.HasIndex("BranchId", "PaidAt", "Status", "CreatedAt")
-                        .HasFilter("\"IsDeleted\" = false");
-
                     b.HasIndex("BranchId", "Status")
                         .HasFilter("\"IsDeleted\" = false");
 
@@ -4341,11 +4254,6 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasForeignKey("PaymentMethodConfigId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("Grimorio.Domain.Entities.Billing.CardBank", null)
-                        .WithMany()
-                        .HasForeignKey("CardBankId")
-                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Config");
 

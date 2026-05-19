@@ -3,6 +3,7 @@ using Grimorio.Application.Features.Billing.Queries;
 using Grimorio.Domain.Entities.Billing;
 using Grimorio.Infrastructure.Features.Billing.Commands;
 using Grimorio.Infrastructure.Persistence;
+using System.Text.Json;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,6 +24,25 @@ public class GetTaxRatesHandler : IRequestHandler<GetTaxRatesQuery, List<TaxRate
             Id = t.Id, Name = t.Name, Percentage = t.Percentage,
             SriCode = t.SriCode, IsDefault = t.IsDefault, IsActive = t.IsActive,
         }).ToList();
+    }
+}
+
+public class GetSmtpConfigHandler : IRequestHandler<GetSmtpConfigQuery, SmtpConfigDto?>
+{
+    private readonly GrimorioDbContext _db;
+    public GetSmtpConfigHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<SmtpConfigDto?> Handle(GetSmtpConfigQuery req, CancellationToken ct)
+    {
+        var cfg = await _db.SmtpConfigs.FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct);
+        if (cfg == null) return null;
+        return new SmtpConfigDto
+        {
+            Host = cfg.Host, Port = cfg.Port, Username = cfg.Username,
+            FromEmail = cfg.FromEmail, FromName = cfg.FromName,
+            EnableSsl = cfg.EnableSsl, IsActive = cfg.IsActive,
+            HasPassword = !string.IsNullOrEmpty(cfg.PasswordEncrypted),
+        };
     }
 }
 
@@ -50,6 +70,20 @@ public class GetPaymentMethodsHandler : IRequestHandler<GetPaymentMethodsQuery, 
         if (req.ActiveOnly) query = query.Where(m => m.IsActive);
         var list = await query.OrderBy(m => m.SortOrder).ThenBy(m => m.Name).ToListAsync(ct);
         return list.Select(BillingMapper.MapPaymentMethod).ToList();
+    }
+}
+
+public class GetCardBanksHandler : IRequestHandler<GetCardBanksQuery, List<CardBankDto>>
+{
+    private readonly GrimorioDbContext _db;
+    public GetCardBanksHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<List<CardBankDto>> Handle(GetCardBanksQuery req, CancellationToken ct)
+    {
+        var query = _db.CardBanks.Where(b => b.BranchId == req.BranchId && !b.IsDeleted);
+        if (req.ActiveOnly) query = query.Where(b => b.IsActive);
+        var list = await query.OrderBy(b => b.SortOrder).ThenBy(b => b.Name).ToListAsync(ct);
+        return list.Select(BillingMapper.MapCardBank).ToList();
     }
 }
 
@@ -192,7 +226,9 @@ public class GetSalesHandler : IRequestHandler<GetSalesQuery, List<OrderPaymentD
         var elDocs = await _db.ElectronicDocuments
             .Where(d => paymentIds.Contains(d.OrderPaymentId) && !d.IsDeleted)
             .ToListAsync(ct);
-        var elDocByPayment = elDocs.ToDictionary(d => d.OrderPaymentId);
+        var elDocByPayment = elDocs
+            .GroupBy(d => d.OrderPaymentId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(d => d.CreatedAt).First());
 
         return payments.Select(p => BillingMapper.MapPayment(
             p,
@@ -316,5 +352,52 @@ public class GetElectronicDocumentDetailHandler : IRequestHandler<GetElectronicD
             HasRide = d.RidePdf != null && d.RidePdf.Length > 0,
             HasXml = !string.IsNullOrEmpty(d.XmlAuthorized ?? d.XmlSigned),
         };
+    }
+}
+
+public class GetInvoiceTemplateHandler : IRequestHandler<GetInvoiceTemplateQuery, InvoiceTemplateDto>
+{
+    private static readonly JsonSerializerOptions JsonOpts =
+        new() { PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+    private readonly GrimorioDbContext _db;
+    public GetInvoiceTemplateHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<InvoiceTemplateDto> Handle(GetInvoiceTemplateQuery req, CancellationToken ct)
+    {
+        var template = await _db.InvoiceTemplates
+            .FirstOrDefaultAsync(t => t.BranchId == req.BranchId && !t.IsDeleted, ct);
+
+        if (template == null)
+            return BuildDto(new InvoiceTemplate());
+
+        return BuildDto(template);
+    }
+
+    internal static InvoiceTemplateDto BuildDto(InvoiceTemplate t)
+    {
+        var pdfBlocks = TryDeserialize<List<PdfBlockDto>>(t.PdfBlocksJson)
+            ?? TryDeserialize<List<PdfBlockDto>>(InvoiceTemplate.DefaultPdfBlocks)
+            ?? [];
+        var emailBlocks = TryDeserialize<List<EmailBlockDto>>(t.EmailBlocksJson)
+            ?? TryDeserialize<List<EmailBlockDto>>(InvoiceTemplate.DefaultEmailBlocks)
+            ?? [];
+
+        return new InvoiceTemplateDto
+        {
+            LogoBase64 = t.LogoBase64,
+            PrimaryColor = t.PrimaryColor,
+            AccentColor = t.AccentColor,
+            PdfBlocks = pdfBlocks,
+            EmailSubject = t.EmailSubject,
+            EmailBlocks = emailBlocks,
+        };
+    }
+
+    private static T? TryDeserialize<T>(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return default;
+        try { return JsonSerializer.Deserialize<T>(json, JsonOpts); }
+        catch { return default; }
     }
 }

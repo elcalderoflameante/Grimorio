@@ -48,6 +48,7 @@ public class SriController : ControllerBase
             Ambiente = dto.Ambiente,
             ContribuyenteEspecial = dto.ContribuyenteEspecial,
             ObligadoContabilidad = dto.ObligadoContabilidad,
+            SecuencialInicial = dto.SecuencialInicial,
         });
         return Ok(result);
     }
@@ -193,6 +194,46 @@ public class SriController : ControllerBase
         return File(bytes, "application/xml", $"FE-{rawDoc.NumeroFactura}.xml");
     }
 
+    // ── Configuración SMTP ────────────────────────────────────────────────────
+
+    [HttpGet("smtp")]
+    public async Task<IActionResult> GetSmtpConfig()
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new GetSmtpConfigQuery { BranchId = branchId });
+        return result is null ? NotFound() : Ok(result);
+    }
+
+    [HttpPut("smtp")]
+    public async Task<IActionResult> UpsertSmtpConfig([FromBody] UpsertSmtpConfigDto dto)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new UpsertSmtpConfigCommand
+        {
+            BranchId = branchId,
+            Host = dto.Host, Port = dto.Port, Username = dto.Username,
+            Password = dto.Password, FromEmail = dto.FromEmail,
+            FromName = dto.FromName, EnableSsl = dto.EnableSsl, IsActive = dto.IsActive,
+        });
+        return Ok(result);
+    }
+
+    [HttpPost("smtp/test")]
+    public async Task<IActionResult> TestSmtpConnection([FromQuery] string toEmail)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        if (string.IsNullOrWhiteSpace(toEmail)) return BadRequest("Se requiere un correo de destino.");
+        try
+        {
+            await _mediator.Send(new TestSmtpConnectionCommand { BranchId = branchId, ToEmail = toEmail });
+            return Ok(new { success = true, message = "Correo de prueba enviado correctamente." });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
     // ── Prueba de conectividad con el SRI ─────────────────────────────────────
 
     [HttpPost("ping")]
@@ -227,11 +268,67 @@ public class SriController : ControllerBase
         }
     }
 
+    // ── Plantilla de factura ──────────────────────────────────────────────────
+
+    [HttpGet("invoice-template")]
+    public async Task<IActionResult> GetInvoiceTemplate()
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new GetInvoiceTemplateQuery { BranchId = branchId });
+        return Ok(result);
+    }
+
+    [HttpPut("invoice-template")]
+    [RequestSizeLimit(3 * 1024 * 1024)]  // 3 MB (cubre logos en base64)
+    public async Task<IActionResult> UpsertInvoiceTemplate([FromBody] UpsertInvoiceTemplateDto dto)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _mediator.Send(new UpsertInvoiceTemplateCommand
+        {
+            BranchId = branchId,
+            UserId = userId,
+            LogoBase64 = dto.LogoBase64,
+            PrimaryColor = dto.PrimaryColor,
+            AccentColor = dto.AccentColor,
+            PdfBlocks = dto.PdfBlocks,
+            EmailSubject = dto.EmailSubject,
+            EmailBlocks = dto.EmailBlocks,
+        });
+        return Ok(result);
+    }
+
+    [HttpPost("invoice-template/preview-pdf")]
+    [RequestSizeLimit(3 * 1024 * 1024)]
+    public async Task<IActionResult> PreviewInvoicePdf([FromBody] UpsertInvoiceTemplateDto dto)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        try
+        {
+            var pdfBytes = await _mediator.Send(new GenerateInvoicePreviewPdfCommand
+            {
+                BranchId = branchId,
+                Template = dto,
+            });
+            return File(pdfBytes, "application/pdf", "preview-factura.pdf");
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private bool TryGetBranchId(out Guid branchId)
     {
         var claim = User.FindFirst(AppConstants.Claims.BranchId)?.Value;
         return Guid.TryParse(claim, out branchId);
+    }
+
+    private bool TryGetUserId(out Guid userId)
+    {
+        var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(claim, out userId);
     }
 }

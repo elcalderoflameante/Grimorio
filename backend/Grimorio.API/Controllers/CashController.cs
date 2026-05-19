@@ -27,7 +27,8 @@ public class CashController : ControllerBase
     {
         var result = await _mediator.Send(new CreatePaymentMethodCommand
         {
-            Name = dto.Name, Color = dto.Color, IsCash = dto.IsCash, SortOrder = dto.SortOrder,
+            Name = dto.Name, Color = dto.Color,
+            IsCash = dto.IsCash, IsCard = dto.IsCard, SortOrder = dto.SortOrder,
         });
         return Ok(result);
     }
@@ -38,7 +39,8 @@ public class CashController : ControllerBase
         var result = await _mediator.Send(new UpdatePaymentMethodCommand
         {
             Id = id, Name = dto.Name, Color = dto.Color,
-            IsCash = dto.IsCash, IsActive = dto.IsActive, SortOrder = dto.SortOrder,
+            IsCash = dto.IsCash, IsCard = dto.IsCard,
+            IsActive = dto.IsActive, SortOrder = dto.SortOrder,
         });
         return Ok(result);
     }
@@ -47,6 +49,44 @@ public class CashController : ControllerBase
     public async Task<IActionResult> DeletePaymentMethod(Guid id)
     {
         await _mediator.Send(new DeletePaymentMethodCommand { Id = id });
+        return NoContent();
+    }
+
+    [HttpGet("bancos-tarjeta")]
+    public async Task<IActionResult> GetCardBanks([FromQuery] bool activeOnly = true)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        return Ok(await _mediator.Send(new GetCardBanksQuery { BranchId = branchId, ActiveOnly = activeOnly }));
+    }
+
+    [HttpPost("bancos-tarjeta")]
+    public async Task<IActionResult> CreateCardBank([FromBody] CreateCardBankDto dto)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new CreateCardBankCommand
+        {
+            BranchId = branchId, Name = dto.Name, SortOrder = dto.SortOrder,
+        });
+        return Ok(result);
+    }
+
+    [HttpPut("bancos-tarjeta/{id:guid}")]
+    public async Task<IActionResult> UpdateCardBank(Guid id, [FromBody] UpdateCardBankDto dto)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new UpdateCardBankCommand
+        {
+            Id = id, BranchId = branchId,
+            Name = dto.Name, IsActive = dto.IsActive, SortOrder = dto.SortOrder,
+        });
+        return Ok(result);
+    }
+
+    [HttpDelete("bancos-tarjeta/{id:guid}")]
+    public async Task<IActionResult> DeleteCardBank(Guid id)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        await _mediator.Send(new DeleteCardBankCommand { Id = id, BranchId = branchId });
         return NoContent();
     }
 
@@ -148,6 +188,10 @@ public class CashController : ControllerBase
             Lines = dto.Lines.Select(l => new PaymentLineCommand
             {
                 MethodId = l.MethodId, AmountTendered = l.AmountTendered,
+                CardPaymentType = l.CardPaymentType,
+                CardBankId = l.CardBankId,
+                CardBrand = l.CardBrand,
+                AuthorizationNumber = l.AuthorizationNumber,
             }).ToList(),
         });
         return Ok(result);

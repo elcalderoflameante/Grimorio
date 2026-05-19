@@ -6,6 +6,43 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Grimorio.Infrastructure.Configuration.Billing;
 
+public class InvoiceTemplateConfiguration : BaseEntityConfiguration<InvoiceTemplate>
+{
+    public override void Configure(EntityTypeBuilder<InvoiceTemplate> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("InvoiceTemplates", "billing");
+
+        builder.Property(x => x.PrimaryColor).IsRequired().HasMaxLength(20);
+        builder.Property(x => x.AccentColor).IsRequired().HasMaxLength(20);
+        builder.Property(x => x.EmailSubject).IsRequired().HasMaxLength(300);
+        builder.Property(x => x.PdfBlocksJson).IsRequired().HasColumnType("text");
+        builder.Property(x => x.EmailBlocksJson).IsRequired().HasColumnType("text");
+        builder.Property(x => x.LogoBase64).HasColumnType("text");
+
+        builder.HasIndex(x => x.BranchId)
+            .HasFilter("\"IsDeleted\" = false");
+    }
+}
+
+public class SmtpConfigConfiguration : BaseEntityConfiguration<SmtpConfig>
+{
+    public override void Configure(EntityTypeBuilder<SmtpConfig> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("SmtpConfigs", "billing");
+
+        builder.Property(x => x.Host).IsRequired().HasMaxLength(200);
+        builder.Property(x => x.Username).IsRequired().HasMaxLength(200);
+        builder.Property(x => x.PasswordEncrypted).IsRequired();
+        builder.Property(x => x.FromEmail).IsRequired().HasMaxLength(200);
+        builder.Property(x => x.FromName).IsRequired().HasMaxLength(200);
+
+        builder.HasIndex(x => x.BranchId)
+            .HasFilter("\"IsDeleted\" = false");
+    }
+}
+
 public class TaxRateConfiguration : BaseEntityConfiguration<TaxRate>
 {
     public override void Configure(EntityTypeBuilder<TaxRate> builder)
@@ -105,6 +142,21 @@ public class PaymentMethodConfigConfiguration : IEntityTypeConfiguration<Payment
     }
 }
 
+public class CardBankConfiguration : BaseEntityConfiguration<CardBank>
+{
+    public override void Configure(EntityTypeBuilder<CardBank> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("CardBanks", "billing");
+
+        builder.Property(x => x.Name).IsRequired().HasMaxLength(80);
+        builder.HasIndex(x => new { x.BranchId, x.Name })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = false");
+        builder.HasIndex(x => new { x.BranchId, x.SortOrder });
+    }
+}
+
 public class CustomerConfiguration : BaseEntityConfiguration<Customer>
 {
     public override void Configure(EntityTypeBuilder<Customer> builder)
@@ -178,6 +230,10 @@ public class PaymentLineConfiguration : BaseEntityConfiguration<PaymentLine>
 
         builder.Property(x => x.AmountTendered).HasColumnType("numeric(18,2)");
         builder.Property(x => x.Change).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.CardPaymentType).HasConversion<string>().HasMaxLength(20);
+        builder.Property(x => x.CardBankName).HasMaxLength(80);
+        builder.Property(x => x.CardBrand).HasMaxLength(40);
+        builder.Property(x => x.AuthorizationNumber).HasMaxLength(50);
 
         builder.HasOne(x => x.Payment)
             .WithMany(p => p.Lines)
@@ -188,5 +244,10 @@ public class PaymentLineConfiguration : BaseEntityConfiguration<PaymentLine>
             .WithMany()
             .HasForeignKey(x => x.PaymentMethodConfigId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne<CardBank>()
+            .WithMany()
+            .HasForeignKey(x => x.CardBankId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }
