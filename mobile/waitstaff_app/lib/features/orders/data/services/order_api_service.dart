@@ -29,12 +29,12 @@ class OrderApiService {
 
   Future<List<MenuItemDto>> getMenuItems({String? categoryId}) async {
     final dio = _ref.read(dioProvider);
+    final queryParameters = <String, dynamic>{'activeOnly': true};
+    if (categoryId != null) queryParameters['categoryId'] = categoryId;
+
     final res = await dio.get(
       '/menu/items',
-      queryParameters: {
-        'activeOnly': true,
-        if (categoryId != null) 'categoryId': categoryId,
-      },
+      queryParameters: queryParameters,
     );
     final list = res.data as List<dynamic>;
     return list
@@ -64,13 +64,8 @@ class OrderApiService {
     required List<CartItem> items,
   }) async {
     final dio = _ref.read(dioProvider);
-    final res = await dio.post('/pos/ordenes', data: {
+    final data = <String, dynamic>{
       'type': type.apiValue,
-      if (tableId != null) 'tableId': tableId,
-      if (clientName != null && clientName.isNotEmpty) 'customerName': clientName,
-      if (deliveryAddress != null && deliveryAddress.isNotEmpty)
-        'deliveryAddress': deliveryAddress,
-      if (notes != null && notes.isNotEmpty) 'notes': notes,
       'items': items
           .map((i) => {
                 'menuItemId': i.menuItemId,
@@ -85,7 +80,17 @@ class OrderApiService {
                       .toList(),
               })
           .toList(),
-    });
+    };
+    if (tableId != null) data['tableId'] = tableId;
+    if (clientName != null && clientName.isNotEmpty) {
+      data['customerName'] = clientName;
+    }
+    if (deliveryAddress != null && deliveryAddress.isNotEmpty) {
+      data['deliveryAddress'] = deliveryAddress;
+    }
+    if (notes != null && notes.isNotEmpty) data['notes'] = notes;
+
+    final res = await dio.post('/pos/ordenes', data: data);
     return OrderDto.fromJson(res.data as Map<String, dynamic>);
   }
 

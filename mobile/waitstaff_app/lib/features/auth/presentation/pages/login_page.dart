@@ -8,7 +8,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../providers/auth_controller.dart';
 
 const _kBgDeep = Color(0xFF080612);
-const _kBgMid = Color(0xFF120A28);
 const _kGold = Color(0xFFD4A017);
 const _kGoldLight = Color(0xFFFFD060);
 const _kGoldDark = Color(0xFF8B6400);
@@ -108,7 +107,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
           Positioned.fill(
             child: AnimatedBuilder(
               animation: _glowController,
-              builder: (_, __) => Container(
+              builder: (context, child) => Container(
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
                     center: const Alignment(0, -0.55),
