@@ -28,7 +28,7 @@ import {
   ContactsOutlined,
   FileTextOutlined,
   PercentageOutlined,
-  SafetyCertificateOutlined,
+  FileImageOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
@@ -50,7 +50,6 @@ import {
 } from '../components/Scheduling';
 import TableServiceModule from '../components/POS/TableServiceModule';
 import PosOrderModule from '../components/POS/PosOrderModule';
-import StationMonitor from '../components/POS/StationMonitor';
 import StationsConfig from '../components/POS/StationsConfig';
 import { BranchConfigurationForm } from '../components/Branches/BranchConfigurationForm';
 import InventoryConfig from '../components/Inventory/InventoryConfig';
@@ -66,8 +65,8 @@ import CashRegister from '../components/Billing/CashRegister';
 import SalesHistory from '../components/Billing/SalesHistory';
 import PaymentMethodsSettings from '../components/Billing/PaymentMethodsSettings';
 import TaxConfig from '../components/Billing/TaxConfig';
-import SriConfig from '../components/Billing/SriConfig';
 import ElectronicInvoices from '../components/Billing/ElectronicInvoices';
+import InvoiceTemplateEditor from '../components/Billing/InvoiceTemplateEditor';
 import { inventoryApi } from '../services/api';
 import type { StockAlertDto } from '../types';
 import type { MenuProps } from 'antd';
@@ -119,6 +118,7 @@ export default function Dashboard() {
   const screens = useBreakpoint();
   const isMobile = !screens.lg;
   const siderCollapsed = isMobile || collapsed;
+  const isInventorySection = selectedMenu.startsWith('inv-');
 
   useEffect(() => {
     if (!branchId) return;
@@ -136,6 +136,8 @@ export default function Dashboard() {
   }, [branchId]);
 
   useEffect(() => {
+    if (!isInventorySection) return;
+
     const loadAlertas = async () => {
       try {
         const res = await inventoryApi.getAlerts();
@@ -147,7 +149,7 @@ export default function Dashboard() {
     loadAlertas();
     const interval = setInterval(loadAlertas, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isInventorySection]);
 
   const handleLogout = () => {
     logout();
@@ -219,8 +221,7 @@ export default function Dashboard() {
       icon: <ShopOutlined />,
       children: [
         { key: 'pos-ordenes', label: 'Pedidos', icon: <ShoppingCartOutlined /> },
-        { key: 'pos-monitor', label: 'Monitor cocina', icon: <AppstoreOutlined /> },
-        { key: 'pos-estaciones', label: 'Estaciones', icon: <ToolOutlined /> },
+{ key: 'pos-estaciones', label: 'Estaciones', icon: <ToolOutlined /> },
         { key: 'pos-table-service', label: 'Atención QR', icon: <ToolOutlined /> },
       ],
     },
@@ -269,9 +270,9 @@ export default function Dashboard() {
         { key: 'billing-sales', label: 'Ventas', icon: <FileTextOutlined /> },
         { key: 'billing-customers', label: 'Clientes', icon: <ContactsOutlined /> },
         { key: 'billing-payment-methods', label: 'Medios de pago', icon: <DollarOutlined /> },
-        { key: 'billing-tax-config', label: 'Config. fiscal (IVA)', icon: <PercentageOutlined /> },
-        { key: 'billing-sri', label: 'Config. SRI', icon: <SafetyCertificateOutlined /> },
+        { key: 'billing-tax-config', label: 'Configuración fiscal', icon: <PercentageOutlined /> },
         { key: 'billing-electronic', label: 'Documentos electrónicos', icon: <FileTextOutlined /> },
+        { key: 'billing-invoice-template', label: 'Plantilla de factura', icon: <FileImageOutlined /> },
       ],
     },
   ], [hasPermission, alertasStock.length]);
@@ -334,9 +335,7 @@ export default function Dashboard() {
         return <PayrollConfigurationForm />;
       case 'pos-ordenes':
         return <PosOrderModule />;
-      case 'pos-monitor':
-        return <StationMonitor />;
-      case 'pos-estaciones':
+case 'pos-estaciones':
         return <StationsConfig />;
       case 'pos-table-service':
         return <TableServiceModule />;
@@ -366,10 +365,10 @@ export default function Dashboard() {
         return <PaymentMethodsSettings />;
       case 'billing-tax-config':
         return <TaxConfig />;
-      case 'billing-sri':
-        return <SriConfig />;
       case 'billing-electronic':
         return <ElectronicInvoices />;
+      case 'billing-invoice-template':
+        return <InvoiceTemplateEditor />;
       default:
         return <Welcome />;
     }
@@ -515,7 +514,7 @@ export default function Dashboard() {
             maxWidth: '100%',
           }}
         >
-          {alertasStock.length > 0 && (
+          {isInventorySection && alertasStock.length > 0 && (
             <Alert
               type="warning"
               icon={<WarningOutlined />}

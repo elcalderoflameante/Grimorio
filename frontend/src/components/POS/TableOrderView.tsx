@@ -10,9 +10,10 @@ import {
 import type {
   OrderDto, RestaurantTableDto, PaymentMethodConfigDto,
   OrderPaymentDto, AddOrderPaymentDto, CustomerDto, MenuCategoryDto,
-  MenuItemDto, CreateOrderItemDto, CreateIngredientChoiceDto,
+  MenuItemDto, CreateOrderItemDto, CreateIngredientChoiceDto, CardBankDto,
 } from '../../types';
 import { cashApi, menuApi, paymentMethodsApi, posApi } from '../../services/api';
+import { formatError } from '../../utils/errorHandler';
 import CustomerSelector from '../Billing/CustomerSelector';
 
 function choicesLabel(choices: CreateIngredientChoiceDto[] | undefined, items: MenuItemDto[]): string | null {
@@ -50,8 +51,21 @@ const DOC_OPTIONS = [
   { value: 'NotaDeVenta', label: 'Nota de Venta' },
   { value: 'Factura', label: 'Factura (SRI)' },
 ];
+const CARD_TYPE_OPTIONS = [
+  { value: 'Debit', label: 'Debito' },
+  { value: 'Credit', label: 'Credito' },
+];
+const CARD_BRAND_OPTIONS = ['Visa', 'Mastercard', 'Diners', 'American Express', 'Discover', 'Otro']
+  .map(v => ({ value: v, label: v }));
 
-interface PayLine { methodId: string; amountTendered: number }
+interface PayLine {
+  methodId: string;
+  amountTendered: number;
+  cardPaymentType?: 'Credit' | 'Debit';
+  cardBankId?: string;
+  cardBrand?: string;
+  authorizationNumber?: string;
+}
 interface SplitRow { checked: boolean; qty: number }
 interface CartLine {
   menuItemId: string; name: string; price: number; quantity: number;
@@ -70,6 +84,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const [order, setOrder] = useState<OrderDto | null>(null);
   const [payments, setPayments] = useState<OrderPaymentDto[]>([]);
   const [methods, setMethods] = useState<PaymentMethodConfigDto[]>([]);
+  const [cardBanks, setCardBanks] = useState<CardBankDto[]>([]);
   const [categories, setCategories] = useState<MenuCategoryDto[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItemDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,12 +112,13 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [orderRes, paymentsRes, methodsRes, catsRes, itemsRes, sessionRes] = await Promise.allSettled([
+      const [orderRes, paymentsRes, methodsRes, banksRes, catsRes, itemsRes, sessionRes] = await Promise.allSettled([
         posApi.getOrden(orderId),
         cashApi.getOrderPayments(orderId),
         paymentMethodsApi.getAll(true),
+        paymentMethodsApi.getCardBanks(true),
         menuApi.getCategories(),
-        menuApi.getItems({ activeOnly: true }),
+        menuApi.getItems({ activeOnly: true, lightweight: true }),
         cashApi.getActiveSession(),
       ]);
       if (orderRes.status === 'fulfilled') {
@@ -115,6 +131,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       }
       if (paymentsRes.status === 'fulfilled') setPayments(paymentsRes.value.data);
       if (methodsRes.status === 'fulfilled') setMethods(methodsRes.value.data);
+      if (banksRes.status === 'fulfilled') setCardBanks(banksRes.value.data);
       if (catsRes.status === 'fulfilled') setCategories(catsRes.value.data);
       if (itemsRes.status === 'fulfilled') setMenuItems(itemsRes.value.data);
       setCashSessionId(sessionRes.status === 'fulfilled' ? sessionRes.value.data.id : undefined);
@@ -127,12 +144,23 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
 
   useEffect(() => {
     if (showPayModal && methods.length > 0) {
-      setPayLines([{ methodId: methods[0].id, amountTendered: 0 }]);
+      const method = methods[0];
+      setPayLines([method.isCard
+        ? {
+            methodId: method.id,
+            amountTendered: 0,
+            cardPaymentType: 'Debit',
+            cardBankId: cardBanks[0]?.id,
+            cardBrand: 'Visa',
+            authorizationNumber: '',
+          }
+        : { methodId: method.id, amountTendered: 0 },
+      ]);
       setDocType('NotaDeVenta');
       setCustomer(null);
       setPayTab('single');
     }
-  }, [methods, showPayModal]);
+  }, [cardBanks, methods, showPayModal]);
 
   const alreadyPaid = payments.reduce((s, p) => s + p.orderAmount, 0);
   const remaining = order ? Math.max(0, order.total - alreadyPaid) : 0;
@@ -147,30 +175,65 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
     : 0;
 
   const getMethod = (id: string) => methods.find(m => m.id === id);
+  const buildLineForMethod = (methodId: string, amountTendered = 0): PayLine => {
+    const method = getMethod(methodId);
+    return method?.isCard
+      ? {
+          methodId, amountTendered,
+          cardPaymentType: 'Debit',
+          cardBankId: cardBanks[0]?.id,
+          cardBrand: 'Visa',
+          authorizationNumber: '',
+        }
+      : { methodId, amountTendered };
+  };
   const targetAmount = payTab === 'split' ? splitSubtotal : remaining;
   const totalTendered = payLines.reduce((s, l) => s + (l.amountTendered || 0), 0);
   const totalChange = Math.max(0, totalTendered - targetAmount);
   const hasCashLine = payLines.some(l => getMethod(l.methodId)?.isCash ?? false);
   const tenderCoversAmount = totalTendered >= targetAmount;
   const needsCustomer = docType === 'Factura' && !customer;
-  const canPay = targetAmount > 0.001 && !needsCustomer && tenderCoversAmount;
+  const cardDetailsComplete = payLines.every(l => {
+    const method = getMethod(l.methodId);
+    if (!method?.isCard) return true;
+    return !!l.cardPaymentType && !!l.cardBankId && !!l.cardBrand && !!l.authorizationNumber?.trim();
+  });
+  const canPay = targetAmount > 0.001 && !needsCustomer && tenderCoversAmount && cardDetailsComplete;
 
-  const addToCart = (item: MenuItemDto) => {
-    if (item.variableIngredients?.length > 0) {
+  const ensureItemDetail = async (item: MenuItemDto) => {
+    if (!item.hasVariableIngredients || item.variableIngredients?.length > 0) return item;
+    const detail = (await menuApi.getItem(item.id)).data;
+    setMenuItems(prev => prev.map(current => current.id === detail.id ? detail : current));
+    return detail;
+  };
+
+  const addToCart = async (item: MenuItemDto) => {
+    if (isFullyPaid) {
+      message.info('La orden ya está pagada. No se pueden agregar más productos.');
+      return;
+    }
+    const itemDetail = await ensureItemDetail(item);
+    if (itemDetail.variableIngredients?.length > 0) {
       setPendingChoices({});
       setChoiceError(false);
-      setChoiceTarget(item);
+      setChoiceTarget(itemDetail);
       return;
     }
     setCart(prev => {
-      const existing = prev.findIndex(l => l.menuItemId === item.id && !l.ingredientChoices.length);
+      const existing = prev.findIndex(l => l.menuItemId === itemDetail.id && !l.ingredientChoices.length);
       if (existing >= 0) return prev.map((l, i) => i === existing ? { ...l, quantity: l.quantity + 1 } : l);
-      return [...prev, { menuItemId: item.id, name: item.name, price: item.price, quantity: 1, ingredientChoices: [] }];
+      return [...prev, { menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1, ingredientChoices: [] }];
     });
   };
 
   const confirmChoices = () => {
     if (!choiceTarget) return;
+    if (isFullyPaid) {
+      setChoiceTarget(null);
+      setPendingChoices({});
+      message.info('La orden ya está pagada. No se pueden agregar más productos.');
+      return;
+    }
     const missing = choiceTarget.variableIngredients.some(slot => !pendingChoices[slot.recipeIngredientId]);
     if (missing) { setChoiceError(true); return; }
     const choices: CreateIngredientChoiceDto[] = choiceTarget.variableIngredients.map(slot => ({
@@ -193,6 +256,11 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
 
   const handleSave = async () => {
     if (!order || cart.length === 0) return;
+    if (isFullyPaid) {
+      message.info('La orden ya está pagada. No se pueden agregar más productos.');
+      setCart([]);
+      return;
+    }
     setSaving(true);
     try {
       const newItems: CreateOrderItemDto[] = cart.map(l => ({
@@ -241,7 +309,14 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         documentType: docType,
         customerId: customer?.id,
         cashSessionId,
-        lines: payLines.map(l => ({ methodId: l.methodId, amountTendered: l.amountTendered })),
+        lines: payLines.map(l => ({
+          methodId: l.methodId,
+          amountTendered: l.amountTendered,
+          cardPaymentType: l.cardPaymentType,
+          cardBankId: l.cardBankId,
+          cardBrand: l.cardBrand,
+          authorizationNumber: l.authorizationNumber?.trim(),
+        })),
       };
       await cashApi.payOrder(order.id, dto);
       message.success('Cobro registrado');
@@ -297,7 +372,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <Text type="secondary">Medios de pago</Text>
           <Button size="small" icon={<PlusOutlined />}
-            onClick={() => setPayLines(prev => [...prev, { methodId: methods[0].id, amountTendered: 0 }])}>
+            onClick={() => setPayLines(prev => [...prev, buildLineForMethod(methods[0].id)])}>
             Agregar
           </Button>
         </div>
@@ -307,32 +382,77 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
           const isLastCash = m?.isCash && cashLines.at(-1)?.i === idx;
           const lineChange = isLastCash ? totalChange : 0;
           return (
-            <div key={idx} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
-              <Select
-                style={{ width: 150 }}
-                value={line.methodId}
-                onChange={v => setPayLines(prev => prev.map((l, i) => i === idx ? { ...l, methodId: v } : l))}
-                options={methodOptions}
-              />
-              <InputNumber
-                style={{ flex: 1 }}
-                prefix="$"
-                min={0}
-                precision={2}
-                placeholder="Monto"
-                value={line.amountTendered || undefined}
-                onChange={v => setPayLines(prev => prev.map((l, i) => i === idx ? { ...l, amountTendered: v ?? 0 } : l))}
-              />
-              {lineChange > 0 && (
-                <Tooltip title="Vuelto estimado"><Tag color="orange">${lineChange.toFixed(2)}</Tag></Tooltip>
-              )}
-              {payLines.length > 1 && (
-                <Button size="small" danger icon={<DeleteOutlined />}
-                  onClick={() => setPayLines(prev => prev.filter((_, i) => i !== idx))} />
+            <div key={idx} style={{ marginBottom: 8, padding: m?.isCard ? 8 : 0, border: m?.isCard ? '1px solid #f0f0f0' : undefined, borderRadius: 6 }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <Select
+                  style={{ width: 150 }}
+                  value={line.methodId}
+                  onChange={v => setPayLines(prev => prev.map((l, i) => i === idx ? buildLineForMethod(v, l.amountTendered) : l))}
+                  options={methodOptions}
+                />
+                <InputNumber
+                  style={{ flex: 1 }}
+                  prefix="$"
+                  min={0}
+                  precision={2}
+                  placeholder="Monto"
+                  value={line.amountTendered || undefined}
+                  onChange={v => setPayLines(prev => prev.map((l, i) => i === idx ? { ...l, amountTendered: v ?? 0 } : l))}
+                />
+                {lineChange > 0 && (
+                  <Tooltip title="Vuelto estimado"><Tag color="orange">${lineChange.toFixed(2)}</Tag></Tooltip>
+                )}
+                {payLines.length > 1 && (
+                  <Button size="small" danger icon={<DeleteOutlined />}
+                    onClick={() => setPayLines(prev => prev.filter((_, i) => i !== idx))} />
+                )}
+              </div>
+              {m?.isCard && (
+                <Row gutter={[6, 6]} style={{ marginTop: 8 }}>
+                  <Col xs={12}>
+                    <Select
+                      style={{ width: '100%' }}
+                      value={line.cardPaymentType}
+                      options={CARD_TYPE_OPTIONS}
+                      onChange={v => setPayLines(prev => prev.map((l, i) => i === idx ? { ...l, cardPaymentType: v } : l))}
+                    />
+                  </Col>
+                  <Col xs={12}>
+                    <Select
+                      style={{ width: '100%' }}
+                      placeholder="Banco"
+                      value={line.cardBankId}
+                      options={cardBanks.map(b => ({ value: b.id, label: b.name }))}
+                      onChange={v => setPayLines(prev => prev.map((l, i) => i === idx ? { ...l, cardBankId: v } : l))}
+                    />
+                  </Col>
+                  <Col xs={12}>
+                    <Select
+                      style={{ width: '100%' }}
+                      placeholder="Tipo"
+                      value={line.cardBrand}
+                      options={CARD_BRAND_OPTIONS}
+                      onChange={v => setPayLines(prev => prev.map((l, i) => i === idx ? { ...l, cardBrand: v } : l))}
+                    />
+                  </Col>
+                  <Col xs={12}>
+                    <Input
+                      placeholder="Autorizacion"
+                      maxLength={50}
+                      value={line.authorizationNumber}
+                      onChange={e => setPayLines(prev => prev.map((l, i) => i === idx ? { ...l, authorizationNumber: e.target.value } : l))}
+                    />
+                  </Col>
+                </Row>
               )}
             </div>
           );
         })}
+        {!cardDetailsComplete && (
+          <Text type="danger" style={{ fontSize: 12 }}>
+            Completa banco, tipo y autorizacion de la tarjeta
+          </Text>
+        )}
         {tenderCoversAmount && totalChange > 0 && !hasCashLine && (
           <Alert type="warning" showIcon title="Agrega línea de efectivo para el vuelto" style={{ marginTop: 6 }} />
         )}
@@ -405,6 +525,15 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       <Row gutter={16} style={{ flex: 1, minHeight: 0 }}>
         {/* LEFT: Category filter + menu items */}
         <Col xs={24} md={14} style={{ height: '100%', overflowY: 'auto', paddingBottom: 16 }}>
+          {isFullyPaid && (
+            <Alert
+              type="success"
+              showIcon
+              title="Orden pagada"
+              description="La mesa fue liberada y ya no se pueden agregar productos a este pedido."
+              style={{ marginBottom: 12 }}
+            />
+          )}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
             <Tag
               style={{ cursor: 'pointer', padding: '4px 10px', fontSize: 13 }}
@@ -429,15 +558,16 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
             {visibleItems.map(item => {
               const inCart = cart.filter(l => l.menuItemId === item.id);
               const cartQty = inCart.reduce((s, l) => s + l.quantity, 0);
-              const hasVariable = item.variableIngredients?.length > 0;
+              const hasVariable = item.hasVariableIngredients || item.variableIngredients?.length > 0;
               return (
                 <Card
                   key={item.id}
                   size="small"
-                  hoverable
-                  onClick={() => addToCart(item)}
+                  hoverable={!isFullyPaid}
+                  onClick={() => { void addToCart(item).catch(e => message.error(formatError(e))); }}
                   style={{
-                    width: 'calc(50% - 4px)', cursor: 'pointer',
+                    width: 'calc(50% - 4px)', cursor: isFullyPaid ? 'not-allowed' : 'pointer',
+                    opacity: isFullyPaid ? 0.55 : 1,
                     borderColor: cartQty > 0 ? '#1677ff' : undefined,
                     background: cartQty > 0 ? '#e6f4ff' : undefined,
                   }}
@@ -591,7 +721,12 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                         <Space size={4} wrap>
                           <Text type="secondary" style={{ fontSize: 12 }}>Cobro {i + 1}</Text>
                           {p.lines.map((l, li) => (
-                            <Tag key={li} color={l.methodColor} style={{ fontSize: 11 }}>{l.methodName}</Tag>
+                            <Tooltip
+                              key={li}
+                              title={l.isCard ? [l.cardPaymentType === 'Credit' ? 'Credito' : 'Debito', l.cardBankName, l.cardBrand, l.authorizationNumber].filter(Boolean).join(' - ') : undefined}
+                            >
+                              <Tag color={l.methodColor} style={{ fontSize: 11 }}>{l.methodName}</Tag>
+                            </Tooltip>
                           ))}
                           {p.documentType === 'Factura' && <Tag color="gold" style={{ fontSize: 11 }}>Factura</Tag>}
                         </Space>

@@ -964,6 +964,7 @@ export interface MenuItemDto {
   taxRateName?: string;
   taxRatePercentage?: number;
   taxRateSriCode?: string;
+  hasVariableIngredients: boolean;
   variableIngredients: VariableIngredientSlotDto[];
 }
 
@@ -1101,6 +1102,19 @@ export interface OrderDto {
   deliveredAt?: string;
   totalItems: number;
   items: OrderItemDto[];
+}
+
+export interface ActiveOrderSummaryDto {
+  id: string;
+  number: number;
+  type: OrderType;
+  status: OrderStatus;
+  tableCode?: string;
+  customerName?: string;
+  total: number;
+  createdAt: string;
+  confirmedAt?: string;
+  totalItems: number;
 }
 
 export interface CreateOrderItemDto {
@@ -1260,6 +1274,7 @@ export interface PaymentMethodConfigDto {
   name: string;
   color: string;
   isCash: boolean;
+  isCard: boolean;
   isActive: boolean;
   sortOrder: number;
 }
@@ -1268,6 +1283,7 @@ export interface CreatePaymentMethodConfigDto {
   name: string;
   color: string;
   isCash: boolean;
+  isCard: boolean;
   sortOrder: number;
 }
 
@@ -1275,6 +1291,25 @@ export interface UpdatePaymentMethodConfigDto {
   name: string;
   color: string;
   isCash: boolean;
+  isCard: boolean;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface CardBankDto {
+  id: string;
+  name: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface CreateCardBankDto {
+  name: string;
+  sortOrder: number;
+}
+
+export interface UpdateCardBankDto {
+  name: string;
   isActive: boolean;
   sortOrder: number;
 }
@@ -1324,9 +1359,15 @@ export interface PaymentLineDto {
   methodName: string;
   methodColor: string;
   isCash: boolean;
+  isCard: boolean;
   amountTendered: number;
   change: number;
   netAmount: number;
+  cardPaymentType?: 'Credit' | 'Debit';
+  cardBankId?: string;
+  cardBankName?: string;
+  cardBrand?: string;
+  authorizationNumber?: string;
 }
 
 export interface OrderPaymentDto {
@@ -1350,6 +1391,10 @@ export interface OrderPaymentDto {
 export interface AddPaymentLineDto {
   methodId: string;
   amountTendered: number;
+  cardPaymentType?: 'Credit' | 'Debit';
+  cardBankId?: string;
+  cardBrand?: string;
+  authorizationNumber?: string;
 }
 
 export interface AddOrderPaymentDto {
@@ -1393,6 +1438,28 @@ export interface BranchTaxConfigDto {
   secuencial?: number;
 }
 
+export interface SmtpConfigDto {
+  host: string;
+  port: number;
+  username: string;
+  fromEmail: string;
+  fromName: string;
+  enableSsl: boolean;
+  isActive: boolean;
+  hasPassword: boolean;
+}
+
+export interface UpsertSmtpConfigDto {
+  host: string;
+  port: number;
+  username: string;
+  password?: string;
+  fromEmail: string;
+  fromName: string;
+  enableSsl: boolean;
+  isActive: boolean;
+}
+
 export interface SriCertificateStatusDto {
   hasCertificate: boolean;
   fileName?: string;
@@ -1422,4 +1489,52 @@ export interface ElectronicDocumentDto {
   hasRide: boolean;
   hasXml: boolean;
   hasXmlResponse: boolean;
+}
+
+// ── Invoice Template ──────────────────────────────────────────────────────────
+
+export type PdfBlockType = 'header' | 'customer' | 'items' | 'payments' | 'totals' | 'footer';
+export type EmailBlockType = 'header' | 'greeting' | 'message' | 'invoice_summary' | 'legal_note' | 'footer';
+
+export interface PdfBlock {
+  id: string;
+  type: PdfBlockType;
+  visible: boolean;
+  label: string;
+  // header
+  primaryColor: string;
+  showLogo: boolean;
+  // customer
+  showEmail: boolean;
+  showPhone: boolean;
+  showAddress: boolean;
+  // items
+  showAuxCode: boolean;
+  showDiscount: boolean;
+  // totals
+  showZeroLines: boolean;
+  // footer
+  customText?: string;
+}
+
+export interface EmailBlock {
+  id: string;
+  type: EmailBlockType;
+  visible: boolean;
+  label: string;
+  // header
+  bgColor: string;
+  title?: string;
+  subtitle?: string;
+  // text
+  text?: string;
+}
+
+export interface InvoiceTemplateDto {
+  logoBase64?: string;
+  primaryColor: string;
+  accentColor: string;
+  pdfBlocks: PdfBlock[];
+  emailSubject: string;
+  emailBlocks: EmailBlock[];
 }

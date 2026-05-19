@@ -93,6 +93,7 @@ import type {
   CreateWorkStationDto,
   UpdateWorkStationDto,
   OrderDto,
+  ActiveOrderSummaryDto,
   CreateOrderDto,
   OrderItemDto,
   StationItemDto,
@@ -513,7 +514,7 @@ export const menuApi = {
     apiClient.delete<void>(`/menu/categorias/${id}`),
 
   // Items
-  getItems: (params?: { categoryId?: string; activeOnly?: boolean; availableOnly?: boolean }): Promise<AxiosResponse<MenuItemDto[]>> =>
+  getItems: (params?: { categoryId?: string; activeOnly?: boolean; availableOnly?: boolean; lightweight?: boolean }): Promise<AxiosResponse<MenuItemDto[]>> =>
     apiClient.get<MenuItemDto[]>('/menu/items', { params }),
   getItem: (id: string): Promise<AxiosResponse<MenuItemDetailDto>> =>
     apiClient.get<MenuItemDetailDto>(`/menu/items/${id}`),
@@ -555,6 +556,8 @@ export const posApi = {
   // Órdenes
   getOrders: (params?: { status?: string; type?: string; tableId?: string; activeOnly?: boolean }): Promise<AxiosResponse<OrderDto[]>> =>
     apiClient.get<OrderDto[]>('/pos/ordenes', { params }),
+  getActiveOrderSummaries: (): Promise<AxiosResponse<ActiveOrderSummaryDto[]>> =>
+    apiClient.get<ActiveOrderSummaryDto[]>('/pos/ordenes/activas/resumen'),
   getOrden: (id: string): Promise<AxiosResponse<OrderDto>> =>
     apiClient.get<OrderDto>(`/pos/ordenes/${id}`),
   createOrder: (data: CreateOrderDto): Promise<AxiosResponse<OrderDto>> =>
@@ -601,7 +604,7 @@ export const purchasesApi = {
     apiClient.delete<void>(`/purchases/compras/${id}`),
 };
 
-import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto, CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, OrderPaymentDto, AddOrderPaymentDto, PaymentMethodConfigDto, CreatePaymentMethodConfigDto, UpdatePaymentMethodConfigDto, TaxRateDto, UpsertTaxRateDto, BranchTaxConfigDto, SriCertificateStatusDto, ElectronicDocumentDto } from '../types';
+import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto, CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, OrderPaymentDto, AddOrderPaymentDto, PaymentMethodConfigDto, CreatePaymentMethodConfigDto, UpdatePaymentMethodConfigDto, CardBankDto, CreateCardBankDto, UpdateCardBankDto, TaxRateDto, UpsertTaxRateDto, BranchTaxConfigDto, SriCertificateStatusDto, ElectronicDocumentDto, SmtpConfigDto, UpsertSmtpConfigDto, InvoiceTemplateDto } from '../types';
 
 export const customersApi = {
   getAll: (params?: { activeOnly?: boolean; search?: string }): Promise<AxiosResponse<CustomerDto[]>> =>
@@ -623,6 +626,14 @@ export const paymentMethodsApi = {
     apiClient.put<PaymentMethodConfigDto>(`/cash/metodos-pago/${id}`, dto),
   remove: (id: string): Promise<AxiosResponse<void>> =>
     apiClient.delete<void>(`/cash/metodos-pago/${id}`),
+  getCardBanks: (activeOnly = true): Promise<AxiosResponse<CardBankDto[]>> =>
+    apiClient.get<CardBankDto[]>('/cash/bancos-tarjeta', { params: { activeOnly } }),
+  createCardBank: (dto: CreateCardBankDto): Promise<AxiosResponse<CardBankDto>> =>
+    apiClient.post<CardBankDto>('/cash/bancos-tarjeta', dto),
+  updateCardBank: (id: string, dto: UpdateCardBankDto): Promise<AxiosResponse<CardBankDto>> =>
+    apiClient.put<CardBankDto>(`/cash/bancos-tarjeta/${id}`, dto),
+  removeCardBank: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/cash/bancos-tarjeta/${id}`),
 };
 
 export const cashApi = {
@@ -653,10 +664,6 @@ export const taxApi = {
     apiClient.put<TaxRateDto>(`/tax/tarifas/${id}`, dto),
   deleteTaxRate: (id: string): Promise<AxiosResponse<void>> =>
     apiClient.delete<void>(`/tax/tarifas/${id}`),
-  getConfig: (): Promise<AxiosResponse<BranchTaxConfigDto>> =>
-    apiClient.get<BranchTaxConfigDto>('/tax/config'),
-  upsertConfig: (dto: BranchTaxConfigDto): Promise<AxiosResponse<BranchTaxConfigDto>> =>
-    apiClient.put<BranchTaxConfigDto>('/tax/config', dto),
 };
 
 export const sriApi = {
@@ -681,6 +688,13 @@ export const sriApi = {
   ping: (ambiente = '1'): Promise<AxiosResponse<{ success: boolean; ambiente: string; error?: string }>> =>
     apiClient.post('/sri/ping', null, { params: { ambiente } }),
 
+  getSmtpConfig: (): Promise<AxiosResponse<SmtpConfigDto>> =>
+    apiClient.get<SmtpConfigDto>('/sri/smtp'),
+  upsertSmtpConfig: (dto: UpsertSmtpConfigDto): Promise<AxiosResponse<SmtpConfigDto>> =>
+    apiClient.put<SmtpConfigDto>('/sri/smtp', dto),
+  testSmtpConnection: (toEmail: string): Promise<AxiosResponse<{ success: boolean; message: string }>> =>
+    apiClient.post('/sri/smtp/test', null, { params: { toEmail } }),
+
   getDocuments: (params?: { desde?: string; hasta?: string; estado?: string; pageSize?: number }): Promise<AxiosResponse<ElectronicDocumentDto[]>> =>
     apiClient.get<ElectronicDocumentDto[]>('/sri/documentos', { params }),
   getDocument: (id: string): Promise<AxiosResponse<ElectronicDocumentDto>> =>
@@ -697,6 +711,13 @@ export const sriApi = {
     `${apiClient.defaults.baseURL}/sri/documentos/${id}/respuesta-sri`,
   getRespuestaSriText: (id: string): Promise<AxiosResponse<string>> =>
     apiClient.get<string>(`/sri/documentos/${id}/respuesta-sri`, { responseType: 'text' }),
+
+  getInvoiceTemplate: (): Promise<AxiosResponse<InvoiceTemplateDto>> =>
+    apiClient.get<InvoiceTemplateDto>('/sri/invoice-template'),
+  upsertInvoiceTemplate: (dto: InvoiceTemplateDto): Promise<AxiosResponse<InvoiceTemplateDto>> =>
+    apiClient.put<InvoiceTemplateDto>('/sri/invoice-template', dto),
+  previewInvoicePdf: (dto: InvoiceTemplateDto): Promise<AxiosResponse<Blob>> =>
+    apiClient.post<Blob>('/sri/invoice-template/preview-pdf', dto, { responseType: 'blob' }),
 };
 
 export default apiClient;

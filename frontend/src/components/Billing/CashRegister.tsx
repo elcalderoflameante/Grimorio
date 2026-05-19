@@ -8,7 +8,7 @@ import {
   ShoppingCartOutlined, CheckCircleOutlined, DollarOutlined,
   BankOutlined, ClockCircleOutlined, SyncOutlined, FireOutlined,
 } from '@ant-design/icons';
-import type { CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, OrderDto } from '../../types';
+import type { CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, ActiveOrderSummaryDto } from '../../types';
 import { cashApi, posApi } from '../../services/api';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -37,7 +37,7 @@ const ORDER_TYPE_LABEL: Record<string, string> = {
 export default function CashRegister() {
   const [activeSession, setActiveSession] = useState<CashSessionDto | null | undefined>(undefined);
   const [history, setHistory] = useState<CashSessionDto[]>([]);
-  const [activeOrders, setActiveOrders] = useState<OrderDto[]>([]);
+  const [activeOrders, setActiveOrders] = useState<ActiveOrderSummaryDto[]>([]);
   const [recentSales, setRecentSales] = useState<import('../../types').OrderPaymentDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
@@ -57,7 +57,7 @@ export default function CashRegister() {
       const [sessionRes, historyRes, ordersRes, salesRes] = await Promise.allSettled([
         cashApi.getActiveSession(),
         cashApi.getSessions({ pageSize: 20 }),
-        posApi.getOrders({ activeOnly: true }),
+        posApi.getActiveOrderSummaries(),
         cashApi.getSales({ from: today.toISOString(), pageSize: 10 }),
       ]);
 
@@ -168,18 +168,18 @@ export default function CashRegister() {
             }}
           >
             <Tag color="green" icon={<CheckCircleOutlined />} style={{ margin: 0 }}>Sesión activa</Tag>
-            <Divider type="vertical" />
+            <Divider orientation="vertical" />
             <Text type="secondary" style={{ fontSize: 13 }}>
               <strong>{activeSession.openedByName}</strong>
             </Text>
-            <Divider type="vertical" />
+            <Divider orientation="vertical" />
             <Text type="secondary" style={{ fontSize: 13 }}>
               <ClockCircleOutlined style={{ marginRight: 4 }} />
               Desde {dayjs(activeSession.openedAt).format('HH:mm')}
               {' · '}
               {dayjs(activeSession.openedAt).fromNow()}
             </Text>
-            <Divider type="vertical" />
+            <Divider orientation="vertical" />
             <Text type="secondary" style={{ fontSize: 13 }}>
               Fondo inicial: <strong>{fmt(activeSession.openingBalance)}</strong>
             </Text>

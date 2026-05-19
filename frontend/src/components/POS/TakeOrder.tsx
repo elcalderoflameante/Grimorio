@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Button, Card, Col, Divider, Empty, InputNumber, List, Modal,
   Row, Space, Spin, Tag, Typography, message, Input, Badge, Alert
@@ -74,7 +74,7 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
       try {
         const [cats, its] = await Promise.all([
           menuApi.getCategories(),
-          menuApi.getItems({ activeOnly: true, availableOnly: true }),
+          menuApi.getItems({ activeOnly: true, availableOnly: true, lightweight: true }),
         ]);
         setCategories(cats.data);
         setItems(its.data);
@@ -100,21 +100,33 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
     loadData();
   }, [existingOrder]);
 
-  const filteredItems = items.filter(i => i.menuCategoryId === activeCategory);
+  const itemsById = useMemo(() => new Map(items.map(item => [item.id, item])), [items]);
+  const filteredItems = useMemo(
+    () => items.filter(i => i.menuCategoryId === activeCategory),
+    [activeCategory, items]
+  );
 
-  const addItem = (item: MenuItemDto) => {
-    if (item.variableIngredients && item.variableIngredients.length > 0) {
+  const ensureItemDetail = async (item: MenuItemDto) => {
+    if (!item.hasVariableIngredients || item.variableIngredients?.length > 0) return item;
+    const detail = (await menuApi.getItem(item.id)).data;
+    setItems(prev => prev.map(current => current.id === detail.id ? detail : current));
+    return detail;
+  };
+
+  const addItem = async (item: MenuItemDto) => {
+    const itemDetail = await ensureItemDetail(item);
+    if (itemDetail.variableIngredients && itemDetail.variableIngredients.length > 0) {
       setPendingChoices({});
       setChoiceError(false);
-      setChoiceTarget(item);
+      setChoiceTarget(itemDetail);
       return;
     }
     setLines(prev => {
-      const existing = prev.findIndex(l => l.menuItemId === item.id && !l.ingredientChoices?.length);
+      const existing = prev.findIndex(l => l.menuItemId === itemDetail.id && !l.ingredientChoices?.length);
       if (existing >= 0) {
         return prev.map((l, i) => i === existing ? { ...l, quantity: l.quantity + 1 } : l);
       }
-      return [...prev, { menuItemId: item.id, name: item.name, price: item.price, quantity: 1 }];
+      return [...prev, { menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1 }];
     });
   };
 
@@ -153,11 +165,14 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
 
   const removeLine = (idx: number) => setLines(prev => prev.filter((_, i) => i !== idx));
 
-  const subtotal = lines.reduce((sum, l) => sum + l.price * l.quantity, 0);
+  const subtotal = useMemo(
+    () => lines.reduce((sum, l) => sum + l.price * l.quantity, 0),
+    [lines]
+  );
 
   // El precio en menú ya incluye IVA — extraemos la base y el impuesto
-  const fiscal = lines.reduce((acc, l) => {
-    const menuItem = items.find(i => i.id === l.menuItemId);
+  const fiscal = useMemo(() => lines.reduce((acc, l) => {
+    const menuItem = itemsById.get(l.menuItemId);
     const sriCode = menuItem?.taxRateSriCode;
     const taxPct = menuItem?.taxRatePercentage;
     const gross = l.price * l.quantity;
@@ -172,7 +187,7 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
       acc.baseExempt += gross;
     }
     return acc;
-  }, { base15: 0, base0: 0, baseExempt: 0, iva15: 0 });
+  }, { base15: 0, base0: 0, baseExempt: 0, iva15: 0 }), [itemsById, lines]);
 
   const handleSave = async (confirm: boolean) => {
     if (lines.length === 0) { message.warning('Agrega al menos un ítem'); return; }
@@ -281,13 +296,13 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
             {filteredItems.map(item => {
               const inOrder = lines.filter(l => l.menuItemId === item.id);
               const totalQty = inOrder.reduce((s, l) => s + l.quantity, 0);
-              const hasVariable = item.variableIngredients?.length > 0;
+              const hasVariable = item.hasVariableIngredients || item.variableIngredients?.length > 0;
               return (
                 <Card
                   key={item.id}
                   hoverable
                   size="small"
-                  onClick={() => addItem(item)}
+                  onClick={() => { void addItem(item).catch(e => message.error(formatError(e))); }}
                   style={{
                     width: 130,
                     cursor: 'pointer',
