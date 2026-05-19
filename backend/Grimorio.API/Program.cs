@@ -237,17 +237,17 @@ builder.Services.AddMediatR(config =>
 
 var app = builder.Build();
 
-// === Ejecutar migraciones de EF Core al iniciar ===
+// === Migraciones y seeding (todos los entornos) ===
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<GrimorioDbContext>();
 
-    if (app.Environment.IsDevelopment())
-    {
-        await dbContext.Database.MigrateAsync();
-        var passwordHashingService = scope.ServiceProvider.GetRequiredService<IPasswordHashingService>();
-        await AuthSeeder.SeedAsync(dbContext, passwordHashingService);
-    }
+    // Aplica migraciones pendientes al arrancar (seguro: idempotente)
+    await dbContext.Database.MigrateAsync();
+
+    var passwordHashingService = scope.ServiceProvider.GetRequiredService<IPasswordHashingService>();
+    await AuthSeeder.SeedAsync(dbContext, passwordHashingService);
+    await SchedulingSeeder.SeedSchedulingDataAsync(dbContext);
 
     await EnsureUserPushTokensTableAsync(dbContext);
 }
@@ -257,10 +257,6 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-
-    using var scope = app.Services.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<GrimorioDbContext>();
-    await SchedulingSeeder.SeedSchedulingDataAsync(dbContext);
 }
 
 app.UseForwardedHeaders();
