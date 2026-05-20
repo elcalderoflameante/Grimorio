@@ -40,7 +40,7 @@ export default function CashRegister() {
   const [activeOrders, setActiveOrders] = useState<ActiveOrderSummaryDto[]>([]);
   const [recentSales, setRecentSales] = useState<import('../../types').OrderPaymentDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [lastRefresh, setLastRefresh] = useState<dayjs.Dayjs>(dayjs());
   const [openForm] = Form.useForm();
   const [closeForm] = Form.useForm();
   const [showOpenModal, setShowOpenModal] = useState(false);
@@ -51,21 +51,18 @@ export default function CashRegister() {
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
       const [sessionRes, historyRes, ordersRes, salesRes] = await Promise.allSettled([
         cashApi.getActiveSession(),
         cashApi.getSessions({ pageSize: 20 }),
         posApi.getActiveOrderSummaries(),
-        cashApi.getSales({ from: today.toISOString(), pageSize: 10 }),
+        cashApi.getSales({ from: dayjs().startOf('day').toISOString(), pageSize: 10 }),
       ]);
 
       setActiveSession(sessionRes.status === 'fulfilled' ? sessionRes.value.data : null);
       setHistory(historyRes.status === 'fulfilled' ? historyRes.value.data : []);
       setActiveOrders(ordersRes.status === 'fulfilled' ? ordersRes.value.data : []);
       setRecentSales(salesRes.status === 'fulfilled' ? salesRes.value.data : []);
-      setLastRefresh(new Date());
+      setLastRefresh(dayjs());
     } finally {
       if (!silent) setLoading(false);
     }

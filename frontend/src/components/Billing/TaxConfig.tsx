@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import dayjs from 'dayjs';
 import {
   Table, Button, Modal, Form, Input, Switch, InputNumber,
   Space, Tag, Popconfirm, Typography, message, Card, Divider,
@@ -411,7 +412,7 @@ export default function TaxConfig() {
                       <Text type="secondary" style={{ fontSize: 12 }}>Vence el</Text>
                       <div>
                         <Text strong type={certStatus.isExpired ? 'danger' : undefined}>
-                          {new Date(certStatus.expiresAt).toLocaleDateString('es-EC')}
+                          {dayjs(certStatus.expiresAt).format('DD/MM/YYYY')}
                         </Text>
                       </div>
                     </div>
@@ -419,7 +420,7 @@ export default function TaxConfig() {
                   {certStatus.uploadedAt && (
                     <div>
                       <Text type="secondary" style={{ fontSize: 12 }}>Cargado el</Text>
-                      <div><Text>{new Date(certStatus.uploadedAt).toLocaleDateString('es-EC')}</Text></div>
+                      <div><Text>{dayjs(certStatus.uploadedAt).format('DD/MM/YYYY')}</Text></div>
                     </div>
                   )}
                 </div>

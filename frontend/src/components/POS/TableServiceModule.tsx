@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import dayjs from 'dayjs';
 import {
   Button,
   Card,
@@ -478,7 +479,7 @@ export default function TableServiceModule() {
       dataIndex: 'requestedAt',
       key: 'requestedAt',
       width: 85,
-      render: (value: string) => new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      render: (value: string) => dayjs(value).format('HH:mm'),
     },
     {
       title: 'DineIn',

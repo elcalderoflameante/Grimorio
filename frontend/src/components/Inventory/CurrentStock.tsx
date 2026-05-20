@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Table, Select, Space, Typography, message, Tag, Badge, Button } from 'antd';
+import dayjs from 'dayjs';
 import { ReloadOutlined, WarningOutlined } from '@ant-design/icons';
 import { inventoryApi } from '../../services/api';
 import type { WarehouseStockDto, WarehouseDto, InventoryCategoryDto, ArticleType } from '../../types';
@@ -122,7 +123,7 @@ export default function CurrentStock() {
           },
           {
             title: 'Última actualización', dataIndex: 'lastUpdatedAt', key: 'lastUpdatedAt',
-            render: (v: string) => new Date(v).toLocaleString(),
+            render: (v: string) => dayjs(v).format('DD/MM/YYYY HH:mm'),
           },
         ]}
       />
