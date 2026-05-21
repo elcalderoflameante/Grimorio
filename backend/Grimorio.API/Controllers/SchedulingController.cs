@@ -13,7 +13,7 @@ namespace Grimorio.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = "AdminOnly")]
+[Authorize(Policy = "RRHH.Scheduling.View")]
 public class SchedulingController : ControllerBase
 {
     private readonly IMediator _mediator;
@@ -47,6 +47,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Crea una nueva área de trabajo.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPost("work-areas")]
     public async Task<IActionResult> CreateWorkArea([FromBody] CreateWorkAreaCommand command)
     {
@@ -73,6 +74,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Actualiza un área de trabajo existente.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPut("work-areas/{id}")]
     public async Task<IActionResult> UpdateWorkArea(Guid id, [FromBody] UpdateWorkAreaCommand command)
     {
@@ -95,6 +97,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Elimina un área de trabajo.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpDelete("work-areas/{id}")]
     public async Task<IActionResult> DeleteWorkArea(Guid id)
     {
@@ -140,6 +143,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Crea un nuevo rol de trabajo.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPost("work-roles")]
     public async Task<IActionResult> CreateWorkRole([FromBody] CreateWorkRoleCommand command)
     {
@@ -161,6 +165,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Actualiza un rol de trabajo existente.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPut("work-roles/{id}")]
     public async Task<IActionResult> UpdateWorkRole(Guid id, [FromBody] UpdateWorkRoleCommand command)
     {
@@ -183,6 +188,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Elimina un rol de trabajo.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpDelete("work-roles/{id}")]
     public async Task<IActionResult> DeleteWorkRole(Guid id)
     {
@@ -216,6 +222,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Asigna roles de trabajo a un empleado.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPost("employees/{employeeId}/work-roles")]
     public async Task<IActionResult> AssignWorkRolesToEmployee(Guid employeeId, [FromBody] AssignWorkRolesToEmployeeCommand command)
     {
@@ -238,6 +245,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Elimina un rol de trabajo de un empleado.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpDelete("employees/{employeeId}/work-roles/{workRoleId}")]
     public async Task<IActionResult> RemoveWorkRoleFromEmployee(Guid employeeId, Guid workRoleId)
     {
@@ -293,6 +301,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Crea una plantilla de turno.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPost("shift-templates")]
     public async Task<IActionResult> CreateShiftTemplate([FromBody] CreateShiftTemplateCommand command)
     {
@@ -319,6 +328,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Actualiza una plantilla de turno.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPut("shift-templates/{id}")]
     public async Task<IActionResult> UpdateShiftTemplate(Guid id, [FromBody] UpdateShiftTemplateCommand command)
     {
@@ -341,6 +351,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Elimina una plantilla de turno.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpDelete("shift-templates/{id}")]
     public async Task<IActionResult> DeleteShiftTemplate(Guid id)
     {
@@ -416,6 +427,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Crea una asignación de turno.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPost("shifts")]
     public async Task<IActionResult> CreateShiftAssignment([FromBody] CreateShiftAssignmentCommand command)
     {
@@ -437,6 +449,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Actualiza una asignación de turno.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPut("shifts/{id}")]
     public async Task<IActionResult> UpdateShiftAssignment(Guid id, [FromBody] UpdateShiftAssignmentCommand command)
     {
@@ -459,6 +472,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Elimina una asignación de turno.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpDelete("shifts/{id}")]
     public async Task<IActionResult> DeleteShiftAssignment(Guid id)
     {
@@ -492,6 +506,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Agrega una fecha de indisponibilidad a un empleado.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPost("employees/{employeeId}/availability")]
     public async Task<IActionResult> AddEmployeeAvailability(Guid employeeId, [FromBody] AddEmployeeAvailabilityCommand command)
     {
@@ -514,6 +529,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Elimina una fecha de indisponibilidad de un empleado.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpDelete("employees/{employeeId}/availability/{id}")]
     public async Task<IActionResult> RemoveEmployeeAvailability(Guid employeeId, Guid id)
     {
@@ -537,6 +553,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Genera turnos mensuales según plantillas y disponibilidad.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPost("shifts/generate")]
     public async Task<IActionResult> GenerateMonthlyShifts([FromBody] GenerateMonthlyShiftsCommand command)
     {
@@ -591,6 +608,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Crea la configuración de horarios.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPost("configuration")]
     public async Task<IActionResult> CreateScheduleConfiguration([FromBody] CreateScheduleConfigurationCommand command)
     {
@@ -617,6 +635,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Actualiza la configuración de horarios.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPut("configuration/{id}")]
     public async Task<IActionResult> UpdateScheduleConfiguration(Guid id, [FromBody] UpdateScheduleConfigurationCommand command)
     {
@@ -677,6 +696,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Crea un nuevo día especial.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPost("special-dates")]
     public async Task<IActionResult> CreateSpecialDate([FromBody] CreateSpecialDateCommand command)
     {
@@ -703,6 +723,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Actualiza un día especial.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPut("special-dates/{id}")]
     public async Task<IActionResult> UpdateSpecialDate(Guid id, [FromBody] UpdateSpecialDateCommand command)
     {
@@ -725,6 +746,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Elimina un día especial.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpDelete("special-dates/{id}")]
     public async Task<IActionResult> DeleteSpecialDate(Guid id)
     {
@@ -784,6 +806,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Crea una nueva plantilla para un día especial.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPost("special-date-templates")]
     public async Task<IActionResult> CreateSpecialDateTemplate([FromBody] CreateSpecialDateTemplateCommand command)
     {
@@ -805,6 +828,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Actualiza una plantilla de día especial existente.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPut("special-date-templates/{id}")]
     public async Task<IActionResult> UpdateSpecialDateTemplate(Guid id, [FromBody] UpdateSpecialDateTemplateCommand command)
     {
@@ -829,6 +853,7 @@ public class SchedulingController : ControllerBase
     /// <summary>
     /// Elimina una plantilla de día especial.
     /// </summary>
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpDelete("special-date-templates/{id}")]
     public async Task<IActionResult> DeleteSpecialDateTemplate(Guid id)
     {

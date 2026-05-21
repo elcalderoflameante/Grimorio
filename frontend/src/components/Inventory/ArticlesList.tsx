@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Table, Button, Modal, Form, Input, InputNumber, Select, Switch,
   Popconfirm, Space, Typography, message, Tag, Badge, Row, Col
@@ -10,6 +10,8 @@ import type {
   CreateInventoryArticleDto, ArticleType
 } from '../../types';
 import { formatError } from '../../utils/errorHandler';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const { Title } = Typography;
 
@@ -26,6 +28,7 @@ const TIPO_COLOR: Record<string, string> = {
 };
 
 export default function ArticlesList() {
+  const { hasPermission } = useAuth();
   const [articulos, setArticulos] = useState<InventoryArticleDto[]>([]);
   const [categorias, setCategorias] = useState<InventoryCategoryDto[]>([]);
   const [unidades, setUnidades] = useState<MeasurementUnitDto[]>([]);
@@ -33,6 +36,7 @@ export default function ArticlesList() {
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<InventoryArticleDto | null>(null);
   const [form] = Form.useForm();
+  const canManage = hasPermission(PERMISSIONS.inventory.articlesManage);
 
   const loadCatalogos = useCallback(async () => {
     const [c, u] = await Promise.all([
@@ -56,7 +60,7 @@ export default function ArticlesList() {
       setUnidades(u.data);
     } catch (e) {
       message.error(formatError(e));
-      // Si falla la carga de artículos, igual cargamos los catálogos para el formulario
+      // Si falla la carga de art�culos, igual cargamos los cat�logos para el formulario
       try { await loadCatalogos(); } catch { /* silencioso */ }
     } finally {
       setLoading(false);
@@ -83,7 +87,7 @@ export default function ArticlesList() {
       form.resetFields();
       form.setFieldsValue({ stockAlertActive: true, isActive: true, type: 'Ingredient', minStock: 0 });
     }
-    // Siempre recarga catálogos al abrir el modal para evitar datos stale
+    // Siempre recarga cat�logos al abrir el modal para evitar datos stale
     try { await loadCatalogos(); } catch { /* silencioso */ }
     setModal(true);
   };
@@ -117,10 +121,12 @@ export default function ArticlesList() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={5} style={{ margin: 0 }}>Artículos</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
-          Nuevo artículo
-        </Button>
+        <Title level={5} style={{ margin: 0 }}>Art�culos</Title>
+        {canManage && (
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
+            Nuevo art�culo
+          </Button>
+        )}
       </div>
 
       <Table
@@ -128,7 +134,7 @@ export default function ArticlesList() {
         rowKey="id"
         loading={loading}
         size="small"
-        pagination={{ pageSize: 20 }}
+        pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         columns={[
           {
             title: 'Nombre', key: 'nombre',
@@ -140,12 +146,12 @@ export default function ArticlesList() {
               </Space>
             ),
           },
-          { title: 'Código', dataIndex: 'internalCode', key: 'internalCode' },
+          { title: 'C�digo', dataIndex: 'internalCode', key: 'internalCode' },
           {
             title: 'Tipo', dataIndex: 'type', key: 'tipo',
             render: (v: ArticleType) => <Tag color={TIPO_COLOR[v]}>{v}</Tag>,
           },
-          { title: 'Categoría', dataIndex: 'categoryName', key: 'categoryName' },
+          { title: 'Categor�a', dataIndex: 'categoryName', key: 'categoryName' },
           {
             title: 'Stock', key: 'stock',
             render: (_: unknown, a: InventoryArticleDto) => (
@@ -156,25 +162,25 @@ export default function ArticlesList() {
             ),
           },
           {
-            title: 'Stock mín.', key: 'stockMin',
+            title: 'Stock m�n.', key: 'stockMin',
             render: (_: unknown, a: InventoryArticleDto) => `${a.minStock} ${a.baseUnitSymbol}`,
           },
-          {
+          ...(canManage ? [{
             title: 'Acciones', key: 'acciones', width: 100,
             render: (_: unknown, a: InventoryArticleDto) => (
               <Space>
                 <Button size="small" icon={<EditOutlined />} onClick={() => openModal(a)} />
-                <Popconfirm title="¿Eliminar?" onConfirm={() => remove(a.id)}>
+                <Popconfirm title="�Eliminar?" onConfirm={() => remove(a.id)}>
                   <Button size="small" danger icon={<DeleteOutlined />} />
                 </Popconfirm>
               </Space>
             ),
-          },
+          }] : []),
         ]}
       />
 
       <Modal
-        title={editing ? 'Editar artículo' : 'Nuevo artículo'}
+        title={editing ? 'Editar art�culo' : 'Nuevo art�culo'}
         open={modal}
         onOk={save}
         onCancel={() => setModal(false)}
@@ -185,10 +191,10 @@ export default function ArticlesList() {
           <Form.Item name="name" label="Nombre" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="internalCode" label="Código interno">
+          <Form.Item name="internalCode" label="C�digo interno">
             <Input />
           </Form.Item>
-          <Form.Item name="description" label="Descripción">
+          <Form.Item name="description" label="Descripci�n">
             <Input.TextArea rows={2} />
           </Form.Item>
           <Row gutter={12}>
@@ -198,7 +204,7 @@ export default function ArticlesList() {
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="categoryId" label="Categoría" rules={[{ required: true }]}>
+              <Form.Item name="categoryId" label="Categor�a" rules={[{ required: true }]}>
                 <Select
                   options={categorias.map(c => ({ label: c.name, value: c.id }))}
                   placeholder="Seleccionar"
@@ -218,7 +224,7 @@ export default function ArticlesList() {
           </Row>
           <Row gutter={12} align="bottom">
             <Col span={12}>
-              <Form.Item name="minStock" label="Stock mínimo">
+              <Form.Item name="minStock" label="Stock m�nimo">
                 <InputNumber style={{ width: '100%' }} min={0} />
               </Form.Item>
             </Col>

@@ -23,6 +23,7 @@ import {
 import { EditOutlined, PlusOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
 import * as signalR from '@microsoft/signalr';
 import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 import { tableServiceApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
 import {
@@ -100,7 +101,7 @@ const normalizeTable = (raw: unknown): RestaurantTableDto => {
 };
 
 export default function TableServiceModule() {
-  const { branchId, token } = useAuth();
+  const { branchId, token, hasPermission } = useAuth();
   const screens = useBreakpoint();
   const [loading, setLoading] = useState(false);
   const [tables, setTables] = useState<RestaurantTableDto[]>([]);
@@ -110,6 +111,8 @@ export default function TableServiceModule() {
   const [editingTable, setEditingTable] = useState<RestaurantTableDto | null>(null);
   const [qrPreview, setQrPreview] = useState<QrPreviewState>({ open: false, table: null });
   const [tableForm] = Form.useForm<TableFormValues>();
+  const canManageTables = hasPermission(PERMISSIONS.pos.tablesManage);
+  const canUpdateRequests = hasPermission(PERMISSIONS.pos.tableRequestsUpdate);
 
   const openQrPreview = useCallback((table: RestaurantTableDto) => {
     setQrPreview({ open: true, table });
@@ -450,7 +453,7 @@ export default function TableServiceModule() {
         );
       },
     },
-    {
+    ...(canManageTables ? [{
       title: 'Acciones',
       key: 'actions',
       width: 230,
@@ -470,8 +473,8 @@ export default function TableServiceModule() {
           </Popconfirm>
         </Space>
       ),
-    },
-  ], [buildTablePublicUrl, handleCopyUrl, handleDeleteTable, handleOpenEdit, handleRegenerateToken, openQrPreview]);
+    }] : []),
+  ], [buildTablePublicUrl, canManageTables, handleCopyUrl, handleDeleteTable, handleOpenEdit, handleRegenerateToken, openQrPreview]);
 
   const requestColumns = useMemo(() => [
     {
@@ -513,7 +516,7 @@ export default function TableServiceModule() {
       responsive: ['sm'] as never,
       render: (value?: string) => value || '-',
     },
-    {
+    ...(canUpdateRequests ? [{
       title: 'Acciones',
       key: 'actions',
       width: 280,
@@ -533,8 +536,8 @@ export default function TableServiceModule() {
           )}
         </Space>
       ),
-    },
-  ], [handleSetRequestStatus, handleTakeRequest]);
+    }] : []),
+  ], [canUpdateRequests, handleSetRequestStatus, handleTakeRequest]);
 
   return (
     <Card
@@ -551,18 +554,18 @@ export default function TableServiceModule() {
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Row justify="space-between" align="middle">
                   <Col flex="auto"><Text type="secondary">Administra mesas y sus QR de atención.</Text></Col>
-                  <Col>
+                  {canManageTables && <Col>
                     <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreate}>
                       Nueva mesa
                     </Button>
-                  </Col>
+                  </Col>}
                 </Row>
                 <Table
                   rowKey={(record) => resolveTableId(record) || `${record.code}-${record.name}`}
                   loading={loading}
                   columns={tableColumns}
                   dataSource={tables}
-                  pagination={{ pageSize: 8 }}
+                  pagination={{ defaultPageSize: 8, showSizeChanger: true, pageSizeOptions: ['8', '16', '32'] }}
                   scroll={{ x: screens.md ? 980 : 'max-content' }}
                 />
               </Space>
@@ -599,7 +602,7 @@ export default function TableServiceModule() {
                   loading={loading}
                   columns={requestColumns}
                   dataSource={requests}
-                  pagination={{ pageSize: 10 }}
+                  pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
                   scroll={{ x: screens.md ? 1100 : 'max-content' }}
                 />
               </Space>

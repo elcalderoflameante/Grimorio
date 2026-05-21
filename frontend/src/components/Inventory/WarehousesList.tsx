@@ -6,15 +6,19 @@ import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { inventoryApi } from '../../services/api';
 import type { WarehouseDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const { Title } = Typography;
 
 export default function WarehousesList() {
+  const { hasPermission } = useAuth();
   const [warehouses, setWarehouses] = useState<WarehouseDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<WarehouseDto | null>(null);
   const [form] = Form.useForm();
+  const canManage = hasPermission(PERMISSIONS.inventory.configManage);
 
   const load = async () => {
     setLoading(true);
@@ -66,9 +70,9 @@ export default function WarehousesList() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Title level={5} style={{ margin: 0 }}>Bodegas</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
+        {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
           Nueva bodega
-        </Button>
+        </Button>}
       </div>
 
       <Table
@@ -76,7 +80,7 @@ export default function WarehousesList() {
         rowKey="id"
         loading={loading}
         size="small"
-        pagination={false}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         columns={[
           { title: 'Nombre', dataIndex: 'name', key: 'name' },
           { title: 'Descripción', dataIndex: 'description', key: 'description' },
@@ -85,7 +89,7 @@ export default function WarehousesList() {
             title: 'Estado', dataIndex: 'isActive', key: 'isActive',
             render: (v: boolean) => <Tag color={v ? 'green' : 'default'}>{v ? 'Activa' : 'Inactiva'}</Tag>,
           },
-          {
+          ...(canManage ? [{
             title: 'Acciones', key: 'actions', width: 100,
             render: (_: unknown, w: WarehouseDto) => (
               <Space>
@@ -95,7 +99,7 @@ export default function WarehousesList() {
                 </Popconfirm>
               </Space>
             ),
-          },
+          }] : []),
         ]}
       />
 

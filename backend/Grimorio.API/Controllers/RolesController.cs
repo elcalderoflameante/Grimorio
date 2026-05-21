@@ -13,7 +13,7 @@ namespace Grimorio.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = "AdminOnly")]
+[Authorize]
 public class RolesController : ControllerBase
 {
     private readonly IMediator _mediator;
@@ -22,12 +22,14 @@ public class RolesController : ControllerBase
     /// <summary>
     /// Obtiene todos los roles.
     /// </summary>
+    [Authorize(Policy = "Admin.Roles.View")]
     [HttpGet]
     public async Task<IActionResult> GetAll() => Ok(await _mediator.Send(new GetRolesQuery()));
 
     /// <summary>
     /// Obtiene un rol por su ID.
     /// </summary>
+    [Authorize(Policy = "Admin.Roles.View")]
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(Guid id)
     {
@@ -41,6 +43,7 @@ public class RolesController : ControllerBase
     /// <summary>
     /// Crea un nuevo rol.
     /// </summary>
+    [Authorize(Policy = "Admin.Roles.Create")]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateRoleDto dto)
     {
@@ -62,6 +65,7 @@ public class RolesController : ControllerBase
     /// <summary>
     /// Actualiza un rol existente.
     /// </summary>
+    [Authorize(Policy = "Admin.Roles.Update")]
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateRoleDto dto)
     {
@@ -83,6 +87,7 @@ public class RolesController : ControllerBase
     /// <summary>
     /// Elimina un rol.
     /// </summary>
+    [Authorize(Policy = "Admin.Roles.Delete")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {
@@ -104,6 +109,7 @@ public class RolesController : ControllerBase
     /// <summary>
     /// Asigna permisos a un rol.
     /// </summary>
+    [Authorize(Policy = "Admin.Roles.Update")]
     [HttpPost("{id}/permissions")]
     public async Task<IActionResult> AssignPermissions(Guid id, [FromBody] AssignPermissionsDto dto) => Ok(await _mediator.Send(new AssignPermissionsToRoleCommand { RoleId = id, PermissionIds = dto.PermissionIds }));
 }

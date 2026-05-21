@@ -1,4 +1,4 @@
-ï»¿import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Table, Button, Modal, Form, Select, InputNumber, Input,
   Space, Typography, message, Tag, DatePicker
@@ -10,6 +10,8 @@ import type {
   StockMovementDto, InventoryArticleDto, WarehouseDto, MeasurementUnitDto, MovementType
 } from '../../types';
 import { formatError } from '../../utils/errorHandler';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
@@ -36,6 +38,7 @@ const tipoColor = (tipo: MovementType) =>
   SALIDAS.has(tipo) ? 'red' : 'green';
 
 export default function StockMovements() {
+  const { hasPermission } = useAuth();
   const [movimientos, setMovimientos] = useState<StockMovementDto[]>([]);
   const [articulos, setArticulos] = useState<InventoryArticleDto[]>([]);
   const [bodegas, setBodegas] = useState<WarehouseDto[]>([]);
@@ -47,6 +50,7 @@ export default function StockMovements() {
   const [filterTipo, setFilterTipo] = useState<MovementType | undefined>();
   const [filterRango, setFilterRango] = useState<[string, string] | undefined>();
   const [form] = Form.useForm();
+  const canCreate = hasPermission(PERMISSIONS.inventory.movementsCreate);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,15 +98,15 @@ export default function StockMovements() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={5} style={{ margin: 0 }}>Movimientos de Stock</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setModal(true)}>
+        {canCreate && <Button type="primary" icon={<PlusOutlined />} onClick={() => setModal(true)}>
           Registrar movimiento
-        </Button>
+        </Button>}
       </div>
 
       <Space style={{ marginBottom: 16 }} wrap>
         <Select
           allowClear
-          placeholder="ArtÃ­culo"
+          placeholder="Artículo"
           style={{ width: 200 }}
           options={articulos.map(a => ({ label: a.name, value: a.id }))}
           onChange={setFilterArticulo}
@@ -133,14 +137,14 @@ export default function StockMovements() {
         rowKey="id"
         loading={loading}
         size="small"
-        pagination={{ pageSize: 30 }}
+        pagination={{ defaultPageSize: 30, showSizeChanger: true, pageSizeOptions: ['10', '30', '50', '100'] }}
         columns={[
           {
             title: 'Fecha', dataIndex: 'movedAt', key: 'fecha',
             render: (v: string) => dayjs(v).format('DD/MM/YYYY HH:mm'),
             width: 140,
           },
-          { title: 'ArtÃ­culo', dataIndex: 'articleName', key: 'articulo' },
+          { title: 'Artículo', dataIndex: 'articleName', key: 'articulo' },
           { title: 'Bodega', dataIndex: 'warehouseName', key: 'bodega' },
           {
             title: 'Tipo', dataIndex: 'type', key: 'tipo',
@@ -157,7 +161,7 @@ export default function StockMovements() {
               `${SALIDAS.has(m.type) ? '-' : '+'}${m.baseQuantity} ${m.baseUnitSymbol}`,
           },
           { title: 'Referencia', dataIndex: 'reference', key: 'referencia' },
-          { title: 'ObservaciÃ³n', dataIndex: 'notes', key: 'observacion' },
+          { title: 'Observación', dataIndex: 'notes', key: 'observacion' },
         ]}
       />
 
@@ -170,10 +174,10 @@ export default function StockMovements() {
         width={520}
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="articleId" label="ArtÃ­culo" rules={[{ required: true }]}>
+          <Form.Item name="articleId" label="Artículo" rules={[{ required: true }]}>
             <Select
               options={articulos.map(a => ({ label: `${a.name} (${a.baseUnitSymbol})`, value: a.id }))}
-              placeholder="Seleccionar artÃ­culo"
+              placeholder="Seleccionar artículo"
               showSearch
               optionFilterProp="label"
             />
@@ -201,7 +205,7 @@ export default function StockMovements() {
           <Form.Item name="reference" label="Referencia">
             <Input placeholder="Nro factura, orden..." />
           </Form.Item>
-          <Form.Item name="notes" label="ObservaciÃ³n">
+          <Form.Item name="notes" label="Observación">
             <Input.TextArea rows={2} />
           </Form.Item>
         </Form>

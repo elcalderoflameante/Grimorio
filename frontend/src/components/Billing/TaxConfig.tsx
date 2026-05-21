@@ -15,6 +15,8 @@ import type { UploadFile } from 'antd';
 import type { TaxRateDto, UpsertTaxRateDto, BranchTaxConfigDto, SriCertificateStatusDto, SmtpConfigDto } from '../../types';
 import { taxApi, sriApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const { Text } = Typography;
 
@@ -30,6 +32,9 @@ const SRI_CODES = [
 ];
 
 export default function TaxConfig() {
+  const { hasPermission } = useAuth();
+  const canManageTax = hasPermission(PERMISSIONS.billing.taxManage);
+  const canManageSri = hasPermission(PERMISSIONS.billing.sriManage);
   // ── Tarifas de IVA ──────────────────────────────────────────────────────────
   const [rates, setRates]             = useState<TaxRateDto[]>([]);
   const [loadingRates, setLoadingRates] = useState(true);
@@ -270,7 +275,7 @@ export default function TaxConfig() {
       key: 'isActive',
       render: (v: boolean) => <Tag color={v ? 'green' : 'red'}>{v ? 'Activo' : 'Inactivo'}</Tag>,
     },
-    {
+    ...(canManageTax ? [{
       title: 'Acciones',
       key: 'actions',
       render: (_: unknown, record: TaxRateDto) => (
@@ -281,7 +286,7 @@ export default function TaxConfig() {
           </Popconfirm>
         </Space>
       ),
-    },
+    }] : []),
   ];
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -368,9 +373,9 @@ export default function TaxConfig() {
                 <Divider />
 
                 <Space>
-                  <Button type="primary" onClick={handleSaveConfig} loading={savingConfig}>
+                  {canManageSri && <Button type="primary" onClick={handleSaveConfig} loading={savingConfig}>
                     Guardar configuración fiscal
-                  </Button>
+                  </Button>}
                   <Tooltip title="Verifica la conectividad con los servidores del SRI">
                     <Button icon={<WifiOutlined />} onClick={ping} loading={pinging}>
                       Probar conexión SRI
@@ -425,14 +430,14 @@ export default function TaxConfig() {
                   )}
                 </div>
                 <Divider style={{ margin: '12px 0' }} />
-                <Space>
+                {canManageSri && <Space>
                   <Button icon={<CloudUploadOutlined />} onClick={() => setUploadModal(true)}>
                     Reemplazar certificado
                   </Button>
                   <Popconfirm title="¿Eliminar el certificado?" onConfirm={deleteCert} okText="Sí" cancelText="No">
                     <Button danger icon={<DeleteOutlined />}>Eliminar certificado</Button>
                   </Popconfirm>
-                </Space>
+                </Space>}
               </Space>
             ) : (
               <Space direction="vertical">
@@ -440,9 +445,9 @@ export default function TaxConfig() {
                   No hay certificado cargado. Para emitir facturas electrónicas debes cargar
                   el archivo .p12 entregado por el BCE (Banco Central del Ecuador).
                 </Text>
-                <Button type="primary" icon={<CloudUploadOutlined />} onClick={() => setUploadModal(true)}>
+                {canManageSri && <Button type="primary" icon={<CloudUploadOutlined />} onClick={() => setUploadModal(true)}>
                   Cargar certificado .p12
-                </Button>
+                </Button>}
               </Space>
             )}
           </Card>
@@ -504,9 +509,9 @@ export default function TaxConfig() {
               <Divider />
 
               <Space wrap>
-                <Button type="primary" icon={<MailOutlined />} onClick={handleSaveSmtp} loading={savingSmtp}>
+                {canManageSri && <Button type="primary" icon={<MailOutlined />} onClick={handleSaveSmtp} loading={savingSmtp}>
                   Guardar configuración de correo
-                </Button>
+                </Button>}
                 <Input
                   placeholder="correo@prueba.com"
                   value={testEmail}
@@ -533,14 +538,14 @@ export default function TaxConfig() {
           {/* ── Tarifas de IVA ── */}
           <Card
             title={<Space><PercentageOutlined /><Text strong>Tarifas de IVA</Text></Space>}
-            extra={<Button type="primary" icon={<PlusOutlined />} onClick={openCreateRate}>Nueva tarifa</Button>}
+            extra={canManageTax ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreateRate}>Nueva tarifa</Button> : null}
           >
             <Table
               dataSource={rates}
               columns={rateColumns}
               rowKey="id"
               loading={loadingRates}
-              pagination={false}
+              pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
               size="small"
             />
           </Card>

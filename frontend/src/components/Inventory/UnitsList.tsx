@@ -7,10 +7,13 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, SwapOutlined, ArrowRightOut
 import { inventoryApi } from '../../services/api';
 import type { MeasurementUnitDto, UnitConversionDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const { Title, Text } = Typography;
 
 export default function UnitsList() {
+  const { hasPermission } = useAuth();
   const [units, setUnits] = useState<MeasurementUnitDto[]>([]);
   const [conversions, setConversions] = useState<UnitConversionDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -24,6 +27,7 @@ export default function UnitsList() {
   const [previewOrigin, setPreviewOrigin] = useState<MeasurementUnitDto | null>(null);
   const [previewDest, setPreviewDest] = useState<MeasurementUnitDto | null>(null);
   const [previewFactor, setPreviewFactor] = useState<number | null>(null);
+  const canManage = hasPermission(PERMISSIONS.inventory.configManage);
 
   const load = async () => {
     setLoading(true);
@@ -122,9 +126,9 @@ export default function UnitsList() {
       {/* ── Unidades ──────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Title level={5} style={{ margin: 0 }}>Unidades de Medida</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openUnit()}>
+        {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => openUnit()}>
           Nueva unidad
-        </Button>
+        </Button>}
       </div>
 
       <Table
@@ -132,14 +136,14 @@ export default function UnitsList() {
         rowKey="id"
         loading={loading}
         size="small"
-        pagination={false}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         columns={[
           { title: 'Nombre', dataIndex: 'name' },
           {
             title: 'Símbolo', dataIndex: 'symbol',
             render: (v: string) => <Tag>{v}</Tag>,
           },
-          {
+          ...(canManage ? [{
             title: '', key: 'actions', width: 80,
             render: (_: unknown, u: MeasurementUnitDto) => (
               <Space>
@@ -149,16 +153,16 @@ export default function UnitsList() {
                 </Popconfirm>
               </Space>
             ),
-          },
+          }] : []),
         ]}
       />
 
       {/* ── Conversiones ──────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 32, marginBottom: 12 }}>
         <Title level={5} style={{ margin: 0 }}>Conversiones de Unidad</Title>
-        <Button icon={<SwapOutlined />} onClick={openConversion}>
+        {canManage && <Button icon={<SwapOutlined />} onClick={openConversion}>
           Nueva conversión
-        </Button>
+        </Button>}
       </div>
 
       <Alert
@@ -180,7 +184,7 @@ export default function UnitsList() {
         dataSource={conversions}
         rowKey="id"
         size="small"
-        pagination={false}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         columns={[
           {
             title: 'Equivalencia',
@@ -208,14 +212,14 @@ export default function UnitsList() {
               </Text>
             ),
           },
-          {
+          ...(canManage ? [{
             title: '', key: 'actions', width: 60,
             render: (_: unknown, c: UnitConversionDto) => (
               <Popconfirm title="¿Eliminar?" onConfirm={() => deleteConversion(c.id)}>
                 <Button size="small" danger icon={<DeleteOutlined />} />
               </Popconfirm>
             ),
-          },
+          }] : []),
         ]}
       />
 

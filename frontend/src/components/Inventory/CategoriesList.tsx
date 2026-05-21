@@ -6,15 +6,19 @@ import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { inventoryApi } from '../../services/api';
 import type { InventoryCategoryDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const { Title } = Typography;
 
 export default function CategoriesList() {
+  const { hasPermission } = useAuth();
   const [categories, setCategories] = useState<InventoryCategoryDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<InventoryCategoryDto | null>(null);
   const [form] = Form.useForm();
+  const canManage = hasPermission(PERMISSIONS.inventory.configManage);
 
   const load = async () => {
     setLoading(true);
@@ -67,9 +71,9 @@ export default function CategoriesList() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Title level={5} style={{ margin: 0 }}>Categorías</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
+        {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
           Nueva categoría
-        </Button>
+        </Button>}
       </div>
 
       <Table
@@ -77,7 +81,7 @@ export default function CategoriesList() {
         rowKey="id"
         loading={loading}
         size="small"
-        pagination={false}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         columns={[
           {
             title: 'Nombre', dataIndex: 'name', key: 'name',
@@ -93,7 +97,7 @@ export default function CategoriesList() {
             title: 'Artículos', dataIndex: 'totalArticles', key: 'totalArticles',
             render: (v: number) => <Tag color="blue">{v}</Tag>,
           },
-          {
+          ...(canManage ? [{
             title: 'Acciones', key: 'actions', width: 100,
             render: (_: unknown, c: InventoryCategoryDto) => (
               <Space>
@@ -103,7 +107,7 @@ export default function CategoriesList() {
                 </Popconfirm>
               </Space>
             ),
-          },
+          }] : []),
         ]}
       />
 

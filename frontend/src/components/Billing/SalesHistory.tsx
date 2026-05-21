@@ -120,7 +120,7 @@ export default function SalesHistory() {
         dataSource={sales}
         rowKey="id"
         loading={loading}
-        pagination={{ pageSize: 25, showSizeChanger: false }}
+        pagination={{ defaultPageSize: 25, showSizeChanger: true, pageSizeOptions: ['10', '25', '50', '100'] }}
         expandable={{
           expandedRowRender: (r) => <PaymentDetail payment={r} />,
         }}

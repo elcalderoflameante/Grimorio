@@ -114,7 +114,7 @@ export default function EmployeeList({ onViewEmployee, onCreateEmployee }: Emplo
               setAvailabilityDrawerVisible(true);
             }}
           />
-          {hasPermission('RRHH.DeleteEmployees') && (
+          {hasPermission('RRHH.Employees.Delete') && (
             <Popconfirm
               title="¿Eliminar empleado?"
               onConfirm={() => handleDelete(record.id)}
@@ -132,7 +132,7 @@ export default function EmployeeList({ onViewEmployee, onCreateEmployee }: Emplo
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        {hasPermission('RRHH.CreateEmployees') && (
+        {hasPermission('RRHH.Employees.Create') && (
           <Button
             type="primary"
             icon={<PlusOutlined />}
@@ -161,6 +161,8 @@ export default function EmployeeList({ onViewEmployee, onCreateEmployee }: Emplo
           current: pagination.pageNumber,
           pageSize: pagination.pageSize,
           total: pagination.total,
+          showSizeChanger: true,
+          pageSizeOptions: ['10', '20', '50'],
           onChange: (page, size) => loadEmployees(page, size),
         }}
       />

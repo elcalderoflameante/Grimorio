@@ -3,13 +3,17 @@ import { Table, Button, Modal, Form, Input, Switch, Space, Tag, Popconfirm, mess
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { SupplierDto, CreateSupplierDto, UpdateSupplierDto } from '../../types';
 import { purchasesApi } from '../../services/api';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 export default function SuppliersList() {
+  const { hasPermission } = useAuth();
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<SupplierDto | null>(null);
   const [form] = Form.useForm();
+  const canManage = hasPermission(PERMISSIONS.purchases.suppliersManage);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,7 +82,7 @@ export default function SuppliersList() {
       ),
     },
     { title: 'Compras', dataIndex: 'totalPurchases', key: 'totalPurchases', align: 'right' as const },
-    {
+    ...(canManage ? [{
       title: '', key: 'actions',
       render: (_: unknown, r: SupplierDto) => (
         <Space>
@@ -88,14 +92,14 @@ export default function SuppliersList() {
           </Popconfirm>
         </Space>
       ),
-    },
+    }] : []),
   ];
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <h2 style={{ margin: 0 }}>Proveedores</h2>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo proveedor</Button>
+        {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo proveedor</Button>}
       </div>
 
       <Table
@@ -103,7 +107,7 @@ export default function SuppliersList() {
         dataSource={suppliers}
         rowKey="id"
         loading={loading}
-        pagination={{ pageSize: 20 }}
+        pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         size="small"
       />
 

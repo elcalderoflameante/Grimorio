@@ -159,15 +159,7 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(AppConstants.Roles.Admin));
 
     // Políticas granulares por permiso — el AdminBypassHandler las bypasea para Administrador
-    var permissionPolicies = new[]
-    {
-        "RRHH.ViewEmployees",
-        "RRHH.CreateEmployees",
-        "RRHH.UpdateEmployees",
-        "RRHH.DeleteEmployees",
-    };
-
-    foreach (var permission in permissionPolicies)
+    foreach (var permission in AppConstants.Permissions.All.Select(p => p.Code))
     {
         var captured = permission;
         options.AddPolicy(captured, policy =>

@@ -10,6 +10,8 @@ import {
 import type { ElectronicDocumentDto } from '../../types';
 import { sriApi } from '../../services/api';
 import dayjs, { type Dayjs } from 'dayjs';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -85,6 +87,7 @@ function DocDetail({ doc }: { doc: ElectronicDocumentDto }) {
 }
 
 export default function ElectronicInvoices() {
+  const { hasPermission } = useAuth();
   const [docs, setDocs] = useState<ElectronicDocumentDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [retrying, setRetrying] = useState<string | null>(null);
@@ -96,6 +99,7 @@ export default function ElectronicInvoices() {
   const [detailDoc, setDetailDoc] = useState<ElectronicDocumentDto | null>(null);
   const [xmlModal, setXmlModal] = useState<{ doc: ElectronicDocumentDto; content: string } | null>(null);
   const [xmlLoading, setXmlLoading] = useState<string | null>(null);
+  const canGenerateSri = hasPermission(PERMISSIONS.billing.sriGenerate);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -181,7 +185,7 @@ export default function ElectronicInvoices() {
         dataSource={docs}
         rowKey="id"
         loading={loading}
-        pagination={{ pageSize: 25, showSizeChanger: false }}
+        pagination={{ defaultPageSize: 25, showSizeChanger: true, pageSizeOptions: ['10', '25', '50', '100'] }}
         expandable={{ expandedRowRender: (r) => <DocDetail doc={r} /> }}
         columns={[
           {
@@ -267,7 +271,7 @@ export default function ElectronicInvoices() {
                     />
                   </Tooltip>
                 )}
-                {(r.status === 'Rejected' || r.status === 'Sent' || r.status === 'Pending') && (
+                {canGenerateSri && (r.status === 'Rejected' || r.status === 'Sent' || r.status === 'Pending') && (
                   <Tooltip title="Reintentar envío al SRI">
                     <Button
                       size="small"
@@ -358,9 +362,11 @@ export function GenerateInvoiceButton({
   electronicDocumentStatus,
   onSuccess,
 }: GenerateInvoiceButtonProps) {
+  const { hasPermission } = useAuth();
   const [loading, setLoading] = useState(false);
+  const canGenerateSri = hasPermission(PERMISSIONS.billing.sriGenerate);
 
-  if (documentType !== 'Factura') return null;
+  if (documentType !== 'Factura' || !canGenerateSri) return null;
 
   // Factura ya autorizada — no se puede modificar
   if (electronicDocumentStatus === 'Authorized') {

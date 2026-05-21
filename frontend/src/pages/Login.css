@@ -1,0 +1,394 @@
+.grim-login-root {
+  --bg0: #0e0d0a;
+  --bg1: #1b1814;
+  --bg2: #2a2520;
+  --surface: #15130f;
+  --surface-elev: #1f1b15;
+  --border: rgba(180, 140, 80, 0.22);
+  --border-strong: rgba(180, 140, 80, 0.55);
+  --gold: #b88a3a;
+  --gold-bright: #d9a655;
+  --ember: #ff6a1a;
+  --ember-deep: #a02e08;
+  --cream: #e8dcc0;
+  --text: #e8dcc0;
+  --text-muted: rgba(232, 220, 192, 0.6);
+  --text-faint: rgba(232, 220, 192, 0.38);
+  --display: "Cinzel", "Cormorant Garamond", Georgia, serif;
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background: var(--bg0);
+  color: var(--text);
+}
+
+.grim-login-root *,
+.grim-login-root *::before,
+.grim-login-root *::after {
+  box-sizing: border-box;
+}
+
+.grim-login-bg,
+.grim-login-vignette,
+.grim-login-stars,
+.grim-login-embers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.grim-login-bg {
+  background:
+    radial-gradient(circle at 24% 18%, rgba(255, 106, 26, 0.15), transparent 32%),
+    radial-gradient(circle at 78% 74%, rgba(184, 138, 58, 0.14), transparent 38%),
+    linear-gradient(135deg, var(--bg0), var(--bg1) 52%, var(--bg2));
+}
+
+.grim-login-vignette {
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.48), transparent 34%, rgba(0, 0, 0, 0.5)),
+    radial-gradient(circle at center, transparent 0, rgba(0, 0, 0, 0.62) 82%);
+}
+
+.grim-login-stars {
+  opacity: 0.24;
+  background-image:
+    radial-gradient(circle, rgba(232, 220, 192, 0.75) 1px, transparent 1px),
+    radial-gradient(circle, rgba(217, 166, 85, 0.55) 1px, transparent 1px);
+  background-position: 0 0, 38px 58px;
+  background-size: 110px 110px, 150px 150px;
+}
+
+.grim-login-embers {
+  width: 100%;
+  height: 100%;
+}
+
+.grim-login-stage {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(360px, 430px));
+  gap: 28px;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: clamp(14px, 3vh, 28px);
+}
+
+.grim-login-side,
+.grim-login-card {
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(18px);
+  min-height: min(520px, calc(100dvh - 56px));
+}
+
+.grim-login-side {
+  border-radius: 10px;
+  background:
+    linear-gradient(160deg, rgba(255, 106, 26, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02));
+}
+
+.grim-login-side-inner {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-height: inherit;
+  padding: clamp(28px, 5vh, 42px);
+}
+
+.grim-login-side-logo {
+  display: block;
+  width: clamp(190px, 27vh, 260px);
+  height: auto;
+  object-fit: contain;
+  margin: 6px auto 44px;
+  filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.38));
+}
+
+.grim-login-side-copy {
+  margin-top: 0;
+}
+
+.grim-login-side-eyebrow {
+  color: var(--gold-bright);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.grim-login-side-title {
+  margin: 14px 0 12px;
+  color: var(--cream);
+  font-family: var(--display);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.08;
+}
+
+.grim-login-side-body {
+  max-width: 330px;
+  margin: 0 0 24px;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.grim-login-side-list {
+  display: grid;
+  gap: 12px;
+  margin: 24px 0 0;
+  padding: 0;
+  color: var(--text-muted);
+  list-style: none;
+}
+
+.grim-login-side-list li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.grim-login-side-list svg,
+.grim-login-side-list span {
+  color: var(--gold-bright);
+}
+
+.grim-login-card-wrap {
+  width: 100%;
+}
+
+.grim-login-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(28px, 4vh, 38px) 36px clamp(22px, 3vh, 28px);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02)),
+    radial-gradient(circle at 50% 0%, rgba(184, 138, 58, 0.16), transparent 42%),
+    var(--surface);
+}
+
+.grim-login-card::before {
+  position: absolute;
+  inset: 9px;
+  border: 1px solid rgba(180, 140, 80, 0.14);
+  border-radius: 8px;
+  content: "";
+  pointer-events: none;
+}
+
+.grim-login-corner {
+  position: absolute;
+  z-index: 1;
+  width: 44px;
+  height: 44px;
+  color: var(--gold);
+  opacity: 0.72;
+}
+
+.grim-login-corner.top-left {
+  top: 10px;
+  left: 10px;
+}
+
+.grim-login-corner.top-right {
+  top: 10px;
+  right: 10px;
+  transform: scaleX(-1);
+}
+
+.grim-login-corner.bottom-left {
+  bottom: 10px;
+  left: 10px;
+  transform: scaleY(-1);
+}
+
+.grim-login-corner.bottom-right {
+  right: 10px;
+  bottom: 10px;
+  transform: scale(-1, -1);
+}
+
+.grim-login-title {
+  margin: 0;
+  color: var(--cream);
+  font-family: var(--display);
+  font-size: clamp(24px, 3.2vh, 28px);
+  font-weight: 700;
+  line-height: 1.18;
+  text-align: center;
+}
+
+.grim-login-subtitle {
+  margin: 6px 0 14px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.grim-login-flourish {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--gold);
+  opacity: 0.85;
+}
+
+.grim-login-flourish span {
+  flex: 1;
+  height: 1px;
+}
+
+.grim-login-flourish span:first-child {
+  background: linear-gradient(90deg, transparent, rgba(184, 138, 58, 0.66));
+}
+
+.grim-login-flourish span:last-child {
+  background: linear-gradient(90deg, rgba(184, 138, 58, 0.66), transparent);
+}
+
+.grim-login-form {
+  margin-top: 14px;
+}
+
+.grim-login-form .ant-form-item {
+  margin-bottom: 14px;
+}
+
+.grim-login-password-label {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  align-items: baseline;
+}
+
+.grim-login-password-label span:last-child {
+  color: var(--ember);
+  font-size: 11px;
+}
+
+.grim-login-actions-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin: -2px 0 12px;
+}
+
+.grim-login-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--gold-bright);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.grim-login-link:hover {
+  color: var(--cream);
+}
+
+.grim-login-submit-item {
+  margin-bottom: 8px;
+}
+
+.grim-login-submit {
+  height: 44px;
+  font-weight: 700;
+}
+
+.grim-login-foot {
+  margin-top: 14px;
+  color: var(--text-faint);
+  font-size: 12px;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .grim-login-stage {
+    grid-template-columns: minmax(320px, 460px);
+    padding: 22px;
+  }
+
+  .grim-login-side {
+    display: none;
+  }
+}
+
+@media (max-height: 760px) {
+  .grim-login-stage {
+    padding: 12px;
+  }
+
+  .grim-login-side,
+  .grim-login-card {
+    min-height: calc(100dvh - 24px);
+  }
+
+  .grim-login-side-inner {
+    min-height: inherit;
+    padding: 28px;
+  }
+
+  .grim-login-side-logo {
+    width: 170px;
+    margin: 0 auto 28px;
+  }
+
+  .grim-login-side-title {
+    font-size: 28px;
+  }
+
+  .grim-login-side-body {
+    margin-bottom: 18px;
+    line-height: 1.5;
+  }
+
+  .grim-login-side-list {
+    gap: 8px;
+    margin-top: 18px;
+  }
+
+  .grim-login-card {
+    padding: 24px 30px 20px;
+  }
+
+  .grim-login-subtitle {
+    margin-bottom: 10px;
+  }
+
+  .grim-login-form {
+    margin-top: 12px;
+  }
+
+  .grim-login-form .ant-form-item {
+    margin-bottom: 10px;
+  }
+
+  .grim-login-foot {
+    margin-top: 10px;
+  }
+}
+
+@media (max-width: 520px) {
+  .grim-login-stage {
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+
+  .grim-login-card {
+    padding: 36px 22px 26px;
+  }
+
+  .grim-login-actions-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

@@ -89,7 +89,7 @@ export default function CurrentStock() {
         rowKey={r => `${r.articleId}-${r.warehouseId}`}
         loading={loading}
         size="small"
-        pagination={{ pageSize: 30 }}
+        pagination={{ defaultPageSize: 30, showSizeChanger: true, pageSizeOptions: ['10', '30', '50', '100'] }}
         rowClassName={r => r.lowStock ? 'ant-table-row-danger' : ''}
         columns={[
           {

@@ -32,6 +32,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
+import { PERMISSIONS } from '../constants/permissions';
 import { branchApi } from '../services/api';
 import { formatError } from '../utils/errorHandler';
 import type { BranchDto } from '../types';
@@ -70,11 +71,19 @@ import InvoiceTemplateEditor from '../components/Billing/InvoiceTemplateEditor';
 import { inventoryApi } from '../services/api';
 import type { StockAlertDto } from '../types';
 import type { MenuProps } from 'antd';
+import type { ReactNode } from 'react';
 
 const { Header, Content, Sider } = Layout;
 const { useBreakpoint } = Grid;
 
 type MenuItem = Required<MenuProps>['items'][number];
+type PermissionMenuItem = {
+  key: string;
+  label: ReactNode;
+  icon?: ReactNode;
+  permission?: string;
+  children?: PermissionMenuItem[];
+};
 
 const getMenuLabel = (item: MenuItem): string => {
   if (item && typeof item === 'object' && 'label' in item) {
@@ -106,6 +115,37 @@ const findBreadcrumbs = (items: MenuItem[] = [], key: string): string[] => {
   return [];
 };
 
+const filterMenuItems = (
+  items: PermissionMenuItem[],
+  hasPermission: (permissionCode: string) => boolean,
+): MenuItem[] => items
+  .map((item) => {
+    if (item.permission && !hasPermission(item.permission)) return null;
+
+    const { permission: _permission, children: rawChildren, ...menuItem } = item;
+
+    if (rawChildren && rawChildren.length > 0) {
+      const children = filterMenuItems(rawChildren, hasPermission);
+      if (children.length === 0) return null;
+      return { ...menuItem, children };
+    }
+
+    return menuItem;
+  })
+  .filter(Boolean) as MenuItem[];
+
+const getFirstMenuKey = (items: MenuItem[]): string | null => {
+  for (const item of items) {
+    if (!item || typeof item !== 'object' || !('key' in item)) continue;
+    if ('children' in item && Array.isArray(item.children)) {
+      const childKey = getFirstMenuKey(item.children as MenuItem[]);
+      if (childKey) return childKey;
+    }
+    return String(item.key);
+  }
+  return null;
+};
+
 export default function Dashboard() {
   const [selectedMenu, setSelectedMenu] = useState('welcome');
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -119,9 +159,10 @@ export default function Dashboard() {
   const isMobile = !screens.lg;
   const siderCollapsed = isMobile || collapsed;
   const isInventorySection = selectedMenu.startsWith('inv-');
+  const canViewStock = hasPermission(PERMISSIONS.inventory.stockView);
 
   useEffect(() => {
-    if (!branchId) return;
+    if (!branchId || !hasPermission(PERMISSIONS.admin.branchView)) return;
 
     const loadBranch = async () => {
       try {
@@ -133,10 +174,10 @@ export default function Dashboard() {
     };
 
     loadBranch();
-  }, [branchId]);
+  }, [branchId, hasPermission]);
 
   useEffect(() => {
-    if (!isInventorySection) return;
+    if (!isInventorySection || !canViewStock) return;
 
     const loadAlertas = async () => {
       try {
@@ -149,7 +190,7 @@ export default function Dashboard() {
     loadAlertas();
     const interval = setInterval(loadAlertas, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [isInventorySection]);
+  }, [isInventorySection, canViewStock]);
 
   const handleLogout = () => {
     logout();
@@ -166,38 +207,36 @@ export default function Dashboard() {
     setSelectedMenu('employee-detail');
   };
 
-  const menuItems: MenuItem[] = useMemo(() => [
-    // Inicio
-    {
-      key: 'welcome',
-      label: 'Inicio',
-      icon: <HomeOutlined />,
-    },
-    // Admin visible si tiene acceso
-    {
-      key: 'admin',
-      label: 'Administración',
-      icon: <SettingOutlined />,
-      children: [
-        { key: 'users', label: 'Usuarios', icon: <UserOutlined /> },
-        { key: 'roles', label: 'Roles', icon: <SafetyOutlined /> },
-        { key: 'permissions', label: 'Permisos', icon: <KeyOutlined /> },
-        { key: 'branch-config', label: 'Sucursal', icon: <ShopOutlined /> },
-      ],
-    },
-    // RRHH solo visible si tiene permiso
-    ...(hasPermission('RRHH.ViewEmployees') ? [
+  const menuItems: MenuItem[] = useMemo(() => {
+    const allItems: PermissionMenuItem[] = [
+      {
+        key: 'welcome',
+        label: 'Inicio',
+        icon: <HomeOutlined />,
+      },
+      {
+        key: 'admin',
+        label: 'Administración',
+        icon: <SettingOutlined />,
+        children: [
+          { key: 'users', label: 'Usuarios', icon: <UserOutlined />, permission: PERMISSIONS.admin.usersView },
+          { key: 'roles', label: 'Roles', icon: <SafetyOutlined />, permission: PERMISSIONS.admin.rolesView },
+          { key: 'permissions', label: 'Permisos', icon: <KeyOutlined />, permission: PERMISSIONS.admin.permissionsView },
+          { key: 'branch-config', label: 'Sucursal', icon: <ShopOutlined />, permission: PERMISSIONS.admin.branchUpdate },
+        ],
+      },
       {
         key: 'rrhh',
         label: 'RRHH',
         icon: <TeamOutlined />,
         children: [
-          { key: 'employees', label: 'Empleados', icon: <IdcardOutlined /> },
-          { key: 'positions', label: 'Posiciones', icon: <FolderOutlined /> },
+          { key: 'employees', label: 'Empleados', icon: <IdcardOutlined />, permission: PERMISSIONS.rrhh.employeesView },
+          { key: 'positions', label: 'Posiciones', icon: <FolderOutlined />, permission: PERMISSIONS.rrhh.positionsView },
           {
             key: 'scheduling',
             label: 'Horarios',
             icon: <CalendarOutlined />,
+            permission: PERMISSIONS.rrhh.schedulingView,
             children: [
               { key: 'monthly-shifts', label: 'Turnos', icon: <CalendarOutlined /> },
               { key: 'scheduling-settings', label: 'Configuraciones', icon: <ToolOutlined /> },
@@ -207,6 +246,7 @@ export default function Dashboard() {
             key: 'payroll',
             label: 'Nomina',
             icon: <ToolOutlined />,
+            permission: PERMISSIONS.rrhh.payrollView,
             children: [
               { key: 'payroll-summary', label: 'Rol de pagos', icon: <IdcardOutlined /> },
               { key: 'payroll-config', label: 'Configuracion', icon: <SettingOutlined /> },
@@ -214,68 +254,92 @@ export default function Dashboard() {
           },
         ],
       },
-    ] : []),
-    {
-      key: 'pos',
-      label: 'POS',
-      icon: <ShopOutlined />,
-      children: [
-        { key: 'pos-ordenes', label: 'Pedidos', icon: <ShoppingCartOutlined /> },
-{ key: 'pos-estaciones', label: 'Estaciones', icon: <ToolOutlined /> },
-        { key: 'pos-table-service', label: 'Atención QR', icon: <ToolOutlined /> },
-      ],
-    },
-    {
-      key: 'menu',
-      label: 'Menú',
-      icon: <ShopOutlined />,
-      children: [
-        { key: 'menu-categorias', label: 'Categorías', icon: <AppstoreOutlined /> },
-        { key: 'menu-items', label: 'Ítems y recetas', icon: <UnorderedListOutlined /> },
-      ],
-    },
-    {
-      key: 'inventario',
-      label: (
-        <Space size={6}>
-          Inventario
-          {alertasStock.length > 0 && (
-            <Badge count={alertasStock.length} size="small" />
-          )}
-        </Space>
-      ),
-      icon: <InboxOutlined />,
-      children: [
-        { key: 'inv-config', label: 'Configuración', icon: <SettingOutlined /> },
-        { key: 'inv-articulos', label: 'Artículos', icon: <InboxOutlined /> },
-        { key: 'inv-stock', label: 'Stock actual', icon: <WarningOutlined /> },
-        { key: 'inv-movimientos', label: 'Movimientos', icon: <SwapOutlined /> },
-      ],
-    },
-    {
-      key: 'purchases',
-      label: 'Compras',
-      icon: <ShoppingOutlined />,
-      children: [
-        { key: 'purchases-suppliers', label: 'Proveedores', icon: <TeamOutlined /> },
-        { key: 'purchases-orders', label: 'Compras', icon: <ShoppingCartOutlined /> },
-      ],
-    },
-    {
-      key: 'billing',
-      label: 'Facturación',
-      icon: <DollarOutlined />,
-      children: [
-        { key: 'billing-cash', label: 'Caja', icon: <BankOutlined /> },
-        { key: 'billing-sales', label: 'Ventas', icon: <FileTextOutlined /> },
-        { key: 'billing-customers', label: 'Clientes', icon: <ContactsOutlined /> },
-        { key: 'billing-payment-methods', label: 'Medios de pago', icon: <DollarOutlined /> },
-        { key: 'billing-tax-config', label: 'Configuración fiscal', icon: <PercentageOutlined /> },
-        { key: 'billing-electronic', label: 'Documentos electrónicos', icon: <FileTextOutlined /> },
-        { key: 'billing-invoice-template', label: 'Plantilla de factura', icon: <FileImageOutlined /> },
-      ],
-    },
-  ], [hasPermission, alertasStock.length]);
+      {
+        key: 'pos',
+        label: 'POS',
+        icon: <ShopOutlined />,
+        children: [
+          { key: 'pos-ordenes', label: 'Pedidos', icon: <ShoppingCartOutlined />, permission: PERMISSIONS.pos.ordersView },
+          { key: 'pos-estaciones', label: 'Estaciones', icon: <ToolOutlined />, permission: PERMISSIONS.pos.stationsManage },
+          { key: 'pos-table-service', label: 'Atención QR', icon: <ToolOutlined />, permission: PERMISSIONS.pos.tableRequestsView },
+        ],
+      },
+      {
+        key: 'menu',
+        label: 'Menú',
+        icon: <ShopOutlined />,
+        children: [
+          { key: 'menu-categorias', label: 'Categorías', icon: <AppstoreOutlined />, permission: PERMISSIONS.menu.categoriesView },
+          { key: 'menu-items', label: 'Ítems y recetas', icon: <UnorderedListOutlined />, permission: PERMISSIONS.menu.itemsView },
+        ],
+      },
+      {
+        key: 'inventario',
+        label: (
+          <Space size={6}>
+            Inventario
+            {alertasStock.length > 0 && (
+              <Badge count={alertasStock.length} size="small" />
+            )}
+          </Space>
+        ),
+        icon: <InboxOutlined />,
+        children: [
+          { key: 'inv-config', label: 'Configuración', icon: <SettingOutlined />, permission: PERMISSIONS.inventory.configView },
+          { key: 'inv-articulos', label: 'Artículos', icon: <InboxOutlined />, permission: PERMISSIONS.inventory.articlesView },
+          { key: 'inv-stock', label: 'Stock actual', icon: <WarningOutlined />, permission: PERMISSIONS.inventory.stockView },
+          { key: 'inv-movimientos', label: 'Movimientos', icon: <SwapOutlined />, permission: PERMISSIONS.inventory.movementsView },
+        ],
+      },
+      {
+        key: 'purchases',
+        label: 'Compras',
+        icon: <ShoppingOutlined />,
+        children: [
+          { key: 'purchases-suppliers', label: 'Proveedores', icon: <TeamOutlined />, permission: PERMISSIONS.purchases.suppliersView },
+          { key: 'purchases-orders', label: 'Compras', icon: <ShoppingCartOutlined />, permission: PERMISSIONS.purchases.ordersView },
+        ],
+      },
+      {
+        key: 'billing',
+        label: 'Facturación',
+        icon: <DollarOutlined />,
+        children: [
+          { key: 'billing-cash', label: 'Caja', icon: <BankOutlined />, permission: PERMISSIONS.billing.cashView },
+          { key: 'billing-sales', label: 'Ventas', icon: <FileTextOutlined />, permission: PERMISSIONS.billing.cashView },
+          { key: 'billing-customers', label: 'Clientes', icon: <ContactsOutlined />, permission: PERMISSIONS.billing.customersView },
+          { key: 'billing-payment-methods', label: 'Medios de pago', icon: <DollarOutlined />, permission: PERMISSIONS.billing.paymentMethodsView },
+          { key: 'billing-tax-config', label: 'Configuración fiscal', icon: <PercentageOutlined />, permission: PERMISSIONS.billing.taxView },
+          { key: 'billing-electronic', label: 'Documentos electrónicos', icon: <FileTextOutlined />, permission: PERMISSIONS.billing.sriView },
+          { key: 'billing-invoice-template', label: 'Plantilla de factura', icon: <FileImageOutlined />, permission: PERMISSIONS.billing.sriView },
+        ],
+      },
+    ];
+
+    return filterMenuItems(allItems, hasPermission);
+  }, [hasPermission, alertasStock.length]);
+
+  const allowedMenuKeys = useMemo(() => {
+    const keys = new Set<string>();
+    const collect = (items: MenuItem[]) => {
+      for (const item of items) {
+        if (!item || typeof item !== 'object' || !('key' in item)) continue;
+        keys.add(String(item.key));
+        if ('children' in item && Array.isArray(item.children)) {
+          collect(item.children as MenuItem[]);
+        }
+      }
+    };
+    collect(menuItems);
+    return keys;
+  }, [menuItems]);
+
+  useEffect(() => {
+    if (selectedMenu === 'employee-detail') return;
+    if (allowedMenuKeys.has(selectedMenu)) return;
+
+    setSelectedMenu(getFirstMenuKey(menuItems) ?? 'welcome');
+  }, [allowedMenuKeys, menuItems, selectedMenu]);
 
   const userMenu: MenuProps['items'] = [
     {

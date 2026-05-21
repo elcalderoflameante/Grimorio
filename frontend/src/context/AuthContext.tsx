@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { AuthContext, type DecodedToken, type User } from './auth-context';
 import { MICROSOFT_ROLE_CLAIM } from '../constants/auth';
@@ -87,13 +87,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Función helper para verificar si el usuario tiene un permiso
-  const hasPermission = (permissionCode: string): boolean => {
+  const hasPermission = useCallback((permissionCode: string): boolean => {
     // Si es Administrador, tiene todos los permisos
     if (userRoles.includes('Administrador')) {
       return true;
     }
     return userPermissions.includes(permissionCode);
-  };
+  }, [userPermissions, userRoles]);
 
   return (
     <AuthContext.Provider value={{ user, token, loading, branchId, userPermissions, userRoles, login, logout, hasPermission }}>

@@ -28,7 +28,7 @@ public class EmployeesController : ControllerBase
     /// Obtiene un empleado por su ID.
     /// </summary>
     [HttpGet("{id}")]
-    [Authorize(Policy = "RRHH.ViewEmployees")]
+    [Authorize(Policy = "RRHH.Employees.View")]
     public async Task<IActionResult> GetEmployee(Guid id)
     {
         var branchId = User.FindFirst("BranchId");
@@ -53,7 +53,7 @@ public class EmployeesController : ControllerBase
     /// Soporta paginación.
     /// </summary>
     [HttpGet]
-    [Authorize(Policy = "RRHH.ViewEmployees")]
+    [Authorize(Policy = "RRHH.Employees.View")]
     public async Task<IActionResult> GetEmployees([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10, [FromQuery] bool onlyActive = true)
     {
         var branchId = User.FindFirst("BranchId");
@@ -74,10 +74,10 @@ public class EmployeesController : ControllerBase
 
     /// <summary>
     /// Crea un nuevo empleado.
-    /// Requiere permiso: RRHH.CreateEmployees
+    /// Requiere permiso: RRHH.Employees.Create
     /// </summary>
     [HttpPost]
-    [Authorize(Policy = "RRHH.CreateEmployees")]
+    [Authorize(Policy = "RRHH.Employees.Create")]
     public async Task<IActionResult> CreateEmployee([FromBody] CreateEmployeeDto dto)
     {
         if (!ModelState.IsValid)
@@ -137,7 +137,7 @@ public class EmployeesController : ControllerBase
     /// Actualiza un empleado existente.
     /// </summary>
     [HttpPut("{id}")]
-    [Authorize(Policy = "RRHH.UpdateEmployees")]
+    [Authorize(Policy = "RRHH.Employees.Update")]
     public async Task<IActionResult> UpdateEmployee(Guid id, [FromBody] UpdateEmployeeDto dto)
     {
         if (!ModelState.IsValid)
@@ -199,7 +199,7 @@ public class EmployeesController : ControllerBase
     /// Elimina (soft delete) un empleado.
     /// </summary>
     [HttpDelete("{id}")]
-    [Authorize(Policy = "RRHH.DeleteEmployees")]
+    [Authorize(Policy = "RRHH.Employees.Delete")]
     public async Task<IActionResult> DeleteEmployee(Guid id)
     {
         var branchId = User.FindFirst("BranchId");

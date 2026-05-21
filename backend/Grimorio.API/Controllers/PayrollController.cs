@@ -17,7 +17,7 @@ public class PayrollController : ControllerBase
     public PayrollController(IMediator mediator) => _mediator = mediator;
 
     [HttpGet("configuration")]
-    [Authorize(Policy = "RRHH.ViewEmployees")]
+    [Authorize(Policy = "RRHH.Payroll.View")]
     public async Task<IActionResult> GetConfiguration()
     {
         if (!TryGetBranchId(out var branchId))
@@ -28,7 +28,7 @@ public class PayrollController : ControllerBase
     }
 
     [HttpPut("configuration")]
-    [Authorize(Policy = "RRHH.UpdateEmployees")]
+    [Authorize(Policy = "RRHH.Payroll.Manage")]
     public async Task<IActionResult> UpsertConfiguration([FromBody] CreatePayrollConfigurationDto dto)
     {
         if (!TryGetBranchId(out var branchId))
@@ -60,7 +60,7 @@ public class PayrollController : ControllerBase
     }
 
     [HttpGet("summary")]
-    [Authorize(Policy = "RRHH.ViewEmployees")]
+    [Authorize(Policy = "RRHH.Payroll.View")]
     public async Task<IActionResult> GetSummary([FromQuery] int year, [FromQuery] int month)
     {
         if (!TryGetBranchId(out var branchId))
@@ -71,7 +71,7 @@ public class PayrollController : ControllerBase
     }
 
     [HttpGet("advances")]
-    [Authorize(Policy = "RRHH.ViewEmployees")]
+    [Authorize(Policy = "RRHH.Payroll.View")]
     public async Task<IActionResult> GetAdvances([FromQuery] Guid? employeeId, [FromQuery] int? year, [FromQuery] int? month)
     {
         if (!TryGetBranchId(out var branchId))
@@ -89,7 +89,7 @@ public class PayrollController : ControllerBase
     }
 
     [HttpPost("advances")]
-    [Authorize(Policy = "RRHH.UpdateEmployees")]
+    [Authorize(Policy = "RRHH.Payroll.Manage")]
     public async Task<IActionResult> CreateAdvance([FromBody] CreatePayrollAdvanceDto dto)
     {
         if (!TryGetBranchId(out var branchId))
@@ -121,7 +121,7 @@ public class PayrollController : ControllerBase
     }
 
     [HttpDelete("advances/{advanceId}")]
-    [Authorize(Policy = "RRHH.UpdateEmployees")]
+    [Authorize(Policy = "RRHH.Payroll.Manage")]
     public async Task<IActionResult> DeleteAdvance(Guid advanceId)
     {
         if (!TryGetBranchId(out var branchId))
@@ -149,7 +149,7 @@ public class PayrollController : ControllerBase
     }
 
     [HttpGet("consumptions")]
-    [Authorize(Policy = "RRHH.ViewEmployees")]
+    [Authorize(Policy = "RRHH.Payroll.View")]
     public async Task<IActionResult> GetConsumptions([FromQuery] Guid? employeeId, [FromQuery] int? year, [FromQuery] int? month)
     {
         if (!TryGetBranchId(out var branchId))
@@ -167,7 +167,7 @@ public class PayrollController : ControllerBase
     }
 
     [HttpPost("consumptions")]
-    [Authorize(Policy = "RRHH.UpdateEmployees")]
+    [Authorize(Policy = "RRHH.Payroll.Manage")]
     public async Task<IActionResult> CreateConsumption([FromBody] CreateEmployeeConsumptionDto dto)
     {
         if (!TryGetBranchId(out var branchId))
@@ -198,7 +198,7 @@ public class PayrollController : ControllerBase
     }
 
     [HttpDelete("consumptions/{consumptionId}")]
-    [Authorize(Policy = "RRHH.UpdateEmployees")]
+    [Authorize(Policy = "RRHH.Payroll.Manage")]
     public async Task<IActionResult> DeleteConsumption(Guid consumptionId)
     {
         if (!TryGetBranchId(out var branchId))
@@ -226,7 +226,7 @@ public class PayrollController : ControllerBase
     }
 
     [HttpGet("adjustments")]
-    [Authorize(Policy = "RRHH.ViewEmployees")]
+    [Authorize(Policy = "RRHH.Payroll.View")]
     public async Task<IActionResult> GetAdjustments([FromQuery] Guid? employeeId, [FromQuery] int? year, [FromQuery] int? month)
     {
         if (!TryGetBranchId(out var branchId))
@@ -244,7 +244,7 @@ public class PayrollController : ControllerBase
     }
 
     [HttpPost("adjustments")]
-    [Authorize(Policy = "RRHH.UpdateEmployees")]
+    [Authorize(Policy = "RRHH.Payroll.Manage")]
     public async Task<IActionResult> CreateAdjustment([FromBody] CreatePayrollAdjustmentDto dto)
     {
         if (!TryGetBranchId(out var branchId))
@@ -278,7 +278,7 @@ public class PayrollController : ControllerBase
     }
 
     [HttpDelete("adjustments/{adjustmentId}")]
-    [Authorize(Policy = "RRHH.UpdateEmployees")]
+    [Authorize(Policy = "RRHH.Payroll.Manage")]
     public async Task<IActionResult> DeleteAdjustment(Guid adjustmentId)
     {
         if (!TryGetBranchId(out var branchId))
@@ -306,7 +306,7 @@ public class PayrollController : ControllerBase
     }
 
     [HttpPost("roles/generate")]
-    [Authorize(Policy = "RRHH.UpdateEmployees")]
+    [Authorize(Policy = "RRHH.Payroll.Manage")]
     public async Task<IActionResult> GenerateMonthlyRoles([FromQuery] int year, [FromQuery] int month, [FromQuery] Guid? employeeId = null)
     {
         if (!TryGetBranchId(out var branchId))
@@ -332,7 +332,7 @@ public class PayrollController : ControllerBase
     }
 
     [HttpGet("roles/employee/{employeeId}")]
-    [Authorize(Policy = "RRHH.ViewEmployees")]
+    [Authorize(Policy = "RRHH.Payroll.View")]
     public async Task<IActionResult> GetRolesByEmployee(Guid employeeId)
     {
         if (!TryGetBranchId(out var branchId))
@@ -349,7 +349,7 @@ public class PayrollController : ControllerBase
     }
 
     [HttpGet("roles/{roleId}")]
-    [Authorize(Policy = "RRHH.ViewEmployees")]
+    [Authorize(Policy = "RRHH.Payroll.View")]
     public async Task<IActionResult> GetRoleDetail(Guid roleId)
     {
         if (!TryGetBranchId(out var branchId))
@@ -369,7 +369,7 @@ public class PayrollController : ControllerBase
     }
 
     [HttpPatch("roles/{roleId}/status")]
-    [Authorize(Policy = "RRHH.UpdateEmployees")]
+    [Authorize(Policy = "RRHH.Payroll.Manage")]
     public async Task<IActionResult> UpdateRoleStatus(Guid roleId, [FromBody] UpdatePayrollRoleStatusDto dto)
     {
         if (!TryGetBranchId(out var branchId))

@@ -18,6 +18,7 @@ public class MenuController : ControllerBase
 
     // â”€â”€ CategorÃ­as â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+    [Authorize(Policy = "Menu.Categories.View")]
     [HttpGet("categorias")]
     public async Task<IActionResult> GetCategories()
     {
@@ -25,6 +26,7 @@ public class MenuController : ControllerBase
         return Ok(await _mediator.Send(new GetMenuCategoriesQuery { BranchId = branchId }));
     }
 
+    [Authorize(Policy = "Menu.Categories.Manage")]
     [HttpPost("categorias")]
     public async Task<IActionResult> CreateCategory([FromBody] CreateMenuCategoryDto dto)
     {
@@ -37,6 +39,7 @@ public class MenuController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Menu.Categories.Manage")]
     [HttpPut("categorias/{id:guid}")]
     public async Task<IActionResult> UpdateCategory(Guid id, [FromBody] MenuCategoryDto dto)
     {
@@ -49,6 +52,7 @@ public class MenuController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Menu.Categories.Manage")]
     [HttpDelete("categorias/{id:guid}")]
     public async Task<IActionResult> DeleteCategory(Guid id)
     {
@@ -59,6 +63,7 @@ public class MenuController : ControllerBase
 
     // â”€â”€ Items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+    [Authorize(Policy = "Menu.Items.View")]
     [HttpGet("items")]
     public async Task<IActionResult> GetItems(
         [FromQuery] Guid? categoryId,
@@ -75,6 +80,7 @@ public class MenuController : ControllerBase
         }));
     }
 
+    [Authorize(Policy = "Menu.Items.View")]
     [HttpGet("items/{id:guid}")]
     public async Task<IActionResult> GetItem(Guid id)
     {
@@ -83,6 +89,7 @@ public class MenuController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
+    [Authorize(Policy = "Menu.Items.Manage")]
     [HttpPost("items")]
     public async Task<IActionResult> CreateItem([FromBody] CreateMenuItemDto dto)
     {
@@ -97,6 +104,7 @@ public class MenuController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Menu.Items.Manage")]
     [HttpPut("items/{id:guid}")]
     public async Task<IActionResult> UpdateItem(Guid id, [FromBody] UpdateMenuItemDto dto)
     {
@@ -112,6 +120,7 @@ public class MenuController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Menu.Items.Manage")]
     [HttpDelete("items/{id:guid}")]
     public async Task<IActionResult> DeleteItem(Guid id)
     {
@@ -122,6 +131,7 @@ public class MenuController : ControllerBase
 
     // â”€â”€ Recipe â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+    [Authorize(Policy = "Menu.Items.Manage")]
     [HttpPut("items/{id:guid}/receta")]
     public async Task<IActionResult> UpsertRecipe(Guid id, [FromBody] List<UpsertRecipeIngredientDto> ingredients)
     {
@@ -133,6 +143,7 @@ public class MenuController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Menu.Items.Manage")]
     [HttpDelete("receta/{id:guid}")]
     public async Task<IActionResult> DeleteIngredient(Guid id)
     {
@@ -143,6 +154,7 @@ public class MenuController : ControllerBase
 
     // â”€â”€ Descuento por venta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+    [Authorize(Policy = "Menu.StockConsume")]
     [HttpPost("venta/descontar-stock")]
     public async Task<IActionResult> DeductStock([FromBody] DeductStockFromSaleDto dto)
     {

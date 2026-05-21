@@ -18,6 +18,7 @@ public class TaxController : ControllerBase
 
     // ── Tarifas de IVA ────────────────────────────────────────────────────────
 
+    [Authorize(Policy = "Billing.Tax.View")]
     [HttpGet("tarifas")]
     public async Task<IActionResult> GetTaxRates([FromQuery] bool activeOnly = false)
     {
@@ -25,6 +26,7 @@ public class TaxController : ControllerBase
         return Ok(await _mediator.Send(new GetTaxRatesQuery { BranchId = branchId, ActiveOnly = activeOnly }));
     }
 
+    [Authorize(Policy = "Billing.Tax.Manage")]
     [HttpPost("tarifas")]
     public async Task<IActionResult> CreateTaxRate([FromBody] UpsertTaxRateDto dto)
     {
@@ -37,6 +39,7 @@ public class TaxController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Billing.Tax.Manage")]
     [HttpPut("tarifas/{id:guid}")]
     public async Task<IActionResult> UpdateTaxRate(Guid id, [FromBody] UpsertTaxRateDto dto)
     {
@@ -49,6 +52,7 @@ public class TaxController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Billing.Tax.Manage")]
     [HttpDelete("tarifas/{id:guid}")]
     public async Task<IActionResult> DeleteTaxRate(Guid id)
     {

@@ -10,6 +10,8 @@ import dayjs from 'dayjs';
 import type { PurchaseDto, SupplierDto } from '../../types';
 import { purchasesApi } from '../../services/api';
 import PurchaseForm from './PurchaseForm';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const { RangePicker } = DatePicker;
 
@@ -21,6 +23,7 @@ const DOC_TYPE_LABEL: Record<string, string> = {
 const STATUS_COLOR: Record<string, string> = { Registrada: 'green', Anulada: 'red' };
 
 export default function PurchasesList() {
+  const { hasPermission } = useAuth();
   const [compras, setCompras] = useState<PurchaseDto[]>([]);
   const [proveedores, setProveedores] = useState<SupplierDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,6 +35,10 @@ export default function PurchasesList() {
   const [formOpen, setFormOpen] = useState(false);
   const [editando, setEditando] = useState<PurchaseDto | null>(null);
   const [viendo, setViendo] = useState<PurchaseDto | null>(null);
+  const canCreate = hasPermission(PERMISSIONS.purchases.ordersCreate);
+  const canUpdate = hasPermission(PERMISSIONS.purchases.ordersUpdate);
+  const canCancel = hasPermission(PERMISSIONS.purchases.ordersCancel);
+  const canDelete = hasPermission(PERMISSIONS.purchases.ordersDelete);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,10 +133,10 @@ export default function PurchasesList() {
           </Tooltip>
           {r.status === 'Registrada' && (
             <>
-              <Tooltip title="Editar">
+              {canUpdate && <Tooltip title="Editar">
                 <Button size="small" icon={<EditOutlined />} onClick={() => { setEditando(r); setFormOpen(true); }} />
-              </Tooltip>
-              <Tooltip title="Anular">
+              </Tooltip>}
+              {canCancel && <Tooltip title="Anular">
                 <Popconfirm
                   title="¿Anular esta compra?"
                   description="Se revertirá el stock agregado al momento de la compra."
@@ -139,10 +146,10 @@ export default function PurchasesList() {
                 >
                   <Button size="small" danger icon={<StopOutlined />} />
                 </Popconfirm>
-              </Tooltip>
+              </Tooltip>}
             </>
           )}
-          {r.status === 'Anulada' && (
+          {canDelete && r.status === 'Anulada' && (
             <Tooltip title="Eliminar">
               <Popconfirm title="¿Eliminar esta compra?" onConfirm={() => handleDelete(r.id)} okText="Sí" cancelText="No">
                 <Button size="small" danger icon={<DeleteOutlined />} />
@@ -186,13 +193,13 @@ export default function PurchasesList() {
             onChange={v => setFiltroFechas(v as [dayjs.Dayjs, dayjs.Dayjs] | null)}
             style={{ width: 230 }}
           />
-          <Button
+          {canCreate && <Button
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => { setEditando(null); setFormOpen(true); }}
           >
             Nueva compra
-          </Button>
+          </Button>}
         </Space>
       </div>
 
@@ -201,7 +208,7 @@ export default function PurchasesList() {
         dataSource={compras}
         rowKey="id"
         loading={loading}
-        pagination={{ pageSize: 20 }}
+        pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         size="small"
       />
 

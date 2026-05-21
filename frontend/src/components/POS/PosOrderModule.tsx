@@ -7,13 +7,14 @@ import { cashApi } from '../../services/api';
 import TablesMap from './TablesMap';
 import TakeOrder from './TakeOrder';
 import TableOrderView from './TableOrderView';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const { Title, Text } = Typography;
 
 type View = 'map' | 'order' | 'table-detail';
 
 export default function PosOrderModule() {
-  const { branchId } = useAuth();
+  const { branchId, hasPermission } = useAuth();
   const [view, setView] = useState<View>('map');
   const [selectedTable, setSelectedTable] = useState<RestaurantTableDto | null>(null);
   const [orderType, setOrderType] = useState<OrderType>('DineIn');
@@ -22,6 +23,7 @@ export default function PosOrderModule() {
   const [hasSession, setHasSession] = useState<boolean | null>(null);
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
   const [tablesRefreshKey, setTablesRefreshKey] = useState(0);
+  const canCreateOrders = hasPermission(PERMISSIONS.pos.ordersCreate);
 
   useEffect(() => {
     cashApi.getActiveSession()
@@ -41,6 +43,10 @@ export default function PosOrderModule() {
       setDetailOrderId(table.currentOrderId);
       setView('table-detail');
     } else {
+      if (!canCreateOrders) {
+        message.warning('No tienes permiso para crear pedidos');
+        return;
+      }
       setOrderType('DineIn');
       setActiveOrder(null);
       setView('order');
@@ -48,6 +54,11 @@ export default function PosOrderModule() {
   };
 
   const handleNewOrder = (type: OrderType) => {
+    if (!canCreateOrders) {
+      message.warning('No tienes permiso para crear pedidos');
+      setShowTypeModal(false);
+      return;
+    }
     if (!hasSession) {
       message.warning('Debes abrir la caja antes de tomar pedidos');
       setShowTypeModal(false);
@@ -91,9 +102,9 @@ export default function PosOrderModule() {
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <Title level={5} style={{ margin: 0 }}>Mapa de Mesas</Title>
-            <Button icon={<ShoppingCartOutlined />} onClick={() => setShowTypeModal(true)}>
+            {canCreateOrders && <Button icon={<ShoppingCartOutlined />} onClick={() => setShowTypeModal(true)}>
               Nuevo pedido
-            </Button>
+            </Button>}
           </div>
           <TablesMap branchId={branchId} onSelectTable={handleSelectTable} refreshKey={tablesRefreshKey} />
         </div>

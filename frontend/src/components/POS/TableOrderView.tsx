@@ -15,6 +15,8 @@ import type {
 import { cashApi, menuApi, paymentMethodsApi, posApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
 import CustomerSelector from '../Billing/CustomerSelector';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 function choicesLabel(choices: CreateIngredientChoiceDto[] | undefined, items: MenuItemDto[]): string | null {
   if (!choices || choices.length === 0) return null;
@@ -81,6 +83,7 @@ interface Props {
 }
 
 export default function TableOrderView({ orderId, table, branchId, onClose, onTableUpdated }: Props) {
+  const { hasPermission } = useAuth();
   const [order, setOrder] = useState<OrderDto | null>(null);
   const [payments, setPayments] = useState<OrderPaymentDto[]>([]);
   const [methods, setMethods] = useState<PaymentMethodConfigDto[]>([]);
@@ -108,6 +111,8 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const [splitRows, setSplitRows] = useState<Record<string, SplitRow>>({});
   const [paying, setPaying] = useState(false);
   const [cashSessionId, setCashSessionId] = useState<string | undefined>(undefined);
+  const canUpdateOrders = hasPermission(PERMISSIONS.pos.ordersUpdate);
+  const canChargeOrders = hasPermission(PERMISSIONS.billing.cashCharge);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -208,6 +213,10 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   };
 
   const addToCart = async (item: MenuItemDto) => {
+    if (!canUpdateOrders) {
+      message.warning('No tienes permiso para modificar pedidos');
+      return;
+    }
     if (isFullyPaid) {
       message.info('La orden ya está pagada. No se pueden agregar más productos.');
       return;
@@ -563,11 +572,11 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                 <Card
                   key={item.id}
                   size="small"
-                  hoverable={!isFullyPaid}
+                  hoverable={!isFullyPaid && canUpdateOrders}
                   onClick={() => { void addToCart(item).catch(e => message.error(formatError(e))); }}
                   style={{
-                    width: 'calc(50% - 4px)', cursor: isFullyPaid ? 'not-allowed' : 'pointer',
-                    opacity: isFullyPaid ? 0.55 : 1,
+                    width: 'calc(50% - 4px)', cursor: isFullyPaid || !canUpdateOrders ? 'not-allowed' : 'pointer',
+                    opacity: isFullyPaid || !canUpdateOrders ? 0.55 : 1,
                     borderColor: cartQty > 0 ? '#1677ff' : undefined,
                     background: cartQty > 0 ? '#e6f4ff' : undefined,
                   }}
@@ -748,14 +757,14 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
           </Card>
 
           <Space direction="vertical" style={{ width: '100%' }}>
-            {cart.length > 0 && (
+            {canUpdateOrders && cart.length > 0 && (
               <Button block loading={saving} onClick={handleSave} icon={<PlusOutlined />}>
                 Guardar nuevos ítems
               </Button>
             )}
             {isFullyPaid ? (
               <Alert type="success" icon={<CheckCircleOutlined />} title="Orden pagada completamente" showIcon />
-            ) : (
+            ) : canChargeOrders ? (
               <Button
                 type="primary" block size="large" icon={<DollarOutlined />}
                 onClick={() => setShowPayModal(true)}
@@ -763,7 +772,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
               >
                 Cobrar
               </Button>
-            )}
+            ) : null}
           </Space>
         </Col>
       </Row>

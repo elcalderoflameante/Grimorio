@@ -26,6 +26,7 @@ public class PositionsController : ControllerBase
     /// <summary>
     /// Obtiene una posición por su ID.
     /// </summary>
+    [Authorize(Policy = "RRHH.Positions.View")]
     [HttpGet("{id}")]
     public async Task<IActionResult> GetPosition(Guid id)
     {
@@ -50,6 +51,7 @@ public class PositionsController : ControllerBase
     /// Obtiene todas las posiciones de la rama del usuario.
     /// Soporta paginación.
     /// </summary>
+    [Authorize(Policy = "RRHH.Positions.View")]
     [HttpGet]
     public async Task<IActionResult> GetPositions([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
     {
@@ -71,10 +73,10 @@ public class PositionsController : ControllerBase
 
     /// <summary>
     /// Crea una nueva posición.
-    /// Requiere permiso: "Admin.ManageRoles" o similar.
+    /// Requiere permiso: "RRHH.Positions.Manage" o similar.
     /// </summary>
     [HttpPost]
-    [Authorize(Policy = "AdminOnly")]
+    [Authorize(Policy = "RRHH.Positions.Manage")]
     public async Task<IActionResult> CreatePosition([FromBody] CreatePositionDto dto)
     {
         if (!ModelState.IsValid)
@@ -110,7 +112,7 @@ public class PositionsController : ControllerBase
     /// Actualiza una posición existente.
     /// </summary>
     [HttpPut("{id}")]
-    [Authorize(Policy = "AdminOnly")]
+    [Authorize(Policy = "RRHH.Positions.Manage")]
     public async Task<IActionResult> UpdatePosition(Guid id, [FromBody] UpdatePositionDto dto)
     {
         if (!ModelState.IsValid)
@@ -148,7 +150,7 @@ public class PositionsController : ControllerBase
     /// Elimina (soft delete) una posición.
     /// </summary>
     [HttpDelete("{id}")]
-    [Authorize(Policy = "AdminOnly")]
+    [Authorize(Policy = "RRHH.Positions.Manage")]
     public async Task<IActionResult> DeletePosition(Guid id)
     {
         var branchId = User.FindFirst("BranchId");

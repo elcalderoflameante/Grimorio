@@ -20,6 +20,7 @@ public class InventoryController : ControllerBase
 
     // ── Unidades de medida ────────────────────────────────────────────────
 
+    [Authorize(Policy = "Inventory.Config.View")]
     [HttpGet("unidades")]
     public async Task<IActionResult> GetUnits()
     {
@@ -27,6 +28,7 @@ public class InventoryController : ControllerBase
         return Ok(await _mediator.Send(new GetMeasurementUnitsQuery { BranchId = branchId }));
     }
 
+    [Authorize(Policy = "Inventory.Config.Manage")]
     [HttpPost("unidades")]
     public async Task<IActionResult> CreateUnit([FromBody] CreateMeasurementUnitDto dto)
     {
@@ -35,6 +37,7 @@ public class InventoryController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Inventory.Config.Manage")]
     [HttpPut("unidades/{id:guid}")]
     public async Task<IActionResult> UpdateUnit(Guid id, [FromBody] CreateMeasurementUnitDto dto)
     {
@@ -43,6 +46,7 @@ public class InventoryController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Inventory.Config.Manage")]
     [HttpDelete("unidades/{id:guid}")]
     public async Task<IActionResult> DeleteUnit(Guid id)
     {
@@ -53,6 +57,7 @@ public class InventoryController : ControllerBase
 
     // ── Conversiones de unidad ────────────────────────────────────────────
 
+    [Authorize(Policy = "Inventory.Config.View")]
     [HttpGet("conversiones")]
     public async Task<IActionResult> GetConversions()
     {
@@ -60,6 +65,7 @@ public class InventoryController : ControllerBase
         return Ok(await _mediator.Send(new GetUnitConversionsQuery { BranchId = branchId }));
     }
 
+    [Authorize(Policy = "Inventory.Config.Manage")]
     [HttpPost("conversiones")]
     public async Task<IActionResult> CreateConversion([FromBody] CreateUnitConversionDto dto)
     {
@@ -72,6 +78,7 @@ public class InventoryController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Inventory.Config.Manage")]
     [HttpDelete("conversiones/{id:guid}")]
     public async Task<IActionResult> DeleteConversion(Guid id)
     {
@@ -82,6 +89,7 @@ public class InventoryController : ControllerBase
 
     // ── Categorías ────────────────────────────────────────────────────────
 
+    [Authorize(Policy = "Inventory.Config.View")]
     [HttpGet("categorias")]
     public async Task<IActionResult> GetCategories()
     {
@@ -89,6 +97,7 @@ public class InventoryController : ControllerBase
         return Ok(await _mediator.Send(new GetInventoryCategoriesQuery { BranchId = branchId }));
     }
 
+    [Authorize(Policy = "Inventory.Config.Manage")]
     [HttpPost("categorias")]
     public async Task<IActionResult> CreateCategory([FromBody] CreateInventoryCategoryDto dto)
     {
@@ -100,6 +109,7 @@ public class InventoryController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Inventory.Config.Manage")]
     [HttpPut("categorias/{id:guid}")]
     public async Task<IActionResult> UpdateCategory(Guid id, [FromBody] CreateInventoryCategoryDto dto)
     {
@@ -111,6 +121,7 @@ public class InventoryController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Inventory.Config.Manage")]
     [HttpDelete("categorias/{id:guid}")]
     public async Task<IActionResult> DeleteCategory(Guid id)
     {
@@ -121,6 +132,7 @@ public class InventoryController : ControllerBase
 
     // ── Artículos ─────────────────────────────────────────────────────────
 
+    [Authorize(Policy = "Inventory.Articles.View")]
     [HttpGet("articulos")]
     public async Task<IActionResult> GetArticles([FromQuery] bool? activeOnly, [FromQuery] string? type, [FromQuery] Guid? categoryId)
     {
@@ -131,6 +143,7 @@ public class InventoryController : ControllerBase
         }));
     }
 
+    [Authorize(Policy = "Inventory.Articles.View")]
     [HttpGet("articulos/{id:guid}")]
     public async Task<IActionResult> GetArticle(Guid id)
     {
@@ -139,6 +152,7 @@ public class InventoryController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
+    [Authorize(Policy = "Inventory.Articles.Manage")]
     [HttpPost("articulos")]
     public async Task<IActionResult> CreateArticle([FromBody] CreateInventoryArticleDto dto)
     {
@@ -154,6 +168,7 @@ public class InventoryController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Inventory.Articles.Manage")]
     [HttpPut("articulos/{id:guid}")]
     public async Task<IActionResult> UpdateArticle(Guid id, [FromBody] UpdateInventoryArticleDto dto)
     {
@@ -170,6 +185,7 @@ public class InventoryController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Inventory.Articles.Manage")]
     [HttpDelete("articulos/{id:guid}")]
     public async Task<IActionResult> DeleteArticle(Guid id)
     {
@@ -180,6 +196,7 @@ public class InventoryController : ControllerBase
 
     // ── Warehouses ───────────────────────────────────────────────────────────
 
+    [Authorize(Policy = "Inventory.Config.View")]
     [HttpGet("bodegas")]
     public async Task<IActionResult> GetWarehouses([FromQuery] bool? activeOnly)
     {
@@ -187,6 +204,7 @@ public class InventoryController : ControllerBase
         return Ok(await _mediator.Send(new GetWarehousesQuery { BranchId = branchId, ActiveOnly = activeOnly }));
     }
 
+    [Authorize(Policy = "Inventory.Config.Manage")]
     [HttpPost("bodegas")]
     public async Task<IActionResult> CreateWarehouse([FromBody] CreateWarehouseDto dto)
     {
@@ -198,6 +216,7 @@ public class InventoryController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Inventory.Config.Manage")]
     [HttpPut("bodegas/{id:guid}")]
     public async Task<IActionResult> UpdateWarehouse(Guid id, [FromBody] WarehouseDto dto)
     {
@@ -210,6 +229,7 @@ public class InventoryController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Inventory.Config.Manage")]
     [HttpDelete("bodegas/{id:guid}")]
     public async Task<IActionResult> DeleteWarehouse(Guid id)
     {
@@ -220,6 +240,7 @@ public class InventoryController : ControllerBase
 
     // ── Stock ─────────────────────────────────────────────────────────────
 
+    [Authorize(Policy = "Inventory.Stock.View")]
     [HttpGet("stock")]
     public async Task<IActionResult> GetStock([FromQuery] Guid? warehouseId, [FromQuery] Guid? categoryId, [FromQuery] bool? lowStockOnly)
     {
@@ -230,6 +251,7 @@ public class InventoryController : ControllerBase
         }));
     }
 
+    [Authorize(Policy = "Inventory.Stock.View")]
     [HttpGet("alertas")]
     public async Task<IActionResult> GetAlertas()
     {
@@ -239,6 +261,7 @@ public class InventoryController : ControllerBase
 
     // ── Movements ───────────────────────────────────────────────────────
 
+    [Authorize(Policy = "Inventory.Movements.View")]
     [HttpGet("movimientos")]
     public async Task<IActionResult> GetMovimientos(
         [FromQuery] Guid? articleId, [FromQuery] Guid? warehouseId,
@@ -253,6 +276,7 @@ public class InventoryController : ControllerBase
         }));
     }
 
+    [Authorize(Policy = "Inventory.Movements.Create")]
     [HttpPost("movimientos")]
     public async Task<IActionResult> RegistrarMovimiento([FromBody] RegisterMovementDto dto)
     {
@@ -268,6 +292,7 @@ public class InventoryController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Inventory.Movements.Create")]
     [HttpPost("movimientos/inventario-inicial")]
     public async Task<IActionResult> RegisterInitialInventory([FromBody] RegisterInitialInventoryDto dto)
     {
@@ -287,4 +312,3 @@ public class InventoryController : ControllerBase
         return Guid.TryParse(claim, out branchId);
     }
 }
-

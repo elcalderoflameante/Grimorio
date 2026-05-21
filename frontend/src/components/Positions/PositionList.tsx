@@ -163,7 +163,7 @@ export default function PositionList() {
         dataSource={positions}
         loading={loading}
         rowKey="id"
-        pagination={false}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
       />
 
       {/* Modal crear/editar */}

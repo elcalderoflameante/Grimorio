@@ -157,7 +157,7 @@ export const WorkRoleList = ({ branchId }: WorkRoleListProps) => {
         columns={columns}
         loading={loading}
         rowKey="id"
-        pagination={false}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
       />
 
       <Modal

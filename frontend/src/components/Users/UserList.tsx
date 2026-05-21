@@ -5,6 +5,8 @@ import type { ColumnsType } from 'antd/es/table';
 import { userApi, roleApi } from '../../services/api';
 import type { UserDto, RoleDto, CreateUserDto, UpdateUserDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 interface UserFormValues {
   firstName: string;
   lastName: string;
@@ -18,6 +20,7 @@ interface AssignFormValues {
 }
 
 export default function UserList() {
+  const { hasPermission } = useAuth();
   const [users, setUsers] = useState<UserDto[]>([]);
   const [roles, setRoles] = useState<RoleDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -27,6 +30,9 @@ export default function UserList() {
   const [assigningUserId, setAssigningUserId] = useState<string | null>(null);
   const [form] = Form.useForm<UserFormValues>();
   const [assignForm] = Form.useForm<AssignFormValues>();
+  const canCreate = hasPermission(PERMISSIONS.admin.usersCreate);
+  const canUpdate = hasPermission(PERMISSIONS.admin.usersUpdate);
+  const canDelete = hasPermission(PERMISSIONS.admin.usersDelete);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -165,16 +171,16 @@ export default function UserList() {
       key: 'actions',
       render: (_, record) => (
         <Space>
-          <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} />
-          <Button icon={<LockOutlined />} onClick={() => handleOpenAssign(record)} title="Asignar roles" />
-          <Popconfirm
+          {canUpdate && <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} />}
+          {canUpdate && <Button icon={<LockOutlined />} onClick={() => handleOpenAssign(record)} title="Asignar roles" />}
+          {canDelete && <Popconfirm
             title="¿Eliminar usuario?"
             onConfirm={() => handleDelete(record.id)}
             okText="Sí"
             cancelText="No"
           >
             <Button icon={<DeleteOutlined />} danger />
-          </Popconfirm>
+          </Popconfirm>}
         </Space>
       ),
     },
@@ -183,7 +189,7 @@ export default function UserList() {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <Button
+        {canCreate && <Button
           type="primary"
           icon={<PlusOutlined />}
           onClick={() => {
@@ -193,7 +199,7 @@ export default function UserList() {
           }}
         >
           Nuevo Usuario
-        </Button>
+        </Button>}
       </div>
 
       <Table
@@ -201,7 +207,7 @@ export default function UserList() {
         dataSource={users}
         loading={loading}
         rowKey="id"
-        pagination={false}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
       />
 
       <Modal

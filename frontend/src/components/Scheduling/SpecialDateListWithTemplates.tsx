@@ -380,7 +380,7 @@ export const SpecialDateListWithTemplates: React.FC<SpecialDateListProps> = ({ b
             dataSource={dateTemplates}
             rowKey="id"
             size="small"
-            pagination={false}
+            pagination={{ defaultPageSize: 8, showSizeChanger: true, pageSizeOptions: ['8', '16', '32'] }}
           />
         )}
       </div>
@@ -462,7 +462,7 @@ export const SpecialDateListWithTemplates: React.FC<SpecialDateListProps> = ({ b
         dataSource={specialDates}
         rowKey="id"
         loading={loading}
-        pagination={{ pageSize: 20 }}
+        pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         locale={{ emptyText: 'No hay días especiales' }}
         expandable={{
           expandedRowRender,

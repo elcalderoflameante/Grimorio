@@ -18,10 +18,12 @@ public class CashController : ControllerBase
 
     // ── Medios de pago ────────────────────────────────────────────────────────
 
+    [Authorize(Policy = "Billing.PaymentMethods.View")]
     [HttpGet("metodos-pago")]
     public async Task<IActionResult> GetPaymentMethods([FromQuery] bool activeOnly = true)
         => Ok(await _mediator.Send(new GetPaymentMethodsQuery { ActiveOnly = activeOnly }));
 
+    [Authorize(Policy = "Billing.PaymentMethods.Manage")]
     [HttpPost("metodos-pago")]
     public async Task<IActionResult> CreatePaymentMethod([FromBody] CreatePaymentMethodConfigDto dto)
     {
@@ -33,6 +35,7 @@ public class CashController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Billing.PaymentMethods.Manage")]
     [HttpPut("metodos-pago/{id:guid}")]
     public async Task<IActionResult> UpdatePaymentMethod(Guid id, [FromBody] UpdatePaymentMethodConfigDto dto)
     {
@@ -45,6 +48,7 @@ public class CashController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Billing.PaymentMethods.Manage")]
     [HttpDelete("metodos-pago/{id:guid}")]
     public async Task<IActionResult> DeletePaymentMethod(Guid id)
     {
@@ -52,6 +56,7 @@ public class CashController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Policy = "Billing.PaymentMethods.View")]
     [HttpGet("bancos-tarjeta")]
     public async Task<IActionResult> GetCardBanks([FromQuery] bool activeOnly = true)
     {
@@ -59,6 +64,7 @@ public class CashController : ControllerBase
         return Ok(await _mediator.Send(new GetCardBanksQuery { BranchId = branchId, ActiveOnly = activeOnly }));
     }
 
+    [Authorize(Policy = "Billing.PaymentMethods.Manage")]
     [HttpPost("bancos-tarjeta")]
     public async Task<IActionResult> CreateCardBank([FromBody] CreateCardBankDto dto)
     {
@@ -70,6 +76,7 @@ public class CashController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Billing.PaymentMethods.Manage")]
     [HttpPut("bancos-tarjeta/{id:guid}")]
     public async Task<IActionResult> UpdateCardBank(Guid id, [FromBody] UpdateCardBankDto dto)
     {
@@ -82,6 +89,7 @@ public class CashController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Billing.PaymentMethods.Manage")]
     [HttpDelete("bancos-tarjeta/{id:guid}")]
     public async Task<IActionResult> DeleteCardBank(Guid id)
     {
@@ -92,6 +100,7 @@ public class CashController : ControllerBase
 
     // ── Sesión activa ─────────────────────────────────────────────────────────
 
+    [Authorize(Policy = "Billing.Cash.View")]
     [HttpGet("sesion-activa")]
     public async Task<IActionResult> GetActiveSession()
     {
@@ -102,6 +111,7 @@ public class CashController : ControllerBase
 
     // ── Historial ─────────────────────────────────────────────────────────────
 
+    [Authorize(Policy = "Billing.Cash.View")]
     [HttpGet("sesiones")]
     public async Task<IActionResult> GetSessions(
         [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] int pageSize = 30)
@@ -113,6 +123,7 @@ public class CashController : ControllerBase
         }));
     }
 
+    [Authorize(Policy = "Billing.Cash.View")]
     [HttpGet("sesiones/{id:guid}")]
     public async Task<IActionResult> GetSession(Guid id)
     {
@@ -123,6 +134,7 @@ public class CashController : ControllerBase
 
     // ── Abrir / Cerrar ────────────────────────────────────────────────────────
 
+    [Authorize(Policy = "Billing.Cash.Open")]
     [HttpPost("abrir")]
     public async Task<IActionResult> OpenSession([FromBody] OpenCashSessionDto dto)
     {
@@ -138,6 +150,7 @@ public class CashController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Billing.Cash.Close")]
     [HttpPost("sesiones/{id:guid}/cerrar")]
     public async Task<IActionResult> CloseSession(Guid id, [FromBody] CloseCashSessionDto dto)
     {
@@ -155,6 +168,7 @@ public class CashController : ControllerBase
 
     // ── Ventas realizadas ─────────────────────────────────────────────────────
 
+    [Authorize(Policy = "Billing.Cash.View")]
     [HttpGet("ventas")]
     public async Task<IActionResult> GetSales(
         [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] int pageSize = 100)
@@ -168,6 +182,7 @@ public class CashController : ControllerBase
 
     // ── Cobro de orden ────────────────────────────────────────────────────────
 
+    [Authorize(Policy = "Billing.Cash.View")]
     [HttpGet("ordenes/{orderId:guid}/pagos")]
     public async Task<IActionResult> GetOrderPayments(Guid orderId)
     {
@@ -175,6 +190,7 @@ public class CashController : ControllerBase
         return Ok(await _mediator.Send(new GetOrderPaymentsQuery { OrderId = orderId, BranchId = branchId }));
     }
 
+    [Authorize(Policy = "Billing.Cash.Charge")]
     [HttpPost("cobrar/{orderId:guid}")]
     public async Task<IActionResult> PayOrder(Guid orderId, [FromBody] AddOrderPaymentDto dto)
     {

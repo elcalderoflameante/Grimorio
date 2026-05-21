@@ -19,6 +19,7 @@ public class PurchasesController : ControllerBase
 
     // ── Suppliers ──────────────────────────────────────────────────────────────
 
+    [Authorize(Policy = "Purchases.Suppliers.View")]
     [HttpGet("proveedores")]
     public async Task<IActionResult> GetSuppliers([FromQuery] bool? activeOnly, CancellationToken ct)
     {
@@ -28,6 +29,7 @@ public class PurchasesController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Purchases.Suppliers.Manage")]
     [HttpPost("proveedores")]
     public async Task<IActionResult> CreateSupplier([FromBody] CreateSupplierDto dto, CancellationToken ct)
     {
@@ -42,6 +44,7 @@ public class PurchasesController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Purchases.Suppliers.Manage")]
     [HttpPut("proveedores/{id:guid}")]
     public async Task<IActionResult> UpdateSupplier(Guid id, [FromBody] UpdateSupplierDto dto, CancellationToken ct)
     {
@@ -56,6 +59,7 @@ public class PurchasesController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Purchases.Suppliers.Manage")]
     [HttpDelete("proveedores/{id:guid}")]
     public async Task<IActionResult> DeleteSupplier(Guid id, CancellationToken ct)
     {
@@ -67,6 +71,7 @@ public class PurchasesController : ControllerBase
 
     // ── Compras directas ───────────────────────────────────────────────────────
 
+    [Authorize(Policy = "Purchases.Orders.View")]
     [HttpGet("compras")]
     public async Task<IActionResult> GetPurchases(
         [FromQuery] string? status, [FromQuery] Guid? supplierId,
@@ -83,6 +88,7 @@ public class PurchasesController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Purchases.Orders.View")]
     [HttpGet("compras/{id:guid}")]
     public async Task<IActionResult> GetPurchase(Guid id, CancellationToken ct)
     {
@@ -92,6 +98,7 @@ public class PurchasesController : ControllerBase
         return result == null ? NotFound() : Ok(result);
     }
 
+    [Authorize(Policy = "Purchases.Orders.Create")]
     [HttpPost("compras")]
     public async Task<IActionResult> CreatePurchase([FromBody] CreatePurchaseDto dto, CancellationToken ct)
     {
@@ -111,6 +118,7 @@ public class PurchasesController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Purchases.Orders.Update")]
     [HttpPut("compras/{id:guid}")]
     public async Task<IActionResult> UpdatePurchase(Guid id, [FromBody] UpdatePurchaseDto dto, CancellationToken ct)
     {
@@ -130,6 +138,7 @@ public class PurchasesController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Purchases.Orders.Cancel")]
     [HttpPost("compras/{id:guid}/anular")]
     public async Task<IActionResult> AnularPurchase(Guid id, CancellationToken ct)
     {
@@ -139,6 +148,7 @@ public class PurchasesController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Purchases.Orders.Delete")]
     [HttpDelete("compras/{id:guid}")]
     public async Task<IActionResult> DeletePurchase(Guid id, CancellationToken ct)
     {

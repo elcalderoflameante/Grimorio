@@ -30,8 +30,21 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      chunkSizeWarningLimit: 1200,
+      chunkSizeWarningLimit: 1500,
       rollupOptions: {
+        onwarn(warning, warn) {
+          const id = warning.id ?? '';
+
+          if (warning.code === 'INVALID_ANNOTATION' && id.includes('@microsoft/signalr')) {
+            return;
+          }
+
+          if (warning.code === 'EVAL' && id.includes('lottie-web')) {
+            return;
+          }
+
+          warn(warning);
+        },
         output: {
           manualChunks(id) {
             if (!id.includes('node_modules')) return;
@@ -45,6 +58,14 @@ export default defineConfig(({ mode }) => {
 
             if (isPkg('antd') || isPkg('@ant-design')) {
               return 'vendor-antd';
+            }
+
+            if (isPkg('@microsoft/signalr')) {
+              return 'vendor-signalr';
+            }
+
+            if (isPkg('lottie-react') || isPkg('lottie-web')) {
+              return 'vendor-lottie';
             }
 
             if (isPkg('dayjs')) {

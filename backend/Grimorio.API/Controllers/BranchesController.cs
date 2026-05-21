@@ -33,6 +33,7 @@ public class BranchesController : ControllerBase
     /// <response code="200">Sucursal encontrada.</response>
     /// <response code="401">BranchId no válido en el token.</response>
     /// <response code="404">Sucursal no encontrada.</response>
+    [Authorize(Policy = "Admin.Branch.View")]
     [HttpGet("current")]
     public async Task<IActionResult> GetCurrentBranch()
     {
@@ -57,7 +58,7 @@ public class BranchesController : ControllerBase
     /// <response code="401">BranchId no válido en el token.</response>
     /// <response code="404">Sucursal no encontrada.</response>
     /// <response code="500">Error interno del servidor.</response>
-    [Authorize(Policy = "AdminOnly")]
+    [Authorize(Policy = "Admin.Branch.Update")]
     [HttpPut("current")]
     public async Task<IActionResult> UpdateCurrentBranch([FromBody] UpdateBranchDto dto)
     {

@@ -13,6 +13,8 @@ import { cashApi, posApi } from '../../services/api';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/es';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 dayjs.extend(relativeTime);
 dayjs.locale('es');
@@ -35,6 +37,7 @@ const ORDER_TYPE_LABEL: Record<string, string> = {
 };
 
 export default function CashRegister() {
+  const { hasPermission } = useAuth();
   const [activeSession, setActiveSession] = useState<CashSessionDto | null | undefined>(undefined);
   const [history, setHistory] = useState<CashSessionDto[]>([]);
   const [activeOrders, setActiveOrders] = useState<ActiveOrderSummaryDto[]>([]);
@@ -47,6 +50,8 @@ export default function CashRegister() {
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const canOpenCash = hasPermission(PERMISSIONS.billing.cashOpen);
+  const canCloseCash = hasPermission(PERMISSIONS.billing.cashClose);
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -138,10 +143,10 @@ export default function CashRegister() {
             Actualizar
           </Button>
           {activeSession
-            ? <Button danger icon={<LockOutlined />} onClick={() => setShowCloseModal(true)}>
+            ? canCloseCash && <Button danger icon={<LockOutlined />} onClick={() => setShowCloseModal(true)}>
                 Cerrar caja
               </Button>
-            : <Button type="primary" icon={<UnlockOutlined />} onClick={() => setShowOpenModal(true)}>
+            : canOpenCash && <Button type="primary" icon={<UnlockOutlined />} onClick={() => setShowOpenModal(true)}>
                 Abrir caja
               </Button>
           }
@@ -409,7 +414,7 @@ export default function CashRegister() {
         size="small"
         dataSource={history}
         rowKey="id"
-        pagination={{ pageSize: 10 }}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         expandable={{ expandedRowRender: (r) => <SessionDetail session={r} /> }}
         columns={[
           {

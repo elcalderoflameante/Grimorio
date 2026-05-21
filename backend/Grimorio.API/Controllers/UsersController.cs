@@ -13,7 +13,7 @@ namespace Grimorio.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = "AdminOnly")]
+[Authorize]
 public class UsersController : ControllerBase
 {
     private readonly IMediator _mediator;
@@ -22,12 +22,14 @@ public class UsersController : ControllerBase
     /// <summary>
     /// Obtiene todos los usuarios.
     /// </summary>
+    [Authorize(Policy = "Admin.Users.View")]
     [HttpGet]
     public async Task<IActionResult> GetAll() => Ok(await _mediator.Send(new GetUsersQuery()));
 
     /// <summary>
     /// Obtiene un usuario por su ID.
     /// </summary>
+    [Authorize(Policy = "Admin.Users.View")]
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(Guid id)
     {
@@ -41,6 +43,7 @@ public class UsersController : ControllerBase
     /// <summary>
     /// Crea un nuevo usuario.
     /// </summary>
+    [Authorize(Policy = "Admin.Users.Create")]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateUserDto dto)
     {
@@ -66,6 +69,7 @@ public class UsersController : ControllerBase
     /// <summary>
     /// Actualiza un usuario existente.
     /// </summary>
+    [Authorize(Policy = "Admin.Users.Update")]
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateUserDto dto)
     {
@@ -87,6 +91,7 @@ public class UsersController : ControllerBase
     /// <summary>
     /// Elimina un usuario.
     /// </summary>
+    [Authorize(Policy = "Admin.Users.Delete")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {
@@ -108,6 +113,7 @@ public class UsersController : ControllerBase
     /// <summary>
     /// Asigna roles a un usuario.
     /// </summary>
+    [Authorize(Policy = "Admin.Users.Update")]
     [HttpPost("{id}/roles")]
     public async Task<IActionResult> AssignRoles(Guid id, [FromBody] AssignRolesDto dto)
     {
@@ -142,7 +148,6 @@ public class UsersController : ControllerBase
     /// Cambia la contraseña de un usuario.
     /// </summary>
     [HttpPost("{id}/change-password")]
-    [AllowAnonymous] // Permitir acceso sin ser admin para cambiar contraseña propia
     public async Task<IActionResult> ChangePassword(Guid id, [FromBody] ChangePasswordRequest request)
     {
         try

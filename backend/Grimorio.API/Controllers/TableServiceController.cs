@@ -31,6 +31,7 @@ public class TableServiceController : ControllerBase
         _fcmPushNotificationService = fcmPushNotificationService;
     }
 
+    [Authorize(Policy = "POS.Tables.View")]
     [HttpGet("tables")]
     public async Task<IActionResult> GetTables([FromQuery] Guid branchId)
     {
@@ -38,6 +39,7 @@ public class TableServiceController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.Tables.Manage")]
     [HttpPost("tables")]
     public async Task<IActionResult> CreateTable([FromBody] CreateRestaurantTableCommand command)
     {
@@ -49,6 +51,7 @@ public class TableServiceController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.Tables.Manage")]
     [HttpPut("tables/{id:guid}")]
     public async Task<IActionResult> UpdateTable(Guid id, [FromBody] UpdateRestaurantTableCommand command)
     {
@@ -57,6 +60,7 @@ public class TableServiceController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.Tables.Manage")]
     [HttpPost("tables/{id:guid}/regenerate-token")]
     public async Task<IActionResult> RegenerateTableToken(Guid id)
     {
@@ -64,6 +68,7 @@ public class TableServiceController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.Tables.Manage")]
     [HttpDelete("tables/{id:guid}")]
     public async Task<IActionResult> DeleteTable(Guid id)
     {
@@ -71,6 +76,7 @@ public class TableServiceController : ControllerBase
         return Ok(new { message = "Mesa eliminada correctamente." });
     }
 
+    [Authorize(Policy = "POS.TableRequests.View")]
     [HttpGet("requests")]
     public async Task<IActionResult> GetRequests([FromQuery] TableServiceRequestStatus? status = null)
     {
@@ -87,6 +93,7 @@ public class TableServiceController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.TableRequests.Update")]
     [HttpPost("requests/{id:guid}/take")]
     public async Task<IActionResult> TakeRequest(Guid id)
     {
@@ -113,6 +120,7 @@ public class TableServiceController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.TableRequests.Update")]
     [HttpPost("requests/{id:guid}/status")]
     public async Task<IActionResult> SetRequestStatus(Guid id, [FromBody] SetStatusBody body)
     {

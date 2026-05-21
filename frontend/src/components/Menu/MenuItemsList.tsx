@@ -1,4 +1,4 @@
-Ôªøimport { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Table, Button, Modal, Form, Input, InputNumber, Select, Switch,
   Popconfirm, Space, Typography, message, Tag, Badge, Tooltip, Alert
@@ -8,10 +8,13 @@ import { menuApi, posApi, taxApi } from '../../services/api';
 import type { MenuItemDto, MenuCategoryDto, CreateMenuItemDto, UpdateMenuItemDto, WorkStationDto, TaxRateDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 import RecipeEditor from './RecipeEditor';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const { Title } = Typography;
 
 export default function MenuItemsList() {
+  const { hasPermission } = useAuth();
   const [items, setItems] = useState<MenuItemDto[]>([]);
   const [categorias, setCategorias] = useState<MenuCategoryDto[]>([]);
   const [estaciones, setEstaciones] = useState<WorkStationDto[]>([]);
@@ -21,6 +24,7 @@ export default function MenuItemsList() {
   const [editing, setEditing] = useState<MenuItemDto | null>(null);
   const [recetaItem, setRecetaItem] = useState<MenuItemDto | null>(null);
   const [form] = Form.useForm();
+  const canManage = hasPermission(PERMISSIONS.menu.itemsManage);
 
   const formPrice = Form.useWatch('price', form) as number | undefined;
   const formTaxRateId = Form.useWatch('taxRateId', form) as string | undefined;
@@ -97,8 +101,8 @@ export default function MenuItemsList() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={5} style={{ margin: 0 }}>√çtems del Men√∫</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>Nuevo √≠tem</Button>
+        <Title level={5} style={{ margin: 0 }}>Õtems del Men˙</Title>
+        {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>Nuevo Ìtem</Button>}
       </div>
 
       <Table
@@ -106,7 +110,7 @@ export default function MenuItemsList() {
         rowKey="id"
         loading={loading}
         size="small"
-        pagination={{ pageSize: 20 }}
+        pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         columns={[
           {
             title: 'Nombre', key: 'nombre',
@@ -118,9 +122,9 @@ export default function MenuItemsList() {
               </Space>
             ),
           },
-          { title: 'C√≥digo', dataIndex: 'internalCode', key: 'codigo', width: 100 },
+          { title: 'CÛdigo', dataIndex: 'internalCode', key: 'codigo', width: 100 },
           {
-            title: 'Categor√≠a', key: 'categoria',
+            title: 'CategorÌa', key: 'categoria',
             render: (_: unknown, item: MenuItemDto) => (
               <Space>
                 {item.categoryColor && <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: item.categoryColor }} />}
@@ -133,18 +137,18 @@ export default function MenuItemsList() {
             render: (v: number) => `$${v.toFixed(2)}`,
           },
           {
-            title: 'Estaci√≥n', key: 'estacion', width: 120,
+            title: 'EstaciÛn', key: 'estacion', width: 120,
             render: (_: unknown, item: MenuItemDto) =>
-              item.stationName ? <Tag>{item.stationName}</Tag> : <span style={{ color: '#999' }}>‚Äî</span>,
+              item.stationName ? <Tag>{item.stationName}</Tag> : <span style={{ color: '#999' }}>ó</span>,
           },
           {
             title: 'IVA', key: 'iva', width: 90,
             render: (_: unknown, item: MenuItemDto) =>
               item.taxRateName
                 ? <Tag color="blue">{item.taxRateName}</Tag>
-                : <span style={{ color: '#999' }}>‚Äî</span>,
+                : <span style={{ color: '#999' }}>ó</span>,
           },
-          {
+          ...(canManage ? [{
             title: 'Receta', key: 'receta', width: 90,
             render: (_: unknown, item: MenuItemDto) => (
               <Tooltip title="Ver/editar receta">
@@ -157,23 +161,23 @@ export default function MenuItemsList() {
                 </Badge>
               </Tooltip>
             ),
-          },
-          {
+          }] : []),
+          ...(canManage ? [{
             title: 'Acciones', key: 'acc', width: 100,
             render: (_: unknown, item: MenuItemDto) => (
               <Space>
                 <Button size="small" icon={<EditOutlined />} onClick={() => openModal(item)} />
-                <Popconfirm title="¬øEliminar?" onConfirm={() => remove(item.id)}>
+                <Popconfirm title="øEliminar?" onConfirm={() => remove(item.id)}>
                   <Button size="small" danger icon={<DeleteOutlined />} />
                 </Popconfirm>
               </Space>
             ),
-          },
+          }] : []),
         ]}
       />
 
       <Modal
-        title={editing ? 'Editar √≠tem del men√∫' : 'Nuevo √≠tem del men√∫'}
+        title={editing ? 'Editar Ìtem del men˙' : 'Nuevo Ìtem del men˙'}
         open={modal}
         onOk={save}
         onCancel={() => setModal(false)}
@@ -182,16 +186,16 @@ export default function MenuItemsList() {
       >
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="Nombre" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="internalCode" label="C√≥digo interno"><Input /></Form.Item>
-          <Form.Item name="description" label="Descripci√≥n"><Input.TextArea rows={2} /></Form.Item>
+          <Form.Item name="internalCode" label="CÛdigo interno"><Input /></Form.Item>
+          <Form.Item name="description" label="DescripciÛn"><Input.TextArea rows={2} /></Form.Item>
           <Space style={{ width: '100%' }} size="middle">
-            <Form.Item name="menuCategoryId" label="Categor√≠a" rules={[{ required: true }]} style={{ flex: 1 }}>
+            <Form.Item name="menuCategoryId" label="CategorÌa" rules={[{ required: true }]} style={{ flex: 1 }}>
               <Select options={categoriaOptions} placeholder="Seleccionar" />
             </Form.Item>
             <Form.Item
               name="price"
               label="Precio ($)"
-              tooltip="Ingresa el precio final al p√∫blico, con IVA incluido. El sistema calcular√° la base imponible autom√°ticamente."
+              tooltip="Ingresa el precio final al p˙blico, con IVA incluido. El sistema calcular· la base imponible autom·ticamente."
               rules={[{ required: true }]}
               style={{ width: 140 }}
             >
@@ -235,14 +239,14 @@ export default function MenuItemsList() {
             <Alert
               type="warning"
               showIcon
-              message="Sin tarifa de IVA seleccionada, el precio completo se tratar√° como base exenta."
+              message="Sin tarifa de IVA seleccionada, el precio completo se tratar· como base exenta."
               style={{ marginBottom: 16, fontSize: 12 }}
             />
           )}
-          <Form.Item name="stationId" label="Estaci√≥n destino">
+          <Form.Item name="stationId" label="EstaciÛn destino">
             <Select
               options={estacionOptions}
-              placeholder="Sin estaci√≥n asignada"
+              placeholder="Sin estaciÛn asignada"
               allowClear
             />
           </Form.Item>

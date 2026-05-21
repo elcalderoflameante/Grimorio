@@ -10,12 +10,15 @@ import type {
   CardBankDto, CreateCardBankDto, UpdateCardBankDto,
 } from '../../types';
 import { paymentMethodsApi } from '../../services/api';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const { Title, Text } = Typography;
 
 const DEFAULT_COLORS = ['#52c41a', '#1677ff', '#722ed1', '#13c2c2', '#fa8c16', '#eb2f96', '#f5222d', '#faad14'];
 
 export default function PaymentMethodsSettings() {
+  const { hasPermission } = useAuth();
   const [methods, setMethods] = useState<PaymentMethodConfigDto[]>([]);
   const [banks, setBanks] = useState<CardBankDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +31,7 @@ export default function PaymentMethodsSettings() {
   const [bankSaving, setBankSaving] = useState(false);
   const [form] = Form.useForm();
   const [bankForm] = Form.useForm();
+  const canManage = hasPermission(PERMISSIONS.billing.paymentMethodsManage);
 
   const loadMethods = async () => {
     setLoading(true);
@@ -172,7 +176,7 @@ export default function PaymentMethodsSettings() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={5} style={{ margin: 0 }}>Medios de pago</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo metodo</Button>
+        {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo metodo</Button>}
       </div>
 
       <Table
@@ -180,11 +184,11 @@ export default function PaymentMethodsSettings() {
         rowKey="id"
         loading={loading}
         size="small"
-        pagination={false}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         columns={[
           {
             title: 'Nombre', key: 'name',
-            render: (_, m) => (
+            render: (_: unknown, m: PaymentMethodConfigDto) => (
               <Space>
                 <span style={{ display: 'inline-block', width: 14, height: 14, borderRadius: '50%', background: m.color, border: '1px solid #d9d9d9' }} />
                 <Text strong>{m.name}</Text>
@@ -195,12 +199,12 @@ export default function PaymentMethodsSettings() {
           },
           {
             title: 'Estado', key: 'status', width: 110,
-            render: (_, m) => <Tag color={m.isActive ? 'success' : 'default'}>{m.isActive ? 'Activo' : 'Inactivo'}</Tag>,
+            render: (_: unknown, m: PaymentMethodConfigDto) => <Tag color={m.isActive ? 'success' : 'default'}>{m.isActive ? 'Activo' : 'Inactivo'}</Tag>,
           },
           { title: 'Orden', dataIndex: 'sortOrder', key: 'sortOrder', width: 80, align: 'center' },
-          {
+          ...(canManage ? [{
             title: '', key: 'actions', width: 90,
-            render: (_, m) => (
+            render: (_: unknown, m: PaymentMethodConfigDto) => (
               <Space>
                 <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(m)} />
                 <Popconfirm
@@ -215,7 +219,7 @@ export default function PaymentMethodsSettings() {
                 </Popconfirm>
               </Space>
             ),
-          },
+          }] : []),
         ]}
       />
 
@@ -223,7 +227,7 @@ export default function PaymentMethodsSettings() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={5} style={{ margin: 0 }}>Bancos para tarjetas</Title>
-        <Button icon={<BankOutlined />} onClick={openCreateBank}>Nuevo banco</Button>
+        {canManage && <Button icon={<BankOutlined />} onClick={openCreateBank}>Nuevo banco</Button>}
       </div>
 
       <Table
@@ -231,7 +235,7 @@ export default function PaymentMethodsSettings() {
         rowKey="id"
         loading={bankLoading}
         size="small"
-        pagination={false}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         columns={[
           { title: 'Banco', dataIndex: 'name', key: 'name', render: (v: string) => <Text strong>{v}</Text> },
           {
@@ -239,9 +243,9 @@ export default function PaymentMethodsSettings() {
             render: (_, b) => <Tag color={b.isActive ? 'success' : 'default'}>{b.isActive ? 'Activo' : 'Inactivo'}</Tag>,
           },
           { title: 'Orden', dataIndex: 'sortOrder', key: 'sortOrder', width: 80, align: 'center' },
-          {
+          ...(canManage ? [{
             title: '', key: 'actions', width: 90,
-            render: (_, b) => (
+            render: (_: unknown, b: CardBankDto) => (
               <Space>
                 <Button size="small" icon={<EditOutlined />} onClick={() => openEditBank(b)} />
                 <Popconfirm
@@ -256,7 +260,7 @@ export default function PaymentMethodsSettings() {
                 </Popconfirm>
               </Space>
             ),
-          },
+          }] : []),
         ]}
       />
 

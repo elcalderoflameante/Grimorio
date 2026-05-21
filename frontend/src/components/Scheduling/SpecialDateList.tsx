@@ -177,7 +177,7 @@ export const SpecialDateList: React.FC<SpecialDateListProps> = ({ branchId }) =>
         dataSource={specialDates}
         rowKey="id"
         loading={loading}
-        pagination={{ pageSize: 20 }}
+        pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         locale={{ emptyText: 'No hay días especiales' }}
       />
 

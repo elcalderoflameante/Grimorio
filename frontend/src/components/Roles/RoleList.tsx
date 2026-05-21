@@ -5,6 +5,8 @@ import type { ColumnsType } from 'antd/es/table';
 import { roleApi, permissionApi } from '../../services/api';
 import type { RoleDto, PermissionDto, CreateRoleDto, UpdateRoleDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 interface RoleFormValues {
   name: string;
@@ -17,6 +19,7 @@ interface AssignFormValues {
 }
 
 export default function RoleList() {
+  const { hasPermission } = useAuth();
   const [roles, setRoles] = useState<RoleDto[]>([]);
   const [permissions, setPermissions] = useState<PermissionDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -26,6 +29,9 @@ export default function RoleList() {
   const [assigningRoleId, setAssigningRoleId] = useState<string | null>(null);
   const [form] = Form.useForm<RoleFormValues>();
   const [assignForm] = Form.useForm<AssignFormValues>();
+  const canCreate = hasPermission(PERMISSIONS.admin.rolesCreate);
+  const canUpdate = hasPermission(PERMISSIONS.admin.rolesUpdate);
+  const canDelete = hasPermission(PERMISSIONS.admin.rolesDelete);
 
   const loadRoles = async () => {
     setLoading(true);
@@ -149,16 +155,16 @@ export default function RoleList() {
       key: 'actions',
       render: (_, record) => (
         <Space>
-          <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} />
-          <Button icon={<LockOutlined />} onClick={() => handleOpenAssign(record)} title="Asignar permisos" />
-          <Popconfirm
+          {canUpdate && <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} />}
+          {canUpdate && <Button icon={<LockOutlined />} onClick={() => handleOpenAssign(record)} title="Asignar permisos" />}
+          {canDelete && <Popconfirm
             title="¿Eliminar rol?"
             onConfirm={() => handleDelete(record.id)}
             okText="Sí"
             cancelText="No"
           >
             <Button icon={<DeleteOutlined />} danger />
-          </Popconfirm>
+          </Popconfirm>}
         </Space>
       ),
     },
@@ -167,7 +173,7 @@ export default function RoleList() {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <Button
+        {canCreate && <Button
           type="primary"
           icon={<PlusOutlined />}
           onClick={() => {
@@ -177,7 +183,7 @@ export default function RoleList() {
           }}
         >
           Nuevo Rol
-        </Button>
+        </Button>}
       </div>
 
       <Table
@@ -185,7 +191,7 @@ export default function RoleList() {
         dataSource={roles}
         loading={loading}
         rowKey="id"
-        pagination={false}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
       />
 
       <Modal

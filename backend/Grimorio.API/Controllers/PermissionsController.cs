@@ -13,7 +13,7 @@ namespace Grimorio.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = "AdminOnly")]
+[Authorize]
 public class PermissionsController : ControllerBase
 {
     private readonly IMediator _mediator;
@@ -22,12 +22,14 @@ public class PermissionsController : ControllerBase
     /// <summary>
     /// Obtiene todos los permisos.
     /// </summary>
+    [Authorize(Policy = "Admin.Permissions.View")]
     [HttpGet]
     public async Task<IActionResult> GetAll() => Ok(await _mediator.Send(new GetPermissionsQuery()));
 
     /// <summary>
     /// Obtiene un permiso por su ID.
     /// </summary>
+    [Authorize(Policy = "Admin.Permissions.View")]
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(Guid id)
     {
@@ -41,6 +43,7 @@ public class PermissionsController : ControllerBase
     /// <summary>
     /// Crea un nuevo permiso.
     /// </summary>
+    [Authorize(Policy = "Admin.Permissions.Manage")]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreatePermissionDto dto)
     {
@@ -62,6 +65,7 @@ public class PermissionsController : ControllerBase
     /// <summary>
     /// Actualiza un permiso existente.
     /// </summary>
+    [Authorize(Policy = "Admin.Permissions.Manage")]
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePermissionDto dto)
     {
@@ -83,6 +87,7 @@ public class PermissionsController : ControllerBase
     /// <summary>
     /// Elimina un permiso.
     /// </summary>
+    [Authorize(Policy = "Admin.Permissions.Manage")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {

@@ -1005,7 +1005,7 @@ export default function EmployeeDetail({ employeeId, onSaved, onCancel }: Employ
                     rowKey="key"
                     loading={payrollRolesLoading}
                     dataSource={payrollRoles}
-                    pagination={{ pageSize: 8 }}
+                    pagination={{ defaultPageSize: 8, showSizeChanger: true, pageSizeOptions: ['8', '16', '32'] }}
                     locale={{ emptyText: 'No hay roles de pago generados para este empleado.' }}
                     columns={[
                       {

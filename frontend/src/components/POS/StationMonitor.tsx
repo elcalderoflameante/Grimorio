@@ -4,6 +4,8 @@ import { CheckOutlined, ReloadOutlined } from '@ant-design/icons';
 import { posApi } from '../../services/api';
 import type { WorkStationDto, OrderItemStatus, StationItemDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const { Title, Text } = Typography;
 
@@ -14,12 +16,14 @@ const TIPO_COLORS: Record<string, string> = {
 };
 
 export default function StationMonitor() {
+  const { hasPermission } = useAuth();
   const [estaciones, setEstaciones] = useState<WorkStationDto[]>([]);
   const [estacionId, setEstacionId] = useState<string | null>(null);
   const [items, setItems] = useState<StationItemDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingItem, setLoadingItem] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const canUpdateKitchen = hasPermission(PERMISSIONS.pos.kitchenUpdate);
 
   useEffect(() => {
     posApi.getStations().then(r => {
@@ -67,7 +71,7 @@ export default function StationMonitor() {
         size="small"
         style={{ borderColor: urgent ? '#ff4d4f' : undefined, background: urgent ? '#fff1f0' : undefined }}
         styles={{ body: { padding: 12 } }}
-        actions={[
+        actions={canUpdateKitchen ? [
           <Button
             key="avanzar"
             type="primary"
@@ -79,7 +83,7 @@ export default function StationMonitor() {
           >
             {item.status === 'Pending' ? 'Iniciar' : 'Marcar listo'}
           </Button>,
-        ]}
+        ] : []}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>

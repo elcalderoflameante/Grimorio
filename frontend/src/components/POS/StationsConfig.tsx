@@ -1,4 +1,4 @@
-ï»¿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Table, Button, Modal, Form, Input, Select, Switch, Popconfirm, Space, Typography, message, Tag } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { posApi } from '../../services/api';
@@ -63,7 +63,7 @@ export default function StationsConfig() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Title level={5} style={{ margin: 0 }}>Estaciones de Trabajo</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>Nueva estaciÃ³n</Button>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>Nueva estación</Button>
       </div>
 
       <Table
@@ -71,7 +71,7 @@ export default function StationsConfig() {
         rowKey="id"
         loading={loading}
         size="small"
-        pagination={false}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         columns={[
           { title: 'Nombre', dataIndex: 'name', key: 'name' },
           {
@@ -87,7 +87,7 @@ export default function StationsConfig() {
             render: (_: unknown, e: WorkStationDto) => (
               <Space>
                 <Button size="small" icon={<EditOutlined />} onClick={() => openModal(e)} />
-                <Popconfirm title="Â¿Eliminar?" onConfirm={() => remove(e.id)}>
+                <Popconfirm title="¿Eliminar?" onConfirm={() => remove(e.id)}>
                   <Button size="small" danger icon={<DeleteOutlined />} />
                 </Popconfirm>
               </Space>
@@ -97,7 +97,7 @@ export default function StationsConfig() {
       />
 
       <Modal
-        title={editing ? 'Editar estaciÃ³n' : 'Nueva estaciÃ³n'}
+        title={editing ? 'Editar estación' : 'Nueva estación'}
         open={modal}
         onOk={save}
         onCancel={() => setModal(false)}

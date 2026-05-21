@@ -18,6 +18,8 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import type { InvoiceTemplateDto, PdfBlock, EmailBlock } from '../../types';
 import { sriApi } from '../../services/api';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -172,6 +174,7 @@ const DEFAULT_TEMPLATE: InvoiceTemplateDto = {
 };
 
 export default function InvoiceTemplateEditor() {
+  const { hasPermission } = useAuth();
   const [template, setTemplate] = useState<InvoiceTemplateDto>(DEFAULT_TEMPLATE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -180,6 +183,7 @@ export default function InvoiceTemplateEditor() {
   const [activeTab, setActiveTab] = useState<'pdf' | 'email'>('pdf');
   const [expandedBlock, setExpandedBlock] = useState<string | null>(null);
   const prevPdfUrl = useRef<string | null>(null);
+  const canManageSri = hasPermission(PERMISSIONS.billing.sriManage);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -430,9 +434,9 @@ export default function InvoiceTemplateEditor() {
         {/* Acciones */}
         <Card size="small">
           <Space>
-            <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSave}>
+            {canManageSri && <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSave}>
               Guardar plantilla
-            </Button>
+            </Button>}
             {activeTab === 'pdf' && (
               <Button icon={<ReloadOutlined />} loading={generatingPdf} onClick={handlePreviewPdf}>
                 Actualizar preview PDF
@@ -453,14 +457,15 @@ export default function InvoiceTemplateEditor() {
                     alt="Logo"
                     style={{ height: 48, maxWidth: 160, objectFit: 'contain', border: '1px solid #f0f0f0', borderRadius: 4, padding: 4 }}
                   />
-                  <Button
+                  {canManageSri && <Button
                     size="small"
                     danger
                     icon={<DeleteOutlined />}
                     onClick={() => setTemplate(t => ({ ...t, logoBase64: undefined }))}
-                  />
+                  />}
                 </div>
               ) : (
+                canManageSri && (
                 <Upload
                   accept="image/png,image/jpeg,image/svg+xml"
                   showUploadList={false}
@@ -469,6 +474,7 @@ export default function InvoiceTemplateEditor() {
                 >
                   <Button size="small" icon={<FileImageOutlined />}>Subir logo (PNG/JPG/SVG)</Button>
                 </Upload>
+                )
               )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

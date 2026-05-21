@@ -3,6 +3,8 @@ import { Table, Button, Space, Tag, Modal, Form, Input, Select, Popconfirm, mess
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto } from '../../types';
 import { customersApi } from '../../services/api';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const { Title } = Typography;
 
@@ -18,12 +20,14 @@ const TAX_LABELS: Record<string, string> = {
 };
 
 export default function CustomersList() {
+  const { hasPermission } = useAuth();
   const [customers, setCustomers] = useState<CustomerDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<CustomerDto | null>(null);
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
+  const canManage = hasPermission(PERMISSIONS.billing.customersManage);
 
   const load = async () => {
     setLoading(true);
@@ -87,7 +91,7 @@ export default function CustomersList() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={5} style={{ margin: 0 }}>Clientes</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo</Button>
+        {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo</Button>}
       </div>
 
       <Table
@@ -95,6 +99,7 @@ export default function CustomersList() {
         loading={loading}
         dataSource={customers}
         rowKey="id"
+        pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         columns={[
           { title: 'Nombre', dataIndex: 'name', sorter: (a, b) => a.name.localeCompare(b.name) },
           { title: 'Tipo ID', dataIndex: 'taxIdType', width: 120, render: t => TAX_LABELS[t] ?? t },
@@ -105,9 +110,9 @@ export default function CustomersList() {
             title: 'Estado', dataIndex: 'isActive', width: 90,
             render: v => <Tag color={v ? 'green' : 'default'}>{v ? 'Activo' : 'Inactivo'}</Tag>,
           },
-          {
+          ...(canManage ? [{
             title: '', width: 80,
-            render: (_, r) => (
+            render: (_: unknown, r: CustomerDto) => (
               <Space>
                 <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
                 <Popconfirm title="¿Eliminar cliente?" onConfirm={() => handleDelete(r.id)}>
@@ -115,7 +120,7 @@ export default function CustomersList() {
                 </Popconfirm>
               </Space>
             ),
-          },
+          }] : []),
         ]}
       />
 

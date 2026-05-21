@@ -50,11 +50,11 @@ public class Role : BaseEntity
 
 /// <summary>
 /// Entidad de permiso del sistema.
-/// Los permisos son strings basados (e.g., "POS.Sell", "Inventory.Adjust").
+/// Los permisos son strings basados (e.g., "POS.Orders.Create", "Inventory.Movements.Create").
 /// </summary>
 public class Permission : BaseEntity
 {
-    public string Code { get; set; } = string.Empty; // e.g., "POS.Sell"
+    public string Code { get; set; } = string.Empty; // e.g., "POS.Orders.Create"
     public string Description { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty; // e.g., "POS", "Inventory", "Cash"
     public bool IsActive { get; set; } = true;

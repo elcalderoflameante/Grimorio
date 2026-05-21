@@ -24,6 +24,7 @@ public class SriController : ControllerBase
 
     // ── Configuración del emisor ──────────────────────────────────────────────
 
+    [Authorize(Policy = "Billing.Sri.View")]
     [HttpGet("config")]
     public async Task<IActionResult> GetConfig()
     {
@@ -32,6 +33,7 @@ public class SriController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Billing.Sri.Manage")]
     [HttpPut("config")]
     public async Task<IActionResult> UpsertConfig([FromBody] BranchTaxConfigDto dto)
     {
@@ -55,6 +57,7 @@ public class SriController : ControllerBase
 
     // ── Certificado .p12 ──────────────────────────────────────────────────────
 
+    [Authorize(Policy = "Billing.Sri.View")]
     [HttpGet("certificado/estado")]
     public async Task<IActionResult> GetCertificateStatus()
     {
@@ -63,6 +66,7 @@ public class SriController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Billing.Sri.Manage")]
     [HttpPost("certificado")]
     [RequestSizeLimit(5 * 1024 * 1024)]  // máximo 5 MB
     public async Task<IActionResult> UploadCertificate(
@@ -97,6 +101,7 @@ public class SriController : ControllerBase
         }
     }
 
+    [Authorize(Policy = "Billing.Sri.Manage")]
     [HttpDelete("certificado")]
     public async Task<IActionResult> DeleteCertificate()
     {
@@ -107,6 +112,7 @@ public class SriController : ControllerBase
 
     // ── Documentos electrónicos ───────────────────────────────────────────────
 
+    [Authorize(Policy = "Billing.Sri.View")]
     [HttpGet("documentos")]
     public async Task<IActionResult> GetDocuments(
         [FromQuery] DateTime? desde, [FromQuery] DateTime? hasta,
@@ -121,6 +127,7 @@ public class SriController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Billing.Sri.View")]
     [HttpGet("documentos/{id:guid}")]
     public async Task<IActionResult> GetDocument(Guid id)
     {
@@ -129,6 +136,7 @@ public class SriController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
+    [Authorize(Policy = "Billing.Sri.Generate")]
     [HttpPost("documentos/generar/{orderPaymentId:guid}")]
     public async Task<IActionResult> GenerateInvoice(Guid orderPaymentId)
     {
@@ -146,6 +154,7 @@ public class SriController : ControllerBase
         catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
     }
 
+    [Authorize(Policy = "Billing.Sri.Generate")]
     [HttpPost("documentos/{id:guid}/reintentar")]
     public async Task<IActionResult> RetryInvoice(Guid id)
     {
@@ -159,6 +168,7 @@ public class SriController : ControllerBase
         catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
     }
 
+    [Authorize(Policy = "Billing.Sri.View")]
     [HttpGet("documentos/{id:guid}/ride")]
     public async Task<IActionResult> DownloadRide(Guid id)
     {
@@ -171,6 +181,7 @@ public class SriController : ControllerBase
         return File(rawDoc.RidePdf, "application/pdf", $"RIDE-{doc.NumeroFactura}.pdf");
     }
 
+    [Authorize(Policy = "Billing.Sri.View")]
     [HttpGet("documentos/{id:guid}/respuesta-sri")]
     public async Task<IActionResult> DownloadRespuestaSri(Guid id)
     {
@@ -182,6 +193,7 @@ public class SriController : ControllerBase
         return File(bytes, "application/xml", $"RespuestaSRI-{rawDoc.NumeroFactura}.xml");
     }
 
+    [Authorize(Policy = "Billing.Sri.View")]
     [HttpGet("documentos/{id:guid}/xml")]
     public async Task<IActionResult> DownloadXml(Guid id)
     {
@@ -196,6 +208,7 @@ public class SriController : ControllerBase
 
     // ── Configuración SMTP ────────────────────────────────────────────────────
 
+    [Authorize(Policy = "Billing.Sri.View")]
     [HttpGet("smtp")]
     public async Task<IActionResult> GetSmtpConfig()
     {
@@ -204,6 +217,7 @@ public class SriController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
+    [Authorize(Policy = "Billing.Sri.Manage")]
     [HttpPut("smtp")]
     public async Task<IActionResult> UpsertSmtpConfig([FromBody] UpsertSmtpConfigDto dto)
     {
@@ -218,6 +232,7 @@ public class SriController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Billing.Sri.Manage")]
     [HttpPost("smtp/test")]
     public async Task<IActionResult> TestSmtpConnection([FromQuery] string toEmail)
     {
@@ -236,6 +251,7 @@ public class SriController : ControllerBase
 
     // ── Prueba de conectividad con el SRI ─────────────────────────────────────
 
+    [Authorize(Policy = "Billing.Sri.View")]
     [HttpPost("ping")]
     public async Task<IActionResult> Ping([FromQuery] string ambiente = "1")
     {
@@ -270,6 +286,7 @@ public class SriController : ControllerBase
 
     // ── Plantilla de factura ──────────────────────────────────────────────────
 
+    [Authorize(Policy = "Billing.Sri.View")]
     [HttpGet("invoice-template")]
     public async Task<IActionResult> GetInvoiceTemplate()
     {
@@ -278,6 +295,7 @@ public class SriController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Billing.Sri.Manage")]
     [HttpPut("invoice-template")]
     [RequestSizeLimit(3 * 1024 * 1024)]  // 3 MB (cubre logos en base64)
     public async Task<IActionResult> UpsertInvoiceTemplate([FromBody] UpsertInvoiceTemplateDto dto)
@@ -298,6 +316,7 @@ public class SriController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Billing.Sri.View")]
     [HttpPost("invoice-template/preview-pdf")]
     [RequestSizeLimit(3 * 1024 * 1024)]
     public async Task<IActionResult> PreviewInvoicePdf([FromBody] UpsertInvoiceTemplateDto dto)

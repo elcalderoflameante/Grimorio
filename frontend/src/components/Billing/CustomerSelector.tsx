@@ -3,6 +3,8 @@ import { Select, Button, Modal, Form, Input, Space, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import type { CustomerDto, CreateCustomerDto } from '../../types';
 import { customersApi } from '../../services/api';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const TAX_ID_TYPES = [
   { value: 'Cedula', label: 'Cédula' },
@@ -18,11 +20,13 @@ interface Props {
 }
 
 export default function CustomerSelector({ value, onChange }: Props) {
+  const { hasPermission } = useAuth();
   const [customers, setCustomers] = useState<CustomerDto[]>([]);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [createForm] = Form.useForm();
   const [saving, setSaving] = useState(false);
+  const canManageCustomers = hasPermission(PERMISSIONS.billing.customersManage);
 
   useEffect(() => {
     customersApi.getAll({ activeOnly: true, search: search || undefined })
@@ -64,13 +68,13 @@ export default function CustomerSelector({ value, onChange }: Props) {
             value: c.id,
             label: `${c.name}${c.taxId ? ` — ${c.taxId}` : ''}`,
           }))}
-          notFoundContent={
+          notFoundContent={canManageCustomers ? (
             <Button type="link" icon={<PlusOutlined />} onClick={() => setShowCreate(true)}>
               Crear cliente
             </Button>
-          }
+          ) : null}
         />
-        <Button icon={<PlusOutlined />} onClick={() => setShowCreate(true)} title="Nuevo cliente" />
+        {canManageCustomers && <Button icon={<PlusOutlined />} onClick={() => setShowCreate(true)} title="Nuevo cliente" />}
       </Space.Compact>
 
       <Modal

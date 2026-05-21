@@ -26,6 +26,7 @@ public class PosController : ControllerBase
 
     // ── Estaciones ──────────────────────────────────────────────────────────
 
+    [Authorize(Policy = "POS.Stations.View")]
     [HttpGet("estaciones")]
     public async Task<IActionResult> GetStations()
     {
@@ -34,6 +35,7 @@ public class PosController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.Stations.Manage")]
     [HttpPost("estaciones")]
     public async Task<IActionResult> CreateStation([FromBody] CreateWorkStationDto dto)
     {
@@ -47,6 +49,7 @@ public class PosController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.Stations.Manage")]
     [HttpPut("estaciones/{id:guid}")]
     public async Task<IActionResult> UpdateStation(Guid id, [FromBody] UpdateWorkStationDto dto)
     {
@@ -62,6 +65,7 @@ public class PosController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.Stations.Manage")]
     [HttpDelete("estaciones/{id:guid}")]
     public async Task<IActionResult> DeleteStation(Guid id)
     {
@@ -72,6 +76,7 @@ public class PosController : ControllerBase
 
     // ── Posición de mesas ───────────────────────────────────────────────────
 
+    [Authorize(Policy = "POS.Tables.Manage")]
     [HttpPatch("tables/{id:guid}/position")]
     public async Task<IActionResult> UpdateTablePosition(Guid id, [FromBody] UpdateTablePositionDto dto)
     {
@@ -81,6 +86,7 @@ public class PosController : ControllerBase
 
     // ── Órdenes ─────────────────────────────────────────────────────────────
 
+    [Authorize(Policy = "POS.Orders.View")]
     [HttpGet("ordenes")]
     public async Task<IActionResult> GetOrders(
         [FromQuery] string? status = null,
@@ -100,6 +106,7 @@ public class PosController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.Orders.View")]
     [HttpGet("ordenes/activas/resumen")]
     public async Task<IActionResult> GetActiveOrderSummaries()
     {
@@ -107,6 +114,7 @@ public class PosController : ControllerBase
         return Ok(await _mediator.Send(new GetActiveOrderSummariesQuery { BranchId = branchId }));
     }
 
+    [Authorize(Policy = "POS.Orders.View")]
     [HttpGet("ordenes/{id:guid}")]
     public async Task<IActionResult> GetOrder(Guid id)
     {
@@ -116,6 +124,7 @@ public class PosController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.Orders.Create")]
     [HttpPost("ordenes")]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderDto dto)
     {
@@ -136,6 +145,7 @@ public class PosController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.Orders.Update")]
     [HttpPut("ordenes/{id:guid}/items")]
     public async Task<IActionResult> UpdateItems(Guid id, [FromBody] UpdateOrderItemsDto dto)
     {
@@ -180,6 +190,7 @@ public class PosController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.Orders.Update")]
     [HttpPost("ordenes/{id:guid}/confirmar")]
     public async Task<IActionResult> ConfirmOrder(Guid id)
     {
@@ -219,6 +230,7 @@ public class PosController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.Orders.Update")]
     [HttpPost("ordenes/{id:guid}/entregar")]
     public async Task<IActionResult> DeliverOrder(Guid id)
     {
@@ -227,6 +239,7 @@ public class PosController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.Orders.Cancel")]
     [HttpPost("ordenes/{id:guid}/cancelar")]
     public async Task<IActionResult> CancelOrder(Guid id)
     {
@@ -241,6 +254,7 @@ public class PosController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.Kitchen.Update")]
     [HttpPatch("orden-items/{id:guid}/estado")]
     public async Task<IActionResult> SetItemEstado(Guid id, [FromBody] SetItemEstadoBody body)
     {
@@ -270,6 +284,7 @@ public class PosController : ControllerBase
 
     // ── Monitor de estación ─────────────────────────────────────────────────
 
+    [Authorize(Policy = "POS.Kitchen.View")]
     [HttpGet("estaciones/{id:guid}/items")]
     public async Task<IActionResult> GetStationItems(Guid id)
     {
@@ -278,6 +293,7 @@ public class PosController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.Kitchen.View")]
     [HttpGet("estaciones/{id:guid}/completados")]
     public async Task<IActionResult> GetCompletedStationItems(Guid id, [FromQuery] DateOnly? date = null)
     {

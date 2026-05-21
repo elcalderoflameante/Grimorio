@@ -289,7 +289,7 @@ export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
               dataSource={group.templates}
               rowKey="id"
               loading={loading}
-              pagination={false}
+              pagination={{ defaultPageSize: 8, showSizeChanger: true, pageSizeOptions: ['8', '16', '32'] }}
               size="small"
             />
           ) : (

@@ -5,6 +5,8 @@ import type { ColumnsType } from 'antd/es/table';
 import { permissionApi } from '../../services/api';
 import type { PermissionDto, CreatePermissionDto, UpdatePermissionDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 interface PermissionFormValues {
   code: string;
@@ -13,11 +15,13 @@ interface PermissionFormValues {
 }
 
 export default function PermissionList() {
+  const { hasPermission } = useAuth();
   const [permissions, setPermissions] = useState<PermissionDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form] = Form.useForm<PermissionFormValues>();
+  const canManage = hasPermission(PERMISSIONS.admin.permissionsManage);
 
   const loadPermissions = async () => {
     setLoading(true);
@@ -96,15 +100,15 @@ export default function PermissionList() {
       key: 'actions',
       render: (_, record) => (
         <Space>
-          <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} />
-          <Popconfirm
+          {canManage && <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} />}
+          {canManage && <Popconfirm
             title="¿Eliminar permiso?"
             onConfirm={() => handleDelete(record.id)}
             okText="Sí"
             cancelText="No"
           >
             <Button icon={<DeleteOutlined />} danger />
-          </Popconfirm>
+          </Popconfirm>}
         </Space>
       ),
     },
@@ -113,7 +117,7 @@ export default function PermissionList() {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <Button
+        {canManage && <Button
           type="primary"
           icon={<PlusOutlined />}
           onClick={() => {
@@ -123,7 +127,7 @@ export default function PermissionList() {
           }}
         >
           Nuevo Permiso
-        </Button>
+        </Button>}
       </div>
 
       <Table
@@ -131,7 +135,7 @@ export default function PermissionList() {
         dataSource={permissions}
         loading={loading}
         rowKey="id"
-        pagination={false}
+        pagination={{ defaultPageSize: 15, showSizeChanger: true, pageSizeOptions: ['15', '30', '60'] }}
       />
 
       <Modal
@@ -146,7 +150,7 @@ export default function PermissionList() {
             name="code"
             rules={[{ required: true, message: 'El código es requerido' }]}
           >
-            <Input disabled={!!editingId} placeholder="ej: Admin.ManageUsers" />
+            <Input disabled={!!editingId} placeholder="ej: Admin.Users.Update" />
           </Form.Item>
 
           <Form.Item

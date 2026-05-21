@@ -16,6 +16,7 @@ public class CustomersController : ControllerBase
     private readonly IMediator _mediator;
     public CustomersController(IMediator mediator) => _mediator = mediator;
 
+    [Authorize(Policy = "Billing.Customers.View")]
     [HttpGet]
     public async Task<IActionResult> GetCustomers([FromQuery] bool? activeOnly, [FromQuery] string? search)
     {
@@ -23,6 +24,7 @@ public class CustomersController : ControllerBase
         return Ok(await _mediator.Send(new GetCustomersQuery { BranchId = branchId, ActiveOnly = activeOnly, Search = search }));
     }
 
+    [Authorize(Policy = "Billing.Customers.Manage")]
     [HttpPost]
     public async Task<IActionResult> CreateCustomer([FromBody] CreateCustomerDto dto)
     {
@@ -36,6 +38,7 @@ public class CustomersController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Billing.Customers.Manage")]
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> UpdateCustomer(Guid id, [FromBody] UpdateCustomerDto dto)
     {
@@ -49,6 +52,7 @@ public class CustomersController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Billing.Customers.Manage")]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteCustomer(Guid id)
     {
