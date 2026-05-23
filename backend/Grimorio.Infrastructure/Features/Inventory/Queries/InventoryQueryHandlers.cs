@@ -73,9 +73,9 @@ public class GetInventoryArticlesHandler : IRequestHandler<GetInventoryArticlesQ
     public async Task<List<InventoryArticleDto>> Handle(GetInventoryArticlesQuery req, CancellationToken ct)
     {
         var query = _db.InventoryArticles
+            .AsNoTracking()
             .Include(x => x.Category)
             .Include(x => x.BaseUnit)
-            .Include(x => x.Stocks.Where(s => !s.IsDeleted && s.BranchId == req.BranchId))
             .Where(x => x.BranchId == req.BranchId);
 
         if (req.ActiveOnly == true) query = query.Where(x => x.IsActive);
@@ -84,12 +84,21 @@ public class GetInventoryArticlesHandler : IRequestHandler<GetInventoryArticlesQ
         if (req.CategoryId.HasValue) query = query.Where(x => x.CategoryId == req.CategoryId.Value);
 
         var articles = await query.OrderBy(x => x.Name).ToListAsync(ct);
-        return articles.Select(MapArticulo).ToList();
+        var articleIds = articles.Select(x => x.Id).ToList();
+        var stockByArticle = articleIds.Count == 0
+            ? new Dictionary<Guid, decimal>()
+            : await _db.StockMovements
+                .AsNoTracking()
+                .Where(x => x.BranchId == req.BranchId && articleIds.Contains(x.ArticleId))
+                .GroupBy(x => x.ArticleId)
+                .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.BaseQuantity) })
+                .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, ct);
+
+        return articles.Select(x => MapArticulo(x, stockByArticle.GetValueOrDefault(x.Id))).ToList();
     }
 
-    internal static InventoryArticleDto MapArticulo(InventoryArticle x)
+    internal static InventoryArticleDto MapArticulo(InventoryArticle x, decimal stockTotal = 0)
     {
-        var stockTotal = x.Stocks.Where(s => !s.IsDeleted).Sum(s => s.Quantity);
         return new InventoryArticleDto
         {
             Id = x.Id,
@@ -122,9 +131,15 @@ public class GetInventoryArticleHandler : IRequestHandler<GetInventoryArticleQue
         var x = await _db.InventoryArticles
             .Include(a => a.Category)
             .Include(a => a.BaseUnit)
-            .Include(a => a.Stocks.Where(s => !s.IsDeleted && s.BranchId == req.BranchId))
             .FirstOrDefaultAsync(a => a.Id == req.Id && a.BranchId == req.BranchId, ct);
-        return x is null ? null : GetInventoryArticlesHandler.MapArticulo(x);
+        if (x is null) return null;
+
+        var stockTotal = await _db.StockMovements
+            .AsNoTracking()
+            .Where(m => m.BranchId == req.BranchId && m.ArticleId == req.Id)
+            .SumAsync(m => m.BaseQuantity, ct);
+
+        return GetInventoryArticlesHandler.MapArticulo(x, stockTotal);
     }
 }
 
@@ -154,29 +169,47 @@ public class GetCurrentStockHandler : IRequestHandler<GetCurrentStockQuery, List
 
     public async Task<List<WarehouseStockDto>> Handle(GetCurrentStockQuery req, CancellationToken ct)
     {
-        // Parte de artículos para mostrar también los que tienen stock 0 (sin movimientos aún)
         var articlesQuery = _db.InventoryArticles
             .AsNoTracking()
             .Include(a => a.Category)
             .Include(a => a.BaseUnit)
-            .Include(a => a.Stocks.Where(s => !s.IsDeleted && s.BranchId == req.BranchId))
-                .ThenInclude(s => s.Warehouse)
             .Where(a => a.BranchId == req.BranchId && a.IsActive);
 
         if (req.CategoryId.HasValue)
             articlesQuery = articlesQuery.Where(a => a.CategoryId == req.CategoryId.Value);
 
         var articles = await articlesQuery.ToListAsync(ct);
+        var articleIds = articles.Select(a => a.Id).ToList();
+        var stockQuery = _db.StockMovements
+            .AsNoTracking()
+            .Include(m => m.Warehouse)
+            .Where(m => m.BranchId == req.BranchId && articleIds.Contains(m.ArticleId));
+
+        if (req.WarehouseId.HasValue)
+            stockQuery = stockQuery.Where(m => m.WarehouseId == req.WarehouseId.Value);
+
+        var stockByArticleWarehouse = articleIds.Count == 0
+            ? []
+            : await stockQuery
+                .GroupBy(m => new { m.ArticleId, m.WarehouseId, WarehouseName = m.Warehouse!.Name })
+                .Select(g => new
+                {
+                    g.Key.ArticleId,
+                    g.Key.WarehouseId,
+                    g.Key.WarehouseName,
+                    Quantity = g.Sum(m => m.BaseQuantity),
+                    LastUpdatedAt = g.Max(m => m.CreatedAt),
+                })
+                .ToListAsync(ct);
 
         var result = new List<WarehouseStockDto>();
 
         foreach (var a in articles)
         {
-            var stocks = a.Stocks.Where(s => !s.IsDeleted && s.BranchId == req.BranchId).ToList();
+            var stocks = stockByArticleWarehouse.Where(s => s.ArticleId == a.Id).ToList();
 
             if (!stocks.Any())
             {
-                // Artículo sin movimientos: aparece con stock 0 y sin bodega asignada
                 if (!req.WarehouseId.HasValue)
                 {
                     result.Add(new WarehouseStockDto
@@ -211,7 +244,7 @@ public class GetCurrentStockHandler : IRequestHandler<GetCurrentStockQuery, List
                         CategoryColor = a.Category?.Color,
                         Type = a.Type.ToString(),
                         WarehouseId = s.WarehouseId,
-                        WarehouseName = s.Warehouse?.Name ?? string.Empty,
+                        WarehouseName = s.WarehouseName,
                         Quantity = s.Quantity,
                         UnitSymbol = a.BaseUnit?.Symbol ?? string.Empty,
                         MinStock = a.MinStock,
@@ -277,18 +310,18 @@ public class GetStockAlertsHandler : IRequestHandler<GetStockAlertsQuery, List<S
 
     public async Task<List<StockAlertDto>> Handle(GetStockAlertsQuery req, CancellationToken ct)
     {
-        var stocks = await _db.WarehouseStock
+        var stocks = await _db.StockMovements
             .AsNoTracking()
             .Where(x => x.BranchId == req.BranchId && x.Article!.StockAlertActive && x.Article.IsActive)
             .GroupBy(x => new { x.ArticleId, x.Article!.Name, x.Article.InternalCode, x.Article.MinStock, Symbol = x.Article.BaseUnit!.Symbol })
-            .Where(g => g.Sum(s => s.Quantity) <= g.Key.MinStock)
+            .Where(g => g.Sum(s => s.BaseQuantity) <= g.Key.MinStock)
             .Select(g => new StockAlertDto
             {
                 ArticleId = g.Key.ArticleId,
                 ArticleName = g.Key.Name,
                 InternalCode = g.Key.InternalCode,
                 UnitSymbol = g.Key.Symbol,
-                CurrentStock = g.Sum(s => s.Quantity),
+                CurrentStock = g.Sum(s => s.BaseQuantity),
                 MinStock = g.Key.MinStock,
             })
             .ToListAsync(ct);
