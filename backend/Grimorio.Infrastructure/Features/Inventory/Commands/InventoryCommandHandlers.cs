@@ -353,7 +353,21 @@ public class RegisterMovementHandler : IRequestHandler<RegisterMovementCommand, 
 
         var effectiveQuantity = isExit ? -Math.Abs(baseQuantity) : Math.Abs(baseQuantity);
 
-        // Actualizar o crear WarehouseStock
+        var movement = new StockMovement
+        {
+            Id = Guid.NewGuid(), BranchId = req.BranchId,
+            ArticleId = req.ArticleId, WarehouseId = req.WarehouseId,
+            Type = req.Type, Quantity = req.Quantity, UnitId = req.UnitId,
+            BaseQuantity = effectiveQuantity, Reference = req.Reference?.Trim(), Notes = req.Notes?.Trim(),
+        };
+        _db.StockMovements.Add(movement);
+        await _db.SaveChangesAsync(ct);
+
+        // Recalcular stock real desde todos los movimientos (corrige divergencias históricas)
+        var trueStock = await _db.StockMovements
+            .Where(m => m.BranchId == req.BranchId && m.ArticleId == req.ArticleId && m.WarehouseId == req.WarehouseId)
+            .SumAsync(m => m.BaseQuantity, ct);
+
         var stock = await _db.WarehouseStock.FirstOrDefaultAsync(
             x => x.BranchId == req.BranchId && x.ArticleId == req.ArticleId && x.WarehouseId == req.WarehouseId, ct);
 
@@ -363,24 +377,15 @@ public class RegisterMovementHandler : IRequestHandler<RegisterMovementCommand, 
             {
                 Id = Guid.NewGuid(), BranchId = req.BranchId,
                 ArticleId = req.ArticleId, WarehouseId = req.WarehouseId,
-                Quantity = effectiveQuantity, LastUpdatedAt = DateTime.UtcNow,
+                Quantity = trueStock, LastUpdatedAt = DateTime.UtcNow,
             };
             _db.WarehouseStock.Add(stock);
         }
         else
         {
-            stock.Quantity += effectiveQuantity;
+            stock.Quantity = trueStock;
             stock.LastUpdatedAt = DateTime.UtcNow;
         }
-
-        var movement = new StockMovement
-        {
-            Id = Guid.NewGuid(), BranchId = req.BranchId,
-            ArticleId = req.ArticleId, WarehouseId = req.WarehouseId,
-            Type = req.Type, Quantity = req.Quantity, UnitId = req.UnitId,
-            BaseQuantity = effectiveQuantity, Reference = req.Reference?.Trim(), Notes = req.Notes?.Trim(),
-        };
-        _db.StockMovements.Add(movement);
         await _db.SaveChangesAsync(ct);
 
         return new StockMovementDto
