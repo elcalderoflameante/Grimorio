@@ -60,7 +60,7 @@ export default function ArticlesList() {
       setUnidades(u.data);
     } catch (e) {
       message.error(formatError(e));
-      // Si falla la carga de artículos, igual cargamos los catálogos para el formulario
+      // Si falla la carga de artÃ­culos, igual cargamos los catÃ¡logos para el formulario
       try { await loadCatalogos(); } catch { /* silencioso */ }
     } finally {
       setLoading(false);
@@ -87,7 +87,7 @@ export default function ArticlesList() {
       form.resetFields();
       form.setFieldsValue({ stockAlertActive: true, isActive: true, type: 'Ingredient', minStock: 0 });
     }
-    // Siempre recarga catálogos al abrir el modal para evitar datos stale
+    // Siempre recarga catÃ¡logos al abrir el modal para evitar datos stale
     try { await loadCatalogos(); } catch { /* silencioso */ }
     setModal(true);
   };
@@ -121,10 +121,10 @@ export default function ArticlesList() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={5} style={{ margin: 0 }}>Artículos</Title>
+        <Title level={5} style={{ margin: 0 }}>ArtÃ­culos</Title>
         {canManage && (
           <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
-            Nuevo artículo
+            Nuevo artÃ­culo
           </Button>
         )}
       </div>
@@ -146,12 +146,12 @@ export default function ArticlesList() {
               </Space>
             ),
           },
-          { title: 'Código', dataIndex: 'internalCode', key: 'internalCode' },
+          { title: 'CÃ³digo', dataIndex: 'internalCode', key: 'internalCode' },
           {
             title: 'Tipo', dataIndex: 'type', key: 'tipo',
             render: (v: ArticleType) => <Tag color={TIPO_COLOR[v]}>{v}</Tag>,
           },
-          { title: 'Categoría', dataIndex: 'categoryName', key: 'categoryName' },
+          { title: 'CategorÃ­a', dataIndex: 'categoryName', key: 'categoryName' },
           {
             title: 'Stock', key: 'stock',
             render: (_: unknown, a: InventoryArticleDto) => (
@@ -162,7 +162,7 @@ export default function ArticlesList() {
             ),
           },
           {
-            title: 'Stock mín.', key: 'stockMin',
+            title: 'Stock mÃ­n.', key: 'stockMin',
             render: (_: unknown, a: InventoryArticleDto) => `${a.minStock} ${a.baseUnitSymbol}`,
           },
           ...(canManage ? [{
@@ -170,7 +170,7 @@ export default function ArticlesList() {
             render: (_: unknown, a: InventoryArticleDto) => (
               <Space>
                 <Button size="small" icon={<EditOutlined />} onClick={() => openModal(a)} />
-                <Popconfirm title="¿Eliminar?" onConfirm={() => remove(a.id)}>
+                <Popconfirm title="Â¿Eliminar?" onConfirm={() => remove(a.id)}>
                   <Button size="small" danger icon={<DeleteOutlined />} />
                 </Popconfirm>
               </Space>
@@ -180,7 +180,7 @@ export default function ArticlesList() {
       />
 
       <Modal
-        title={editing ? 'Editar artículo' : 'Nuevo artículo'}
+        title={editing ? 'Editar artÃ­culo' : 'Nuevo artÃ­culo'}
         open={modal}
         onOk={save}
         onCancel={() => setModal(false)}
@@ -191,10 +191,10 @@ export default function ArticlesList() {
           <Form.Item name="name" label="Nombre" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="internalCode" label="Código interno">
+          <Form.Item name="internalCode" label="CÃ³digo interno">
             <Input />
           </Form.Item>
-          <Form.Item name="description" label="Descripción">
+          <Form.Item name="description" label="DescripciÃ³n">
             <Input.TextArea rows={2} />
           </Form.Item>
           <Row gutter={12}>
@@ -204,7 +204,7 @@ export default function ArticlesList() {
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="categoryId" label="Categoría" rules={[{ required: true }]}>
+              <Form.Item name="categoryId" label="CategorÃ­a" rules={[{ required: true }]}>
                 <Select
                   options={categorias.map(c => ({ label: c.name, value: c.id }))}
                   placeholder="Seleccionar"
@@ -224,7 +224,7 @@ export default function ArticlesList() {
           </Row>
           <Row gutter={12} align="bottom">
             <Col span={12}>
-              <Form.Item name="minStock" label="Stock mínimo">
+              <Form.Item name="minStock" label="Stock mÃ­nimo">
                 <InputNumber style={{ width: '100%' }} min={0} />
               </Form.Item>
             </Col>

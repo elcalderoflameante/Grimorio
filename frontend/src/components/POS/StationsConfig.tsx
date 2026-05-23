@@ -63,7 +63,7 @@ export default function StationsConfig() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Title level={5} style={{ margin: 0 }}>Estaciones de Trabajo</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>Nueva estación</Button>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>Nueva estaciÃ³n</Button>
       </div>
 
       <Table
@@ -87,7 +87,7 @@ export default function StationsConfig() {
             render: (_: unknown, e: WorkStationDto) => (
               <Space>
                 <Button size="small" icon={<EditOutlined />} onClick={() => openModal(e)} />
-                <Popconfirm title="¿Eliminar?" onConfirm={() => remove(e.id)}>
+                <Popconfirm title="Â¿Eliminar?" onConfirm={() => remove(e.id)}>
                   <Button size="small" danger icon={<DeleteOutlined />} />
                 </Popconfirm>
               </Space>
@@ -97,7 +97,7 @@ export default function StationsConfig() {
       />
 
       <Modal
-        title={editing ? 'Editar estación' : 'Nueva estación'}
+        title={editing ? 'Editar estaciÃ³n' : 'Nueva estaciÃ³n'}
         open={modal}
         onOk={save}
         onCancel={() => setModal(false)}

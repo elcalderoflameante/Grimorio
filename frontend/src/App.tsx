@@ -5,6 +5,7 @@ import { useAuth } from './context/useAuth';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import PublicTableRequest from './pages/PublicTableRequest';
+import { grimorioAppTheme } from './theme/grimorioTheme';
 import type { ReactNode } from 'react';
 
 interface ProtectedRouteProps {
@@ -37,7 +38,7 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
 
 export default function App() {
   return (
-    <ConfigProvider locale={esES}>
+    <ConfigProvider locale={esES} theme={grimorioAppTheme}>
       <AntApp>
       <BrowserRouter>
         <Routes>

@@ -101,8 +101,8 @@ export default function MenuItemsList() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={5} style={{ margin: 0 }}>Õtems del Men˙</Title>
-        {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>Nuevo Ìtem</Button>}
+        <Title level={5} style={{ margin: 0 }}>√çtems del Men√∫</Title>
+        {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>Nuevo √≠tem</Button>}
       </div>
 
       <Table
@@ -122,9 +122,9 @@ export default function MenuItemsList() {
               </Space>
             ),
           },
-          { title: 'CÛdigo', dataIndex: 'internalCode', key: 'codigo', width: 100 },
+          { title: 'C√≥digo', dataIndex: 'internalCode', key: 'codigo', width: 100 },
           {
-            title: 'CategorÌa', key: 'categoria',
+            title: 'Categor√≠a', key: 'categoria',
             render: (_: unknown, item: MenuItemDto) => (
               <Space>
                 {item.categoryColor && <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: item.categoryColor }} />}
@@ -137,16 +137,16 @@ export default function MenuItemsList() {
             render: (v: number) => `$${v.toFixed(2)}`,
           },
           {
-            title: 'EstaciÛn', key: 'estacion', width: 120,
+            title: 'Estaci√≥n', key: 'estacion', width: 120,
             render: (_: unknown, item: MenuItemDto) =>
-              item.stationName ? <Tag>{item.stationName}</Tag> : <span style={{ color: '#999' }}>ó</span>,
+              item.stationName ? <Tag>{item.stationName}</Tag> : <span style={{ color: '#999' }}>‚Äî</span>,
           },
           {
             title: 'IVA', key: 'iva', width: 90,
             render: (_: unknown, item: MenuItemDto) =>
               item.taxRateName
                 ? <Tag color="blue">{item.taxRateName}</Tag>
-                : <span style={{ color: '#999' }}>ó</span>,
+                : <span style={{ color: '#999' }}>‚Äî</span>,
           },
           ...(canManage ? [{
             title: 'Receta', key: 'receta', width: 90,
@@ -167,7 +167,7 @@ export default function MenuItemsList() {
             render: (_: unknown, item: MenuItemDto) => (
               <Space>
                 <Button size="small" icon={<EditOutlined />} onClick={() => openModal(item)} />
-                <Popconfirm title="øEliminar?" onConfirm={() => remove(item.id)}>
+                <Popconfirm title="¬øEliminar?" onConfirm={() => remove(item.id)}>
                   <Button size="small" danger icon={<DeleteOutlined />} />
                 </Popconfirm>
               </Space>
@@ -177,7 +177,7 @@ export default function MenuItemsList() {
       />
 
       <Modal
-        title={editing ? 'Editar Ìtem del men˙' : 'Nuevo Ìtem del men˙'}
+        title={editing ? 'Editar √≠tem del men√∫' : 'Nuevo √≠tem del men√∫'}
         open={modal}
         onOk={save}
         onCancel={() => setModal(false)}
@@ -186,16 +186,16 @@ export default function MenuItemsList() {
       >
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="Nombre" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="internalCode" label="CÛdigo interno"><Input /></Form.Item>
-          <Form.Item name="description" label="DescripciÛn"><Input.TextArea rows={2} /></Form.Item>
+          <Form.Item name="internalCode" label="C√≥digo interno"><Input /></Form.Item>
+          <Form.Item name="description" label="Descripci√≥n"><Input.TextArea rows={2} /></Form.Item>
           <Space style={{ width: '100%' }} size="middle">
-            <Form.Item name="menuCategoryId" label="CategorÌa" rules={[{ required: true }]} style={{ flex: 1 }}>
+            <Form.Item name="menuCategoryId" label="Categor√≠a" rules={[{ required: true }]} style={{ flex: 1 }}>
               <Select options={categoriaOptions} placeholder="Seleccionar" />
             </Form.Item>
             <Form.Item
               name="price"
               label="Precio ($)"
-              tooltip="Ingresa el precio final al p˙blico, con IVA incluido. El sistema calcular· la base imponible autom·ticamente."
+              tooltip="Ingresa el precio final al p√∫blico, con IVA incluido. El sistema calcular√° la base imponible autom√°ticamente."
               rules={[{ required: true }]}
               style={{ width: 140 }}
             >
@@ -239,14 +239,14 @@ export default function MenuItemsList() {
             <Alert
               type="warning"
               showIcon
-              message="Sin tarifa de IVA seleccionada, el precio completo se tratar· como base exenta."
+              message="Sin tarifa de IVA seleccionada, el precio completo se tratar√° como base exenta."
               style={{ marginBottom: 16, fontSize: 12 }}
             />
           )}
-          <Form.Item name="stationId" label="EstaciÛn destino">
+          <Form.Item name="stationId" label="Estaci√≥n destino">
             <Select
               options={estacionOptions}
-              placeholder="Sin estaciÛn asignada"
+              placeholder="Sin estaci√≥n asignada"
               allowClear
             />
           </Form.Item>

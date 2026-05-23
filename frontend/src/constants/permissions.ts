@@ -67,6 +67,8 @@ export const PERMISSIONS = {
     cashOpen: 'Billing.Cash.Open',
     cashClose: 'Billing.Cash.Close',
     cashCharge: 'Billing.Cash.Charge',
+    cashRegistersView: 'Billing.CashRegisters.View',
+    cashRegistersManage: 'Billing.CashRegisters.Manage',
     paymentMethodsView: 'Billing.PaymentMethods.View',
     paymentMethodsManage: 'Billing.PaymentMethods.Manage',
     taxView: 'Billing.Tax.View',

@@ -131,6 +131,16 @@ public class CardBank : BaseEntity
     public int SortOrder { get; set; }
 }
 
+public class CashRegister : BaseEntity
+{
+    public string Name { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public bool IsActive { get; set; } = true;
+
+    public virtual ICollection<CashSession> Sessions { get; set; } = [];
+}
+
 // ── Customer ──────────────────────────────────────────────────────────────────
 
 public class Customer : BaseEntity
@@ -148,6 +158,7 @@ public class Customer : BaseEntity
 
 public class CashSession : BaseEntity
 {
+    public Guid CashRegisterId { get; set; }
     public Guid OpenedBy { get; set; }
     public string OpenedByName { get; set; } = string.Empty;
     public decimal OpeningBalance { get; set; }
@@ -159,6 +170,7 @@ public class CashSession : BaseEntity
     public string? CloseNotes { get; set; }
     public CashSessionStatus Status { get; set; } = CashSessionStatus.Open;
 
+    public virtual CashRegister? CashRegister { get; set; }
     public virtual ICollection<OrderPayment> Payments { get; set; } = [];
 }
 

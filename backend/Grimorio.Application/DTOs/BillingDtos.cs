@@ -205,6 +205,31 @@ public class UpdateCustomerDto
 
 // ── CashSession ───────────────────────────────────────────────────────────────
 
+public class CashRegisterDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public bool IsActive { get; set; }
+    public bool HasOpenSession { get; set; }
+}
+
+public class CreateCashRegisterDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string? Description { get; set; }
+}
+
+public class UpdateCashRegisterDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public bool IsActive { get; set; }
+}
+
 public class PaymentMethodTotalDto
 {
     public Guid MethodId { get; set; }
@@ -217,6 +242,9 @@ public class PaymentMethodTotalDto
 public class CashSessionDto
 {
     public Guid Id { get; set; }
+    public Guid CashRegisterId { get; set; }
+    public string CashRegisterName { get; set; } = string.Empty;
+    public string CashRegisterCode { get; set; } = string.Empty;
     public string OpenedByName { get; set; } = string.Empty;
     public decimal OpeningBalance { get; set; }
     public DateTime OpenedAt { get; set; }
@@ -236,6 +264,7 @@ public class CashSessionDto
 
 public class OpenCashSessionDto
 {
+    public Guid CashRegisterId { get; set; }
     public decimal OpeningBalance { get; set; }
 }
 
@@ -269,6 +298,11 @@ public class OrderPaymentDto
 {
     public Guid Id { get; set; }
     public Guid OrderId { get; set; }
+    public Guid? CashSessionId { get; set; }
+    public Guid? CashRegisterId { get; set; }
+    public string? CashRegisterName { get; set; }
+    public string? CashRegisterCode { get; set; }
+    public string? CashierName { get; set; }
     public int OrderNumber { get; set; }
     public string? OrderType { get; set; }
     public Guid? CustomerId { get; set; }
@@ -282,6 +316,58 @@ public class OrderPaymentDto
     public List<PaymentLineDto> Lines { get; set; } = [];
     public Guid? ElectronicDocumentId { get; set; }
     public string? ElectronicDocumentStatus { get; set; }
+}
+
+public class SalesProfitabilityReportDto
+{
+    public DateTime? FromUtc { get; set; }
+    public DateTime? ToUtc { get; set; }
+    public Guid? CashRegisterId { get; set; }
+    public string? CashRegisterName { get; set; }
+    public decimal GrossSales { get; set; }
+    public decimal NetSales { get; set; }
+    public decimal TaxAmount { get; set; }
+    public decimal FoodCost { get; set; }
+    public decimal GrossProfit { get; set; }
+    public decimal FoodCostPercentage { get; set; }
+    public decimal GrossMarginPercentage { get; set; }
+    public int TotalOrders { get; set; }
+    public decimal TotalItems { get; set; }
+    public int MissingCostLines { get; set; }
+    public int ConversionWarningLines { get; set; }
+    public List<SalesProfitabilityItemDto> Items { get; set; } = [];
+    public List<SalesProfitabilityCashRegisterDto> CashRegisters { get; set; } = [];
+}
+
+public class SalesProfitabilityItemDto
+{
+    public Guid MenuItemId { get; set; }
+    public string MenuItemName { get; set; } = string.Empty;
+    public string? InternalCode { get; set; }
+    public string CategoryName { get; set; } = string.Empty;
+    public decimal Quantity { get; set; }
+    public decimal GrossSales { get; set; }
+    public decimal NetSales { get; set; }
+    public decimal TaxAmount { get; set; }
+    public decimal UnitRecipeCost { get; set; }
+    public decimal TotalFoodCost { get; set; }
+    public decimal GrossProfit { get; set; }
+    public decimal FoodCostPercentage { get; set; }
+    public decimal GrossMarginPercentage { get; set; }
+    public bool HasMissingCosts { get; set; }
+    public bool HasConversionWarnings { get; set; }
+}
+
+public class SalesProfitabilityCashRegisterDto
+{
+    public Guid? CashRegisterId { get; set; }
+    public string CashRegisterName { get; set; } = string.Empty;
+    public decimal GrossSales { get; set; }
+    public decimal NetSales { get; set; }
+    public decimal FoodCost { get; set; }
+    public decimal GrossProfit { get; set; }
+    public decimal FoodCostPercentage { get; set; }
+    public int TotalOrders { get; set; }
 }
 
 public class AddPaymentLineDto

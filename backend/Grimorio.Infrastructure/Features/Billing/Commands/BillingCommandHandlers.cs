@@ -400,6 +400,91 @@ public class DeleteCardBankHandler : IRequestHandler<DeleteCardBankCommand, bool
     }
 }
 
+public class CreateCashRegisterHandler : IRequestHandler<CreateCashRegisterCommand, CashRegisterDto>
+{
+    private readonly GrimorioDbContext _db;
+    public CreateCashRegisterHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<CashRegisterDto> Handle(CreateCashRegisterCommand req, CancellationToken ct)
+    {
+        var name = req.Name.Trim();
+        var code = req.Code.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(name)) throw new InvalidOperationException("Ingresa el nombre de la caja.");
+        if (string.IsNullOrWhiteSpace(code)) throw new InvalidOperationException("Ingresa el codigo de la caja.");
+
+        var exists = await _db.CashRegisters
+            .AnyAsync(x => x.BranchId == req.BranchId && x.Code == code && !x.IsDeleted, ct);
+        if (exists) throw new InvalidOperationException("Ya existe una caja con ese codigo.");
+
+        var entity = new CashRegister
+        {
+            Id = Guid.NewGuid(),
+            BranchId = req.BranchId,
+            Name = name,
+            Code = code,
+            Description = req.Description?.Trim(),
+            IsActive = true,
+        };
+        _db.CashRegisters.Add(entity);
+        await _db.SaveChangesAsync(ct);
+        return BillingMapper.MapCashRegister(entity);
+    }
+}
+
+public class UpdateCashRegisterHandler : IRequestHandler<UpdateCashRegisterCommand, CashRegisterDto>
+{
+    private readonly GrimorioDbContext _db;
+    public UpdateCashRegisterHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<CashRegisterDto> Handle(UpdateCashRegisterCommand req, CancellationToken ct)
+    {
+        var entity = await _db.CashRegisters
+            .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId && !x.IsDeleted, ct)
+            ?? throw new KeyNotFoundException("Caja no encontrada.");
+
+        var name = req.Name.Trim();
+        var code = req.Code.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(name)) throw new InvalidOperationException("Ingresa el nombre de la caja.");
+        if (string.IsNullOrWhiteSpace(code)) throw new InvalidOperationException("Ingresa el codigo de la caja.");
+
+        var exists = await _db.CashRegisters
+            .AnyAsync(x => x.Id != req.Id && x.BranchId == req.BranchId && x.Code == code && !x.IsDeleted, ct);
+        if (exists) throw new InvalidOperationException("Ya existe una caja con ese codigo.");
+
+        entity.Name = name;
+        entity.Code = code;
+        entity.Description = req.Description?.Trim();
+        entity.IsActive = req.IsActive;
+        await _db.SaveChangesAsync(ct);
+        return BillingMapper.MapCashRegister(entity);
+    }
+}
+
+public class DeleteCashRegisterHandler : IRequestHandler<DeleteCashRegisterCommand, bool>
+{
+    private readonly GrimorioDbContext _db;
+    public DeleteCashRegisterHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<bool> Handle(DeleteCashRegisterCommand req, CancellationToken ct)
+    {
+        var entity = await _db.CashRegisters
+            .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId && !x.IsDeleted, ct)
+            ?? throw new KeyNotFoundException("Caja no encontrada.");
+
+        var hasOpenSession = await _db.CashSessions.AnyAsync(s =>
+            s.CashRegisterId == req.Id && s.Status == CashSessionStatus.Open && !s.IsDeleted, ct);
+        if (hasOpenSession)
+            throw new InvalidOperationException("No se puede eliminar una caja con sesion abierta.");
+
+        var hasHistory = await _db.CashSessions.AnyAsync(s => s.CashRegisterId == req.Id && !s.IsDeleted, ct);
+        if (hasHistory) entity.IsActive = false;
+        else entity.IsDeleted = true;
+
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
+}
+
 public class CreateCustomerHandler : IRequestHandler<CreateCustomerCommand, CustomerDto>
 {
     private readonly GrimorioDbContext _db;
@@ -472,14 +557,28 @@ public class OpenCashSessionHandler : IRequestHandler<OpenCashSessionCommand, Ca
 
     public async Task<CashSessionDto> Handle(OpenCashSessionCommand req, CancellationToken ct)
     {
-        var existing = await _db.CashSessions
-            .FirstOrDefaultAsync(x => x.BranchId == req.BranchId && x.Status == CashSessionStatus.Open && !x.IsDeleted, ct);
-        if (existing != null)
-            throw new InvalidOperationException("Ya hay una sesión de caja abierta.");
+        var register = await _db.CashRegisters
+            .FirstOrDefaultAsync(x => x.Id == req.CashRegisterId && x.BranchId == req.BranchId && !x.IsDeleted, ct)
+            ?? throw new KeyNotFoundException("Caja no encontrada.");
+
+        if (!register.IsActive)
+            throw new InvalidOperationException("La caja seleccionada esta inactiva.");
+
+        var openForRegister = await _db.CashSessions
+            .AnyAsync(x => x.CashRegisterId == req.CashRegisterId && x.Status == CashSessionStatus.Open && !x.IsDeleted, ct);
+        if (openForRegister)
+            throw new InvalidOperationException("Esta caja ya tiene una sesion abierta.");
+
+        var openForUser = await _db.CashSessions
+            .AnyAsync(x => x.BranchId == req.BranchId && x.OpenedBy == req.UserId && x.Status == CashSessionStatus.Open && !x.IsDeleted, ct);
+        if (openForUser)
+            throw new InvalidOperationException("Ya tienes una sesion de caja abierta.");
 
         var session = new CashSession
         {
             Id = Guid.NewGuid(), BranchId = req.BranchId,
+            CashRegisterId = req.CashRegisterId,
+            CashRegister = register,
             OpenedBy = req.UserId, OpenedByName = req.UserName,
             OpeningBalance = req.OpeningBalance,
             OpenedAt = DateTime.UtcNow,
@@ -499,12 +598,16 @@ public class CloseCashSessionHandler : IRequestHandler<CloseCashSessionCommand, 
     public async Task<CashSessionDto> Handle(CloseCashSessionCommand req, CancellationToken ct)
     {
         var session = await _db.CashSessions
+            .Include(s => s.CashRegister)
             .Include(s => s.Payments).ThenInclude(p => p.Lines).ThenInclude(l => l.Config)
             .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId && !x.IsDeleted, ct)
             ?? throw new KeyNotFoundException("Sesión no encontrada.");
 
         if (session.Status != CashSessionStatus.Open)
             throw new InvalidOperationException("La sesión ya está cerrada.");
+
+        if (session.OpenedBy != req.UserId)
+            throw new InvalidOperationException("Solo puedes cerrar la caja que abriste con tu usuario.");
 
         session.ClosedAt = DateTime.UtcNow;
         session.ClosedBy = req.UserId;
@@ -615,15 +718,28 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
         var paidAt = DateTime.UtcNow;
 
         // Si el frontend no envió sesión, auto-asignar la activa del sucursal
-        var sessionId = req.CashSessionId ?? await _db.CashSessions
-            .Where(s => s.BranchId == req.BranchId && s.Status == CashSessionStatus.Open && !s.IsDeleted)
-            .Select(s => (Guid?)s.Id)
-            .FirstOrDefaultAsync(ct);
+        var session = req.CashSessionId.HasValue
+            ? await _db.CashSessions.FirstOrDefaultAsync(s =>
+                s.Id == req.CashSessionId.Value &&
+                s.BranchId == req.BranchId &&
+                s.Status == CashSessionStatus.Open &&
+                !s.IsDeleted, ct)
+            : await _db.CashSessions.FirstOrDefaultAsync(s =>
+                s.BranchId == req.BranchId &&
+                s.OpenedBy == req.UserId &&
+                s.Status == CashSessionStatus.Open &&
+                !s.IsDeleted, ct);
+
+        if (session == null)
+            throw new InvalidOperationException("Debes abrir tu caja antes de cobrar.");
+
+        if (session.OpenedBy != req.UserId)
+            throw new InvalidOperationException("No puedes cobrar en una sesion de caja abierta por otro usuario.");
 
         var payment = new OrderPayment
         {
             Id = Guid.NewGuid(), BranchId = req.BranchId,
-            OrderId = order.Id, CashSessionId = sessionId,
+            OrderId = order.Id, CashSessionId = session.Id,
             CustomerId = req.CustomerId, DocumentType = docType,
             OrderAmount = req.OrderAmount, PaidAt = paidAt,
         };
@@ -1178,6 +1294,16 @@ internal static class BillingMapper
         Id = b.Id, Name = b.Name, IsActive = b.IsActive, SortOrder = b.SortOrder,
     };
 
+    internal static CashRegisterDto MapCashRegister(CashRegister r, bool hasOpenSession = false) => new()
+    {
+        Id = r.Id,
+        Name = r.Name,
+        Code = r.Code,
+        Description = r.Description,
+        IsActive = r.IsActive,
+        HasOpenSession = hasOpenSession,
+    };
+
     internal static CustomerDto MapCustomer(Customer c) => new()
     {
         Id = c.Id, Name = c.Name, TaxId = c.TaxId,
@@ -1211,7 +1337,11 @@ internal static class BillingMapper
 
         return new CashSessionDto
         {
-            Id = s.Id, OpenedByName = s.OpenedByName,
+            Id = s.Id,
+            CashRegisterId = s.CashRegisterId,
+            CashRegisterName = s.CashRegister?.Name ?? string.Empty,
+            CashRegisterCode = s.CashRegister?.Code ?? string.Empty,
+            OpenedByName = s.OpenedByName,
             OpeningBalance = s.OpeningBalance, OpenedAt = s.OpenedAt,
             ClosedAt = s.ClosedAt, ClosedByName = s.ClosedByName,
             ActualCash = s.ActualCash, CloseNotes = s.CloseNotes,
@@ -1229,6 +1359,11 @@ internal static class BillingMapper
         ElectronicDocument? elDoc = null) => new()
     {
         Id = p.Id, OrderId = p.OrderId, OrderNumber = orderNumber,
+        CashSessionId = p.CashSessionId,
+        CashRegisterId = p.CashSession?.CashRegisterId,
+        CashRegisterName = p.CashSession?.CashRegister?.Name,
+        CashRegisterCode = p.CashSession?.CashRegister?.Code,
+        CashierName = p.CashSession?.OpenedByName,
         OrderType = orderType,
         CustomerId = p.CustomerId, CustomerName = customer?.Name,
         CustomerTaxId = customer?.TaxId,

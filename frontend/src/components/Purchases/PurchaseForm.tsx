@@ -70,9 +70,9 @@ function computeFiscal(items: ItemRow[], taxMap: Map<string, TaxRateDto>): Fisca
     const rate = item.taxRateId ? taxMap.get(item.taxRateId) : undefined;
     const taxAmt = rate ? Math.round(base * (rate.percentage / 100) * 100) / 100 : 0;
 
-    if (!rate || rate.sriCode === '6' || rate.sriCode === '7') {
+    if (!rate || rate.sriCode === '5' || rate.sriCode === '6' || rate.sriCode === '7') {
       taxableBaseExempt += base;
-    } else if (rate.sriCode === '10') {
+    } else if (rate.percentage > 0) {
       taxableBase15 += base;
       iva15 += taxAmt;
     } else {

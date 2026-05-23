@@ -441,12 +441,12 @@ internal static class PosMapper
     public static void ClassifyTax(string? sriCode, decimal taxableBase, decimal taxAmt,
         ref decimal base15, ref decimal base0, ref decimal baseExempt, ref decimal iva15, ref decimal ice)
     {
-        if (sriCode == "10")
+        if (sriCode is "2" or "4" or "8" or "10")
         {
             base15 += taxableBase;
             iva15 += taxAmt;
         }
-        else if (sriCode == "0" || sriCode == "8")
+        else if (sriCode == "0")
         {
             base0 += taxableBase;
         }

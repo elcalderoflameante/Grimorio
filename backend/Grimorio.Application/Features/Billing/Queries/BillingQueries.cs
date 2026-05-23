@@ -25,6 +25,12 @@ public class GetCardBanksQuery : IRequest<List<CardBankDto>>
     public bool ActiveOnly { get; set; } = true;
 }
 
+public class GetCashRegistersQuery : IRequest<List<CashRegisterDto>>
+{
+    public Guid BranchId { get; set; }
+    public bool ActiveOnly { get; set; } = true;
+}
+
 public class GetCustomersQuery : IRequest<List<CustomerDto>>
 {
     public Guid BranchId { get; set; }
@@ -35,6 +41,7 @@ public class GetCustomersQuery : IRequest<List<CustomerDto>>
 public class GetActiveCashSessionQuery : IRequest<CashSessionDto?>
 {
     public Guid BranchId { get; set; }
+    public Guid UserId { get; set; }
 }
 
 public class GetCashSessionsQuery : IRequest<List<CashSessionDto>>
@@ -63,6 +70,14 @@ public class GetSalesQuery : IRequest<List<OrderPaymentDto>>
     public DateTime? FromUtc { get; set; }
     public DateTime? ToUtc { get; set; }
     public int PageSize { get; set; } = 100;
+}
+
+public class GetSalesProfitabilityQuery : IRequest<SalesProfitabilityReportDto>
+{
+    public Guid BranchId { get; set; }
+    public DateTime? FromUtc { get; set; }
+    public DateTime? ToUtc { get; set; }
+    public Guid? CashRegisterId { get; set; }
 }
 
 // ── SmtpConfig ────────────────────────────────────────────────────────────────

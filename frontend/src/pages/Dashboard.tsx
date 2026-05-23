@@ -29,6 +29,7 @@ import {
   FileTextOutlined,
   PercentageOutlined,
   FileImageOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
@@ -56,6 +57,7 @@ import { BranchConfigurationForm } from '../components/Branches/BranchConfigurat
 import InventoryConfig from '../components/Inventory/InventoryConfig';
 import MenuCategoriesList from '../components/Menu/MenuCategoriesList';
 import MenuItemsList from '../components/Menu/MenuItemsList';
+import MenuProfitability from '../components/Menu/MenuProfitability';
 import ArticlesList from '../components/Inventory/ArticlesList';
 import CurrentStock from '../components/Inventory/CurrentStock';
 import StockMovements from '../components/Inventory/StockMovements';
@@ -64,6 +66,7 @@ import PurchasesList from '../components/Purchases/PurchaseOrdersList';
 import CustomersList from '../components/Billing/CustomersList';
 import CashRegister from '../components/Billing/CashRegister';
 import SalesHistory from '../components/Billing/SalesHistory';
+import SalesProfitability from '../components/Billing/SalesProfitability';
 import PaymentMethodsSettings from '../components/Billing/PaymentMethodsSettings';
 import TaxConfig from '../components/Billing/TaxConfig';
 import ElectronicInvoices from '../components/Billing/ElectronicInvoices';
@@ -271,6 +274,7 @@ export default function Dashboard() {
         children: [
           { key: 'menu-categorias', label: 'Categorías', icon: <AppstoreOutlined />, permission: PERMISSIONS.menu.categoriesView },
           { key: 'menu-items', label: 'Ítems y recetas', icon: <UnorderedListOutlined />, permission: PERMISSIONS.menu.itemsView },
+          { key: 'menu-profitability', label: 'Rentabilidad', icon: <BarChartOutlined />, permission: PERMISSIONS.menu.itemsView },
         ],
       },
       {
@@ -307,6 +311,7 @@ export default function Dashboard() {
         children: [
           { key: 'billing-cash', label: 'Caja', icon: <BankOutlined />, permission: PERMISSIONS.billing.cashView },
           { key: 'billing-sales', label: 'Ventas', icon: <FileTextOutlined />, permission: PERMISSIONS.billing.cashView },
+          { key: 'billing-sales-profitability', label: 'Rentabilidad', icon: <BarChartOutlined />, permission: PERMISSIONS.billing.cashView },
           { key: 'billing-customers', label: 'Clientes', icon: <ContactsOutlined />, permission: PERMISSIONS.billing.customersView },
           { key: 'billing-payment-methods', label: 'Medios de pago', icon: <DollarOutlined />, permission: PERMISSIONS.billing.paymentMethodsView },
           { key: 'billing-tax-config', label: 'Configuración fiscal', icon: <PercentageOutlined />, permission: PERMISSIONS.billing.taxView },
@@ -407,6 +412,8 @@ case 'pos-estaciones':
         return <MenuCategoriesList />;
       case 'menu-items':
         return <MenuItemsList />;
+      case 'menu-profitability':
+        return <MenuProfitability />;
       case 'inv-stock':
         return <CurrentStock />;
       case 'inv-movimientos':
@@ -423,6 +430,8 @@ case 'pos-estaciones':
         return <CashRegister />;
       case 'billing-sales':
         return <SalesHistory />;
+      case 'billing-sales-profitability':
+        return <SalesProfitability />;
       case 'billing-customers':
         return <CustomersList />;
       case 'billing-payment-methods':
@@ -453,7 +462,7 @@ case 'pos-estaciones':
   }, [selectedMenu, menuItems, selectedEmployeeId]);
 
   return (
-    <Layout style={{ minHeight: '100vh', width: '100%', overflowX: 'hidden' }}>
+    <Layout className="dashboard-layout" style={{ minHeight: '100vh', width: '100%', overflowX: 'hidden' }}>
       {/* Sider (menú lateral) */}
       <Sider
         className="dashboard-sider"
@@ -475,34 +484,15 @@ case 'pos-estaciones':
           zIndex: 1000,
         }}
       >
-        <div
-          style={{
-            height: 64,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 16px',
-            color: '#fff',
-            fontSize: 18,
-            fontWeight: 'bold',
-            flexShrink: 0,
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          }}
-        >
-          <div style={{ flex: 1, textAlign: 'center' }}>
+        <div className="dashboard-brand">
+          <div className="dashboard-brand-title">
             {!siderCollapsed && <span>Grimorio</span>}
           </div>
           <Button
+            className="dashboard-collapse-button"
             type="text"
             icon={siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             onClick={() => setCollapsed((prev) => !prev)}
-            style={{
-              fontSize: '16px',
-              color: '#fff',
-              width: 32,
-              height: 32,
-              flexShrink: 0,
-            }}
           />
         </div>
         <div className="dashboard-sider-menu-scroll">
@@ -519,6 +509,7 @@ case 'pos-estaciones':
 
       {/* Layout principal */}
         <Layout
+          className="dashboard-main"
           style={{
             marginLeft: isMobile ? 0 : siderCollapsed ? 80 : 250,
             transition: 'margin-left 0.2s',
@@ -527,17 +518,9 @@ case 'pos-estaciones':
         >
         {/* Header */}
           <Header
+          className="dashboard-header"
           style={{
-            background: '#fff',
             padding: isMobile ? '0 12px' : '0 24px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            rowGap: 8,
-            height: 'auto',
-            minHeight: 64,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -569,13 +552,10 @@ case 'pos-estaciones':
 
         {/* Contenido */}
         <Content
+          className="dashboard-content"
           style={{
             margin: isMobile ? '16px 8px' : '24px 16px',
             padding: isMobile ? 16 : 24,
-            background: '#fff',
-            borderRadius: '8px',
-            overflowX: 'auto',
-            maxWidth: '100%',
           }}
         >
           {isInventorySection && alertasStock.length > 0 && (

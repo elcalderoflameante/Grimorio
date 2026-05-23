@@ -148,6 +148,30 @@ public class DeleteCardBankCommand : IRequest<bool>
     public Guid BranchId { get; set; }
 }
 
+public class CreateCashRegisterCommand : IRequest<CashRegisterDto>
+{
+    public Guid BranchId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string? Description { get; set; }
+}
+
+public class UpdateCashRegisterCommand : IRequest<CashRegisterDto>
+{
+    public Guid Id { get; set; }
+    public Guid BranchId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public bool IsActive { get; set; }
+}
+
+public class DeleteCashRegisterCommand : IRequest<bool>
+{
+    public Guid Id { get; set; }
+    public Guid BranchId { get; set; }
+}
+
 // ── Customers ─────────────────────────────────────────────────────────────────
 
 public class CreateCustomerCommand : IRequest<CustomerDto>
@@ -185,6 +209,7 @@ public class DeleteCustomerCommand : IRequest<bool>
 public class OpenCashSessionCommand : IRequest<CashSessionDto>
 {
     public Guid BranchId { get; set; }
+    public Guid CashRegisterId { get; set; }
     public Guid UserId { get; set; }
     public string UserName { get; set; } = string.Empty;
     public decimal OpeningBalance { get; set; }
@@ -216,6 +241,7 @@ public class PayOrderCommand : IRequest<OrderPaymentDto>
 {
     public Guid OrderId { get; set; }
     public Guid BranchId { get; set; }
+    public Guid UserId { get; set; }
     public decimal OrderAmount { get; set; }
     public string DocumentType { get; set; } = "NotaDeVenta";
     public Guid? CustomerId { get; set; }

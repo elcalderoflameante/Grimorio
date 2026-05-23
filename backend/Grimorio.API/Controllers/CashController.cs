@@ -98,6 +98,57 @@ public class CashController : ControllerBase
         return NoContent();
     }
 
+    // â”€â”€ Cajas / estaciones â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    [Authorize(Policy = "Billing.CashRegisters.View")]
+    [HttpGet("cajas")]
+    public async Task<IActionResult> GetCashRegisters([FromQuery] bool activeOnly = true)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        return Ok(await _mediator.Send(new GetCashRegistersQuery { BranchId = branchId, ActiveOnly = activeOnly }));
+    }
+
+    [Authorize(Policy = "Billing.CashRegisters.Manage")]
+    [HttpPost("cajas")]
+    public async Task<IActionResult> CreateCashRegister([FromBody] CreateCashRegisterDto dto)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new CreateCashRegisterCommand
+        {
+            BranchId = branchId,
+            Name = dto.Name,
+            Code = dto.Code,
+            Description = dto.Description,
+        });
+        return Ok(result);
+    }
+
+    [Authorize(Policy = "Billing.CashRegisters.Manage")]
+    [HttpPut("cajas/{id:guid}")]
+    public async Task<IActionResult> UpdateCashRegister(Guid id, [FromBody] UpdateCashRegisterDto dto)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new UpdateCashRegisterCommand
+        {
+            Id = id,
+            BranchId = branchId,
+            Name = dto.Name,
+            Code = dto.Code,
+            Description = dto.Description,
+            IsActive = dto.IsActive,
+        });
+        return Ok(result);
+    }
+
+    [Authorize(Policy = "Billing.CashRegisters.Manage")]
+    [HttpDelete("cajas/{id:guid}")]
+    public async Task<IActionResult> DeleteCashRegister(Guid id)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        await _mediator.Send(new DeleteCashRegisterCommand { Id = id, BranchId = branchId });
+        return NoContent();
+    }
+
     // ── Sesión activa ─────────────────────────────────────────────────────────
 
     [Authorize(Policy = "Billing.Cash.View")]
@@ -105,7 +156,8 @@ public class CashController : ControllerBase
     public async Task<IActionResult> GetActiveSession()
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
-        var result = await _mediator.Send(new GetActiveCashSessionQuery { BranchId = branchId });
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _mediator.Send(new GetActiveCashSessionQuery { BranchId = branchId, UserId = userId });
         return result is null ? NotFound() : Ok(result);
     }
 
@@ -145,6 +197,7 @@ public class CashController : ControllerBase
         var result = await _mediator.Send(new OpenCashSessionCommand
         {
             BranchId = branchId, UserId = userId,
+            CashRegisterId = dto.CashRegisterId,
             UserName = userName, OpeningBalance = dto.OpeningBalance,
         });
         return Ok(result);
@@ -183,6 +236,23 @@ public class CashController : ControllerBase
     // ── Cobro de orden ────────────────────────────────────────────────────────
 
     [Authorize(Policy = "Billing.Cash.View")]
+    [HttpGet("ventas/rentabilidad")]
+    public async Task<IActionResult> GetSalesProfitability(
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        [FromQuery] Guid? cashRegisterId)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        return Ok(await _mediator.Send(new GetSalesProfitabilityQuery
+        {
+            BranchId = branchId,
+            FromUtc = from,
+            ToUtc = to,
+            CashRegisterId = cashRegisterId,
+        }));
+    }
+
+    [Authorize(Policy = "Billing.Cash.View")]
     [HttpGet("ordenes/{orderId:guid}/pagos")]
     public async Task<IActionResult> GetOrderPayments(Guid orderId)
     {
@@ -195,9 +265,10 @@ public class CashController : ControllerBase
     public async Task<IActionResult> PayOrder(Guid orderId, [FromBody] AddOrderPaymentDto dto)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        if (!TryGetUserId(out var userId)) return Unauthorized();
         var result = await _mediator.Send(new PayOrderCommand
         {
-            OrderId = orderId, BranchId = branchId,
+            OrderId = orderId, BranchId = branchId, UserId = userId,
             OrderAmount = dto.OrderAmount,
             DocumentType = dto.DocumentType,
             CustomerId = dto.CustomerId, CashSessionId = dto.CashSessionId,

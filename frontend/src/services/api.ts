@@ -84,6 +84,8 @@ import type {
   CreateMenuCategoryDto,
   MenuItemDto,
   MenuItemDetailDto,
+  MenuItemAvailabilityDto,
+  MenuItemProfitabilityDto,
   CreateMenuItemDto,
   UpdateMenuItemDto,
   RecipeIngredientDto,
@@ -518,6 +520,10 @@ export const menuApi = {
     apiClient.get<MenuItemDto[]>('/menu/items', { params }),
   getItem: (id: string): Promise<AxiosResponse<MenuItemDetailDto>> =>
     apiClient.get<MenuItemDetailDto>(`/menu/items/${id}`),
+  getAvailability: (params?: { categoryId?: string; activeOnly?: boolean; availableOnly?: boolean }): Promise<AxiosResponse<MenuItemAvailabilityDto[]>> =>
+    apiClient.get<MenuItemAvailabilityDto[]>('/menu/items/disponibilidad', { params }),
+  getProfitability: (params?: { categoryId?: string; activeOnly?: boolean; availableOnly?: boolean }): Promise<AxiosResponse<MenuItemProfitabilityDto[]>> =>
+    apiClient.get<MenuItemProfitabilityDto[]>('/menu/rentabilidad', { params }),
   createItem: (data: CreateMenuItemDto): Promise<AxiosResponse<MenuItemDto>> =>
     apiClient.post<MenuItemDto>('/menu/items', data),
   updateItem: (id: string, data: UpdateMenuItemDto): Promise<AxiosResponse<MenuItemDto>> =>
@@ -604,7 +610,7 @@ export const purchasesApi = {
     apiClient.delete<void>(`/purchases/compras/${id}`),
 };
 
-import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto, CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, OrderPaymentDto, AddOrderPaymentDto, PaymentMethodConfigDto, CreatePaymentMethodConfigDto, UpdatePaymentMethodConfigDto, CardBankDto, CreateCardBankDto, UpdateCardBankDto, TaxRateDto, UpsertTaxRateDto, BranchTaxConfigDto, SriCertificateStatusDto, ElectronicDocumentDto, SmtpConfigDto, UpsertSmtpConfigDto, InvoiceTemplateDto } from '../types';
+import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto, CashRegisterDto, CreateCashRegisterDto, UpdateCashRegisterDto, CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, OrderPaymentDto, AddOrderPaymentDto, SalesProfitabilityReportDto, PaymentMethodConfigDto, CreatePaymentMethodConfigDto, UpdatePaymentMethodConfigDto, CardBankDto, CreateCardBankDto, UpdateCardBankDto, TaxRateDto, UpsertTaxRateDto, BranchTaxConfigDto, SriCertificateStatusDto, ElectronicDocumentDto, SmtpConfigDto, UpsertSmtpConfigDto, InvoiceTemplateDto } from '../types';
 
 export const customersApi = {
   getAll: (params?: { activeOnly?: boolean; search?: string }): Promise<AxiosResponse<CustomerDto[]>> =>
@@ -637,6 +643,14 @@ export const paymentMethodsApi = {
 };
 
 export const cashApi = {
+  getRegisters: (activeOnly = true): Promise<AxiosResponse<CashRegisterDto[]>> =>
+    apiClient.get<CashRegisterDto[]>('/cash/cajas', { params: { activeOnly } }),
+  createRegister: (dto: CreateCashRegisterDto): Promise<AxiosResponse<CashRegisterDto>> =>
+    apiClient.post<CashRegisterDto>('/cash/cajas', dto),
+  updateRegister: (id: string, dto: UpdateCashRegisterDto): Promise<AxiosResponse<CashRegisterDto>> =>
+    apiClient.put<CashRegisterDto>(`/cash/cajas/${id}`, dto),
+  removeRegister: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/cash/cajas/${id}`),
   getActiveSession: (): Promise<AxiosResponse<CashSessionDto>> =>
     apiClient.get<CashSessionDto>('/cash/sesion-activa', { skipErrorLog: true } as AxiosRequestConfigWithSkipLog),
   getSessions: (params?: { from?: string; to?: string; pageSize?: number }): Promise<AxiosResponse<CashSessionDto[]>> =>
@@ -653,6 +667,8 @@ export const cashApi = {
     apiClient.post<OrderPaymentDto>(`/cash/cobrar/${orderId}`, dto),
   getSales: (params?: { from?: string; to?: string; pageSize?: number }): Promise<AxiosResponse<OrderPaymentDto[]>> =>
     apiClient.get<OrderPaymentDto[]>('/cash/ventas', { params }),
+  getSalesProfitability: (params?: { from?: string; to?: string; cashRegisterId?: string }): Promise<AxiosResponse<SalesProfitabilityReportDto>> =>
+    apiClient.get<SalesProfitabilityReportDto>('/cash/ventas/rentabilidad', { params }),
 };
 
 export const taxApi = {

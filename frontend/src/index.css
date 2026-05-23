@@ -1,4 +1,16 @@
 :root {
+  --grim-bg: #f3eadc;
+  --grim-bg-soft: #fbf7ed;
+  --grim-surface: #fffaf0;
+  --grim-surface-elev: #fffdf7;
+  --grim-ink: #2b2118;
+  --grim-muted: rgba(43, 33, 24, 0.62);
+  --grim-border: rgba(88, 62, 35, 0.14);
+  --grim-gold: #b88a3a;
+  --grim-gold-bright: #d9a655;
+  --grim-ember: #ff6a1a;
+  --grim-dark: #15130f;
+  --grim-dark-elev: #1f1b15;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -18,7 +30,16 @@ body,
 
 body {
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  background: #f0f2f5;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(184, 138, 58, 0.12), transparent 34%),
+    linear-gradient(135deg, #f7efe1 0%, var(--grim-bg) 100%);
+  color: var(--grim-ink);
+}
+
+.dashboard-layout {
+  background:
+    radial-gradient(circle at 86% 0%, rgba(255, 106, 26, 0.08), transparent 28%),
+    linear-gradient(135deg, #f7efe1 0%, var(--grim-bg) 100%);
 }
 
 .dashboard-sider .ant-layout-sider-children {
@@ -26,6 +47,41 @@ body {
   flex-direction: column;
   height: 100%;
   min-height: 0;
+}
+
+.dashboard-sider {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(184, 138, 58, 0.18), transparent 42%),
+    linear-gradient(180deg, var(--grim-dark-elev), var(--grim-dark)) !important;
+  border-right: 1px solid rgba(184, 138, 58, 0.18);
+  box-shadow: 10px 0 34px rgba(39, 24, 9, 0.16);
+}
+
+.dashboard-brand {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  color: #f4ead6;
+  font-size: 18px;
+  font-weight: 700;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(184, 138, 58, 0.2);
+}
+
+.dashboard-brand-title {
+  flex: 1;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+.dashboard-collapse-button {
+  color: #f4ead6 !important;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
 }
 
 .dashboard-sider-menu-scroll {
@@ -37,4 +93,52 @@ body {
 
 .dashboard-sider-menu-scroll .ant-menu {
   min-height: 100%;
+  background: transparent;
+}
+
+.dashboard-main {
+  background: transparent;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  min-height: 64px;
+  height: auto;
+  row-gap: 8px;
+  background: rgba(255, 250, 240, 0.92);
+  border-bottom: 1px solid var(--grim-border);
+  box-shadow: 0 8px 24px rgba(64, 42, 12, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.dashboard-content {
+  max-width: 100%;
+  overflow-x: auto;
+  background: rgba(255, 250, 240, 0.92);
+  border: 1px solid var(--grim-border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(64, 42, 12, 0.08);
+}
+
+.ant-card,
+.ant-modal-content,
+.ant-drawer-content {
+  border-color: var(--grim-border);
+}
+
+.ant-table-wrapper .ant-table {
+  border-radius: 8px;
+}
+
+.ant-btn-primary {
+  font-weight: 600;
+}
+
+.ant-breadcrumb,
+.ant-typography,
+.ant-form-item-label > label {
+  letter-spacing: 0;
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Button, Card, Col, Divider, Empty, InputNumber, List, Modal,
-  Row, Space, Spin, Tag, Typography, message, Input, Badge, Alert
+  Row, Space, Spin, Tag, Typography, message, Input, Badge, Alert, Tooltip
 } from 'antd';
 import {
   ArrowLeftOutlined, CheckOutlined,
@@ -11,7 +11,7 @@ import { menuApi, posApi } from '../../services/api';
 import type {
   MenuCategoryDto, CreateOrderItemDto, MenuItemDto,
   OrderDto, RestaurantTableDto, OrderType,
-  CreateIngredientChoiceDto
+  CreateIngredientChoiceDto, MenuItemAvailabilityDto
 } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 
@@ -53,6 +53,7 @@ function choicesLabel(choices: CreateIngredientChoiceDto[] | undefined, items: M
 export default function TakeOrder({ table, orderType, existingOrder, onClose, onConfirm }: Props) {
   const [categories, setCategories] = useState<MenuCategoryDto[]>([]);
   const [items, setItems] = useState<MenuItemDto[]>([]);
+  const [availability, setAvailability] = useState<MenuItemAvailabilityDto[]>([]);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [lines, setLines] = useState<OrderLine[]>([]);
   const [loading, setLoading] = useState(false);
@@ -76,8 +77,10 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
           menuApi.getCategories(),
           menuApi.getItems({ activeOnly: true, availableOnly: true, lightweight: true }),
         ]);
+        const stock = await menuApi.getAvailability({ activeOnly: true, availableOnly: true });
         setCategories(cats.data);
         setItems(its.data);
+        setAvailability(stock.data);
         if (cats.data.length > 0) setActiveCategory(cats.data[0].id);
 
         if (existingOrder) {
@@ -101,10 +104,60 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
   }, [existingOrder]);
 
   const itemsById = useMemo(() => new Map(items.map(item => [item.id, item])), [items]);
+  const availabilityByItemId = useMemo(
+    () => new Map(availability.map(item => [item.menuItemId, item])),
+    [availability]
+  );
   const filteredItems = useMemo(
     () => items.filter(i => i.menuCategoryId === activeCategory),
     [activeCategory, items]
   );
+
+  const getLineCapacity = (line: OrderLine): number | null => {
+    const itemAvailability = availabilityByItemId.get(line.menuItemId);
+    if (!itemAvailability?.isTracked) return null;
+
+    if (!line.ingredientChoices?.length) {
+      return itemAvailability.availableQuantity ?? 0;
+    }
+
+    const selectedArticles = new Map(line.ingredientChoices.map(c => [c.recipeIngredientId, c.chosenArticleId]));
+    const relevantComponents = itemAvailability.components.filter(component => {
+      if (!component.isVariableOption) return true;
+      return component.recipeIngredientId
+        ? selectedArticles.get(component.recipeIngredientId) === component.articleId
+        : false;
+    });
+
+    if (relevantComponents.length === 0) return itemAvailability.availableQuantity ?? 0;
+    return Math.min(...relevantComponents.map(component => component.availableServings));
+  };
+
+  const getLineSelectionKey = (line: OrderLine) => {
+    const choicesKey = [...(line.ingredientChoices ?? [])]
+      .sort((a, b) => a.recipeIngredientId.localeCompare(b.recipeIngredientId))
+      .map(choice => `${choice.recipeIngredientId}:${choice.chosenArticleId}`)
+      .join('|');
+    return `${line.menuItemId}:${choicesKey}`;
+  };
+
+  const getRemainingLineCapacity = (line: OrderLine, idx?: number): number | null => {
+    const capacity = getLineCapacity(line);
+    if (capacity === null) return null;
+
+    const key = getLineSelectionKey(line);
+    const usedByOtherLines = lines.reduce((sum, current, currentIdx) => {
+      if (idx !== undefined && currentIdx === idx) return sum;
+      return getLineSelectionKey(current) === key ? sum + current.quantity : sum;
+    }, 0);
+
+    return Math.max(0, capacity - usedByOtherLines);
+  };
+
+  const formatStock = (quantity?: number | null) => {
+    if (quantity === null || quantity === undefined) return 'Stock sin control';
+    return `Disponible: ${Math.max(0, Math.floor(quantity))}`;
+  };
 
   const ensureItemDetail = async (item: MenuItemDto) => {
     if (!item.hasVariableIngredients || item.variableIngredients?.length > 0) return item;
@@ -115,10 +168,24 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
 
   const addItem = async (item: MenuItemDto) => {
     const itemDetail = await ensureItemDetail(item);
+    const itemAvailability = availabilityByItemId.get(itemDetail.id);
+    const currentQty = lines
+      .filter(l => l.menuItemId === itemDetail.id && !l.ingredientChoices?.length)
+      .reduce((sum, line) => sum + line.quantity, 0);
+
+    if (itemAvailability?.isTracked && !itemAvailability.isAvailable) {
+      message.warning(`${itemDetail.name} no tiene stock disponible`);
+      return;
+    }
+
     if (itemDetail.variableIngredients && itemDetail.variableIngredients.length > 0) {
       setPendingChoices({});
       setChoiceError(false);
       setChoiceTarget(itemDetail);
+      return;
+    }
+    if (itemAvailability?.isTracked && itemAvailability.availableQuantity !== null && itemAvailability.availableQuantity !== undefined && currentQty >= itemAvailability.availableQuantity) {
+      message.warning(`Solo hay ${Math.floor(itemAvailability.availableQuantity)} disponible(s) de ${itemDetail.name}`);
       return;
     }
     setLines(prev => {
@@ -143,6 +210,21 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
       recipeIngredientId: slot.recipeIngredientId,
       chosenArticleId: pendingChoices[slot.recipeIngredientId],
     }));
+    const candidateLine: OrderLine = {
+      menuItemId: choiceTarget.id,
+      name: choiceTarget.name,
+      price: choiceTarget.price,
+      quantity: 1,
+      ingredientChoices: choices,
+    };
+    const capacity = getLineCapacity(candidateLine);
+    const used = lines
+      .filter(line => getLineSelectionKey(line) === getLineSelectionKey(candidateLine))
+      .reduce((sum, line) => sum + line.quantity, 0);
+    if (capacity !== null && capacity - used < 1) {
+      message.warning('La opción seleccionada no tiene stock disponible');
+      return;
+    }
     setLines(prev => [...prev, {
       menuItemId: choiceTarget.id,
       name: choiceTarget.name,
@@ -159,6 +241,12 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
     if (quantity <= 0) {
       setLines(prev => prev.filter((_, i) => i !== idx));
     } else {
+      const line = lines[idx];
+      const capacity = line ? getRemainingLineCapacity(line, idx) : null;
+      if (capacity !== null && quantity > capacity) {
+        message.warning(`Solo hay ${Math.floor(capacity)} disponible(s) para esta selección`);
+        return;
+      }
       setLines(prev => prev.map((l, i) => i === idx ? { ...l, quantity } : l));
     }
   };
@@ -191,6 +279,18 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
 
   const handleSave = async (confirm: boolean) => {
     if (lines.length === 0) { message.warning('Agrega al menos un ítem'); return; }
+    const unavailableLine = lines.find(line => {
+      const capacity = getLineCapacity(line);
+      if (capacity === null) return false;
+      const totalSameSelection = lines
+        .filter(current => getLineSelectionKey(current) === getLineSelectionKey(line))
+        .reduce((sum, current) => sum + current.quantity, 0);
+      return totalSameSelection > capacity;
+    });
+    if (unavailableLine) {
+      message.warning(`${unavailableLine.name} supera el stock disponible`);
+      return;
+    }
     setSaving(true);
     try {
       const itemsPayload: CreateOrderItemDto[] = lines.map(l => ({
@@ -297,22 +397,35 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
               const inOrder = lines.filter(l => l.menuItemId === item.id);
               const totalQty = inOrder.reduce((s, l) => s + l.quantity, 0);
               const hasVariable = item.hasVariableIngredients || item.variableIngredients?.length > 0;
+              const itemAvailability = availabilityByItemId.get(item.id);
+              const isSoldOut = itemAvailability?.isTracked && !itemAvailability.isAvailable;
+              const reachedLimit = itemAvailability?.isTracked
+                && itemAvailability.availableQuantity !== null
+                && itemAvailability.availableQuantity !== undefined
+                && totalQty >= itemAvailability.availableQuantity;
+              const stockColor = isSoldOut ? 'red' : reachedLimit ? 'orange' : itemAvailability?.isTracked ? 'green' : 'default';
               return (
                 <Card
                   key={item.id}
-                  hoverable
+                  hoverable={!isSoldOut && !reachedLimit}
                   size="small"
                   onClick={() => { void addItem(item).catch(e => message.error(formatError(e))); }}
                   style={{
                     width: 130,
-                    cursor: 'pointer',
+                    cursor: isSoldOut || reachedLimit ? 'not-allowed' : 'pointer',
                     borderColor: totalQty > 0 ? '#1677ff' : undefined,
                     background: totalQty > 0 ? '#e6f4ff' : undefined,
+                    opacity: isSoldOut ? 0.55 : 1,
                   }}
                   styles={{ body: { padding: '8px 10px' } }}
                 >
                   <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>{item.name}</div>
                   <div style={{ fontSize: 12, color: '#1677ff', marginTop: 4 }}>${item.price.toFixed(2)}</div>
+                  <Tooltip title={isSoldOut && itemAvailability?.limitingArticleName ? `Falta ${itemAvailability.limitingArticleName}` : undefined}>
+                    <Tag color={stockColor} style={{ fontSize: 10, marginTop: 4, marginInlineEnd: 0 }}>
+                      {isSoldOut ? 'Agotado' : formatStock(itemAvailability?.availableQuantity)}
+                    </Tag>
+                  </Tooltip>
                   {hasVariable && (
                     <QuestionCircleOutlined style={{ color: '#fa8c16', fontSize: 11, marginTop: 2 }} title="Tiene ingredientes variables" />
                   )}
@@ -338,6 +451,7 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
                 style={{ flex: 1, overflowY: 'auto' }}
                 renderItem={(line, idx) => {
                   const label = choicesLabel(line.ingredientChoices, items);
+                  const capacity = getRemainingLineCapacity(line, idx);
                   return (
                     <List.Item style={{ padding: '6px 0' }}>
                       <div style={{ width: '100%' }}>
@@ -348,16 +462,27 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
                         {label && (
                           <Tag color="orange" style={{ fontSize: 11, marginTop: 2 }}>{label}</Tag>
                         )}
+                        {capacity !== null && (
+                          <Tag color={line.quantity > capacity ? 'red' : 'green'} style={{ fontSize: 11, marginTop: 2 }}>
+                            Stock: {Math.floor(capacity)}
+                          </Tag>
+                        )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
                           <Button size="small" icon={<MinusOutlined />} onClick={() => changeQuantity(idx, line.quantity - 1)} />
                           <InputNumber
                             size="small"
                             min={1}
+                            max={capacity ?? undefined}
                             value={line.quantity}
                             onChange={v => changeQuantity(idx, v ?? 1)}
                             style={{ width: 50 }}
                           />
-                          <Button size="small" icon={<PlusOutlined />} onClick={() => changeQuantity(idx, line.quantity + 1)} />
+                          <Button
+                            size="small"
+                            icon={<PlusOutlined />}
+                            disabled={capacity !== null && line.quantity >= capacity}
+                            onClick={() => changeQuantity(idx, line.quantity + 1)}
+                          />
                           <Text type="secondary" style={{ fontSize: 12, marginLeft: 'auto' }}>
                             ${(line.price * line.quantity).toFixed(2)}
                           </Text>
@@ -488,10 +613,17 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: slotIdx < choiceTarget.variableIngredients.length - 1 ? 20 : 0 }}>
                     {allOptions.map(opt => {
                       const selected = chosen === opt.articleId;
+                      const optionAvailability = availabilityByItemId.get(choiceTarget.id)?.components.find(component =>
+                        component.isVariableOption
+                        && component.recipeIngredientId === slot.recipeIngredientId
+                        && component.articleId === opt.articleId
+                      );
+                      const optionDisabled = optionAvailability !== undefined && optionAvailability.availableServings <= 0;
                       return (
                         <div
                           key={opt.articleId}
                           onClick={() => {
+                            if (optionDisabled) return;
                             setPendingChoices(prev => ({ ...prev, [slot.recipeIngredientId]: opt.articleId }));
                             setChoiceError(false);
                           }}
@@ -501,20 +633,24 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
                             padding: '14px 10px',
                             borderRadius: 10,
                             border: `2px solid ${selected ? '#1677ff' : slotMissing ? '#ff4d4f' : '#d9d9d9'}`,
-                            background: selected ? '#e6f4ff' : '#fff',
-                            cursor: 'pointer',
+                            background: optionDisabled ? '#f5f5f5' : selected ? '#e6f4ff' : '#fff',
+                            cursor: optionDisabled ? 'not-allowed' : 'pointer',
                             textAlign: 'center',
                             transition: 'all 0.15s',
                             userSelect: 'none',
+                            opacity: optionDisabled ? 0.55 : 1,
                           }}
                         >
                           <div style={{
                             fontSize: 14,
                             fontWeight: selected ? 600 : 400,
-                            color: selected ? '#1677ff' : '#262626',
+                            color: optionDisabled ? '#8c8c8c' : selected ? '#1677ff' : '#262626',
                             lineHeight: 1.3,
                           }}>
                             {opt.articleName}
+                          </div>
+                          <div style={{ fontSize: 11, color: optionDisabled ? '#ff4d4f' : '#52c41a', marginTop: 4 }}>
+                            {optionAvailability ? `Disp. ${optionAvailability.availableServings}` : 'Sin control'}
                           </div>
                           {selected && (
                             <CheckOutlined style={{ color: '#1677ff', fontSize: 12, marginTop: 4 }} />

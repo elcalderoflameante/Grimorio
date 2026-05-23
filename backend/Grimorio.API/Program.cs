@@ -7,6 +7,8 @@ using Grimorio.API.Services;
 using Grimorio.Application.Abstractions;
 using Grimorio.SharedKernel.Constants;
 using Serilog;
+using Serilog.Events;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -34,7 +36,7 @@ var builder = WebApplication.CreateBuilder(args);
 // === Configurar Serilog ===
 var logFilePath = builder.Configuration["Serilog:LogFilePath"] ?? "logs/grimorio_.txt";
 Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Debug()
+    .MinimumLevel.Is(builder.Environment.IsDevelopment() ? LogEventLevel.Debug : LogEventLevel.Information)
     .WriteTo.Console()
     .WriteTo.File(
         logFilePath,
@@ -118,6 +120,21 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
+    {
+        var configuredOrigins = (Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS")
+                ?? builder.Configuration["Cors:AllowedOrigins"]
+                ?? string.Empty)
+            .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (configuredOrigins.Length > 0)
+        {
+            policy.WithOrigins(configuredOrigins)
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials();
+            return;
+        }
+
         policy.SetIsOriginAllowed(origin =>
             {
                 if (string.IsNullOrWhiteSpace(origin))
@@ -139,7 +156,8 @@ builder.Services.AddCors(options =>
             })
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials());
+            .AllowCredentials();
+    });
 });
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -174,7 +192,19 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserContext, HttpContextCurrentUserContext>();
 
 // === Data Protection (cifrado del certificado .p12 y contraseña SRI) ===
-builder.Services.AddDataProtection();
+var dataProtectionKeysPath = Environment.GetEnvironmentVariable("DATA_PROTECTION_KEYS_PATH")
+    ?? builder.Configuration["DataProtection:KeysPath"]
+    ?? (Directory.Exists("/app/secrets") ? "/app/secrets/dataprotection-keys" : null);
+
+var dataProtectionBuilder = builder.Services
+    .AddDataProtection()
+    .SetApplicationName("Grimorio");
+
+if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+{
+    Directory.CreateDirectory(dataProtectionKeysPath);
+    dataProtectionBuilder.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+}
 
 // === HTTP client para llamadas al SRI ===
 builder.Services.AddHttpClient();

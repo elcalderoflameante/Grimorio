@@ -1,32 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Checkbox, ConfigProvider, Form, Input, message, theme as antdTheme } from 'antd';
+import { Button, Checkbox, ConfigProvider, Form, Input, message } from 'antd';
 import { FireFilled, LockOutlined, ThunderboltFilled, UserOutlined } from '@ant-design/icons';
 import { jwtDecode } from 'jwt-decode';
 import { authApi } from '../services/api';
 import { useAuth } from '../context/useAuth';
 import { formatError } from '../utils/errorHandler';
 import ecfLogo from '../assets/ECF-Logo.png';
+import { GRIMORIO_COLORS, grimorioLoginTheme, hexA } from '../theme/grimorioTheme';
 import './Login.css';
-
-const PALETTE = {
-  bg0: '#0e0d0a',
-  bg1: '#1b1814',
-  bg2: '#2a2520',
-  surface: '#15130f',
-  surfaceElev: '#1f1b15',
-  border: 'rgba(180,140,80,0.22)',
-  borderStrong: 'rgba(180,140,80,0.55)',
-  gold: '#b88a3a',
-  goldBright: '#d9a655',
-  ember: '#ff6a1a',
-  emberDeep: '#a02e08',
-  cream: '#e8dcc0',
-  text: '#e8dcc0',
-  textMuted: 'rgba(232,220,192,0.6)',
-  textFaint: 'rgba(232,220,192,0.38)',
-  danger: '#e07050',
-};
 
 interface DecodedToken {
   BranchId?: string;
@@ -37,15 +19,6 @@ interface LoginFormValues {
   email: string;
   password: string;
   remember?: boolean;
-}
-
-function hexA(hex: string, alpha: number) {
-  const h = hex.replace('#', '');
-  const value = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
-  const r = parseInt(value.slice(0, 2), 16);
-  const g = parseInt(value.slice(2, 4), 16);
-  const b = parseInt(value.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
 }
 
 function Embers() {
@@ -106,9 +79,9 @@ function Embers() {
         const radius = particle.r;
         const glow = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, radius * 6);
 
-        glow.addColorStop(0, hexA(PALETTE.ember, alpha));
-        glow.addColorStop(0.4, hexA(PALETTE.emberDeep, alpha * 0.5));
-        glow.addColorStop(1, hexA(PALETTE.emberDeep, 0));
+        glow.addColorStop(0, hexA(GRIMORIO_COLORS.ember, alpha));
+        glow.addColorStop(0.4, hexA(GRIMORIO_COLORS.emberDeep, alpha * 0.5));
+        glow.addColorStop(1, hexA(GRIMORIO_COLORS.emberDeep, 0));
 
         ctx.fillStyle = glow;
         ctx.beginPath();
@@ -189,50 +162,8 @@ export default function Login() {
     }
   };
 
-  const loginTheme = {
-    algorithm: antdTheme.darkAlgorithm,
-    token: {
-      colorPrimary: PALETTE.gold,
-      colorInfo: PALETTE.gold,
-      colorBgBase: PALETTE.surface,
-      colorBgContainer: 'rgba(255,255,255,0.04)',
-      colorBgElevated: PALETTE.surfaceElev,
-      colorBorder: PALETTE.border,
-      colorError: PALETTE.danger,
-      colorIcon: PALETTE.textMuted,
-      colorIconHover: PALETTE.gold,
-      colorText: PALETTE.text,
-      colorTextBase: PALETTE.text,
-      colorTextPlaceholder: PALETTE.textFaint,
-      colorTextSecondary: PALETTE.textMuted,
-      borderRadius: 8,
-      borderRadiusLG: 10,
-      controlHeight: 44,
-      controlHeightLG: 48,
-      fontFamily: '"Inter", ui-sans-serif, system-ui, -apple-system, sans-serif',
-      fontSize: 14,
-      lineWidth: 1,
-    },
-    components: {
-      Button: {
-        primaryShadow: `0 8px 24px ${hexA(PALETTE.ember, 0.35)}`,
-      },
-      Checkbox: {
-        colorPrimary: PALETTE.gold,
-      },
-      Form: {
-        labelColor: PALETTE.textMuted,
-      },
-      Input: {
-        activeBorderColor: PALETTE.gold,
-        activeShadow: `0 0 0 2px ${hexA(PALETTE.gold, 0.18)}`,
-        hoverBorderColor: PALETTE.borderStrong,
-      },
-    },
-  };
-
   return (
-    <ConfigProvider theme={loginTheme}>
+    <ConfigProvider theme={grimorioLoginTheme}>
       {contextHolder}
       <div className="grim-login-root">
         <div className="grim-login-bg" />

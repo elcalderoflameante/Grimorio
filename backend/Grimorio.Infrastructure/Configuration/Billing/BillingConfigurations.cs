@@ -175,6 +175,24 @@ public class CustomerConfiguration : BaseEntityConfiguration<Customer>
     }
 }
 
+public class CashRegisterConfiguration : BaseEntityConfiguration<CashRegister>
+{
+    public override void Configure(EntityTypeBuilder<CashRegister> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("CashRegisters", "billing");
+
+        builder.Property(x => x.Name).IsRequired().HasMaxLength(80);
+        builder.Property(x => x.Code).IsRequired().HasMaxLength(30);
+        builder.Property(x => x.Description).HasMaxLength(250);
+
+        builder.HasIndex(x => new { x.BranchId, x.Code })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = false");
+        builder.HasIndex(x => new { x.BranchId, x.IsActive });
+    }
+}
+
 public class CashSessionConfiguration : BaseEntityConfiguration<CashSession>
 {
     public override void Configure(EntityTypeBuilder<CashSession> builder)
@@ -188,7 +206,14 @@ public class CashSessionConfiguration : BaseEntityConfiguration<CashSession>
         builder.Property(x => x.ActualCash).HasColumnType("numeric(18,2)");
         builder.Property(x => x.CloseNotes).HasMaxLength(500);
 
+        builder.HasOne(x => x.CashRegister)
+            .WithMany(r => r.Sessions)
+            .HasForeignKey(x => x.CashRegisterId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(x => new { x.BranchId, x.Status });
+        builder.HasIndex(x => new { x.CashRegisterId, x.Status });
+        builder.HasIndex(x => new { x.BranchId, x.OpenedBy, x.Status });
     }
 }
 

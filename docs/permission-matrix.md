@@ -104,6 +104,8 @@ Los endpoints `public/*` de `TableService` quedan sin permiso de usuario porque 
 | `Billing.Cash.Open` | Abrir caja | Facturacion > Caja | `POST /api/cash/abrir` |
 | `Billing.Cash.Close` | Cerrar caja | Facturacion > Caja | `POST /api/cash/sesiones/{id}/cerrar` |
 | `Billing.Cash.Charge` | Cobrar ordenes | Facturacion > Caja | `POST /api/cash/cobrar/{orderId}` |
+| `Billing.CashRegisters.View` | Ver cajas y estaciones de cobro | Facturacion > Caja | `GET /api/cash/cajas` |
+| `Billing.CashRegisters.Manage` | Administrar cajas y estaciones de cobro | Facturacion > Caja | `POST/PUT/DELETE /api/cash/cajas` |
 | `Billing.PaymentMethods.View` | Ver medios de pago y bancos | Facturacion > Medios de pago | `GET /api/cash/metodos-pago`, `GET /api/cash/bancos-tarjeta` |
 | `Billing.PaymentMethods.Manage` | Administrar medios de pago y bancos | Facturacion > Medios de pago | `POST/PUT/DELETE /api/cash/metodos-pago`, `bancos-tarjeta` |
 | `Billing.Tax.View` | Ver tarifas fiscales | Facturacion > Configuracion fiscal | `GET /api/tax/tarifas` |

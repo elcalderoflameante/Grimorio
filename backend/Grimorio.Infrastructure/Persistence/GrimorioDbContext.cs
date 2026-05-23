@@ -78,6 +78,7 @@ public class GrimorioDbContext : DbContext
     public DbSet<Customer> Customers { get; set; } = null!;
     public DbSet<PaymentMethodConfig> PaymentMethodConfigs { get; set; } = null!;
     public DbSet<CardBank> CardBanks { get; set; } = null!;
+    public DbSet<CashRegister> CashRegisters { get; set; } = null!;
     public DbSet<CashSession> CashSessions { get; set; } = null!;
     public DbSet<OrderPayment> OrderPayments { get; set; } = null!;
     public DbSet<PaymentLine> PaymentLines { get; set; } = null!;

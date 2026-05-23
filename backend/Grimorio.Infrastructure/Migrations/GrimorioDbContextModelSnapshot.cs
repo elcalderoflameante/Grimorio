@@ -537,6 +537,9 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid>("BranchId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("CashRegisterId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("CloseNotes")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
@@ -600,6 +603,10 @@ namespace Grimorio.Infrastructure.Migrations
                     b.HasIndex("IsDeleted");
 
                     b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("CashRegisterId", "Status");
+
+                    b.HasIndex("BranchId", "OpenedBy", "Status");
 
                     b.HasIndex("BranchId", "Status");
 
@@ -743,6 +750,75 @@ namespace Grimorio.Infrastructure.Migrations
                     b.HasIndex("BranchId", "SortOrder");
 
                     b.ToTable("CardBanks", "billing");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Billing.CashRegister", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("BranchId", "Code")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.HasIndex("BranchId", "IsActive");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.ToTable("CashRegisters", "billing");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Billing.ElectronicDocument", b =>
@@ -934,6 +1010,17 @@ namespace Grimorio.Infrastructure.Migrations
                     b.HasIndex("BranchId", "IsDeleted");
 
                     b.ToTable("InvoiceTemplates", "billing");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Billing.CashSession", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Billing.CashRegister", "CashRegister")
+                        .WithMany("Sessions")
+                        .HasForeignKey("CashRegisterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CashRegister");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Billing.OrderPayment", b =>
@@ -4881,6 +4968,11 @@ namespace Grimorio.Infrastructure.Migrations
             modelBuilder.Entity("Grimorio.Domain.Entities.Billing.CashSession", b =>
                 {
                     b.Navigation("Payments");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Billing.CashRegister", b =>
+                {
+                    b.Navigation("Sessions");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Billing.OrderPayment", b =>

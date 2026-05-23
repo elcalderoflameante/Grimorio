@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Tag, Space, Typography, Button, DatePicker, Row, Col, Statistic, Descriptions } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
+import { Table, Tag, Space, Typography, Button, DatePicker, Row, Col, Statistic, Descriptions, Select } from 'antd';
+import { BankOutlined, ReloadOutlined, UserOutlined } from '@ant-design/icons';
 import type { OrderPaymentDto, PaymentLineDto } from '../../types';
 import { cashApi } from '../../services/api';
 import { GenerateInvoiceButton } from './ElectronicInvoices';
@@ -24,6 +24,12 @@ const orderTypeLabel = (t?: string) => {
 function PaymentDetail({ payment }: { payment: OrderPaymentDto }) {
   return (
     <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }} style={{ padding: '8px 16px' }}>
+      <Descriptions.Item label="Caja">
+        {payment.cashRegisterCode
+          ? `${payment.cashRegisterName} (${payment.cashRegisterCode})`
+          : payment.cashRegisterName ?? '—'}
+      </Descriptions.Item>
+      <Descriptions.Item label="Cajero">{payment.cashierName ?? '—'}</Descriptions.Item>
       {payment.customerName && (
         <Descriptions.Item label="Cliente">{payment.customerName}</Descriptions.Item>
       )}
@@ -47,6 +53,9 @@ function PaymentDetail({ payment }: { payment: OrderPaymentDto }) {
 export default function SalesHistory() {
   const [sales, setSales] = useState<OrderPaymentDto[]>([]);
   const [loading, setLoading] = useState(false);
+  const [cashierFilter, setCashierFilter] = useState<string>();
+  const [registerFilter, setRegisterFilter] = useState<string>();
+  const [documentFilter, setDocumentFilter] = useState<string>();
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([
     dayjs().startOf('day'),
     dayjs().endOf('day'),
@@ -69,9 +78,29 @@ export default function SalesHistory() {
 
   useEffect(() => { load(); }, [load]);
 
-  const totalVentas = sales.reduce((s, p) => s + p.orderAmount, 0);
+  const cashierOptions = Array.from(new Set(sales.map(s => s.cashierName).filter(Boolean) as string[]))
+    .sort()
+    .map(name => ({ value: name, label: name }));
 
-  const methodTotals = sales
+  const registerOptions = Array.from(
+    new Map(sales
+      .filter(s => s.cashRegisterId)
+      .map(s => [s.cashRegisterId!, {
+        value: s.cashRegisterId!,
+        label: s.cashRegisterCode ? `${s.cashRegisterName} (${s.cashRegisterCode})` : s.cashRegisterName ?? 'Caja',
+      }])).values()
+  );
+
+  const filteredSales = sales.filter(s => {
+    if (cashierFilter && s.cashierName !== cashierFilter) return false;
+    if (registerFilter && s.cashRegisterId !== registerFilter) return false;
+    if (documentFilter && s.documentType !== documentFilter) return false;
+    return true;
+  });
+
+  const totalVentas = filteredSales.reduce((s, p) => s + p.orderAmount, 0);
+
+  const methodTotals = filteredSales
     .flatMap(p => p.lines)
     .reduce<Record<string, { name: string; color: string; total: number }>>((acc, l) => {
       if (!acc[l.methodId]) acc[l.methodId] = { name: l.methodName, color: l.methodColor, total: 0 };
@@ -82,13 +111,40 @@ export default function SalesHistory() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={5} style={{ margin: 0 }}>Ventas realizadas</Title>
+        <Title level={5} style={{ margin: 0 }}>Ventas del restaurante</Title>
         <Space>
           <RangePicker
             value={dateRange}
             onChange={(v) => setDateRange(v ? [v[0], v[1]] : [null, null])}
             format="DD/MM/YYYY"
             allowClear={false}
+          />
+          <Select
+            allowClear
+            placeholder="Caja"
+            style={{ width: 180 }}
+            value={registerFilter}
+            onChange={setRegisterFilter}
+            options={registerOptions}
+          />
+          <Select
+            allowClear
+            placeholder="Cajero"
+            style={{ width: 180 }}
+            value={cashierFilter}
+            onChange={setCashierFilter}
+            options={cashierOptions}
+          />
+          <Select
+            allowClear
+            placeholder="Documento"
+            style={{ width: 150 }}
+            value={documentFilter}
+            onChange={setDocumentFilter}
+            options={[
+              { value: 'NotaDeVenta', label: 'Nota de venta' },
+              { value: 'Factura', label: 'Factura' },
+            ]}
           />
           <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>Actualizar</Button>
         </Space>
@@ -100,7 +156,7 @@ export default function SalesHistory() {
           <Statistic title="Total cobrado" value={totalVentas} prefix="$" precision={2} />
         </Col>
         <Col xs={12} md={6}>
-          <Statistic title="Transacciones" value={sales.length} />
+          <Statistic title="Transacciones" value={filteredSales.length} />
         </Col>
         {Object.values(methodTotals).map(m => (
           <Col xs={12} md={6} key={m.name}>
@@ -117,7 +173,7 @@ export default function SalesHistory() {
 
       <Table
         size="small"
-        dataSource={sales}
+        dataSource={filteredSales}
         rowKey="id"
         loading={loading}
         pagination={{ defaultPageSize: 25, showSizeChanger: true, pageSizeOptions: ['10', '25', '50', '100'] }}
@@ -150,6 +206,27 @@ export default function SalesHistory() {
               r.tableCode
                 ? <Text>{r.tableCode}{r.tableName ? ` - ${r.tableName}` : ''}</Text>
                 : <Text type="secondary">{r.customerName ?? '—'}</Text>,
+          },
+          {
+            title: 'Caja',
+            width: 150,
+            render: (_: unknown, r: OrderPaymentDto) => (
+              <Space size={4}>
+                <BankOutlined />
+                <Text>{r.cashRegisterCode ? `${r.cashRegisterName} (${r.cashRegisterCode})` : r.cashRegisterName ?? '—'}</Text>
+              </Space>
+            ),
+          },
+          {
+            title: 'Cajero',
+            dataIndex: 'cashierName',
+            width: 140,
+            render: (v?: string) => (
+              <Space size={4}>
+                <UserOutlined />
+                <Text>{v ?? '—'}</Text>
+              </Space>
+            ),
           },
           {
             title: 'Documento',

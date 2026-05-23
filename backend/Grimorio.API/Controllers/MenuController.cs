@@ -89,6 +89,40 @@ public class MenuController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
+    [Authorize(Policy = "Menu.Items.View")]
+    [HttpGet("items/disponibilidad")]
+    public async Task<IActionResult> GetAvailability(
+        [FromQuery] Guid? categoryId,
+        [FromQuery] bool activeOnly = true,
+        [FromQuery] bool availableOnly = true)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        return Ok(await _mediator.Send(new GetMenuAvailabilityQuery
+        {
+            BranchId = branchId,
+            CategoryId = categoryId,
+            ActiveOnly = activeOnly,
+            AvailableOnly = availableOnly,
+        }));
+    }
+
+    [Authorize(Policy = "Menu.Items.View")]
+    [HttpGet("rentabilidad")]
+    public async Task<IActionResult> GetProfitability(
+        [FromQuery] Guid? categoryId,
+        [FromQuery] bool activeOnly = true,
+        [FromQuery] bool availableOnly = false)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        return Ok(await _mediator.Send(new GetMenuProfitabilityQuery
+        {
+            BranchId = branchId,
+            CategoryId = categoryId,
+            ActiveOnly = activeOnly,
+            AvailableOnly = availableOnly,
+        }));
+    }
+
     [Authorize(Policy = "Menu.Items.Manage")]
     [HttpPost("items")]
     public async Task<IActionResult> CreateItem([FromBody] CreateMenuItemDto dto)

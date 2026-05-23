@@ -106,7 +106,7 @@ export default function StockMovements() {
       <Space style={{ marginBottom: 16 }} wrap>
         <Select
           allowClear
-          placeholder="Artículo"
+          placeholder="ArtÃ­culo"
           style={{ width: 200 }}
           options={articulos.map(a => ({ label: a.name, value: a.id }))}
           onChange={setFilterArticulo}
@@ -144,7 +144,7 @@ export default function StockMovements() {
             render: (v: string) => dayjs(v).format('DD/MM/YYYY HH:mm'),
             width: 140,
           },
-          { title: 'Artículo', dataIndex: 'articleName', key: 'articulo' },
+          { title: 'ArtÃ­culo', dataIndex: 'articleName', key: 'articulo' },
           { title: 'Bodega', dataIndex: 'warehouseName', key: 'bodega' },
           {
             title: 'Tipo', dataIndex: 'type', key: 'tipo',
@@ -161,7 +161,7 @@ export default function StockMovements() {
               `${SALIDAS.has(m.type) ? '-' : '+'}${m.baseQuantity} ${m.baseUnitSymbol}`,
           },
           { title: 'Referencia', dataIndex: 'reference', key: 'referencia' },
-          { title: 'Observación', dataIndex: 'notes', key: 'observacion' },
+          { title: 'ObservaciÃ³n', dataIndex: 'notes', key: 'observacion' },
         ]}
       />
 
@@ -174,10 +174,10 @@ export default function StockMovements() {
         width={520}
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="articleId" label="Artículo" rules={[{ required: true }]}>
+          <Form.Item name="articleId" label="ArtÃ­culo" rules={[{ required: true }]}>
             <Select
               options={articulos.map(a => ({ label: `${a.name} (${a.baseUnitSymbol})`, value: a.id }))}
-              placeholder="Seleccionar artículo"
+              placeholder="Seleccionar artÃ­culo"
               showSearch
               optionFilterProp="label"
             />
@@ -205,7 +205,7 @@ export default function StockMovements() {
           <Form.Item name="reference" label="Referencia">
             <Input placeholder="Nro factura, orden..." />
           </Form.Item>
-          <Form.Item name="notes" label="Observación">
+          <Form.Item name="notes" label="ObservaciÃ³n">
             <Input.TextArea rows={2} />
           </Form.Item>
         </Form>

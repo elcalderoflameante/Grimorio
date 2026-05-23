@@ -1,14 +1,15 @@
 import { useEffect, useState, useRef } from 'react';
 import {
   Card, Button, InputNumber, Form, Modal, Table, Tag, Space, Typography,
-  Row, Col, Descriptions, Alert, message, Divider, Badge, Tooltip,
+  Row, Col, Descriptions, Alert, message, Divider, Badge, Tooltip, Select, Input,
+  Popconfirm, Switch,
 } from 'antd';
 import {
   UnlockOutlined, LockOutlined, ReloadOutlined,
   ShoppingCartOutlined, CheckCircleOutlined, DollarOutlined,
   BankOutlined, ClockCircleOutlined, SyncOutlined, FireOutlined,
 } from '@ant-design/icons';
-import type { CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, ActiveOrderSummaryDto } from '../../types';
+import type { CashRegisterDto, CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, ActiveOrderSummaryDto } from '../../types';
 import { cashApi, posApi } from '../../services/api';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -40,6 +41,7 @@ export default function CashRegister() {
   const { hasPermission } = useAuth();
   const [activeSession, setActiveSession] = useState<CashSessionDto | null | undefined>(undefined);
   const [history, setHistory] = useState<CashSessionDto[]>([]);
+  const [registers, setRegisters] = useState<CashRegisterDto[]>([]);
   const [activeOrders, setActiveOrders] = useState<ActiveOrderSummaryDto[]>([]);
   const [recentSales, setRecentSales] = useState<import('../../types').OrderPaymentDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,25 +50,31 @@ export default function CashRegister() {
   const [closeForm] = Form.useForm();
   const [showOpenModal, setShowOpenModal] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [editingRegister, setEditingRegister] = useState<CashRegisterDto | null>(null);
   const [saving, setSaving] = useState(false);
+  const [registerForm] = Form.useForm();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const canOpenCash = hasPermission(PERMISSIONS.billing.cashOpen);
   const canCloseCash = hasPermission(PERMISSIONS.billing.cashClose);
+  const canManageRegisters = hasPermission(PERMISSIONS.billing.cashRegistersManage);
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [sessionRes, historyRes, ordersRes, salesRes] = await Promise.allSettled([
+      const [sessionRes, historyRes, ordersRes, salesRes, registersRes] = await Promise.allSettled([
         cashApi.getActiveSession(),
         cashApi.getSessions({ pageSize: 20 }),
         posApi.getActiveOrderSummaries(),
         cashApi.getSales({ from: dayjs().startOf('day').toISOString(), pageSize: 10 }),
+        cashApi.getRegisters(canManageRegisters ? false : true),
       ]);
 
       setActiveSession(sessionRes.status === 'fulfilled' ? sessionRes.value.data : null);
       setHistory(historyRes.status === 'fulfilled' ? historyRes.value.data : []);
       setActiveOrders(ordersRes.status === 'fulfilled' ? ordersRes.value.data : []);
       setRecentSales(salesRes.status === 'fulfilled' ? salesRes.value.data : []);
+      setRegisters(registersRes.status === 'fulfilled' ? registersRes.value.data : []);
       setLastRefresh(dayjs());
     } finally {
       if (!silent) setLoading(false);
@@ -83,7 +91,10 @@ export default function CashRegister() {
     const values = await openForm.validateFields();
     setSaving(true);
     try {
-      const dto: OpenCashSessionDto = { openingBalance: values.openingBalance };
+      const dto: OpenCashSessionDto = {
+        cashRegisterId: values.cashRegisterId,
+        openingBalance: values.openingBalance,
+      };
       const r = await cashApi.openSession(dto);
       setActiveSession(r.data);
       setShowOpenModal(false);
@@ -93,6 +104,56 @@ export default function CashRegister() {
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } } };
       message.error(err?.response?.data?.message ?? 'Error al abrir caja');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveRegister = async () => {
+    const values = await registerForm.validateFields();
+    setSaving(true);
+    try {
+      if (editingRegister) {
+        await cashApi.updateRegister(editingRegister.id, {
+          name: values.name,
+          code: values.code,
+          description: values.description,
+          isActive: values.isActive,
+        });
+        message.success('Caja actualizada');
+      } else {
+        await cashApi.createRegister({
+          name: values.name,
+          code: values.code,
+          description: values.description,
+        });
+        message.success('Caja creada');
+      }
+      setEditingRegister(null);
+      registerForm.resetFields();
+      load(true);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } };
+      message.error(err?.response?.data?.message ?? 'Error al guardar caja');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEditRegister = (register: CashRegisterDto) => {
+    setEditingRegister(register);
+    registerForm.setFieldsValue(register);
+  };
+
+  const handleDeleteRegister = async (id: string) => {
+    setSaving(true);
+    try {
+      await cashApi.removeRegister(id);
+      message.success('Caja eliminada o desactivada');
+      load(true);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } };
+      message.error(err?.response?.data?.message ?? 'Error al eliminar caja');
     } finally {
       setSaving(false);
     }
@@ -118,6 +179,7 @@ export default function CashRegister() {
   };
 
   if (loading || activeSession === undefined) return null;
+  const activeRegisters = registers.filter(r => r.isActive);
 
   // Contadores de pedidos activos por estado
   const ordersByStatus = activeOrders.reduce<Record<string, number>>((acc, o) => {
@@ -142,6 +204,11 @@ export default function CashRegister() {
           <Button icon={<ReloadOutlined />} onClick={() => load(false)} loading={loading}>
             Actualizar
           </Button>
+          {canManageRegisters && (
+            <Button icon={<BankOutlined />} onClick={() => setShowRegisterModal(true)}>
+              Configurar cajas
+            </Button>
+          )}
           {activeSession
             ? canCloseCash && <Button danger icon={<LockOutlined />} onClick={() => setShowCloseModal(true)}>
                 Cerrar caja
@@ -173,6 +240,11 @@ export default function CashRegister() {
             <Divider orientation="vertical" />
             <Text type="secondary" style={{ fontSize: 13 }}>
               <strong>{activeSession.openedByName}</strong>
+            </Text>
+            <Divider orientation="vertical" />
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              <BankOutlined style={{ marginRight: 4 }} />
+              {activeSession.cashRegisterName || 'Caja'} {activeSession.cashRegisterCode ? `(${activeSession.cashRegisterCode})` : ''}
             </Text>
             <Divider orientation="vertical" />
             <Text type="secondary" style={{ fontSize: 13 }}>
@@ -400,9 +472,11 @@ export default function CashRegister() {
         </>
       ) : (
         <Alert
-          type="warning"
-          title="No hay sesión de caja abierta"
-          description="Abre la caja antes de registrar cobros."
+          type={activeRegisters.length === 0 ? 'error' : 'warning'}
+          title={activeRegisters.length === 0 ? 'No hay cajas activas' : 'No hay sesión de caja abierta'}
+          description={activeRegisters.length === 0
+            ? 'Configura o activa al menos una caja antes de abrir turno.'
+            : 'Abre tu caja antes de registrar cobros.'}
           style={{ marginBottom: 24 }}
           showIcon
         />
@@ -420,6 +494,12 @@ export default function CashRegister() {
           {
             title: 'Fecha', dataIndex: 'openedAt', width: 150,
             render: v => dayjs(v).format('DD/MM/YYYY HH:mm'),
+          },
+          {
+            title: 'Caja', width: 130,
+            render: (_: unknown, r: CashSessionDto) => r.cashRegisterCode
+              ? `${r.cashRegisterName} (${r.cashRegisterCode})`
+              : r.cashRegisterName || '—',
           },
           { title: 'Cajero', dataIndex: 'openedByName', width: 150 },
           {
@@ -458,6 +538,20 @@ export default function CashRegister() {
       >
         <Form form={openForm} layout="vertical" initialValues={{ openingBalance: 0 }}>
           <Form.Item
+            name="cashRegisterId"
+            label="Caja / estación"
+            rules={[{ required: true, message: 'Selecciona la caja que vas a abrir' }]}
+          >
+            <Select
+              placeholder="Selecciona una caja"
+              options={activeRegisters.map(r => ({
+                value: r.id,
+                label: `${r.name} (${r.code})${r.hasOpenSession ? ' - en uso' : ''}`,
+                disabled: r.hasOpenSession,
+              }))}
+            />
+          </Form.Item>
+          <Form.Item
             name="openingBalance"
             label="Fondo inicial en caja ($)"
             rules={[{ required: true }]}
@@ -468,6 +562,89 @@ export default function CashRegister() {
       </Modal>
 
       {/* ── Modal cerrar caja ───────────────────────────────────────────── */}
+      <Modal
+        title="Configurar cajas"
+        open={showRegisterModal}
+        onCancel={() => {
+          setShowRegisterModal(false);
+          setEditingRegister(null);
+          registerForm.resetFields();
+        }}
+        footer={null}
+        width={760}
+      >
+        <Form form={registerForm} layout="vertical" initialValues={{ isActive: true }} style={{ marginBottom: 16 }}>
+          <Row gutter={12}>
+            <Col xs={24} md={8}>
+              <Form.Item name="name" label="Nombre" rules={[{ required: true }]}>
+                <Input placeholder="Caja principal" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={6}>
+              <Form.Item name="code" label="Código" rules={[{ required: true }]}>
+                <Input placeholder="CAJA-01" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={6}>
+              <Form.Item name="description" label="Descripción">
+                <Input placeholder="Estación barra" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={4}>
+              <Form.Item name="isActive" label="Activa" valuePropName="checked">
+                <Switch />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Space>
+            <Button type="primary" onClick={handleSaveRegister} loading={saving}>
+              {editingRegister ? 'Actualizar' : 'Crear caja'}
+            </Button>
+            {editingRegister && (
+              <Button onClick={() => { setEditingRegister(null); registerForm.resetFields(); }}>
+                Cancelar edición
+              </Button>
+            )}
+          </Space>
+        </Form>
+        <Table
+          size="small"
+          rowKey="id"
+          dataSource={registers}
+          pagination={false}
+          columns={[
+            { title: 'Código', dataIndex: 'code', width: 100 },
+            { title: 'Nombre', dataIndex: 'name' },
+            {
+              title: 'Estado', width: 140,
+              render: (_: unknown, r: CashRegisterDto) => (
+                <Space size={4}>
+                  <Tag color={r.isActive ? 'green' : 'default'}>{r.isActive ? 'Activa' : 'Inactiva'}</Tag>
+                  {r.hasOpenSession && <Tag color="processing">En uso</Tag>}
+                </Space>
+              ),
+            },
+            {
+              title: 'Acciones', width: 160,
+              render: (_: unknown, r: CashRegisterDto) => (
+                <Space>
+                  <Button size="small" onClick={() => handleEditRegister(r)}>Editar</Button>
+                  <Popconfirm
+                    title="Eliminar caja"
+                    description="Si tiene historial se desactivará."
+                    onConfirm={() => handleDeleteRegister(r.id)}
+                    okText="Eliminar"
+                    cancelText="Cancelar"
+                  >
+                    <Button size="small" danger disabled={r.hasOpenSession}>Eliminar</Button>
+                  </Popconfirm>
+                </Space>
+              ),
+            },
+          ]}
+        />
+      </Modal>
+
       <Modal
         title="Cerrar caja"
         open={showCloseModal}
@@ -527,6 +704,11 @@ function SessionDetail({ session }: { session: CashSessionDto }) {
   const fmt = (v: number) => `$${v.toFixed(2)}`;
   return (
     <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }} style={{ padding: '8px 16px' }}>
+      <Descriptions.Item label="Caja">
+        {session.cashRegisterCode
+          ? `${session.cashRegisterName} (${session.cashRegisterCode})`
+          : session.cashRegisterName || '—'}
+      </Descriptions.Item>
       <Descriptions.Item label="Fondo inicial">{fmt(session.openingBalance)}</Descriptions.Item>
       {session.totals.map(t => (
         <Descriptions.Item key={t.methodId} label={t.methodName}>

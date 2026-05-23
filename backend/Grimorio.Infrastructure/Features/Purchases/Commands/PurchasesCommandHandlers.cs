@@ -423,10 +423,10 @@ internal static class PurchasesHelper
             subtotal += gross;
             discountTotal += item.DiscountAmount;
 
-            if (info == null || info.SriCode is "6" or "7")
+            if (info == null || info.SriCode is "5" or "6" or "7")
                 taxableBaseExempt += taxableBase;
-            else if (info.SriCode == "10") { taxableBase15 += taxableBase; iva15 += item.TaxAmount; }
-            else taxableBase0 += taxableBase; // "0" or "8"
+            else if (info.Percentage > 0) { taxableBase15 += taxableBase; iva15 += item.TaxAmount; }
+            else taxableBase0 += taxableBase; // "0"
         }
 
         purchase.Subtotal = subtotal;

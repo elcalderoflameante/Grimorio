@@ -972,6 +972,70 @@ export interface MenuItemDetailDto extends MenuItemDto {
   recipe: RecipeIngredientDto[];
 }
 
+export interface MenuItemAvailabilityComponentDto {
+  recipeIngredientId?: string;
+  articleId: string;
+  articleName: string;
+  requiredQuantity: number;
+  requiredUnitSymbol: string;
+  stockQuantity: number;
+  stockUnitSymbol: string;
+  availableServings: number;
+  isVariableOption: boolean;
+}
+
+export interface MenuItemAvailabilityDto {
+  menuItemId: string;
+  isTracked: boolean;
+  isAvailable: boolean;
+  availableQuantity?: number | null;
+  unitLabel: string;
+  limitingArticleName?: string;
+  components: MenuItemAvailabilityComponentDto[];
+}
+
+export interface MenuItemProfitabilityIngredientDto {
+  recipeIngredientId: string;
+  articleId: string;
+  articleName: string;
+  internalCode?: string;
+  quantity: number;
+  unitId: string;
+  unitSymbol: string;
+  baseQuantity: number;
+  baseUnitSymbol: string;
+  averageUnitCost: number;
+  lastUnitCost?: number;
+  totalCost: number;
+  costSharePercentage: number;
+  isVariable: boolean;
+  hasCost: boolean;
+  warning?: string;
+}
+
+export interface MenuItemProfitabilityDto {
+  menuItemId: string;
+  menuItemName: string;
+  internalCode?: string;
+  categoryName: string;
+  categoryColor?: string;
+  grossSalePrice: number;
+  taxPercentage: number;
+  netSalePrice: number;
+  taxAmount: number;
+  recipeCost: number;
+  grossProfit: number;
+  foodCostPercentage: number;
+  grossMarginPercentage: number;
+  status: string;
+  statusLabel: string;
+  costMethod: string;
+  hasRecipe: boolean;
+  hasMissingCosts: boolean;
+  hasConversionWarnings: boolean;
+  ingredients: MenuItemProfitabilityIngredientDto[];
+}
+
 export interface CreateMenuItemDto {
   menuCategoryId: string;
   name: string;
@@ -1324,8 +1388,33 @@ export interface PaymentMethodTotalDto {
   total: number;
 }
 
+export interface CashRegisterDto {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  isActive: boolean;
+  hasOpenSession: boolean;
+}
+
+export interface CreateCashRegisterDto {
+  name: string;
+  code: string;
+  description?: string;
+}
+
+export interface UpdateCashRegisterDto {
+  name: string;
+  code: string;
+  description?: string;
+  isActive: boolean;
+}
+
 export interface CashSessionDto {
   id: string;
+  cashRegisterId: string;
+  cashRegisterName: string;
+  cashRegisterCode: string;
   openedByName: string;
   openingBalance: number;
   openedAt: string;
@@ -1343,6 +1432,7 @@ export interface CashSessionDto {
 }
 
 export interface OpenCashSessionDto {
+  cashRegisterId: string;
   openingBalance: number;
 }
 
@@ -1373,6 +1463,11 @@ export interface PaymentLineDto {
 export interface OrderPaymentDto {
   id: string;
   orderId: string;
+  cashSessionId?: string;
+  cashRegisterId?: string;
+  cashRegisterName?: string;
+  cashRegisterCode?: string;
+  cashierName?: string;
   orderNumber: number;
   orderType?: string;
   customerId?: string;
@@ -1386,6 +1481,55 @@ export interface OrderPaymentDto {
   lines: PaymentLineDto[];
   electronicDocumentId?: string;
   electronicDocumentStatus?: string;
+}
+
+export interface SalesProfitabilityItemDto {
+  menuItemId: string;
+  menuItemName: string;
+  internalCode?: string;
+  categoryName: string;
+  quantity: number;
+  grossSales: number;
+  netSales: number;
+  taxAmount: number;
+  unitRecipeCost: number;
+  totalFoodCost: number;
+  grossProfit: number;
+  foodCostPercentage: number;
+  grossMarginPercentage: number;
+  hasMissingCosts: boolean;
+  hasConversionWarnings: boolean;
+}
+
+export interface SalesProfitabilityCashRegisterDto {
+  cashRegisterId?: string;
+  cashRegisterName: string;
+  grossSales: number;
+  netSales: number;
+  foodCost: number;
+  grossProfit: number;
+  foodCostPercentage: number;
+  totalOrders: number;
+}
+
+export interface SalesProfitabilityReportDto {
+  fromUtc?: string;
+  toUtc?: string;
+  cashRegisterId?: string;
+  cashRegisterName?: string;
+  grossSales: number;
+  netSales: number;
+  taxAmount: number;
+  foodCost: number;
+  grossProfit: number;
+  foodCostPercentage: number;
+  grossMarginPercentage: number;
+  totalOrders: number;
+  totalItems: number;
+  missingCostLines: number;
+  conversionWarningLines: number;
+  items: SalesProfitabilityItemDto[];
+  cashRegisters: SalesProfitabilityCashRegisterDto[];
 }
 
 export interface AddPaymentLineDto {

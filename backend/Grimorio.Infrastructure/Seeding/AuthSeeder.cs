@@ -169,6 +169,7 @@ public static class AuthSeeder
                 AppConstants.Permissions.BillingCashOpen,
                 AppConstants.Permissions.BillingCashClose,
                 AppConstants.Permissions.BillingCashCharge,
+                AppConstants.Permissions.BillingCashRegistersView,
                 AppConstants.Permissions.BillingPaymentMethodsView,
                 AppConstants.Permissions.BillingSriView,
                 AppConstants.Permissions.BillingSriGenerate

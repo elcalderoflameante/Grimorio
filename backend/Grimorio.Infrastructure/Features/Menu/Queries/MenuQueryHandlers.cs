@@ -1,6 +1,7 @@
 ﻿using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Menu.Queries;
 using Grimorio.Domain.Entities.Menu;
+using Grimorio.Domain.Entities.Purchases;
 using Grimorio.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -203,4 +204,391 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
             }).ToList(),
         };
     }
+}
+
+public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQuery, List<MenuItemAvailabilityDto>>
+{
+    private readonly GrimorioDbContext _db;
+    public GetMenuAvailabilityHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<List<MenuItemAvailabilityDto>> Handle(GetMenuAvailabilityQuery req, CancellationToken ct)
+    {
+        var query = _db.MenuItems
+            .AsNoTracking()
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.Unit)
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.Article)
+                    .ThenInclude(a => a!.BaseUnit)
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.Alternatives.Where(a => !a.IsDeleted))
+                    .ThenInclude(a => a.Article)
+                        .ThenInclude(a => a!.BaseUnit)
+            .Where(x => x.BranchId == req.BranchId && !x.IsDeleted);
+
+        if (req.CategoryId.HasValue) query = query.Where(x => x.MenuCategoryId == req.CategoryId.Value);
+        if (req.ActiveOnly) query = query.Where(x => x.IsActive);
+        if (req.AvailableOnly) query = query.Where(x => x.AvailableForSale);
+
+        var items = await query.AsSplitQuery().ToListAsync(ct);
+
+        var articleIds = items
+            .SelectMany(item => item.Recipe.Where(r => !r.IsDeleted).SelectMany(r =>
+                new[] { r.ArticleId }.Concat(r.Alternatives.Where(a => !a.IsDeleted).Select(a => a.ArticleId))))
+            .Distinct()
+            .ToList();
+
+        var stockByArticle = articleIds.Count == 0
+            ? new Dictionary<Guid, decimal>()
+            : await _db.WarehouseStock
+                .AsNoTracking()
+                .Where(x => x.BranchId == req.BranchId && !x.IsDeleted && articleIds.Contains(x.ArticleId))
+                .GroupBy(x => x.ArticleId)
+                .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.Quantity) })
+                .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, ct);
+
+        var conversions = await _db.UnitConversions
+            .AsNoTracking()
+            .Where(x => x.BranchId == req.BranchId && !x.IsDeleted)
+            .Select(x => new UnitConversionInfo(x.OriginUnitId, x.DestinationUnitId, x.Factor))
+            .ToListAsync(ct);
+
+        return items.Select(item => BuildAvailability(item, stockByArticle, conversions)).ToList();
+    }
+
+    private static MenuItemAvailabilityDto BuildAvailability(
+        MenuItem item,
+        IReadOnlyDictionary<Guid, decimal> stockByArticle,
+        IReadOnlyCollection<UnitConversionInfo> conversions)
+    {
+        var recipe = item.Recipe.Where(r => !r.IsDeleted).ToList();
+        if (recipe.Count == 0)
+        {
+            return new MenuItemAvailabilityDto
+            {
+                MenuItemId = item.Id,
+                IsTracked = false,
+                IsAvailable = true,
+                AvailableQuantity = null,
+            };
+        }
+
+        var dto = new MenuItemAvailabilityDto
+        {
+            MenuItemId = item.Id,
+            IsTracked = true,
+        };
+
+        var capacities = new List<(decimal Quantity, string? LimitingArticleName)>();
+
+        foreach (var ingredient in recipe.Where(r => !r.IsVariable))
+        {
+            var article = ingredient.Article;
+            var requiredBase = article is null ? 0m : ConvertQuantity(ingredient.Quantity, ingredient.UnitId, article.BaseUnitId, conversions);
+            var stock = stockByArticle.TryGetValue(ingredient.ArticleId, out var quantity) ? quantity : 0m;
+            var servings = requiredBase > 0 ? stock / requiredBase : 0m;
+
+            dto.Components.Add(new MenuItemAvailabilityComponentDto
+            {
+                RecipeIngredientId = ingredient.Id,
+                ArticleId = ingredient.ArticleId,
+                ArticleName = article?.Name ?? string.Empty,
+                RequiredQuantity = ingredient.Quantity,
+                RequiredUnitSymbol = ingredient.Unit?.Symbol ?? string.Empty,
+                StockQuantity = Math.Round(stock, 4),
+                StockUnitSymbol = article?.BaseUnit?.Symbol ?? string.Empty,
+                AvailableServings = Math.Floor(servings),
+                IsVariableOption = false,
+            });
+            capacities.Add((servings, article?.Name));
+        }
+
+        foreach (var ingredient in recipe.Where(r => r.IsVariable))
+        {
+            var options = new[] { new VariableOption(ingredient.ArticleId, ingredient.Article?.Name ?? string.Empty, ingredient.Article?.BaseUnitId ?? Guid.Empty, ingredient.Article?.BaseUnit?.Symbol ?? string.Empty) }
+                .Concat(ingredient.Alternatives.Where(a => !a.IsDeleted).Select(a =>
+                    new VariableOption(a.ArticleId, a.Article?.Name ?? string.Empty, a.Article?.BaseUnitId ?? Guid.Empty, a.Article?.BaseUnit?.Symbol ?? string.Empty)))
+                .GroupBy(x => x.ArticleId)
+                .Select(g => g.First())
+                .ToList();
+
+            var slotCapacity = 0m;
+            foreach (var option in options)
+            {
+                var requiredBase = option.BaseUnitId == Guid.Empty
+                    ? 0m
+                    : ConvertQuantity(ingredient.Quantity, ingredient.UnitId, option.BaseUnitId, conversions);
+                var stock = stockByArticle.TryGetValue(option.ArticleId, out var quantity) ? quantity : 0m;
+                var servings = requiredBase > 0 ? stock / requiredBase : 0m;
+                slotCapacity += servings;
+
+                dto.Components.Add(new MenuItemAvailabilityComponentDto
+                {
+                    RecipeIngredientId = ingredient.Id,
+                    ArticleId = option.ArticleId,
+                    ArticleName = option.ArticleName,
+                    RequiredQuantity = ingredient.Quantity,
+                    RequiredUnitSymbol = ingredient.Unit?.Symbol ?? string.Empty,
+                    StockQuantity = Math.Round(stock, 4),
+                    StockUnitSymbol = option.BaseUnitSymbol,
+                    AvailableServings = Math.Floor(servings),
+                    IsVariableOption = true,
+                });
+            }
+
+            capacities.Add((slotCapacity, options.OrderByDescending(o =>
+                stockByArticle.TryGetValue(o.ArticleId, out var quantity) ? quantity : 0m).FirstOrDefault()?.ArticleName));
+        }
+
+        var limiting = capacities.OrderBy(x => x.Quantity).FirstOrDefault();
+        dto.AvailableQuantity = Math.Floor(limiting.Quantity);
+        dto.IsAvailable = dto.AvailableQuantity > 0;
+        dto.LimitingArticleName = dto.IsAvailable ? null : limiting.LimitingArticleName;
+        return dto;
+    }
+
+    private static decimal ConvertQuantity(
+        decimal quantity,
+        Guid originUnitId,
+        Guid destinationUnitId,
+        IEnumerable<UnitConversionInfo> conversions)
+    {
+        if (originUnitId == destinationUnitId) return quantity;
+
+        var direct = conversions.FirstOrDefault(x => x.OriginUnitId == originUnitId && x.DestinationUnitId == destinationUnitId);
+        if (direct is not null) return quantity * direct.Factor;
+
+        var reverse = conversions.FirstOrDefault(x => x.OriginUnitId == destinationUnitId && x.DestinationUnitId == originUnitId);
+        if (reverse is not null && reverse.Factor != 0) return quantity / reverse.Factor;
+
+        return 0m;
+    }
+
+    private sealed record UnitConversionInfo(Guid OriginUnitId, Guid DestinationUnitId, decimal Factor);
+    private sealed record VariableOption(Guid ArticleId, string ArticleName, Guid BaseUnitId, string BaseUnitSymbol);
+}
+
+public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQuery, List<MenuItemProfitabilityDto>>
+{
+    private readonly GrimorioDbContext _db;
+    public GetMenuProfitabilityHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<List<MenuItemProfitabilityDto>> Handle(GetMenuProfitabilityQuery req, CancellationToken ct)
+    {
+        var query = _db.MenuItems
+            .AsNoTracking()
+            .Include(x => x.Category)
+            .Include(x => x.TaxRate)
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.Article)
+                    .ThenInclude(a => a!.BaseUnit)
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.Unit)
+            .Where(x => x.BranchId == req.BranchId && !x.IsDeleted);
+
+        if (req.CategoryId.HasValue) query = query.Where(x => x.MenuCategoryId == req.CategoryId.Value);
+        if (req.ActiveOnly) query = query.Where(x => x.IsActive);
+        if (req.AvailableOnly) query = query.Where(x => x.AvailableForSale);
+
+        var items = await query
+            .AsSplitQuery()
+            .OrderBy(x => x.Category!.Order)
+            .ThenBy(x => x.Name)
+            .ToListAsync(ct);
+
+        var articleIds = items
+            .SelectMany(i => i.Recipe.Where(r => !r.IsDeleted).Select(r => r.ArticleId))
+            .Distinct()
+            .ToList();
+
+        var conversions = await _db.UnitConversions
+            .AsNoTracking()
+            .Where(x => x.BranchId == req.BranchId && !x.IsDeleted)
+            .Select(x => new UnitConversionInfo(x.OriginUnitId, x.DestinationUnitId, x.Factor))
+            .ToListAsync(ct);
+
+        var purchaseItems = articleIds.Count == 0
+            ? []
+            : await _db.PurchaseItems
+                .AsNoTracking()
+                .Include(x => x.Purchase)
+                .Include(x => x.Article)
+                .Where(x => x.BranchId == req.BranchId
+                    && !x.IsDeleted
+                    && articleIds.Contains(x.ArticleId)
+                    && x.Purchase != null
+                    && !x.Purchase.IsDeleted
+                    && x.Purchase.Status == PurchaseStatus.Registrada)
+                .Select(x => new PurchaseCostInput(
+                    x.ArticleId,
+                    x.UnitId,
+                    x.Article != null ? x.Article.BaseUnitId : Guid.Empty,
+                    x.Quantity,
+                    x.UnitPrice,
+                    x.DiscountAmount,
+                    x.Purchase!.DocumentDate,
+                    x.CreatedAt))
+                .ToListAsync(ct);
+
+        var unitCosts = purchaseItems
+            .Select(x =>
+            {
+                var baseQty = ConvertQuantity(x.Quantity, x.UnitId, x.ArticleBaseUnitId, conversions);
+                var netCost = x.UnitPrice * x.Quantity - x.DiscountAmount;
+                var unitCost = baseQty > 0 ? netCost / baseQty : 0m;
+                return new ArticleCostSample(x.ArticleId, baseQty, netCost, unitCost, x.PurchaseDate, x.CreatedAt);
+            })
+            .Where(x => x.BaseQuantity > 0 && x.NetCost >= 0)
+            .GroupBy(x => x.ArticleId)
+            .ToDictionary(
+                g => g.Key,
+                g =>
+                {
+                    var totalQty = g.Sum(x => x.BaseQuantity);
+                    var totalCost = g.Sum(x => x.NetCost);
+                    var last = g.OrderByDescending(x => x.PurchaseDate)
+                        .ThenByDescending(x => x.CreatedAt)
+                        .First();
+                    return new ArticleUnitCost(
+                        totalQty > 0 ? totalCost / totalQty : 0m,
+                        last.UnitCost);
+                });
+
+        return items.Select(item => BuildProfitability(item, conversions, unitCosts)).ToList();
+    }
+
+    private static MenuItemProfitabilityDto BuildProfitability(
+        MenuItem item,
+        IReadOnlyCollection<UnitConversionInfo> conversions,
+        IReadOnlyDictionary<Guid, ArticleUnitCost> unitCosts)
+    {
+        var taxPct = item.TaxRate?.Percentage ?? 0m;
+        var netSalePrice = taxPct > 0
+            ? Math.Round(item.Price / (1m + taxPct / 100m), 4)
+            : item.Price;
+        var taxAmount = item.Price - netSalePrice;
+
+        var dto = new MenuItemProfitabilityDto
+        {
+            MenuItemId = item.Id,
+            MenuItemName = item.Name,
+            InternalCode = item.InternalCode,
+            CategoryName = item.Category?.Name ?? string.Empty,
+            CategoryColor = item.Category?.Color,
+            GrossSalePrice = Math.Round(item.Price, 2),
+            TaxPercentage = taxPct,
+            NetSalePrice = Math.Round(netSalePrice, 2),
+            TaxAmount = Math.Round(taxAmount, 2),
+            HasRecipe = item.Recipe.Any(r => !r.IsDeleted),
+        };
+
+        foreach (var ingredient in item.Recipe.Where(r => !r.IsDeleted))
+        {
+            var article = ingredient.Article;
+            var warning = article is null ? "Articulo no encontrado." : null;
+            var baseQty = article is null
+                ? 0m
+                : ConvertQuantity(ingredient.Quantity, ingredient.UnitId, article.BaseUnitId, conversions);
+
+            if (article is not null && ingredient.UnitId != article.BaseUnitId && baseQty == 0)
+                warning = "No existe conversion hacia la unidad base.";
+
+            ArticleUnitCost? costInfo = null;
+            var hasCost = article is not null
+                && unitCosts.TryGetValue(article.Id, out costInfo)
+                && costInfo.Average > 0;
+            var averageCost = hasCost ? costInfo!.Average : 0m;
+            decimal? lastCost = hasCost ? costInfo!.Last : null;
+            var totalCost = baseQty * averageCost;
+
+            dto.Ingredients.Add(new MenuItemProfitabilityIngredientDto
+            {
+                RecipeIngredientId = ingredient.Id,
+                ArticleId = ingredient.ArticleId,
+                ArticleName = article?.Name ?? string.Empty,
+                InternalCode = article?.InternalCode,
+                Quantity = ingredient.Quantity,
+                UnitId = ingredient.UnitId,
+                UnitSymbol = ingredient.Unit?.Symbol ?? string.Empty,
+                BaseQuantity = Math.Round(baseQty, 4),
+                BaseUnitSymbol = article?.BaseUnit?.Symbol ?? string.Empty,
+                AverageUnitCost = Math.Round(averageCost, 4),
+                LastUnitCost = lastCost.HasValue ? Math.Round(lastCost.Value, 4) : null,
+                TotalCost = Math.Round(totalCost, 4),
+                IsVariable = ingredient.IsVariable,
+                HasCost = hasCost,
+                Warning = warning ?? (hasCost ? null : "Sin compras registradas para calcular costo."),
+            });
+        }
+
+        dto.RecipeCost = Math.Round(dto.Ingredients.Sum(i => i.TotalCost), 2);
+        dto.GrossProfit = Math.Round(dto.NetSalePrice - dto.RecipeCost, 2);
+        dto.FoodCostPercentage = dto.NetSalePrice > 0
+            ? Math.Round(dto.RecipeCost / dto.NetSalePrice * 100m, 2)
+            : 0m;
+        dto.GrossMarginPercentage = dto.NetSalePrice > 0
+            ? Math.Round(dto.GrossProfit / dto.NetSalePrice * 100m, 2)
+            : 0m;
+        dto.HasMissingCosts = dto.Ingredients.Any(i => !i.HasCost);
+        dto.HasConversionWarnings = dto.Ingredients.Any(i => i.Warning?.Contains("conversion", StringComparison.OrdinalIgnoreCase) == true);
+
+        foreach (var ingredient in dto.Ingredients)
+        {
+            ingredient.CostSharePercentage = dto.RecipeCost > 0
+                ? Math.Round(ingredient.TotalCost / dto.RecipeCost * 100m, 2)
+                : 0m;
+        }
+
+        (dto.Status, dto.StatusLabel) = GetStatus(dto);
+        return dto;
+    }
+
+    private static decimal ConvertQuantity(
+        decimal quantity,
+        Guid originUnitId,
+        Guid destinationUnitId,
+        IEnumerable<UnitConversionInfo> conversions)
+    {
+        if (originUnitId == destinationUnitId) return quantity;
+
+        var direct = conversions.FirstOrDefault(x => x.OriginUnitId == originUnitId && x.DestinationUnitId == destinationUnitId);
+        if (direct is not null) return quantity * direct.Factor;
+
+        var reverse = conversions.FirstOrDefault(x => x.OriginUnitId == destinationUnitId && x.DestinationUnitId == originUnitId);
+        if (reverse is not null && reverse.Factor != 0) return quantity / reverse.Factor;
+
+        return 0m;
+    }
+
+    private static (string Status, string Label) GetStatus(MenuItemProfitabilityDto item)
+    {
+        if (!item.HasRecipe) return ("NoRecipe", "Sin receta");
+        if (item.HasConversionWarnings) return ("Warning", "Revisar unidades");
+        if (item.HasMissingCosts) return ("Warning", "Faltan costos");
+        if (item.NetSalePrice <= 0) return ("Critical", "Sin precio neto");
+        if (item.FoodCostPercentage <= 0) return ("Warning", "Sin costo");
+        if (item.FoodCostPercentage < 25m) return ("Low", "Bajo objetivo");
+        if (item.FoodCostPercentage <= 35m) return ("Healthy", "Saludable");
+        if (item.FoodCostPercentage <= 45m) return ("High", "Alto");
+        return ("Critical", "Critico");
+    }
+
+    private sealed record UnitConversionInfo(Guid OriginUnitId, Guid DestinationUnitId, decimal Factor);
+    private sealed record PurchaseCostInput(
+        Guid ArticleId,
+        Guid UnitId,
+        Guid ArticleBaseUnitId,
+        decimal Quantity,
+        decimal UnitPrice,
+        decimal DiscountAmount,
+        DateTime PurchaseDate,
+        DateTime CreatedAt);
+    private sealed record ArticleCostSample(
+        Guid ArticleId,
+        decimal BaseQuantity,
+        decimal NetCost,
+        decimal UnitCost,
+        DateTime PurchaseDate,
+        DateTime CreatedAt);
+    private sealed record ArticleUnitCost(decimal Average, decimal Last);
 }

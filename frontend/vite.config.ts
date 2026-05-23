@@ -2,11 +2,11 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const devApiTarget = env.VITE_DEV_API_TARGET;
 
-  if (!devApiTarget) {
+  if (command === 'serve' && !devApiTarget) {
     throw new Error('VITE_DEV_API_TARGET is required in your .env file');
   }
 
@@ -17,12 +17,12 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       proxy: {
         '/api': {
-          target: devApiTarget,
+          target: devApiTarget ?? 'http://localhost:5186',
           changeOrigin: true,
           secure: false,
         },
         '/hubs': {
-          target: devApiTarget,
+          target: devApiTarget ?? 'http://localhost:5186',
           changeOrigin: true,
           secure: false,
           ws: true,
