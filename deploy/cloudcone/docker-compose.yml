@@ -13,6 +13,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   api:
     build:
@@ -34,9 +39,19 @@ services:
       JWT_AUDIENCE: ${JWT_AUDIENCE}
       JWT_ACCESS_TOKEN_EXPIRATION_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRATION_MINUTES}
       FIREBASE_SERVICE_ACCOUNT_PATH: ${FIREBASE_SERVICE_ACCOUNT_PATH}
+      DATA_PROTECTION_KEYS_PATH: ${DATA_PROTECTION_KEYS_PATH}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      GRIMORIO_ADMIN_EMAIL: ${GRIMORIO_ADMIN_EMAIL}
+      GRIMORIO_ADMIN_PASSWORD: ${GRIMORIO_ADMIN_PASSWORD}
     volumes:
       - ../../backend/secrets:/app/secrets:ro
+      - data_protection_keys:/app/keys
       - api_logs:/app/logs
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   web:
     build:
@@ -56,9 +71,15 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   postgres_data:
   api_logs:
+  data_protection_keys:
   caddy_data:
   caddy_config:
