@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(dotnet build *)",
-      "Bash(grep -v \"^--$\")",
-      "Bash(grep -v \"\\\\.cs:.*//.*Borrador\\\\|\\\\.cs:.*//.*Cancelad\")"
-    ]
-  }
-}
