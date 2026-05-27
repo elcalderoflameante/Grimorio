@@ -49,11 +49,17 @@ export const ScheduleConfigurationForm = ({
       let result;
       if (configuration?.id) {
         // Actualizar configuración existente
-        result = await scheduleConfigurationApi.update(configuration.id, values as UpdateScheduleConfigurationDto);
+        result = await scheduleConfigurationApi.update(configuration.id, {
+          ...values,
+          id: configuration.id,
+        } as UpdateScheduleConfigurationDto);
         message.success('Configuración actualizada correctamente');
       } else {
         // Crear nueva configuración
-        result = await scheduleConfigurationApi.create(values as CreateScheduleConfigurationDto);
+        result = await scheduleConfigurationApi.create({
+          ...values,
+          branchId,
+        } as CreateScheduleConfigurationDto);
         message.success('Configuración creada correctamente');
       }
 

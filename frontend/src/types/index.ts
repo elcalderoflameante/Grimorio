@@ -634,6 +634,7 @@ export interface CreateScheduleConfigurationDto {
 }
 
 export interface UpdateScheduleConfigurationDto {
+  id: string;
   hoursPerDay: number;
   freeDayColor: string;
 }
