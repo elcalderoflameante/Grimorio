@@ -441,16 +441,12 @@ export interface WorkRoleDto {
   description?: string;
   workAreaId: string;
   workAreaName?: string;
-  freeDaysPerMonth: number;
-  dailyHoursTarget: number;
 }
 
 export interface CreateWorkRoleDto {
   name: string;
   description?: string;
   workAreaId: string;
-  freeDaysPerMonth: number;
-  dailyHoursTarget: number;
 }
 
 export interface UpdateWorkRoleDto {
@@ -458,8 +454,6 @@ export interface UpdateWorkRoleDto {
   name: string;
   description?: string;
   workAreaId: string;
-  freeDaysPerMonth: number;
-  dailyHoursTarget: number;
 }
 
 export interface EmployeeWorkRoleDto {

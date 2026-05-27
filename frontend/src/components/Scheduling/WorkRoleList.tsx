@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, Select, Space, message, Popconfirm } from 'antd';
+import { Table, Button, Modal, Form, Input, Select, Space, message, Popconfirm } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { workRoleApi, workAreaApi } from '../../services/api';
 import type { WorkRoleDto, WorkAreaDto, CreateWorkRoleDto, UpdateWorkRoleDto } from '../../types';
@@ -45,8 +45,6 @@ export const WorkRoleList = ({ branchId }: WorkRoleListProps) => {
         name: role.name,
         description: role.description,
         workAreaId: role.workAreaId,
-        freeDaysPerMonth: role.freeDaysPerMonth,
-        dailyHoursTarget: role.dailyHoursTarget,
       });
     } else {
       setEditingRole(null);
@@ -101,21 +99,9 @@ export const WorkRoleList = ({ branchId }: WorkRoleListProps) => {
       key: 'name',
     },
     {
-      title: 'Área',
+      title: 'Area',
       dataIndex: 'workAreaName',
       key: 'workAreaName',
-    },
-    {
-      title: 'Días Libres/mes',
-      dataIndex: 'freeDaysPerMonth',
-      key: 'freeDaysPerMonth',
-      width: 120,
-    },
-    {
-      title: 'Horas Diarias',
-      dataIndex: 'dailyHoursTarget',
-      key: 'dailyHoursTarget',
-      width: 120,
     },
     {
       title: 'Acciones',
@@ -131,9 +117,9 @@ export const WorkRoleList = ({ branchId }: WorkRoleListProps) => {
           />
           <Popconfirm
             title="Eliminar"
-            description="¿Estás seguro de eliminar este rol?"
+            description="Estas seguro de eliminar este rol?"
             onConfirm={() => handleDelete(record.id)}
-            okText="Sí"
+            okText="Si"
             cancelText="No"
           >
             <Button type="primary" danger size="small" icon={<DeleteOutlined />} />
@@ -180,42 +166,24 @@ export const WorkRoleList = ({ branchId }: WorkRoleListProps) => {
           </Form.Item>
 
           <Form.Item
-            label="Descripción"
+            label="Descripcion"
             name="description"
           >
-            <Input.TextArea placeholder="Descripción del rol" rows={2} />
+            <Input.TextArea placeholder="Descripcion del rol" rows={2} />
           </Form.Item>
 
           <Form.Item
-            label="Área de Trabajo"
+            label="Area de Trabajo"
             name="workAreaId"
-            rules={[{ required: true, message: 'Selecciona un área' }]}
+            rules={[{ required: true, message: 'Selecciona un area' }]}
           >
-            <Select placeholder="Selecciona un área" showSearch optionFilterProp="label">
+            <Select placeholder="Selecciona un area" showSearch optionFilterProp="label">
               {areas.map((area) => (
                 <Select.Option key={area.id} value={area.id} label={area.name}>
                   {area.name}
                 </Select.Option>
               ))}
             </Select>
-          </Form.Item>
-
-          <Form.Item
-            label="Días Libres por Mes"
-            name="freeDaysPerMonth"
-            rules={[{ required: true, message: 'Campo obligatorio' }]}
-            initialValue={6}
-          >
-            <InputNumber min={0} max={31} />
-          </Form.Item>
-
-          <Form.Item
-            label="Horas Objetivo por Día"
-            name="dailyHoursTarget"
-            rules={[{ required: true, message: 'Campo obligatorio' }]}
-            initialValue={8}
-          >
-            <InputNumber min={0} max={24} step={0.5} />
           </Form.Item>
         </Form>
       </Modal>

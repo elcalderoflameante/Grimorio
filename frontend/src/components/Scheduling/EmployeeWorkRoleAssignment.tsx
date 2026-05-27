@@ -113,9 +113,9 @@ export const EmployeeWorkRoleAssignment = ({ employee, onClose }: EmployeeWorkRo
       render: (_text: unknown, record: EmployeeWorkRoleDto) => (
         <Popconfirm
           title="Eliminar"
-          description="¿Estás seguro de eliminar este rol?"
+          description="Estas seguro de eliminar este rol?"
           onConfirm={() => handleDelete(record.workRoleId)}
-          okText="Sí"
+          okText="Si"
           cancelText="No"
         >
           <Button type="primary" danger size="small" icon={<DeleteOutlined />} />
@@ -162,7 +162,7 @@ export const EmployeeWorkRoleAssignment = ({ employee, onClose }: EmployeeWorkRo
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           <Form.Item
-            label="Selecciona los roles que puede desempeñar (máximo 3)"
+            label="Selecciona los roles que puede desempenar (maximo 3)"
             name="workRoleIds"
             rules={[
               {
@@ -172,7 +172,7 @@ export const EmployeeWorkRoleAssignment = ({ employee, onClose }: EmployeeWorkRo
               {
                 validator: (_, value) => {
                   if (value && value.length > 3) {
-                    return Promise.reject('Máximo 3 roles permitidos');
+                    return Promise.reject('Maximo 3 roles permitidos');
                   }
                   return Promise.resolve();
                 },
@@ -181,7 +181,7 @@ export const EmployeeWorkRoleAssignment = ({ employee, onClose }: EmployeeWorkRo
           >
             <Select
               mode="multiple"
-              placeholder="Selecciona uno o más roles (máximo 3)"
+              placeholder="Selecciona uno o mas roles (maximo 3)"
               optionLabelProp="label"
               showSearch
               optionFilterProp="label"
@@ -190,25 +190,20 @@ export const EmployeeWorkRoleAssignment = ({ employee, onClose }: EmployeeWorkRo
             >
               {workRoles.map((role) => (
                 <Select.Option key={role.id} value={role.id} label={role.name}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>{role.name}</span>
-                    <span style={{ color: '#999', fontSize: '12px' }}>
-                      {role.freeDaysPerMonth} días libres
-                    </span>
-                  </div>
+                  {role.name}
                 </Select.Option>
               ))}
             </Select>
           </Form.Item>
-          <div style={{ 
-            padding: '8px 12px', 
-            backgroundColor: '#f0f2f5', 
+          <div style={{
+            padding: '8px 12px',
+            backgroundColor: '#f0f2f5',
             borderRadius: '4px',
             fontSize: '12px',
             color: '#666',
-            marginTop: '-8px'
+            marginTop: '-8px',
           }}>
-            <strong>Nota:</strong> El orden de selección determina la prioridad. El primer rol será el principal (mayor prioridad).
+            <strong>Nota:</strong> El orden de seleccion determina la prioridad. El primer rol sera el principal (mayor prioridad).
           </div>
         </Form>
       </Modal>
