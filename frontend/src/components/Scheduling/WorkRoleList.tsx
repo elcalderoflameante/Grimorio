@@ -60,7 +60,10 @@ export const WorkRoleList = ({ branchId }: WorkRoleListProps) => {
       setLoading(true);
 
       if (editingRole) {
-        await workRoleApi.update(editingRole.id, values as UpdateWorkRoleDto);
+        await workRoleApi.update(editingRole.id, {
+          ...values,
+          id: editingRole.id,
+        } as UpdateWorkRoleDto);
         message.success('Rol actualizado');
       } else {
         await workRoleApi.create(values as CreateWorkRoleDto);

@@ -57,6 +57,7 @@ export const WorkAreaList = ({ branchId }: WorkAreaListProps) => {
 
       if (editingArea) {
         await workAreaApi.update(editingArea.id, {
+          id: editingArea.id,
           name: values.name,
           description: values.description,
           color: colorValue,
@@ -69,6 +70,7 @@ export const WorkAreaList = ({ branchId }: WorkAreaListProps) => {
           description: values.description,
           color: colorValue,
           displayOrder: values.displayOrder,
+          branchId,
         } as CreateWorkAreaDto);
         message.success('Área creada');
       }

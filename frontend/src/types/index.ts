@@ -424,9 +424,11 @@ export interface CreateWorkAreaDto {
   description?: string;
   color: string;
   displayOrder: number;
+  branchId: string;
 }
 
 export interface UpdateWorkAreaDto {
+  id: string;
   name: string;
   description?: string;
   color: string;
@@ -452,6 +454,7 @@ export interface CreateWorkRoleDto {
 }
 
 export interface UpdateWorkRoleDto {
+  id: string;
   name: string;
   description?: string;
   workAreaId: string;
