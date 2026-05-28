@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using FluentValidation.AspNetCore;
 using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Scheduling.Commands;
 using Grimorio.Application.Features.Scheduling.Queries;
@@ -610,13 +611,16 @@ public class SchedulingController : ControllerBase
     /// </summary>
     [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPost("configuration")]
-    public async Task<IActionResult> CreateScheduleConfiguration([FromBody] CreateScheduleConfigurationCommand command)
+    public async Task<IActionResult> CreateScheduleConfiguration([FromBody, CustomizeValidator(Skip = true)] CreateScheduleConfigurationCommand command)
     {
         var branchClaim = User.FindFirst("BranchId")?.Value;
         if (branchClaim == null || !Guid.TryParse(branchClaim, out var branchId))
             return Unauthorized("BranchId no válido en el token.");
 
         command.BranchId = branchId;
+        if (!TryValidateModel(command))
+            return ValidationProblem(ModelState);
+
         try
         {
             var result = await _mediator.Send(command);
@@ -637,9 +641,12 @@ public class SchedulingController : ControllerBase
     /// </summary>
     [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPut("configuration/{id}")]
-    public async Task<IActionResult> UpdateScheduleConfiguration(Guid id, [FromBody] UpdateScheduleConfigurationCommand command)
+    public async Task<IActionResult> UpdateScheduleConfiguration(Guid id, [FromBody, CustomizeValidator(Skip = true)] UpdateScheduleConfigurationCommand command)
     {
         command.Id = id;
+        if (!TryValidateModel(command))
+            return ValidationProblem(ModelState);
+
         try
         {
             var result = await _mediator.Send(command);
