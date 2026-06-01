@@ -20,6 +20,16 @@ dayjs.locale('es');
 
 const { Text } = Typography;
 
+const compareText = (a?: string, b?: string) =>
+  (a ?? '').localeCompare(b ?? '', 'es', { sensitivity: 'base' });
+
+const compareShiftsByAreaAndName = (a: ShiftAssignmentDto, b: ShiftAssignmentDto) =>
+  compareText(a.workAreaName, b.workAreaName)
+    || compareText(a.employeeName, b.employeeName)
+    || compareText(a.workRoleName, b.workRoleName)
+    || compareText(a.startTime, b.startTime)
+    || compareText(a.endTime, b.endTime);
+
 type GenerationWarningsSnapshot = {
   warnings: Array<{
     date: string;
@@ -361,7 +371,7 @@ export const MonthlySchedule = () => {
       const year = month.year();
       const monthNumber = month.month() + 1;
       const response = await scheduleShiftApi.getMonthly(branchId, year, monthNumber);
-      setShifts(Array.isArray(response.data) ? response.data : []);
+      setShifts(Array.isArray(response.data) ? [...response.data].sort(compareShiftsByAreaAndName) : []);
     } catch (error) {
       message.error(formatError(error));
       console.error(error);
@@ -783,6 +793,7 @@ export const MonthlySchedule = () => {
       const key = dayjs(shift.date).format('YYYY-MM-DD');
       const list = map.get(key) ?? [];
       list.push(shift);
+      list.sort(compareShiftsByAreaAndName);
       map.set(key, list);
     });
     return map;
@@ -821,9 +832,7 @@ export const MonthlySchedule = () => {
       const row: WeekTableRow = { key: `shift-${i}` };
       weekShifts.forEach(({ date, dayShifts }) => {
         // Ordenar turnos alfabéticamente por área de trabajo
-        const sortedDayShifts = [...dayShifts].sort((a, b) => 
-          (a.workAreaName || '').localeCompare(b.workAreaName || '')
-        );
+        const sortedDayShifts = [...dayShifts].sort(compareShiftsByAreaAndName);
         
         const shift = sortedDayShifts[i];
         const startTime = shift?.startTime?.substring(0, 5) || '--:--';
@@ -1196,7 +1205,7 @@ export const MonthlySchedule = () => {
                                     {shift.employeeName}
                                   </div>
                                   <div style={{ color: '#999', fontSize: '10px' }}>
-                                    {shift.workRoleName}
+                                    {shift.workAreaName} - {shift.workRoleName}
                                   </div>
                                 </div>
                               );
@@ -1236,7 +1245,7 @@ export const MonthlySchedule = () => {
                     // Recargar turnos del mes tras confirmar la semana
                     if (branchId) {
                       scheduleShiftApi.getMonthly(branchId, selectedMonth.year(), selectedMonth.month() + 1)
-                        .then(res => setShifts(Array.isArray(res.data) ? res.data : []))
+                        .then(res => setShifts(Array.isArray(res.data) ? [...res.data].sort(compareShiftsByAreaAndName) : []))
                         .catch(() => {});
                     }
                   }}

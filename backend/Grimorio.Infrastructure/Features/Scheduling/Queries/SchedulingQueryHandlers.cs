@@ -160,6 +160,8 @@ public class GetShiftTemplatesQueryHandler : IRequestHandler<GetShiftTemplatesQu
             .Include(st => st.WorkArea)
             .Include(st => st.WorkRole)
             .OrderBy(st => st.DayOfWeek)
+            .ThenBy(st => st.WorkArea!.Name)
+            .ThenBy(st => st.WorkRole!.Name)
             .ThenBy(st => st.StartTime)
             .Select(st => new ShiftTemplateDto
             {
@@ -228,6 +230,10 @@ public class GetMonthlyShiftsQueryHandler : IRequestHandler<GetMonthlyShiftsQuer
             .Include(sa => sa.WorkArea)
             .Include(sa => sa.WorkRole)
             .OrderBy(sa => sa.Date)
+            .ThenBy(sa => sa.WorkArea!.Name)
+            .ThenBy(sa => sa.Employee!.LastName)
+            .ThenBy(sa => sa.Employee!.FirstName)
+            .ThenBy(sa => sa.WorkRole!.Name)
             .ThenBy(sa => sa.StartTime)
             .Select(sa => new ShiftAssignmentDto
             {
@@ -344,7 +350,11 @@ public class GetShiftAssignmentsByDateQueryHandler : IRequestHandler<GetShiftAss
             .Include(sa => sa.Employee)
             .Include(sa => sa.WorkArea)
             .Include(sa => sa.WorkRole)
-            .OrderBy(sa => sa.StartTime)
+            .OrderBy(sa => sa.WorkArea!.Name)
+            .ThenBy(sa => sa.Employee!.LastName)
+            .ThenBy(sa => sa.Employee!.FirstName)
+            .ThenBy(sa => sa.WorkRole!.Name)
+            .ThenBy(sa => sa.StartTime)
             .Select(sa => new ShiftAssignmentDto
             {
                 Id = sa.Id,

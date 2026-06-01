@@ -52,6 +52,15 @@ const { Text } = Typography;
 
 const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
+const compareText = (a?: string, b?: string) =>
+  (a ?? '').localeCompare(b ?? '', 'es', { sensitivity: 'base' });
+
+const compareTemplatesByAreaAndName = (a: ShiftTemplateDto, b: ShiftTemplateDto) =>
+  compareText(a.workAreaName, b.workAreaName)
+    || compareText(a.workRoleName, b.workRoleName)
+    || compareText(a.startTime, b.startTime)
+    || compareText(a.endTime, b.endTime);
+
 const parseDurationToMinutes = (duration?: string) => {
   if (!duration) return 0;
   const [hh = '0', mm = '0', ss = '0'] = duration.split(':');
@@ -203,7 +212,9 @@ export const WeeklyScheduleBoard = ({
         const dateStr = day.format('YYYY-MM-DD');
         const dow = day.day(); // 0=Dom..6=Sáb
 
-        const dayTemplates = tmplList.filter(t => t.dayOfWeek === dow);
+        const dayTemplates = tmplList
+          .filter(t => t.dayOfWeek === dow)
+          .sort(compareTemplatesByAreaAndName);
 
         for (const tmpl of dayTemplates) {
           for (let idx = 0; idx < tmpl.requiredCount; idx++) {
@@ -271,7 +282,7 @@ export const WeeklyScheduleBoard = ({
         }),
       ]);
 
-      const tmplList = Array.isArray(tmplRes.data) ? tmplRes.data : [];
+      const tmplList = Array.isArray(tmplRes.data) ? [...tmplRes.data].sort(compareTemplatesByAreaAndName) : [];
       const existingShifts = Array.isArray(shiftsRes.data) ? shiftsRes.data : [];
 
       // Filtrar turnos de la semana visible
@@ -816,7 +827,9 @@ export const WeeklyScheduleBoard = ({
                   const dow = day.day();
                   const isToday = day.isSame(dayjs(), 'day');
                   const isLockedDay = !day.isSame(selectedMonth, 'month');
-                  const dayTemplates = templates.filter(t => t.dayOfWeek === dow);
+                  const dayTemplates = templates
+                    .filter(t => t.dayOfWeek === dow)
+                    .sort(compareTemplatesByAreaAndName);
 
                   const daySlots = Object.values(slots).filter(
                     s => s.date === dateStr,
@@ -1123,7 +1136,9 @@ export const WeeklyScheduleBoard = ({
             const dow = day.day();
             const isToday = day.isSame(dayjs(), 'day');
             const isLocked = !day.isSame(selectedMonth, 'month');
-            const dayTemplates = templates.filter(t => t.dayOfWeek === dow);
+            const dayTemplates = templates
+              .filter(t => t.dayOfWeek === dow)
+              .sort(compareTemplatesByAreaAndName);
             const daySlots = Object.values(slots).filter(s => s.date === dateStr);
             const assignedIds = new Set(daySlots.filter(s => s.employee).map(s => s.employee!.id));
             const freeEmployees = eligibleEmployees.filter(e => !assignedIds.has(e.id));
