@@ -61,6 +61,13 @@ const compareTemplatesByAreaAndName = (a: ShiftTemplateDto, b: ShiftTemplateDto)
     || compareText(a.startTime, b.startTime)
     || compareText(a.endTime, b.endTime);
 
+const shiftTemplateMatchKey = (
+  date: string,
+  workAreaId: string,
+  workRoleId: string,
+  startTime: string,
+) => `${date}|${workAreaId}|${workRoleId}|${startTime.substring(0, 5)}`;
+
 const parseDurationToMinutes = (duration?: string) => {
   if (!duration) return 0;
   const [hh = '0', mm = '0', ss = '0'] = duration.split(':');
@@ -207,6 +214,26 @@ export const WeeklyScheduleBoard = ({
   const buildSlots = useCallback(
     (tmplList: ShiftTemplateDto[], existing: ShiftAssignmentDto[]) => {
       const nextSlots: Record<string, BoardSlot> = {};
+      const existingByTemplate: Record<string, ShiftAssignmentDto[]> = {};
+
+      for (const shift of existing) {
+        const key = shiftTemplateMatchKey(
+          dayjs(shift.date).format('YYYY-MM-DD'),
+          shift.workAreaId,
+          shift.workRoleId,
+          shift.startTime,
+        );
+        if (!existingByTemplate[key]) existingByTemplate[key] = [];
+        existingByTemplate[key].push(shift);
+      }
+
+      Object.values(existingByTemplate).forEach(assignments => {
+        assignments.sort((a, b) =>
+          compareText(a.employeeName, b.employeeName)
+            || compareText(a.startTime, b.startTime)
+            || compareText(a.id, b.id),
+        );
+      });
 
       for (const day of weekDays) {
         const dateStr = day.format('YYYY-MM-DD');
@@ -220,24 +247,11 @@ export const WeeklyScheduleBoard = ({
           for (let idx = 0; idx < tmpl.requiredCount; idx++) {
             const key = slotId({ templateId: tmpl.id, date: dateStr, slotIndex: idx });
 
-            // Buscar si ya hay un turno existente que coincida
-            const existingShift = existing.find(
-              s =>
-                dayjs(s.date).format('YYYY-MM-DD') === dateStr &&
-                s.workRoleId === tmpl.workRoleId &&
-                s.startTime.substring(0, 5) === tmpl.startTime.substring(0, 5),
-            );
-
-            const alreadyUsedEmployee =
-              idx === 0
-                ? existingShift?.employeeId ?? null
-                : existing
-                    .filter(
-                      s =>
-                        dayjs(s.date).format('YYYY-MM-DD') === dateStr &&
-                        s.workRoleId === tmpl.workRoleId &&
-                        s.startTime.substring(0, 5) === tmpl.startTime.substring(0, 5),
-                    )[idx]?.employeeId ?? null;
+            const matchingShifts = existingByTemplate[
+              shiftTemplateMatchKey(dateStr, tmpl.workAreaId, tmpl.workRoleId, tmpl.startTime)
+            ] ?? [];
+            const existingShift = matchingShifts[idx];
+            const alreadyUsedEmployee = existingShift?.employeeId ?? null;
 
             const emp = alreadyUsedEmployee
               ? eligibleEmployees.find(e => e.id === alreadyUsedEmployee) ?? null
@@ -377,10 +391,15 @@ export const WeeklyScheduleBoard = ({
       setSlots(prev => {
         const next = { ...prev };
 
-        // Agrupar generados por (fecha, workRoleId, startTime)
+        // Agrupar generados por la plantilla visible del casillero.
         const grouped: Record<string, ShiftAssignmentDto[]> = {};
         for (const a of generated) {
-          const gKey = `${dayjs(a.date).format('YYYY-MM-DD')}|${a.workRoleId}|${a.startTime.substring(0, 5)}`;
+          const gKey = shiftTemplateMatchKey(
+            dayjs(a.date).format('YYYY-MM-DD'),
+            a.workAreaId,
+            a.workRoleId,
+            a.startTime,
+          );
           if (!grouped[gKey]) grouped[gKey] = [];
           grouped[gKey].push(a);
         }
@@ -390,7 +409,7 @@ export const WeeklyScheduleBoard = ({
           const tmpl = templates.find(t => t.id === s.templateId);
           if (!tmpl) continue;
 
-          const gKey = `${s.date}|${tmpl.workRoleId}|${tmpl.startTime.substring(0, 5)}`;
+          const gKey = shiftTemplateMatchKey(s.date, tmpl.workAreaId, tmpl.workRoleId, tmpl.startTime);
           const assignments = grouped[gKey] ?? [];
           const assigned = assignments[s.slotIndex];
 
@@ -420,9 +439,13 @@ export const WeeklyScheduleBoard = ({
 
     try {
       // Recolectar todos los slots que tienen empleado asignado
-      const toSave = Object.values(slots).filter(
-        s => s.employee !== null && isDateInSelectedMonth(s.date),
-      );
+      const toSave = Object.values(slots)
+        .filter(s => s.employee !== null && isDateInSelectedMonth(s.date))
+        .sort((a, b) =>
+          compareText(a.date, b.date)
+            || compareText(a.templateId, b.templateId)
+            || a.slotIndex - b.slotIndex,
+        );
 
       // Borrar turnos existentes de la semana y recrear
       const weekEnd = weekStart.add(6, 'day');
@@ -451,35 +474,42 @@ export const WeeklyScheduleBoard = ({
 
       // Crear los nuevos
       const errors: string[] = [];
-      await Promise.all(
-        toSave.map(async slot => {
-          const tmpl = templates.find(t => t.id === slot.templateId);
-          if (!tmpl || !slot.employee) return;
-          try {
-            await scheduleShiftApi.create({
-              employeeId: slot.employee.id,
-              date: slot.date,
-              startTime: tmpl.startTime,
-              endTime: tmpl.endTime,
-              breakDuration: tmpl.breakDuration,
-              lunchDuration: tmpl.lunchDuration,
-              workAreaId: tmpl.workAreaId,
-              workRoleId: tmpl.workRoleId,
-              notes: tmpl.notes,
-            });
-          } catch {
-            errors.push(`${slot.employee.firstName} ${slot.employee.lastName} - ${slot.date}`);
-          }
-        }),
-      );
+      const savedIdsBySlotKey: Record<string, string> = {};
+      for (const slot of toSave) {
+        const tmpl = templates.find(t => t.id === slot.templateId);
+        if (!tmpl || !slot.employee) continue;
+        try {
+          const response = await scheduleShiftApi.create({
+            employeeId: slot.employee.id,
+            date: slot.date,
+            startTime: tmpl.startTime,
+            endTime: tmpl.endTime,
+            breakDuration: tmpl.breakDuration,
+            lunchDuration: tmpl.lunchDuration,
+            workAreaId: tmpl.workAreaId,
+            workRoleId: tmpl.workRoleId,
+            notes: tmpl.notes,
+          });
+          savedIdsBySlotKey[slotId(slot)] = response.data.id;
+        } catch {
+          errors.push(`${slot.employee.firstName} ${slot.employee.lastName} - ${slot.date}`);
+        }
+      }
 
       if (errors.length) {
         message.warning(`Semana confirmada con ${errors.length} error(es): ${errors.slice(0, 3).join(', ')}`);
+        await loadWeek();
       } else {
+        setSlots(prev => {
+          const next = { ...prev };
+          for (const [key, id] of Object.entries(savedIdsBySlotKey)) {
+            if (next[key]) next[key] = { ...next[key], existingShiftId: id };
+          }
+          return next;
+        });
         message.success(`Semana del ${weekStart.format('DD/MM')} al ${weekEnd.format('DD/MM')} confirmada correctamente.`);
       }
 
-      await loadWeek();
       onConfirmed?.();
     } catch (err) {
       message.error(formatError(err));
@@ -882,9 +912,9 @@ export const WeeklyScheduleBoard = ({
                       ) : (
                         dayTemplates.map(tmpl => {
                           const color = areaColors[tmpl.workAreaId] ?? '#4096ff';
-                          const templateSlots = daySlots.filter(
-                            s => s.templateId === tmpl.id,
-                          );
+                          const templateSlots = daySlots
+                            .filter(s => s.templateId === tmpl.id)
+                            .sort((a, b) => a.slotIndex - b.slotIndex);
 
                           return (
                             <div
@@ -1168,7 +1198,9 @@ export const WeeklyScheduleBoard = ({
                   </div>
                 ) : dayTemplates.map(tmpl => {
                   const color = areaColors[tmpl.workAreaId] ?? '#4096ff';
-                  const templateSlots = daySlots.filter(s => s.templateId === tmpl.id);
+                  const templateSlots = daySlots
+                    .filter(s => s.templateId === tmpl.id)
+                    .sort((a, b) => a.slotIndex - b.slotIndex);
                   return (
                     <div key={`print-${tmpl.id}-${dateStr}`} style={{
                       marginBottom: '1.5mm',
