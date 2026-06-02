@@ -178,6 +178,7 @@ export const WeeklyScheduleBoard = ({
   const [deletingWeek, setDeletingWeek] = useState(false);
   const [dragEmployee, setDragEmployee] = useState<EmployeeDto | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
+  const dragEmployeeRef = useRef<EmployeeDto | null>(null);
 
   // Ref para saber cuándo no desmontar
   const isMounted = useRef(true);
@@ -323,10 +324,12 @@ export const WeeklyScheduleBoard = ({
   // Drag & Drop (HTML5 nativo)
   // -------------------------------------------------------------------------
   const handleDragStart = (emp: EmployeeDto) => {
+    dragEmployeeRef.current = emp;
     setDragEmployee(emp);
   };
 
   const handleDragEnd = () => {
+    dragEmployeeRef.current = null;
     setDragEmployee(null);
     setDragOverSlot(null);
   };
@@ -337,16 +340,25 @@ export const WeeklyScheduleBoard = ({
   };
 
   const handleDropOnSlot = (slot: BoardSlot) => {
-    if (!dragEmployee) return;
+    const employee = dragEmployeeRef.current ?? dragEmployee;
+    if (!employee) return;
     if (!isDateInSelectedMonth(slot.date)) {
       message.warning('No se puede modificar días fuera del mes seleccionado.');
       return;
     }
     const key = slotId(slot);
-    setSlots(prev => ({
-      ...prev,
-      [key]: { ...prev[key], employee: dragEmployee },
-    }));
+    setSlots(prev => {
+      const next = { ...prev };
+      for (const slotKey of Object.keys(next)) {
+        const current = next[slotKey];
+        if (slotKey !== key && current.date === slot.date && current.employee?.id === employee.id) {
+          next[slotKey] = { ...current, employee: null };
+        }
+      }
+      next[key] = { ...next[key], employee };
+      return next;
+    });
+    dragEmployeeRef.current = null;
     setDragEmployee(null);
     setDragOverSlot(null);
   };
@@ -446,6 +458,22 @@ export const WeeklyScheduleBoard = ({
             || compareText(a.templateId, b.templateId)
             || a.slotIndex - b.slotIndex,
         );
+
+      const employeeDaySlots = new Map<string, BoardSlot[]>();
+      toSave.forEach(slot => {
+        if (!slot.employee) return;
+        const key = `${slot.date}|${slot.employee.id}`;
+        const current = employeeDaySlots.get(key) ?? [];
+        current.push(slot);
+        employeeDaySlots.set(key, current);
+      });
+
+      const duplicateEmployeeDay = Array.from(employeeDaySlots.values()).find(items => items.length > 1);
+      if (duplicateEmployeeDay?.[0]?.employee) {
+        const employee = duplicateEmployeeDay[0].employee;
+        message.error(`${employee.firstName} ${employee.lastName} ya está asignado en ${dayjs(duplicateEmployeeDay[0].date).format('DD/MM')}. Cada empleado solo puede ocupar un turno por día.`);
+        return;
+      }
 
       // Borrar turnos existentes de la semana y recrear
       const weekEnd = weekStart.add(6, 'day');

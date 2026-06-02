@@ -33,6 +33,15 @@ public class CreateShiftAssignmentCommandHandler : IRequestHandler<CreateShiftAs
         if (workRole == null)
             throw new InvalidOperationException("Rol de trabajo no encontrado.");
 
+        var employeeAlreadyAssigned = await _context.ShiftAssignments
+            .AnyAsync(sa =>
+                sa.EmployeeId == request.EmployeeId &&
+                sa.Date.Date == request.Date.Date &&
+                !sa.IsDeleted, cancellationToken);
+
+        if (employeeAlreadyAssigned)
+            throw new InvalidOperationException("El empleado ya tiene un turno asignado en este día.");
+
         var breakMinutes = request.BreakDuration?.TotalMinutes ?? 0;
         var lunchMinutes = request.LunchDuration?.TotalMinutes ?? 0;
         var totalMinutes = (request.EndTime - request.StartTime).TotalMinutes - breakMinutes - lunchMinutes;
@@ -119,6 +128,16 @@ public class UpdateShiftAssignmentCommandHandler : IRequestHandler<UpdateShiftAs
 
         if (!hasRole)
             throw new InvalidOperationException("El empleado no tiene asignado el rol de este turno.");
+
+        var employeeAlreadyAssigned = await _context.ShiftAssignments
+            .AnyAsync(sa =>
+                sa.Id != request.Id &&
+                sa.EmployeeId == request.EmployeeId &&
+                sa.Date.Date == request.Date.Date &&
+                !sa.IsDeleted, cancellationToken);
+
+        if (employeeAlreadyAssigned)
+            throw new InvalidOperationException("El empleado ya tiene un turno asignado en este día.");
 
         var breakMinutes = request.BreakDuration?.TotalMinutes ?? 0;
         var lunchMinutes = request.LunchDuration?.TotalMinutes ?? 0;
