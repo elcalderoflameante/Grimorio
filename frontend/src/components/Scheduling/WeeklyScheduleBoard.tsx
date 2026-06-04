@@ -216,6 +216,7 @@ export const WeeklyScheduleBoard = ({
     (tmplList: ShiftTemplateDto[], existing: ShiftAssignmentDto[]) => {
       const nextSlots: Record<string, BoardSlot> = {};
       const existingByTemplate: Record<string, ShiftAssignmentDto[]> = {};
+      const consumedExistingByTemplate: Record<string, number> = {};
 
       for (const shift of existing) {
         const key = shiftTemplateMatchKey(
@@ -248,10 +249,11 @@ export const WeeklyScheduleBoard = ({
           for (let idx = 0; idx < tmpl.requiredCount; idx++) {
             const key = slotId({ templateId: tmpl.id, date: dateStr, slotIndex: idx });
 
-            const matchingShifts = existingByTemplate[
-              shiftTemplateMatchKey(dateStr, tmpl.workAreaId, tmpl.workRoleId, tmpl.startTime)
-            ] ?? [];
-            const existingShift = matchingShifts[idx];
+            const matchKey = shiftTemplateMatchKey(dateStr, tmpl.workAreaId, tmpl.workRoleId, tmpl.startTime);
+            const matchingShifts = existingByTemplate[matchKey] ?? [];
+            const consumedIndex = consumedExistingByTemplate[matchKey] ?? 0;
+            const existingShift = matchingShifts[consumedIndex];
+            consumedExistingByTemplate[matchKey] = consumedIndex + 1;
             const alreadyUsedEmployee = existingShift?.employeeId ?? null;
 
             const emp = alreadyUsedEmployee
@@ -405,6 +407,7 @@ export const WeeklyScheduleBoard = ({
 
         // Agrupar generados por la plantilla visible del casillero.
         const grouped: Record<string, ShiftAssignmentDto[]> = {};
+        const consumedGeneratedByTemplate: Record<string, number> = {};
         for (const a of generated) {
           const gKey = shiftTemplateMatchKey(
             dayjs(a.date).format('YYYY-MM-DD'),
@@ -423,7 +426,9 @@ export const WeeklyScheduleBoard = ({
 
           const gKey = shiftTemplateMatchKey(s.date, tmpl.workAreaId, tmpl.workRoleId, tmpl.startTime);
           const assignments = grouped[gKey] ?? [];
-          const assigned = assignments[s.slotIndex];
+          const consumedIndex = consumedGeneratedByTemplate[gKey] ?? 0;
+          const assigned = assignments[consumedIndex];
+          consumedGeneratedByTemplate[gKey] = consumedIndex + 1;
 
           if (assigned) {
             const emp = eligibleEmployees.find(e => e.id === assigned.employeeId) ?? null;
