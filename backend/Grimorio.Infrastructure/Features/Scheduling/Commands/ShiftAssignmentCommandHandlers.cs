@@ -33,6 +33,33 @@ public class CreateShiftAssignmentCommandHandler : IRequestHandler<CreateShiftAs
         if (workRole == null)
             throw new InvalidOperationException("Rol de trabajo no encontrado.");
 
+        var matchingTemplate = await _context.ShiftTemplates
+            .AsNoTracking()
+            .FirstOrDefaultAsync(st =>
+                st.BranchId == employee.BranchId &&
+                st.DayOfWeek == request.Date.DayOfWeek &&
+                st.WorkAreaId == request.WorkAreaId &&
+                st.WorkRoleId == request.WorkRoleId &&
+                st.StartTime == request.StartTime &&
+                st.EndTime == request.EndTime &&
+                !st.IsDeleted, cancellationToken);
+
+        if (matchingTemplate == null)
+            throw new InvalidOperationException("El turno no coincide con ninguna plantilla creada para ese día, área, rol y horario.");
+
+        var assignedTemplateCount = await _context.ShiftAssignments
+            .CountAsync(sa =>
+                sa.BranchId == employee.BranchId &&
+                sa.Date.Date == request.Date.Date &&
+                sa.WorkAreaId == request.WorkAreaId &&
+                sa.WorkRoleId == request.WorkRoleId &&
+                sa.StartTime == request.StartTime &&
+                sa.EndTime == request.EndTime &&
+                !sa.IsDeleted, cancellationToken);
+
+        if (assignedTemplateCount >= matchingTemplate.RequiredCount)
+            throw new InvalidOperationException("La plantilla para ese turno ya tiene todos sus cupos asignados.");
+
         var employeeAlreadyAssigned = await _context.ShiftAssignments
             .AnyAsync(sa =>
                 sa.EmployeeId == request.EmployeeId &&
@@ -128,6 +155,34 @@ public class UpdateShiftAssignmentCommandHandler : IRequestHandler<UpdateShiftAs
 
         if (!hasRole)
             throw new InvalidOperationException("El empleado no tiene asignado el rol de este turno.");
+
+        var matchingTemplate = await _context.ShiftTemplates
+            .AsNoTracking()
+            .FirstOrDefaultAsync(st =>
+                st.BranchId == employee.BranchId &&
+                st.DayOfWeek == request.Date.DayOfWeek &&
+                st.WorkAreaId == shiftAssignment.WorkAreaId &&
+                st.WorkRoleId == shiftAssignment.WorkRoleId &&
+                st.StartTime == request.StartTime &&
+                st.EndTime == request.EndTime &&
+                !st.IsDeleted, cancellationToken);
+
+        if (matchingTemplate == null)
+            throw new InvalidOperationException("El turno no coincide con ninguna plantilla creada para ese día, área, rol y horario.");
+
+        var assignedTemplateCount = await _context.ShiftAssignments
+            .CountAsync(sa =>
+                sa.Id != request.Id &&
+                sa.BranchId == employee.BranchId &&
+                sa.Date.Date == request.Date.Date &&
+                sa.WorkAreaId == shiftAssignment.WorkAreaId &&
+                sa.WorkRoleId == shiftAssignment.WorkRoleId &&
+                sa.StartTime == request.StartTime &&
+                sa.EndTime == request.EndTime &&
+                !sa.IsDeleted, cancellationToken);
+
+        if (assignedTemplateCount >= matchingTemplate.RequiredCount)
+            throw new InvalidOperationException("La plantilla para ese turno ya tiene todos sus cupos asignados.");
 
         var employeeAlreadyAssigned = await _context.ShiftAssignments
             .AnyAsync(sa =>

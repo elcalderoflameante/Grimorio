@@ -7,7 +7,7 @@ import jsPDF from 'jspdf';
 import dayjs, { Dayjs } from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek';
 import 'dayjs/locale/es';
-import { scheduleShiftApi, scheduleConfigurationApi, workAreaApi, workRoleApi, employeeWorkRoleApi, branchApi } from '../../services/api';
+import { scheduleShiftApi, scheduleConfigurationApi, workAreaApi, workRoleApi, employeeWorkRoleApi, branchApi, shiftTemplateApi } from '../../services/api';
 import { useAuth } from '../../context/useAuth';
 import { formatError } from '../../utils/errorHandler';
 import { EmployeeStats } from './EmployeeStats';
@@ -602,13 +602,45 @@ export const MonthlySchedule = () => {
         return;
       }
 
+      if (!branchId) return;
+
+      const dayOfWeek = (values.date as Dayjs).day();
+      const startTime = (values.startTime as Dayjs).format('HH:mm:ss');
+      const endTime = (values.endTime as Dayjs).format('HH:mm:ss');
+      const templatesResponse = await shiftTemplateApi.getAll(branchId, dayOfWeek);
+      const dayTemplates = Array.isArray(templatesResponse.data) ? templatesResponse.data : [];
+      const matchingTemplate = dayTemplates.find((template) =>
+        template.workAreaId === values.workAreaId &&
+        template.workRoleId === values.workRoleId &&
+        template.startTime.substring(0, 5) === startTime.substring(0, 5) &&
+        template.endTime.substring(0, 5) === endTime.substring(0, 5)
+      );
+
+      if (!matchingTemplate) {
+        message.error('Este turno no coincide con ninguna plantilla creada para ese día, área, rol y horario.');
+        return;
+      }
+
+      const existingTemplateAssignments = shifts.filter((shift) =>
+        dayjs(shift.date).format('YYYY-MM-DD') === selectedDate &&
+        shift.workAreaId === matchingTemplate.workAreaId &&
+        shift.workRoleId === matchingTemplate.workRoleId &&
+        shift.startTime.substring(0, 5) === matchingTemplate.startTime.substring(0, 5) &&
+        shift.endTime.substring(0, 5) === matchingTemplate.endTime.substring(0, 5)
+      ).length;
+
+      if (existingTemplateAssignments >= matchingTemplate.requiredCount) {
+        message.error('La plantilla para ese turno ya tiene todos sus cupos asignados.');
+        return;
+      }
+
       setSavingCreate(true);
 
       const payload = {
         employeeId: values.employeeId as string,
         date: selectedDate,
-        startTime: (values.startTime as Dayjs).format('HH:mm:ss'),
-        endTime: (values.endTime as Dayjs).format('HH:mm:ss'),
+        startTime,
+        endTime,
         breakDuration: toTimeSpanFromMinutes(values.breakDuration as number | null),
         lunchDuration: toTimeSpanFromMinutes(values.lunchDuration as number | null),
         workAreaId: values.workAreaId as string,
@@ -629,7 +661,7 @@ export const MonthlySchedule = () => {
     } finally {
       setSavingCreate(false);
     }
-  }, [createForm, shifts, loadFreeEmployees, loadShifts, selectedMonth, viewMode]);
+  }, [branchId, createForm, shifts, loadFreeEmployees, loadShifts, selectedMonth, viewMode]);
 
   const handleGenerate = useCallback(async () => {
     if (!branchId) return;
