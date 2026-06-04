@@ -55,6 +55,13 @@ const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const compareText = (a?: string, b?: string) =>
   (a ?? '').localeCompare(b ?? '', 'es', { sensitivity: 'base' });
 
+const personNameSortKey = (name?: string) => {
+  const parts = (name ?? '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return parts[0] ?? '';
+  const [first, ...rest] = parts;
+  return `${rest.join(' ')} ${first}`;
+};
+
 const compareTemplatesByAreaAndName = (a: ShiftTemplateDto, b: ShiftTemplateDto) =>
   compareText(a.workAreaName, b.workAreaName)
     || compareText(a.workRoleName, b.workRoleName)
@@ -231,7 +238,7 @@ export const WeeklyScheduleBoard = ({
 
       Object.values(existingByTemplate).forEach(assignments => {
         assignments.sort((a, b) =>
-          compareText(a.employeeName, b.employeeName)
+          compareText(personNameSortKey(a.employeeName), personNameSortKey(b.employeeName))
             || compareText(a.startTime, b.startTime)
             || compareText(a.id, b.id),
         );
@@ -618,7 +625,7 @@ export const WeeklyScheduleBoard = ({
         lunchDuration: tmpl.lunchDuration,
         workAreaId: tmpl.workAreaId,
         workAreaName: tmpl.workAreaName,
-        workAreaColor: '#808080',
+        workAreaColor: tmpl.workAreaColor || '#808080',
         workRoleId: tmpl.workRoleId,
         workRoleName: tmpl.workRoleName,
         workedHours,
@@ -669,13 +676,10 @@ export const WeeklyScheduleBoard = ({
 
   // Asignar color a cada área de trabajo
   const areaColors: Record<string, string> = useMemo(() => {
-    const palette = ['#4096ff', '#73d13d', '#ff7a45', '#faad14', '#722ed1', '#13c2c2', '#eb2f96'];
     const map: Record<string, string> = {};
-    let i = 0;
     for (const tmpl of templates) {
       if (!(tmpl.workAreaId in map)) {
-        map[tmpl.workAreaId] = palette[i % palette.length];
-        i++;
+        map[tmpl.workAreaId] = tmpl.workAreaColor || '#4096ff';
       }
     }
     return map;

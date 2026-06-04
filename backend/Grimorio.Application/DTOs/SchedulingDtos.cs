@@ -54,6 +54,7 @@ public class ShiftTemplateDto
     public TimeSpan? LunchDuration { get; set; }
     public Guid WorkAreaId { get; set; }
     public string WorkAreaName { get; set; } = string.Empty;
+    public string WorkAreaColor { get; set; } = string.Empty;
     public Guid WorkRoleId { get; set; }
     public string WorkRoleName { get; set; } = string.Empty;
     public int RequiredCount { get; set; }

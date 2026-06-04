@@ -545,6 +545,7 @@ export interface ShiftTemplateDto {
   lunchDuration?: string;
   workAreaId: string;
   workAreaName: string;
+  workAreaColor: string;
   workRoleId: string;
   workRoleName: string;
   requiredCount: number;

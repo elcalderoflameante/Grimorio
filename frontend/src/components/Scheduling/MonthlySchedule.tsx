@@ -23,9 +23,16 @@ const { Text } = Typography;
 const compareText = (a?: string, b?: string) =>
   (a ?? '').localeCompare(b ?? '', 'es', { sensitivity: 'base' });
 
+const personNameSortKey = (name?: string) => {
+  const parts = (name ?? '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return parts[0] ?? '';
+  const [first, ...rest] = parts;
+  return `${rest.join(' ')} ${first}`;
+};
+
 const compareShiftsByAreaAndName = (a: ShiftAssignmentDto, b: ShiftAssignmentDto) =>
   compareText(a.workAreaName, b.workAreaName)
-    || compareText(a.employeeName, b.employeeName)
+    || compareText(personNameSortKey(a.employeeName), personNameSortKey(b.employeeName))
     || compareText(a.workRoleName, b.workRoleName)
     || compareText(a.startTime, b.startTime)
     || compareText(a.endTime, b.endTime);
@@ -861,7 +868,7 @@ export const MonthlySchedule = () => {
             </div>
             <div style={{ color: '#333', fontWeight: 500, lineHeight: 1.2 }}>{abbrevName(shift.employeeName)}</div>
             <div style={{ color: colors.text, fontSize: '9px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
-              {shift.workAreaName}
+              {shift.workAreaName}/{shift.workRoleName}
             </div>
           </div>
         ) : null;
