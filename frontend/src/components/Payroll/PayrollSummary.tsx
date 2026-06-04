@@ -92,6 +92,7 @@ interface PdfLineItem {
 
 export const PayrollSummary = () => {
   const payrollPdfRef = useRef<HTMLDivElement | null>(null);
+  const selectedEmployeeIdRef = useRef<string | null>(null);
   const [month, setMonth] = useState<Dayjs>(dayjs());
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<EmployeePayrollSummaryDto[]>([]);
@@ -152,9 +153,11 @@ export const PayrollSummary = () => {
       const summaryRows = Array.isArray(response.data) ? response.data : [];
       setSummary(summaryRows);
 
-      if (selectedEmployee) {
-        const refreshedSelected = summaryRows.find((item) => item.employeeId === selectedEmployee.employeeId);
+      const selectedEmployeeId = selectedEmployeeIdRef.current;
+      if (selectedEmployeeId) {
+        const refreshedSelected = summaryRows.find((item) => item.employeeId === selectedEmployeeId);
         setSelectedEmployee(refreshedSelected ?? null);
+        selectedEmployeeIdRef.current = refreshedSelected?.employeeId ?? null;
         if (refreshedSelected) {
           await loadMovementDetails(refreshedSelected.employeeId);
         }
@@ -164,7 +167,7 @@ export const PayrollSummary = () => {
     } finally {
       setLoading(false);
     }
-  }, [loadMovementDetails, month, selectedEmployee]);
+  }, [loadMovementDetails, month]);
 
   useEffect(() => {
     loadSummary();
@@ -197,6 +200,10 @@ export const PayrollSummary = () => {
   }, []);
 
   useEffect(() => {
+    selectedEmployeeIdRef.current = selectedEmployee?.employeeId ?? null;
+  }, [selectedEmployee?.employeeId]);
+
+  useEffect(() => {
     if (!selectedEmployee) {
       setAdvancesDetails([]);
       setConsumptionsDetails([]);
@@ -207,7 +214,7 @@ export const PayrollSummary = () => {
     }
 
     loadMovementDetails(selectedEmployee.employeeId);
-  }, [loadMovementDetails, selectedEmployee]);
+  }, [loadMovementDetails, selectedEmployee?.employeeId]);
 
   useEffect(() => {
     const loadEmployeeDetail = async () => {
@@ -225,7 +232,7 @@ export const PayrollSummary = () => {
     };
 
     loadEmployeeDetail();
-  }, [selectedEmployee]);
+  }, [selectedEmployee?.employeeId]);
 
   const openAdvanceModal = (employee: EmployeePayrollSummaryDto) => {
     setSelectedEmployee(employee);
