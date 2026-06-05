@@ -28,6 +28,11 @@ public class CreatePayrollAdvanceCommandValidator : AbstractValidator<CreatePayr
         RuleFor(x => x.BranchId).NotEmpty();
         RuleFor(x => x.EmployeeId).NotEmpty();
         RuleFor(x => x.Date).NotEmpty();
+        RuleFor(x => x.PayrollYear).InclusiveBetween(2000, 2100).When(x => x.PayrollYear.HasValue);
+        RuleFor(x => x.PayrollMonth).InclusiveBetween(1, 12).When(x => x.PayrollMonth.HasValue);
+        RuleFor(x => x)
+            .Must(x => x.PayrollYear.HasValue == x.PayrollMonth.HasValue)
+            .WithMessage("Debe enviar año y mes del período aplicado juntos.");
         RuleFor(x => x.Amount).GreaterThan(0);
         RuleFor(x => x.Method).NotEmpty();
     }
@@ -127,6 +132,17 @@ public class UpdatePayrollRoleStatusCommandValidator : AbstractValidator<UpdateP
         RuleFor(x => x.BranchId).NotEmpty();
         RuleFor(x => x.PayrollRoleId).NotEmpty();
         RuleFor(x => x.Status).IsInEnum();
+        RuleFor(x => x.PaymentReceiptContent)
+            .NotEmpty()
+            .When(x => x.Status == Grimorio.Domain.Enums.PayrollRoleStatus.Paid);
+        RuleFor(x => x.PaymentReceiptFileName)
+            .NotEmpty()
+            .MaximumLength(255)
+            .When(x => x.Status == Grimorio.Domain.Enums.PayrollRoleStatus.Paid);
+        RuleFor(x => x.PaymentReceiptContentType)
+            .NotEmpty()
+            .MaximumLength(100)
+            .When(x => x.Status == Grimorio.Domain.Enums.PayrollRoleStatus.Paid);
     }
 }
 

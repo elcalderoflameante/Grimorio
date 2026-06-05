@@ -212,6 +212,8 @@ export interface PayrollAdvanceDto {
   id: string;
   employeeId: string;
   date: string;
+  payrollYear: number;
+  payrollMonth: number;
   amount: number;
   method: string;
   notes?: string;
@@ -220,6 +222,8 @@ export interface PayrollAdvanceDto {
 export interface CreatePayrollAdvanceDto {
   employeeId: string;
   date: string;
+  payrollYear?: number;
+  payrollMonth?: number;
   amount: number;
   method: string;
   notes?: string;
@@ -302,6 +306,9 @@ export interface PayrollRoleDto {
   generatedAt: string;
   authorizedAt?: string;
   paidAt?: string;
+  paymentReceiptFileName?: string;
+  paymentReceiptContentType?: string;
+  hasPaymentReceipt: boolean;
   totalIncome: number;
   totalDeductions: number;
   netPay: number;

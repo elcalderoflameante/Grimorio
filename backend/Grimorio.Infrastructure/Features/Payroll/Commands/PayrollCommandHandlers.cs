@@ -83,8 +83,8 @@ public class CreatePayrollAdvanceCommandHandler : IRequestHandler<CreatePayrollA
         if (!employeeExists)
             throw new InvalidOperationException("Empleado no encontrado.");
 
-        var advanceMonth = request.Date.Month;
-        var advanceYear = request.Date.Year;
+        var advanceMonth = request.PayrollMonth ?? request.Date.Month;
+        var advanceYear = request.PayrollYear ?? request.Date.Year;
         var advanceRole = await _context.PayrollRoleHeaders
             .AsNoTracking()
             .FirstOrDefaultAsync(r => r.BranchId == request.BranchId
@@ -102,6 +102,8 @@ public class CreatePayrollAdvanceCommandHandler : IRequestHandler<CreatePayrollA
             BranchId = request.BranchId,
             EmployeeId = request.EmployeeId,
             Date = request.Date,
+            PayrollYear = advanceYear,
+            PayrollMonth = advanceMonth,
             Amount = request.Amount,
             Method = request.Method,
             Notes = request.Notes
@@ -135,8 +137,8 @@ public class DeletePayrollAdvanceCommandHandler : IRequestHandler<DeletePayrollA
             .AsNoTracking()
             .FirstOrDefaultAsync(r => r.BranchId == request.BranchId
                 && r.EmployeeId == advance.EmployeeId
-                && r.Year == advance.Date.Year
-                && r.Month == advance.Date.Month
+                && r.Year == advance.PayrollYear
+                && r.Month == advance.PayrollMonth
                 && !r.IsDeleted, cancellationToken);
 
         if (role != null && role.Status != PayrollRoleStatus.Generated)
@@ -359,7 +361,7 @@ public class GenerateMonthlyPayrollRolesCommandHandler : IRequestHandler<Generat
 
         var advances = await _context.PayrollAdvances
             .AsNoTracking()
-            .Where(a => a.BranchId == request.BranchId && !a.IsDeleted && a.Date >= startDate && a.Date <= endDate)
+            .Where(a => a.BranchId == request.BranchId && !a.IsDeleted && a.PayrollYear == request.Year && a.PayrollMonth == request.Month)
             .ToListAsync(cancellationToken);
 
         var consumptions = await _context.EmployeeConsumptions
@@ -474,12 +476,6 @@ public class GenerateMonthlyPayrollRolesCommandHandler : IRequestHandler<Generat
         var sort = 1;
 
         var baseSalary = employee.BaseSalary;
-        var iessEmployee = CalculatePercent(baseSalary, config.IessEmployeeRate);
-        var incomeTax = CalculatePercent(baseSalary, config.IncomeTaxRate);
-        var decimoThird = employee.DecimoThirdMonthly ? CalculatePercent(baseSalary, config.DecimoThirdRate) : 0m;
-        var decimoFourth = employee.DecimoFourthMonthly ? CalculatePercent(baseSalary, config.DecimoFourthRate) : 0m;
-        var reserveFund = employee.ReserveFundMonthly ? CalculatePercent(baseSalary, config.ReserveFundRate) : 0m;
-
         var overtime50 = 0m;
         var overtime100 = 0m;
         var otherIncome = 0m;
@@ -514,6 +510,13 @@ public class GenerateMonthlyPayrollRolesCommandHandler : IRequestHandler<Generat
                 }
             }
         }
+
+        var iessContributionBase = baseSalary + overtime50 + overtime100;
+        var iessEmployee = CalculatePercent(iessContributionBase, config.IessEmployeeRate);
+        var incomeTax = CalculatePercent(baseSalary, config.IncomeTaxRate);
+        var decimoThird = employee.DecimoThirdMonthly ? CalculatePercent(baseSalary, config.DecimoThirdRate) : 0m;
+        var decimoFourth = employee.DecimoFourthMonthly ? CalculatePercent(baseSalary, config.DecimoFourthRate) : 0m;
+        var reserveFund = employee.ReserveFundMonthly ? CalculatePercent(baseSalary, config.ReserveFundRate) : 0m;
 
         var advances = advancesByEmployee.TryGetValue(employee.Id, out var adv) ? adv : 0m;
         var consumptions = consumptionsByEmployee.TryGetValue(employee.Id, out var cons) ? cons : 0m;
@@ -594,11 +597,23 @@ public class UpdatePayrollRoleStatusCommandHandler : IRequestHandler<UpdatePayro
         if (role == null)
             throw new InvalidOperationException("Rol de pago no encontrado.");
 
+        if (role.Status == PayrollRoleStatus.Paid)
+            throw new InvalidOperationException("El rol ya está pagado.");
+
+        if (request.Status == PayrollRoleStatus.Paid && request.PaymentReceiptContent is not { Length: > 0 })
+            throw new InvalidOperationException("Debe adjuntar el comprobante de pago.");
+
         role.Status = request.Status;
         if (request.Status == PayrollRoleStatus.Authorized)
             role.AuthorizedAt = DateTime.UtcNow;
         if (request.Status == PayrollRoleStatus.Paid)
+        {
+            role.AuthorizedAt ??= DateTime.UtcNow;
             role.PaidAt = DateTime.UtcNow;
+            role.PaymentReceiptFileName = request.PaymentReceiptFileName;
+            role.PaymentReceiptContentType = request.PaymentReceiptContentType;
+            role.PaymentReceiptContent = request.PaymentReceiptContent;
+        }
 
         _context.PayrollRoleHeaders.Update(role);
         await _context.SaveChangesAsync(cancellationToken);
@@ -614,6 +629,9 @@ public class UpdatePayrollRoleStatusCommandHandler : IRequestHandler<UpdatePayro
             GeneratedAt = role.GeneratedAt,
             AuthorizedAt = role.AuthorizedAt,
             PaidAt = role.PaidAt,
+            PaymentReceiptFileName = role.PaymentReceiptFileName,
+            PaymentReceiptContentType = role.PaymentReceiptContentType,
+            HasPaymentReceipt = role.PaymentReceiptContent != null,
             TotalIncome = role.TotalIncome,
             TotalDeductions = role.TotalDeductions,
             NetPay = role.NetPay,

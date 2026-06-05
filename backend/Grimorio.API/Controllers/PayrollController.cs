@@ -13,6 +13,14 @@ namespace Grimorio.API.Controllers;
 public class PayrollController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private static readonly HashSet<string> AllowedPaymentReceiptContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "image/webp"
+    };
+    private const long MaxPaymentReceiptBytes = 5 * 1024 * 1024;
 
     public PayrollController(IMediator mediator) => _mediator = mediator;
 
@@ -100,6 +108,8 @@ public class PayrollController : ControllerBase
             BranchId = branchId,
             EmployeeId = dto.EmployeeId,
             Date = dto.Date,
+            PayrollYear = dto.PayrollYear,
+            PayrollMonth = dto.PayrollMonth,
             Amount = dto.Amount,
             Method = dto.Method,
             Notes = dto.Notes
@@ -395,6 +405,70 @@ public class PayrollController : ControllerBase
         {
             return StatusCode(500, new { message = "Error al actualizar estado del rol de pago.", error = ex.Message });
         }
+    }
+
+    [HttpPatch("roles/{roleId}/paid")]
+    [Authorize(Policy = "RRHH.Payroll.Manage")]
+    public async Task<IActionResult> MarkRoleAsPaid(Guid roleId, [FromForm] IFormFile receipt)
+    {
+        if (!TryGetBranchId(out var branchId))
+            return Unauthorized("BranchId no válido en el token.");
+
+        if (receipt == null || receipt.Length == 0)
+            return BadRequest(new { message = "Debe adjuntar el comprobante de pago." });
+
+        if (receipt.Length > MaxPaymentReceiptBytes)
+            return BadRequest(new { message = "El comprobante no puede superar 5 MB." });
+
+        if (!AllowedPaymentReceiptContentTypes.Contains(receipt.ContentType))
+            return BadRequest(new { message = "El comprobante debe ser PDF, JPG, PNG o WebP." });
+
+        await using var stream = receipt.OpenReadStream();
+        using var memory = new MemoryStream();
+        await stream.CopyToAsync(memory);
+
+        var command = new UpdatePayrollRoleStatusCommand
+        {
+            BranchId = branchId,
+            PayrollRoleId = roleId,
+            Status = Grimorio.Domain.Enums.PayrollRoleStatus.Paid,
+            PaymentReceiptFileName = Path.GetFileName(receipt.FileName),
+            PaymentReceiptContentType = receipt.ContentType,
+            PaymentReceiptContent = memory.ToArray()
+        };
+
+        try
+        {
+            var result = await _mediator.Send(command);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error al marcar el rol como pagado.", error = ex.Message });
+        }
+    }
+
+    [HttpGet("roles/{roleId}/payment-receipt")]
+    [Authorize(Policy = "RRHH.Payroll.View")]
+    public async Task<IActionResult> GetPaymentReceipt(Guid roleId)
+    {
+        if (!TryGetBranchId(out var branchId))
+            return Unauthorized("BranchId no válido en el token.");
+
+        var receipt = await _mediator.Send(new GetPayrollRolePaymentReceiptQuery
+        {
+            BranchId = branchId,
+            PayrollRoleId = roleId
+        });
+
+        if (receipt == null)
+            return NotFound(new { message = "Comprobante de pago no encontrado." });
+
+        return File(receipt.Content, receipt.ContentType, receipt.FileName);
     }
 
     private bool TryGetBranchId(out Guid branchId)

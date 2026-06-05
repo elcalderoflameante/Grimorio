@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, message, Card, Row, Col, List, Divider, Empty, Popconfirm } from 'antd';
+import { Button, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, message, Card, Row, Col, List, Divider, Empty, Popconfirm, Upload } from 'antd';
+import type { UploadFile } from 'antd/es/upload/interface';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -19,15 +20,21 @@ import type {
   PayrollRoleStatusValue,
   BranchDto,
   EmployeeDto,
+  PayrollRoleDto,
 } from '../../types';
 import { PayrollAdjustmentType, PayrollAdjustmentCategory, PayrollRoleStatus } from '../../types';
 import logo from '../../assets/ECF-Logo.png';
 
 interface AdvanceFormValues {
   date: Dayjs;
+  payrollPeriod: Dayjs;
   amount: number;
   method: string;
   notes?: string;
+}
+
+interface PaymentReceiptFormValues {
+  receipt: UploadFile[];
 }
 
 interface ConsumptionFormValues {
@@ -111,8 +118,12 @@ export const PayrollSummary = () => {
   const [consumptionsDetails, setConsumptionsDetails] = useState<EmployeeConsumptionDto[]>([]);
   const [adjustmentsDetails, setAdjustmentsDetails] = useState<PayrollAdjustmentDto[]>([]);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [currentRole, setCurrentRole] = useState<PayrollRoleDto | null>(null);
   const [currentRoleStatus, setCurrentRoleStatus] = useState<PayrollRoleStatusValue | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [paymentReceiptOpen, setPaymentReceiptOpen] = useState(false);
+  const [updatingRoleStatus, setUpdatingRoleStatus] = useState(false);
+  const [paymentReceiptForm] = Form.useForm<PaymentReceiptFormValues>();
   const adjustmentCategory = Form.useWatch('category', adjustmentForm);
   const isOvertimeCategory = adjustmentCategory === PayrollAdjustmentCategory.Overtime50
     || adjustmentCategory === PayrollAdjustmentCategory.Overtime100;
@@ -135,11 +146,13 @@ export const PayrollSummary = () => {
       setAdjustmentsDetails(Array.isArray(adjustmentsResponse.data) ? adjustmentsResponse.data : []);
 
       const currentRole = rolesResponse.data.find((role) => role.year === year && role.month === monthNumber);
+      setCurrentRole(currentRole ?? null);
       setCurrentRoleStatus(currentRole?.status ?? null);
     } catch {
       setAdvancesDetails([]);
       setConsumptionsDetails([]);
       setAdjustmentsDetails([]);
+      setCurrentRole(null);
       setCurrentRoleStatus(null);
     } finally {
       setDetailsLoading(false);
@@ -208,6 +221,7 @@ export const PayrollSummary = () => {
       setAdvancesDetails([]);
       setConsumptionsDetails([]);
       setAdjustmentsDetails([]);
+      setCurrentRole(null);
       setCurrentRoleStatus(null);
       setSelectedEmployeeDetail(null);
       return;
@@ -237,7 +251,13 @@ export const PayrollSummary = () => {
   const openAdvanceModal = (employee: EmployeePayrollSummaryDto) => {
     setSelectedEmployee(employee);
     advanceForm.resetFields();
-    advanceForm.setFieldsValue({ date: dayjs(), amount: 0, method: 'Transferencia' });
+    const today = dayjs();
+    advanceForm.setFieldsValue({
+      date: today,
+      payrollPeriod: today,
+      amount: 0,
+      method: 'Transferencia',
+    });
     setAdvanceOpen(true);
   };
 
@@ -264,6 +284,8 @@ export const PayrollSummary = () => {
     const payload: CreatePayrollAdvanceDto = {
       employeeId: selectedEmployee.employeeId,
       date: values.date.format('YYYY-MM-DD'),
+      payrollYear: values.payrollPeriod.year(),
+      payrollMonth: values.payrollPeriod.month() + 1,
       amount: values.amount,
       method: values.method,
       notes: values.notes,
@@ -338,6 +360,78 @@ export const PayrollSummary = () => {
       message.error(`Error generando rol para ${employee.employeeName}: ${formatError(error)}`);
     } finally {
       setGeneratingEmployeeId(null);
+    }
+  };
+
+  const handleAuthorizePayrollRole = async () => {
+    if (!currentRole || !selectedEmployee) {
+      message.info('Primero genera el rol del período.');
+      return;
+    }
+
+    try {
+      setUpdatingRoleStatus(true);
+      await payrollApi.updateRoleStatus(currentRole.id, { status: PayrollRoleStatus.Authorized });
+      message.success('Rol autorizado');
+      await Promise.all([
+        loadSummary(),
+        loadMovementDetails(selectedEmployee.employeeId),
+      ]);
+    } catch (error) {
+      message.error(`No se pudo autorizar el rol: ${formatError(error)}`);
+    } finally {
+      setUpdatingRoleStatus(false);
+    }
+  };
+
+  const openPaymentReceiptModal = () => {
+    paymentReceiptForm.resetFields();
+    setPaymentReceiptOpen(true);
+  };
+
+  const handleMarkPayrollRoleAsPaid = async (values: PaymentReceiptFormValues) => {
+    if (!currentRole || !selectedEmployee) {
+      message.info('Primero genera y autoriza el rol del período.');
+      return;
+    }
+
+    const receipt = values.receipt?.[0]?.originFileObj;
+    if (!receipt) {
+      message.info('Adjunta el comprobante de pago.');
+      return;
+    }
+
+    try {
+      setUpdatingRoleStatus(true);
+      await payrollApi.markRoleAsPaid(currentRole.id, receipt);
+      message.success('Rol marcado como pagado');
+      setPaymentReceiptOpen(false);
+      await Promise.all([
+        loadSummary(),
+        loadMovementDetails(selectedEmployee.employeeId),
+      ]);
+    } catch (error) {
+      message.error(`No se pudo marcar como pagado: ${formatError(error)}`);
+    } finally {
+      setUpdatingRoleStatus(false);
+    }
+  };
+
+  const handleDownloadPaymentReceipt = async () => {
+    if (!currentRole) return;
+
+    try {
+      const response = await payrollApi.getPaymentReceipt(currentRole.id);
+      const url = URL.createObjectURL(response.data);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = currentRole.paymentReceiptFileName || `comprobante-${currentRole.employeeName}-${currentRole.year}-${currentRole.month}`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      message.error(`No se pudo descargar el comprobante: ${formatError(error)}`);
     }
   };
 
@@ -495,7 +589,10 @@ export const PayrollSummary = () => {
     const advancesBreakdown: SalaryBreakdownItem[] = advancesDetails.map((item) => ({
       key: item.id,
       detail: `${dayjs(item.date).format('DD/MM/YYYY')} - ${item.method}`,
-      note: item.notes?.trim() || '-',
+      note: [
+        `Periodo: ${formatPeriod(dayjs().year(item.payrollYear).month(item.payrollMonth - 1))}`,
+        item.notes?.trim(),
+      ].filter(Boolean).join(' | '),
       amount: item.amount,
       deleteType: 'advance',
       deleteId: item.id,
@@ -881,6 +978,37 @@ export const PayrollSummary = () => {
                       >
                         {isExportingPdf ? 'Generando PDF...' : 'Generar PDF'}
                       </Button>
+                      {currentRoleStatus === PayrollRoleStatus.Generated && (
+                        <Popconfirm
+                          title="¿Autorizar este rol?"
+                          description="Al autorizarlo ya no se permitirán cambios en este período."
+                          okText="Sí, autorizar"
+                          cancelText="Cancelar"
+                          onConfirm={handleAuthorizePayrollRole}
+                        >
+                          <Button
+                            disabled={!currentRole}
+                            loading={updatingRoleStatus}
+                          >
+                            Autorizar rol
+                          </Button>
+                        </Popconfirm>
+                      )}
+                      {currentRoleStatus === PayrollRoleStatus.Authorized && (
+                        <Button
+                          type="primary"
+                          onClick={openPaymentReceiptModal}
+                          disabled={!currentRole}
+                          loading={updatingRoleStatus}
+                        >
+                          Marcar como pagado
+                        </Button>
+                      )}
+                      {currentRoleStatus === PayrollRoleStatus.Paid && currentRole?.hasPaymentReceipt && (
+                        <Button onClick={handleDownloadPaymentReceipt}>
+                          Descargar comprobante
+                        </Button>
+                      )}
                     </Space>
                   </div>
                 </Space>
@@ -903,7 +1031,17 @@ export const PayrollSummary = () => {
       >
         <Form form={advanceForm} layout="vertical" onFinish={handleAdvanceSubmit}>
           <Form.Item name="date" label="Fecha" rules={[{ required: true }]}>
-            <DatePicker style={{ width: '100%' }} />
+            <DatePicker
+              style={{ width: '100%' }}
+              onChange={(value) => {
+                if (value) {
+                  advanceForm.setFieldValue('payrollPeriod', value);
+                }
+              }}
+            />
+          </Form.Item>
+          <Form.Item name="payrollPeriod" label="Periodo aplicado" rules={[{ required: true }]}>
+            <DatePicker picker="month" style={{ width: '100%' }} allowClear={false} />
           </Form.Item>
           <Form.Item name="amount" label="Monto" rules={[{ required: true }]}>
             <InputNumber min={0} step={0.01} precision={2} style={{ width: '100%' }} />
@@ -919,6 +1057,51 @@ export const PayrollSummary = () => {
           </Form.Item>
           <Form.Item name="notes" label="Notas">
             <Input.TextArea rows={3} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={`Marcar como pagado${selectedEmployee ? ` - ${selectedEmployee.employeeName}` : ''}`}
+        open={paymentReceiptOpen}
+        onCancel={() => setPaymentReceiptOpen(false)}
+        onOk={() => paymentReceiptForm.submit()}
+        confirmLoading={updatingRoleStatus}
+      >
+        <Form form={paymentReceiptForm} layout="vertical" onFinish={handleMarkPayrollRoleAsPaid}>
+          <Form.Item
+            name="receipt"
+            label="Comprobante de pago"
+            valuePropName="fileList"
+            getValueFromEvent={(event) => Array.isArray(event) ? event : event?.fileList}
+            rules={[
+              { required: true, message: 'Adjunta el comprobante de pago' },
+              {
+                validator: (_, value: UploadFile[]) => {
+                  const file = value?.[0]?.originFileObj;
+                  if (!file) return Promise.reject(new Error('Adjunta el comprobante de pago'));
+
+                  const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+                  if (!allowedTypes.includes(file.type)) {
+                    return Promise.reject(new Error('Usa un archivo PDF, JPG, PNG o WebP'));
+                  }
+
+                  if (file.size > 5 * 1024 * 1024) {
+                    return Promise.reject(new Error('El comprobante no puede superar 5 MB'));
+                  }
+
+                  return Promise.resolve();
+                },
+              },
+            ]}
+          >
+            <Upload
+              accept=".pdf,image/jpeg,image/png,image/webp"
+              beforeUpload={() => false}
+              maxCount={1}
+            >
+              <Button>Seleccionar archivo</Button>
+            </Upload>
           </Form.Item>
         </Form>
       </Modal>

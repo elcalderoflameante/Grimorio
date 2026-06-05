@@ -22,6 +22,8 @@ public class PayrollAdvance : BaseEntity
     public new Guid BranchId { get; set; }
     public Guid EmployeeId { get; set; }
     public DateTime Date { get; set; }
+    public int PayrollYear { get; set; }
+    public int PayrollMonth { get; set; }
     public decimal Amount { get; set; }
     public string Method { get; set; } = string.Empty;
     public string? Notes { get; set; }
@@ -64,6 +66,9 @@ public class PayrollRoleHeader : BaseEntity
     public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
     public DateTime? AuthorizedAt { get; set; }
     public DateTime? PaidAt { get; set; }
+    public string? PaymentReceiptFileName { get; set; }
+    public string? PaymentReceiptContentType { get; set; }
+    public byte[]? PaymentReceiptContent { get; set; }
 
     public decimal TotalIncome { get; set; }
     public decimal TotalDeductions { get; set; }

@@ -58,7 +58,7 @@ public class GetPayrollSummaryQueryHandler : IRequestHandler<GetPayrollSummaryQu
 
         var advances = await _context.PayrollAdvances
             .AsNoTracking()
-            .Where(a => a.BranchId == request.BranchId && !a.IsDeleted && a.Date >= startDate && a.Date <= endDate)
+            .Where(a => a.BranchId == request.BranchId && !a.IsDeleted && a.PayrollYear == request.Year && a.PayrollMonth == request.Month)
             .ToListAsync(cancellationToken);
 
         var consumptions = await _context.EmployeeConsumptions
@@ -87,13 +87,6 @@ public class GetPayrollSummaryQueryHandler : IRequestHandler<GetPayrollSummaryQu
         foreach (var employee in employees)
         {
             var baseSalary = employee.BaseSalary;
-            var iessEmployee = CalculatePercent(baseSalary, config.IessEmployeeRate);
-            var iessEmployer = CalculatePercent(baseSalary, config.IessEmployerRate);
-            var incomeTax = CalculatePercent(baseSalary, config.IncomeTaxRate);
-            var decimoThird = employee.DecimoThirdMonthly ? CalculatePercent(baseSalary, config.DecimoThirdRate) : 0m;
-            var decimoFourth = employee.DecimoFourthMonthly ? CalculatePercent(baseSalary, config.DecimoFourthRate) : 0m;
-            var reserveFund = employee.ReserveFundMonthly ? CalculatePercent(baseSalary, config.ReserveFundRate) : 0m;
-
             var overtime50 = 0m;
             var overtime100 = 0m;
             var otherIncome = 0m;
@@ -120,6 +113,14 @@ public class GetPayrollSummaryQueryHandler : IRequestHandler<GetPayrollSummaryQu
                     }
                 }
             }
+
+            var iessContributionBase = baseSalary + overtime50 + overtime100;
+            var iessEmployee = CalculatePercent(iessContributionBase, config.IessEmployeeRate);
+            var iessEmployer = CalculatePercent(iessContributionBase, config.IessEmployerRate);
+            var incomeTax = CalculatePercent(baseSalary, config.IncomeTaxRate);
+            var decimoThird = employee.DecimoThirdMonthly ? CalculatePercent(baseSalary, config.DecimoThirdRate) : 0m;
+            var decimoFourth = employee.DecimoFourthMonthly ? CalculatePercent(baseSalary, config.DecimoFourthRate) : 0m;
+            var reserveFund = employee.ReserveFundMonthly ? CalculatePercent(baseSalary, config.ReserveFundRate) : 0m;
 
             var advancesTotal = advancesByEmployee.TryGetValue(employee.Id, out var adv) ? adv : 0m;
             var consumptionsTotal = consumptionsByEmployee.TryGetValue(employee.Id, out var cons) ? cons : 0m;
@@ -206,9 +207,7 @@ public class GetPayrollAdvancesQueryHandler : IRequestHandler<GetPayrollAdvances
 
         if (request.Year.HasValue && request.Month.HasValue)
         {
-            var startDate = new DateTime(request.Year.Value, request.Month.Value, 1);
-            var endDate = startDate.AddMonths(1).AddDays(-1);
-            query = query.Where(a => a.Date >= startDate && a.Date <= endDate);
+            query = query.Where(a => a.PayrollYear == request.Year.Value && a.PayrollMonth == request.Month.Value);
         }
 
         var advances = await query
@@ -317,6 +316,9 @@ public class GetPayrollRolesByEmployeeQueryHandler : IRequestHandler<GetPayrollR
                 GeneratedAt = r.GeneratedAt,
                 AuthorizedAt = r.AuthorizedAt,
                 PaidAt = r.PaidAt,
+                PaymentReceiptFileName = r.PaymentReceiptFileName,
+                PaymentReceiptContentType = r.PaymentReceiptContentType,
+                HasPaymentReceipt = r.PaymentReceiptContent != null,
                 TotalIncome = r.TotalIncome,
                 TotalDeductions = r.TotalDeductions,
                 NetPay = r.NetPay
@@ -361,6 +363,9 @@ public class GetPayrollRoleDetailQueryHandler : IRequestHandler<GetPayrollRoleDe
                 GeneratedAt = role.GeneratedAt,
                 AuthorizedAt = role.AuthorizedAt,
                 PaidAt = role.PaidAt,
+                PaymentReceiptFileName = role.PaymentReceiptFileName,
+                PaymentReceiptContentType = role.PaymentReceiptContentType,
+                HasPaymentReceipt = role.PaymentReceiptContent != null,
                 TotalIncome = role.TotalIncome,
                 TotalDeductions = role.TotalDeductions,
                 NetPay = role.NetPay
@@ -378,5 +383,34 @@ public class GetPayrollRoleDetailQueryHandler : IRequestHandler<GetPayrollRoleDe
                 })
                 .ToList()
         };
+    }
+}
+
+public class GetPayrollRolePaymentReceiptQueryHandler : IRequestHandler<GetPayrollRolePaymentReceiptQuery, PayrollRolePaymentReceiptDto?>
+{
+    private readonly GrimorioDbContext _context;
+
+    public GetPayrollRolePaymentReceiptQueryHandler(GrimorioDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<PayrollRolePaymentReceiptDto?> Handle(GetPayrollRolePaymentReceiptQuery request, CancellationToken cancellationToken)
+    {
+        var receipt = await _context.PayrollRoleHeaders
+            .AsNoTracking()
+            .Where(r => r.Id == request.PayrollRoleId
+                && r.BranchId == request.BranchId
+                && !r.IsDeleted
+                && r.PaymentReceiptContent != null)
+            .Select(r => new PayrollRolePaymentReceiptDto
+            {
+                FileName = r.PaymentReceiptFileName ?? "comprobante-pago",
+                ContentType = r.PaymentReceiptContentType ?? "application/octet-stream",
+                Content = r.PaymentReceiptContent!
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return receipt;
     }
 }

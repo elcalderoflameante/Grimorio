@@ -50,3 +50,9 @@ public class GetPayrollRoleDetailQuery : IRequest<PayrollRoleFullDto?>
     public Guid BranchId { get; set; }
     public Guid PayrollRoleId { get; set; }
 }
+
+public class GetPayrollRolePaymentReceiptQuery : IRequest<PayrollRolePaymentReceiptDto?>
+{
+    public Guid BranchId { get; set; }
+    public Guid PayrollRoleId { get; set; }
+}

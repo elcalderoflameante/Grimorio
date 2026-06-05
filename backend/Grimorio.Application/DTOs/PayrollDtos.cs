@@ -40,6 +40,8 @@ public class PayrollAdvanceDto
     public Guid Id { get; set; }
     public Guid EmployeeId { get; set; }
     public DateTime Date { get; set; }
+    public int PayrollYear { get; set; }
+    public int PayrollMonth { get; set; }
     public decimal Amount { get; set; }
     public string Method { get; set; } = string.Empty;
     public string? Notes { get; set; }
@@ -49,6 +51,8 @@ public class CreatePayrollAdvanceDto
 {
     public Guid EmployeeId { get; set; }
     public DateTime Date { get; set; }
+    public int? PayrollYear { get; set; }
+    public int? PayrollMonth { get; set; }
     public decimal Amount { get; set; }
     public string Method { get; set; } = string.Empty;
     public string? Notes { get; set; }
@@ -129,6 +133,9 @@ public class PayrollRoleDto
     public DateTime GeneratedAt { get; set; }
     public DateTime? AuthorizedAt { get; set; }
     public DateTime? PaidAt { get; set; }
+    public string? PaymentReceiptFileName { get; set; }
+    public string? PaymentReceiptContentType { get; set; }
+    public bool HasPaymentReceipt { get; set; }
     public decimal TotalIncome { get; set; }
     public decimal TotalDeductions { get; set; }
     public decimal NetPay { get; set; }
@@ -162,4 +169,11 @@ public class GeneratePayrollRolesResultDto
 public class UpdatePayrollRoleStatusDto
 {
     public PayrollRoleStatus Status { get; set; }
+}
+
+public class PayrollRolePaymentReceiptDto
+{
+    public string FileName { get; set; } = string.Empty;
+    public string ContentType { get; set; } = string.Empty;
+    public byte[] Content { get; set; } = [];
 }

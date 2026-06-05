@@ -336,6 +336,15 @@ export const payrollApi = {
     apiClient.get<PayrollRoleFullDto>(`/payroll/roles/${roleId}`),
   updateRoleStatus: (roleId: string, data: UpdatePayrollRoleStatusDto): Promise<AxiosResponse<PayrollRoleDto>> =>
     apiClient.patch<PayrollRoleDto>(`/payroll/roles/${roleId}/status`, data),
+  markRoleAsPaid: (roleId: string, receipt: File): Promise<AxiosResponse<PayrollRoleDto>> => {
+    const formData = new FormData();
+    formData.append('receipt', receipt);
+    return apiClient.patch<PayrollRoleDto>(`/payroll/roles/${roleId}/paid`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  getPaymentReceipt: (roleId: string): Promise<AxiosResponse<Blob>> =>
+    apiClient.get<Blob>(`/payroll/roles/${roleId}/payment-receipt`, { responseType: 'blob' }),
 };
 
 export const scheduleConfigurationApi = {

@@ -3338,6 +3338,12 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<int>("PayrollMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PayrollYear")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -3348,7 +3354,7 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.HasIndex("EmployeeId");
 
-                    b.HasIndex("BranchId", "EmployeeId", "Date")
+                    b.HasIndex("BranchId", "EmployeeId", "PayrollYear", "PayrollMonth")
                         .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("PayrollAdvances", "payroll");
@@ -3529,6 +3535,17 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.Property<DateTime?>("PaidAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<byte[]>("PaymentReceiptContent")
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("PaymentReceiptContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("PaymentReceiptFileName")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");

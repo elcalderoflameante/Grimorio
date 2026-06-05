@@ -45,7 +45,7 @@ public class PayrollAdvanceConfiguration : IEntityTypeConfiguration<PayrollAdvan
         builder.Property(x => x.Date)
             .HasColumnType("date");
 
-        builder.HasIndex(x => new { x.BranchId, x.EmployeeId, x.Date })
+        builder.HasIndex(x => new { x.BranchId, x.EmployeeId, x.PayrollYear, x.PayrollMonth })
             .HasFilter("\"IsDeleted\" = false");
     }
 }
@@ -111,6 +111,15 @@ public class PayrollRoleHeaderConfiguration : IEntityTypeConfiguration<PayrollRo
         builder.Property(x => x.NetPay)
             .HasPrecision(12, 2)
             .IsRequired();
+
+        builder.Property(x => x.PaymentReceiptFileName)
+            .HasMaxLength(255);
+
+        builder.Property(x => x.PaymentReceiptContentType)
+            .HasMaxLength(100);
+
+        builder.Property(x => x.PaymentReceiptContent)
+            .HasColumnType("bytea");
 
         builder.HasIndex(x => new { x.BranchId, x.EmployeeId, x.Year, x.Month })
             .IsUnique()
