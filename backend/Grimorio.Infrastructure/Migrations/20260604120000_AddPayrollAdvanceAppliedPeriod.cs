@@ -1,3 +1,5 @@
+using Grimorio.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -5,6 +7,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Grimorio.Infrastructure.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(GrimorioDbContext))]
+    [Migration("20260604120000_AddPayrollAdvanceAppliedPeriod")]
     public partial class AddPayrollAdvanceAppliedPeriod : Migration
     {
         /// <inheritdoc />
