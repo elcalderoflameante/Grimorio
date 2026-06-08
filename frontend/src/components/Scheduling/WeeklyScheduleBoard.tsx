@@ -531,8 +531,8 @@ export const WeeklyScheduleBoard = ({
             notes: tmpl.notes,
           });
           savedIdsBySlotKey[slotId(slot)] = response.data.id;
-        } catch {
-          errors.push(`${slot.employee.firstName} ${slot.employee.lastName} - ${slot.date}`);
+        } catch (error) {
+          errors.push(`${slot.employee.firstName} ${slot.employee.lastName} - ${slot.date}: ${formatError(error)}`);
         }
       }
 

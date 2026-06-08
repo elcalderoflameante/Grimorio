@@ -609,18 +609,20 @@ export const MonthlySchedule = () => {
       const endTime = (values.endTime as Dayjs).format('HH:mm:ss');
       const templatesResponse = await shiftTemplateApi.getAll(branchId, dayOfWeek);
       const dayTemplates = Array.isArray(templatesResponse.data) ? templatesResponse.data : [];
-      const matchingTemplate = dayTemplates.find((template) =>
+      const matchingTemplates = dayTemplates.filter((template) =>
         template.workAreaId === values.workAreaId &&
         template.workRoleId === values.workRoleId &&
         template.startTime.substring(0, 5) === startTime.substring(0, 5) &&
         template.endTime.substring(0, 5) === endTime.substring(0, 5)
       );
 
-      if (!matchingTemplate) {
+      if (matchingTemplates.length === 0) {
         message.error('Este turno no coincide con ninguna plantilla creada para ese día, área, rol y horario.');
         return;
       }
 
+      const requiredTemplateCount = matchingTemplates.reduce((total, template) => total + template.requiredCount, 0);
+      const matchingTemplate = matchingTemplates[0];
       const existingTemplateAssignments = shifts.filter((shift) =>
         dayjs(shift.date).format('YYYY-MM-DD') === selectedDate &&
         shift.workAreaId === matchingTemplate.workAreaId &&
@@ -629,7 +631,7 @@ export const MonthlySchedule = () => {
         shift.endTime.substring(0, 5) === matchingTemplate.endTime.substring(0, 5)
       ).length;
 
-      if (existingTemplateAssignments >= matchingTemplate.requiredCount) {
+      if (existingTemplateAssignments >= requiredTemplateCount) {
         message.error('La plantilla para ese turno ya tiene todos sus cupos asignados.');
         return;
       }
