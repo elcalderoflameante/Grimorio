@@ -472,7 +472,6 @@ internal static class PosMapper
         Status = o.Status.ToString(),
         TableId = o.TableId,
         TableCode = o.Table?.Code,
-        TableName = o.Table?.Name,
         CustomerName = o.CustomerName,
         DeliveryAddress = o.DeliveryAddress,
         Notes = o.Notes,

@@ -57,7 +57,7 @@ export default function TablesMap({ branchId, onSelectTable, refreshKey }: Props
             {tables.filter(t => (t.area ?? 'General') === area).map(table => {
               const occupied = table.currentStatus === 'Occupied';
               return (
-                <Tooltip key={table.id} title={`${table.name} · ${table.capacity} personas`}>
+                <Tooltip key={table.id} title={`${table.area ?? 'General'} · ${table.capacity} personas`}>
                   <Card
                     hoverable
                     size="small"
@@ -71,8 +71,8 @@ export default function TablesMap({ branchId, onSelectTable, refreshKey }: Props
                     }}
                     styles={{ body: { padding: '12px 8px' } }}
                   >
-                    <div style={{ fontSize: 18, fontWeight: 700 }}>{table.code}</div>
-                    <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>{table.name}</div>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>Mesa {table.code}</div>
+                    <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>{table.capacity} personas</div>
                     <Tag color={occupied ? 'error' : 'success'} style={{ fontSize: 11 }}>
                       {occupied ? 'Ocupada' : 'Libre'}
                     </Tag>

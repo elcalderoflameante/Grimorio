@@ -15,20 +15,21 @@ public class CreateRestaurantTableCommandHandler : IRequestHandler<CreateRestaur
 
     public async Task<RestaurantTableDto> Handle(CreateRestaurantTableCommand request, CancellationToken cancellationToken)
     {
+        var code = request.Code.Trim();
+        var area = NormalizeArea(request.Area);
         var exists = await _context.RestaurantTables.AnyAsync(
-            x => x.BranchId == request.BranchId && x.Code == request.Code && !x.IsDeleted,
+            x => x.BranchId == request.BranchId && x.Code == code && x.Area == area && !x.IsDeleted,
             cancellationToken);
 
         if (exists)
-            throw new InvalidOperationException("Ya existe una mesa con ese código.");
+            throw new InvalidOperationException("Ya existe una mesa con ese numero en esa area.");
 
         var entity = new RestaurantTable
         {
             Id = Guid.NewGuid(),
             BranchId = request.BranchId,
-            Code = request.Code.Trim(),
-            Name = request.Name.Trim(),
-            Area = string.IsNullOrWhiteSpace(request.Area) ? null : request.Area.Trim(),
+            Code = code,
+            Area = area,
             Capacity = request.Capacity,
             PublicToken = Guid.NewGuid().ToString("N"),
             IsActive = true,
@@ -45,13 +46,18 @@ public class CreateRestaurantTableCommandHandler : IRequestHandler<CreateRestaur
         Id = table.Id,
         BranchId = table.BranchId,
         Code = table.Code,
-        Name = table.Name,
         Area = table.Area,
         Capacity = table.Capacity,
         PublicToken = table.PublicToken,
         IsActive = table.IsActive,
         PublicUrl = $"/mesa/{table.PublicToken}",
     };
+
+    internal static string? NormalizeArea(string? area)
+    {
+        return string.IsNullOrWhiteSpace(area) ? null : area.Trim();
+    }
+
 }
 
 public class UpdateRestaurantTableCommandHandler : IRequestHandler<UpdateRestaurantTableCommand, RestaurantTableDto>
@@ -65,16 +71,17 @@ public class UpdateRestaurantTableCommandHandler : IRequestHandler<UpdateRestaur
         var table = await _context.RestaurantTables.FirstOrDefaultAsync(x => x.Id == request.Id && !x.IsDeleted, cancellationToken)
             ?? throw new InvalidOperationException("Mesa no encontrada.");
 
+        var code = request.Code.Trim();
+        var area = CreateRestaurantTableCommandHandler.NormalizeArea(request.Area);
         var duplicate = await _context.RestaurantTables.AnyAsync(
-            x => x.Id != request.Id && x.BranchId == table.BranchId && x.Code == request.Code && !x.IsDeleted,
+            x => x.Id != request.Id && x.BranchId == table.BranchId && x.Code == code && x.Area == area && !x.IsDeleted,
             cancellationToken);
 
         if (duplicate)
-            throw new InvalidOperationException("Ya existe otra mesa con ese código.");
+            throw new InvalidOperationException("Ya existe otra mesa con ese numero en esa area.");
 
-        table.Code = request.Code.Trim();
-        table.Name = request.Name.Trim();
-        table.Area = string.IsNullOrWhiteSpace(request.Area) ? null : request.Area.Trim();
+        table.Code = code;
+        table.Area = area;
         table.Capacity = request.Capacity;
         table.IsActive = request.IsActive;
 
@@ -85,7 +92,6 @@ public class UpdateRestaurantTableCommandHandler : IRequestHandler<UpdateRestaur
             Id = table.Id,
             BranchId = table.BranchId,
             Code = table.Code,
-            Name = table.Name,
             Area = table.Area,
             Capacity = table.Capacity,
             PublicToken = table.PublicToken,
@@ -114,7 +120,6 @@ public class RegenerateRestaurantTableTokenCommandHandler : IRequestHandler<Rege
             Id = table.Id,
             BranchId = table.BranchId,
             Code = table.Code,
-            Name = table.Name,
             Area = table.Area,
             Capacity = table.Capacity,
             PublicToken = table.PublicToken,
@@ -188,7 +193,6 @@ public class PublicCreateTableServiceRequestCommandHandler : IRequestHandler<Pub
             BranchId = entity.BranchId,
             RestaurantTableId = table.Id,
             TableCode = table.Code,
-            TableName = table.Name,
             TableArea = table.Area,
             Type = entity.Type,
             CustomMessage = entity.CustomMessage,
@@ -232,7 +236,6 @@ public class TakeTableServiceRequestCommandHandler : IRequestHandler<TakeTableSe
             BranchId = entity.BranchId,
             RestaurantTableId = entity.RestaurantTableId,
             TableCode = table.Code,
-            TableName = table.Name,
             TableArea = table.Area,
             Type = entity.Type,
             CustomMessage = entity.CustomMessage,
@@ -274,7 +277,6 @@ public class SetTableServiceRequestStatusCommandHandler : IRequestHandler<SetTab
             BranchId = entity.BranchId,
             RestaurantTableId = entity.RestaurantTableId,
             TableCode = table.Code,
-            TableName = table.Name,
             TableArea = table.Area,
             Type = entity.Type,
             CustomMessage = entity.CustomMessage,

@@ -1355,7 +1355,7 @@ internal static class BillingMapper
 
     internal static OrderPaymentDto MapPayment(
         OrderPayment p, int orderNumber, Customer? customer,
-        string? tableCode = null, string? tableName = null, string? orderType = null,
+        string? tableCode = null, string? orderType = null,
         ElectronicDocument? elDoc = null) => new()
     {
         Id = p.Id, OrderId = p.OrderId, OrderNumber = orderNumber,
@@ -1367,7 +1367,7 @@ internal static class BillingMapper
         OrderType = orderType,
         CustomerId = p.CustomerId, CustomerName = customer?.Name,
         CustomerTaxId = customer?.TaxId,
-        TableCode = tableCode, TableName = tableName,
+        TableCode = tableCode,
         DocumentType = p.DocumentType.ToString(),
         OrderAmount = p.OrderAmount, PaidAt = p.PaidAt,
         Lines = p.Lines.Select(l => new PaymentLineDto

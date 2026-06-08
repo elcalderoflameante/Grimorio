@@ -51,7 +51,10 @@ public class FcmPushNotificationService : IFcmPushNotificationService
             return 0;
         }
 
-        var title = $"Nueva solicitud - {request.TableName}";
+        var tableLabel = string.IsNullOrWhiteSpace(request.TableArea)
+            ? $"Mesa {request.TableCode}"
+            : $"Mesa {request.TableCode} ({request.TableArea})";
+        var title = $"Nueva solicitud - {tableLabel}";
         var body = string.IsNullOrWhiteSpace(request.CustomMessage)
             ? request.Type.ToString()
             : request.CustomMessage!;
@@ -68,8 +71,8 @@ public class FcmPushNotificationService : IFcmPushNotificationService
             {
                 ["event"] = "tableService:new-request",
                 ["requestId"] = request.Id.ToString(),
-                ["tableName"] = request.TableName,
                 ["tableCode"] = request.TableCode,
+                ["tableArea"] = request.TableArea ?? string.Empty,
                 ["type"] = ((int)request.Type).ToString(),
                 ["customMessage"] = request.CustomMessage ?? string.Empty,
             },

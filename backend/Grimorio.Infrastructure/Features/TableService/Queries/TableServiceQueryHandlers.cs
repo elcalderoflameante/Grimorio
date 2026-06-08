@@ -17,7 +17,8 @@ public class GetRestaurantTablesQueryHandler : IRequestHandler<GetRestaurantTabl
     {
         var tables = await _context.RestaurantTables
             .Where(x => x.BranchId == request.BranchId && !x.IsDeleted)
-            .OrderBy(x => x.Code)
+            .OrderBy(x => x.Area ?? string.Empty)
+            .ThenBy(x => x.Code)
             .Include(x => x.Orders.Where(o =>
                 !o.IsDeleted &&
                 o.Status != OrderStatus.Draft &&
@@ -34,7 +35,6 @@ public class GetRestaurantTablesQueryHandler : IRequestHandler<GetRestaurantTabl
                 Id = x.Id,
                 BranchId = x.BranchId,
                 Code = x.Code,
-                Name = x.Name,
                 Area = x.Area,
                 Capacity = x.Capacity,
                 PublicToken = x.PublicToken,
@@ -61,7 +61,6 @@ public class GetRestaurantTableByTokenQueryHandler : IRequestHandler<GetRestaura
             {
                 TableId = x.Id,
                 Code = x.Code,
-                Name = x.Name,
                 Area = x.Area,
                 IsActive = x.IsActive,
             })
@@ -106,7 +105,6 @@ public class GetTableServiceRequestsQueryHandler : IRequestHandler<GetTableServi
                 BranchId = x.BranchId,
                 RestaurantTableId = x.RestaurantTableId,
                 TableCode = x.RestaurantTable != null ? x.RestaurantTable.Code : string.Empty,
-                TableName = x.RestaurantTable != null ? x.RestaurantTable.Name : string.Empty,
                 TableArea = x.RestaurantTable != null ? x.RestaurantTable.Area : null,
                 Type = x.Type,
                 CustomMessage = x.CustomMessage,

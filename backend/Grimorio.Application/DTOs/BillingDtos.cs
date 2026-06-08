@@ -309,7 +309,6 @@ public class OrderPaymentDto
     public string? CustomerName { get; set; }
     public string? CustomerTaxId { get; set; }
     public string? TableCode { get; set; }
-    public string? TableName { get; set; }
     public string DocumentType { get; set; } = string.Empty;
     public decimal OrderAmount { get; set; }
     public DateTime PaidAt { get; set; }

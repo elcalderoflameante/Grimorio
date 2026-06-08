@@ -262,7 +262,6 @@ public class GetSalesHandler : IRequestHandler<GetSalesQuery, List<OrderPaymentD
             p.Order?.Number ?? 0,
             p.Customer,
             p.Order?.Table?.Code,
-            p.Order?.Table?.Name,
             p.Order?.Type.ToString(),
             elDocByPayment.GetValueOrDefault(p.Id)
         )).ToList();

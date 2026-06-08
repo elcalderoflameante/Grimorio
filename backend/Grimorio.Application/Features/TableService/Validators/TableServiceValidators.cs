@@ -10,7 +10,6 @@ public class CreateRestaurantTableCommandValidator : AbstractValidator<CreateRes
     public CreateRestaurantTableCommandValidator()
     {
         RuleFor(x => x.Code).NotEmpty().MaximumLength(40);
-        RuleFor(x => x.Name).NotEmpty().MaximumLength(120);
         RuleFor(x => x.Area).MaximumLength(120);
         RuleFor(x => x.Capacity).InclusiveBetween(1, 30);
     }
@@ -22,7 +21,6 @@ public class UpdateRestaurantTableCommandValidator : AbstractValidator<UpdateRes
     {
         RuleFor(x => x.Id).NotEmpty();
         RuleFor(x => x.Code).NotEmpty().MaximumLength(40);
-        RuleFor(x => x.Name).NotEmpty().MaximumLength(120);
         RuleFor(x => x.Area).MaximumLength(120);
         RuleFor(x => x.Capacity).InclusiveBetween(1, 30);
     }

@@ -33,7 +33,6 @@ public class OrderDto
     public string Status { get; set; } = string.Empty;
     public Guid? TableId { get; set; }
     public string? TableCode { get; set; }
-    public string? TableName { get; set; }
     public string? CustomerName { get; set; }
     public string? DeliveryAddress { get; set; }
     public string? Notes { get; set; }

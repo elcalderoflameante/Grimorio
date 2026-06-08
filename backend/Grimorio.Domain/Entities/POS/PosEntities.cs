@@ -29,7 +29,6 @@ public enum TableServiceRequestStatus
 public class RestaurantTable : Grimorio.SharedKernel.BaseEntity
 {
     public string Code { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
     public string? Area { get; set; }
     public int Capacity { get; set; } = 2;
     public string PublicToken { get; set; } = Guid.NewGuid().ToString("N");

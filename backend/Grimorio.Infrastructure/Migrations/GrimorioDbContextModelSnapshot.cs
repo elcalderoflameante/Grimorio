@@ -3002,11 +3002,6 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
                     b.Property<int>("PosX")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
@@ -3034,9 +3029,15 @@ namespace Grimorio.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = false");
 
-                    b.HasIndex("BranchId", "Code")
+                    b.HasIndex("BranchId", "Code", "Area")
+                        .HasDatabaseName("IX_RestaurantTables_BranchId_Code_Area")
                         .IsUnique()
-                        .HasFilter("\"IsDeleted\" = false");
+                        .HasFilter("\"IsDeleted\" = false AND \"Area\" IS NOT NULL");
+
+                    b.HasIndex("BranchId", "Code")
+                        .HasDatabaseName("IX_RestaurantTables_BranchId_Code_NoArea")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false AND \"Area\" IS NULL");
 
                     b.ToTable("RestaurantTables", "pos");
                 });

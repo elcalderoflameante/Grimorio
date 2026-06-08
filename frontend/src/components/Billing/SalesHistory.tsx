@@ -204,7 +204,7 @@ export default function SalesHistory() {
             width: 160,
             render: (_: unknown, r: OrderPaymentDto) =>
               r.tableCode
-                ? <Text>{r.tableCode}{r.tableName ? ` - ${r.tableName}` : ''}</Text>
+                ? <Text>Mesa {r.tableCode}</Text>
                 : <Text type="secondary">{r.customerName ?? '—'}</Text>,
           },
           {

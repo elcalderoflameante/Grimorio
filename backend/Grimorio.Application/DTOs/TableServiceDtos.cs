@@ -7,7 +7,6 @@ public class RestaurantTableDto
     public Guid Id { get; set; }
     public Guid BranchId { get; set; }
     public string Code { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
     public string? Area { get; set; }
     public int Capacity { get; set; }
     public string PublicToken { get; set; } = string.Empty;
@@ -23,7 +22,6 @@ public class PublicTableInfoDto
 {
     public Guid TableId { get; set; }
     public string Code { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
     public string? Area { get; set; }
     public bool IsActive { get; set; }
 }
@@ -34,7 +32,6 @@ public class TableServiceRequestDto
     public Guid BranchId { get; set; }
     public Guid RestaurantTableId { get; set; }
     public string TableCode { get; set; } = string.Empty;
-    public string TableName { get; set; } = string.Empty;
     public string? TableArea { get; set; }
     public TableServiceRequestType Type { get; set; }
     public string? CustomMessage { get; set; }

@@ -8,7 +8,6 @@ public class CreateRestaurantTableCommand : IRequest<RestaurantTableDto>
 {
     public Guid BranchId { get; set; }
     public string Code { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
     public string? Area { get; set; }
     public int Capacity { get; set; } = 2;
 }
@@ -17,7 +16,6 @@ public class UpdateRestaurantTableCommand : IRequest<RestaurantTableDto>
 {
     public Guid Id { get; set; }
     public string Code { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
     public string? Area { get; set; }
     public int Capacity { get; set; } = 2;
     public bool IsActive { get; set; } = true;

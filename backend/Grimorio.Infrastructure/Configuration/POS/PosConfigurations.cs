@@ -119,10 +119,6 @@ public class RestaurantTableConfiguration : IEntityTypeConfiguration<RestaurantT
             .IsRequired()
             .HasMaxLength(40);
 
-        builder.Property(x => x.Name)
-            .IsRequired()
-            .HasMaxLength(120);
-
         builder.Property(x => x.Area)
             .HasMaxLength(120);
 
@@ -130,9 +126,15 @@ public class RestaurantTableConfiguration : IEntityTypeConfiguration<RestaurantT
             .IsRequired()
             .HasMaxLength(80);
 
-        builder.HasIndex(x => new { x.BranchId, x.Code })
+        builder.HasIndex(x => new { x.BranchId, x.Code, x.Area })
+            .HasDatabaseName("IX_RestaurantTables_BranchId_Code_Area")
             .IsUnique()
-            .HasFilter("\"IsDeleted\" = false");
+            .HasFilter("\"IsDeleted\" = false AND \"Area\" IS NOT NULL");
+
+        builder.HasIndex(x => new { x.BranchId, x.Code })
+            .HasDatabaseName("IX_RestaurantTables_BranchId_Code_NoArea")
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = false AND \"Area\" IS NULL");
 
         builder.HasIndex(x => x.PublicToken)
             .IsUnique()

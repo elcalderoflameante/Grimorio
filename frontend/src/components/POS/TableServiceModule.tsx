@@ -51,8 +51,7 @@ const PUBLIC_APP_BASE_URL = (import.meta.env.VITE_PUBLIC_APP_URL as string | und
 
 
 interface TableFormValues {
-  code: string;
-  name: string;
+  tableNumber: string;
   area?: string;
   capacity: number;
   isActive?: boolean;
@@ -67,7 +66,6 @@ type TableRowLike = RestaurantTableDto & {
   Id?: string;
   BranchId?: string;
   Code?: string;
-  Name?: string;
   Area?: string;
   Capacity?: number;
   PublicToken?: string;
@@ -87,7 +85,6 @@ const normalizeTable = (raw: unknown): RestaurantTableDto => {
     id: resolveTableId(table),
     branchId: (table.branchId ?? table.BranchId ?? '') as string,
     code: (table.code ?? table.Code ?? '') as string,
-    name: (table.name ?? table.Name ?? '') as string,
     area: (table.area ?? table.Area ?? undefined) as string | undefined,
     capacity: Number(table.capacity ?? table.Capacity ?? 0),
     publicToken: (table.publicToken ?? table.PublicToken ?? '') as string,
@@ -98,6 +95,11 @@ const normalizeTable = (raw: unknown): RestaurantTableDto => {
     currentStatus: ((table as RestaurantTableDto).currentStatus ?? 'Free') as 'Free' | 'Occupied',
     currentOrderId: (table as RestaurantTableDto).currentOrderId,
   };
+};
+
+const formatTableLabel = (code?: string, area?: string | null) => {
+  const label = `Mesa ${code || '--'}`;
+  return area?.trim() ? `${label} (${area.trim()})` : label;
 };
 
 export default function TableServiceModule() {
@@ -179,7 +181,7 @@ export default function TableServiceModule() {
     printWindow.document.write(`
       <html>
         <head>
-          <title>QR Mesa ${qrPreview.table.code}</title>
+          <title>QR ${formatTableLabel(qrPreview.table.code)}</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 24px; text-align: center; }
             h1 { margin: 0 0 8px; font-size: 22px; }
@@ -189,7 +191,7 @@ export default function TableServiceModule() {
           </style>
         </head>
         <body>
-          <h1>Mesa ${qrPreview.table.code} - ${qrPreview.table.name}</h1>
+          <h1>${formatTableLabel(qrPreview.table.code)}</h1>
           <p>${qrPreview.table.area || 'Área general'}</p>
           <img src="${qrUrl}" alt="QR Mesa ${qrPreview.table.code}" />
           <div class="meta">${fullUrl}</div>
@@ -254,7 +256,7 @@ export default function TableServiceModule() {
     const onNewRequest = (payload: TableServiceRequestDto) => {
       const typeText = REQUEST_TYPE_LABELS[payload.type] ?? String(payload.type);
       notification.info({
-        message: `Nueva solicitud: ${payload.tableCode} - ${payload.tableName}`,
+        message: `Nueva solicitud: ${formatTableLabel(payload.tableCode, payload.tableArea)}`,
         description: payload.customMessage?.trim()
           ? `${typeText} · ${payload.customMessage}`
           : typeText,
@@ -265,7 +267,7 @@ export default function TableServiceModule() {
 
     const onRequestUpdated = (payload: TableServiceRequestDto) => {
       notification.open({
-        message: `Solicitud actualizada: ${payload.tableCode} - ${payload.tableName}`,
+        message: `Solicitud actualizada: ${formatTableLabel(payload.tableCode, payload.tableArea)}`,
         description: `Estado: ${REQUEST_STATUS_LABELS[payload.status] ?? payload.status}`,
         placement: 'topRight',
       });
@@ -288,6 +290,7 @@ export default function TableServiceModule() {
 
   const handleOpenCreate = () => {
     setEditingTable(null);
+    tableForm.resetFields();
     tableForm.setFieldsValue({ capacity: 4, isActive: true });
     setTableModalOpen(true);
   };
@@ -300,8 +303,7 @@ export default function TableServiceModule() {
     }
     setEditingTable({ ...table, id: tableId });
     tableForm.setFieldsValue({
-      code: table.code,
-      name: table.name,
+      tableNumber: table.code,
       area: table.area,
       capacity: table.capacity,
       isActive: table.isActive,
@@ -311,6 +313,8 @@ export default function TableServiceModule() {
 
   const handleSaveTable = async (values: TableFormValues) => {
     try {
+      const tableNumber = values.tableNumber.trim();
+
       if (editingTable) {
         const tableId = resolveTableId(editingTable);
         if (!tableId) {
@@ -319,8 +323,7 @@ export default function TableServiceModule() {
         }
         await tableServiceApi.updateTable(tableId, {
           id: tableId,
-          code: values.code,
-          name: values.name,
+          code: tableNumber,
           area: values.area,
           capacity: values.capacity,
           isActive: values.isActive ?? true,
@@ -328,8 +331,7 @@ export default function TableServiceModule() {
         message.success('Mesa actualizada.');
       } else {
         const payload: CreateRestaurantTableDto = {
-          code: values.code,
-          name: values.name,
+          code: tableNumber,
           area: values.area,
           capacity: values.capacity,
         };
@@ -395,18 +397,13 @@ export default function TableServiceModule() {
 
   const tableColumns = useMemo(() => [
     {
-      title: 'Código',
+      title: 'Numero',
       dataIndex: 'code',
       key: 'code',
       width: 90,
     },
     {
-      title: 'DineIn',
-      dataIndex: 'name',
-      key: 'name',
-    },
-    {
-      title: 'Área',
+      title: 'Area',
       dataIndex: 'area',
       key: 'area',
       responsive: ['sm'] as never,
@@ -485,9 +482,9 @@ export default function TableServiceModule() {
       render: (value: string) => dayjs(value).format('HH:mm'),
     },
     {
-      title: 'DineIn',
+      title: 'Mesa',
       key: 'table',
-      render: (_: unknown, row: TableServiceRequestDto) => `${row.tableCode} - ${row.tableName}`,
+      render: (_: unknown, row: TableServiceRequestDto) => formatTableLabel(row.tableCode, row.tableArea),
     },
     {
       title: 'Tipo',
@@ -561,7 +558,7 @@ export default function TableServiceModule() {
                   </Col>}
                 </Row>
                 <Table
-                  rowKey={(record) => resolveTableId(record) || `${record.code}-${record.name}`}
+                  rowKey={(record) => resolveTableId(record) || `${record.area || 'general'}-${record.code}`}
                   loading={loading}
                   columns={tableColumns}
                   dataSource={tables}
@@ -620,14 +617,11 @@ export default function TableServiceModule() {
         cancelText="Cancelar"
       >
         <Form form={tableForm} layout="vertical" onFinish={handleSaveTable}>
-          <Form.Item label="Código" name="code" rules={[{ required: true, message: 'Ingrese código' }]}>
-            <Input maxLength={40} />
-          </Form.Item>
-          <Form.Item label="Nombre" name="name" rules={[{ required: true, message: 'Ingrese nombre' }]}>
-            <Input maxLength={120} />
+          <Form.Item label="Número de mesa" name="tableNumber" rules={[{ required: true, whitespace: true, message: 'Ingrese el número de mesa' }]}>
+            <Input maxLength={40} placeholder="Ej: 1, 2, 10" />
           </Form.Item>
           <Form.Item label="Área" name="area">
-            <Input maxLength={120} />
+            <Input maxLength={120} placeholder="Ej: Salón principal, Terraza" />
           </Form.Item>
           <Form.Item label="Capacidad" name="capacity" rules={[{ required: true, message: 'Ingrese capacidad' }]}>
             <InputNumber min={1} max={30} style={{ width: '100%' }} />
@@ -646,7 +640,7 @@ export default function TableServiceModule() {
       </Modal>
 
       <Modal
-        title={qrPreview.table ? `QR Mesa ${qrPreview.table.code} - ${qrPreview.table.name}` : 'QR de mesa'}
+        title={qrPreview.table ? `QR ${formatTableLabel(qrPreview.table.code)}` : 'QR de mesa'}
         open={qrPreview.open}
         onCancel={closeQrPreview}
         footer={

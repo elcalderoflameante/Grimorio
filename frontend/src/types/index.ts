@@ -676,7 +676,6 @@ export interface RestaurantTableDto {
   id: string;
   branchId: string;
   code: string;
-  name: string;
   area?: string;
   capacity: number;
   publicToken: string;
@@ -690,7 +689,6 @@ export interface RestaurantTableDto {
 
 export interface CreateRestaurantTableDto {
   code: string;
-  name: string;
   area?: string;
   capacity: number;
 }
@@ -698,7 +696,6 @@ export interface CreateRestaurantTableDto {
 export interface UpdateRestaurantTableDto {
   id?: string;
   code: string;
-  name: string;
   area?: string;
   capacity: number;
   isActive: boolean;
@@ -707,7 +704,6 @@ export interface UpdateRestaurantTableDto {
 export interface PublicTableInfoDto {
   tableId: string;
   code: string;
-  name: string;
   area?: string;
   isActive: boolean;
 }
@@ -717,7 +713,6 @@ export interface TableServiceRequestDto {
   branchId: string;
   restaurantTableId: string;
   tableCode: string;
-  tableName: string;
   tableArea?: string;
   type: TableServiceRequestType;
   customMessage?: string;
@@ -1154,7 +1149,6 @@ export interface OrderDto {
   status: OrderStatus;
   tableId?: string;
   tableCode?: string;
-  tableName?: string;
   customerName?: string;
   deliveryAddress?: string;
   notes?: string;
@@ -1480,7 +1474,6 @@ export interface OrderPaymentDto {
   customerName?: string;
   customerTaxId?: string;
   tableCode?: string;
-  tableName?: string;
   documentType: 'NotaDeVenta' | 'Factura';
   orderAmount: number;
   paidAt: string;
