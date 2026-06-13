@@ -129,21 +129,51 @@ class TableServiceRequest {
   }
 
   factory TableServiceRequest.fromJson(Map<String, dynamic> json) {
+    final tableCode = _readString(json, 'tableCode');
+    final requestedAt = _readDateTime(json, 'requestedAt') ?? DateTime.now();
+
     return TableServiceRequest(
-      id: json['id'] as String,
-      branchId: json['branchId'] as String,
-      restaurantTableId: json['restaurantTableId'] as String,
-      tableCode: json['tableCode'] as String,
-      tableName: json['tableName'] as String,
-      tableArea: json['tableArea'] as String?,
+      id: _readString(json, 'id'),
+      branchId: _readString(json, 'branchId'),
+      restaurantTableId: _readString(json, 'restaurantTableId'),
+      tableCode: tableCode,
+      tableName: _readNullableString(json, 'tableName') ?? 'Mesa $tableCode',
+      tableArea: _readNullableString(json, 'tableArea'),
       type: TableServiceRequestType.fromJson(json['type']),
-      customMessage: json['customMessage'] as String?,
-      status: TableServiceRequestStatus.fromValue(json['status'] as int),
-      requestedAt: DateTime.parse(json['requestedAt'] as String),
-      takenAt: json['takenAt'] != null ? DateTime.parse(json['takenAt'] as String) : null,
-      completedAt: json['completedAt'] != null ? DateTime.parse(json['completedAt'] as String) : null,
-      takenByUserId: json['takenByUserId'] as String?,
-      takenByName: json['takenByName'] as String?,
+      customMessage: _readNullableString(json, 'customMessage'),
+      status: TableServiceRequestStatus.fromValue(_readInt(json, 'status')),
+      requestedAt: requestedAt,
+      takenAt: _readDateTime(json, 'takenAt'),
+      completedAt: _readDateTime(json, 'completedAt'),
+      takenByUserId: _readNullableString(json, 'takenByUserId'),
+      takenByName: _readNullableString(json, 'takenByName'),
     );
+  }
+
+  static String _readString(Map<String, dynamic> json, String key) {
+    final value = json[key];
+    if (value == null) return '';
+    return value.toString();
+  }
+
+  static String? _readNullableString(Map<String, dynamic> json, String key) {
+    final value = json[key];
+    if (value == null) return null;
+    final text = value.toString();
+    return text.isEmpty ? null : text;
+  }
+
+  static int _readInt(Map<String, dynamic> json, String key) {
+    final value = json[key];
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 1;
+    return 1;
+  }
+
+  static DateTime? _readDateTime(Map<String, dynamic> json, String key) {
+    final value = json[key];
+    if (value == null) return null;
+    return DateTime.tryParse(value.toString());
   }
 }
