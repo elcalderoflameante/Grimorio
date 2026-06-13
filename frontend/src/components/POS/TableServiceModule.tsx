@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
+import jsPDF from 'jspdf';
 import {
   Button,
   Card,
@@ -113,6 +114,19 @@ const escapeHtml = (value: string) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+
+const loadImageAsDataUrl = async (src: string) => {
+  const response = await fetch(src);
+  if (!response.ok) throw new Error('No se pudo cargar la imagen.');
+
+  const blob = await response.blob();
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('No se pudo leer la imagen.'));
+    reader.readAsDataURL(blob);
+  });
+};
 
 export default function TableServiceModule() {
   const { branchId, token, hasPermission } = useAuth();
@@ -261,7 +275,6 @@ export default function TableServiceModule() {
         </head>
         <body>
           <section class="qr-card">
-            <p class="eyebrow">Atención QR</p>
             <h1>${escapeHtml(tableLabel)}</h1>
             <div class="qr-wrap">
               <img class="qr" src="${escapeHtml(qrUrl)}" alt="QR ${escapeHtml(tableLabel)}" />
@@ -276,6 +289,68 @@ export default function TableServiceModule() {
     printWindow.document.close();
     printWindow.focus();
     printWindow.print();
+  }, [buildTablePublicUrl, qrPreview.table]);
+
+  const handleDownloadQrPdf = useCallback(async () => {
+    if (!qrPreview.table) return;
+
+    const tableLabel = `Mesa ${qrPreview.table.code || '--'}`;
+    const fileName = `qr-mesa-${(qrPreview.table.code || 'sin-numero').replace(/[^a-z0-9_-]/gi, '-')}.pdf`;
+    const fullUrl = buildTablePublicUrl(qrPreview.table.publicToken);
+    const qrUrl = `${QR_SERVER_BASE_URL}?size=1000x1000&data=${encodeURIComponent(fullUrl)}`;
+    const messageKey = 'download-table-qr-pdf';
+
+    try {
+      message.loading({ content: 'Generando PDF...', key: messageKey });
+      const [qrDataUrl, logoDataUrl] = await Promise.all([
+        loadImageAsDataUrl(qrUrl),
+        loadImageAsDataUrl(ecfLogo),
+      ]);
+
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [100, 140],
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const qrSize = 76;
+      const qrX = (pageWidth - qrSize) / 2;
+      const qrY = 36;
+      const logoSize = 16;
+      const logoX = qrX + (qrSize - logoSize) / 2;
+      const logoY = qrY + (qrSize - logoSize) / 2;
+
+      pdf.setFillColor(255, 250, 240);
+      pdf.rect(0, 0, 100, 140, 'F');
+      pdf.setDrawColor(216, 195, 163);
+      pdf.roundedRect(8, 8, 84, 124, 4, 4, 'S');
+
+      pdf.setTextColor(36, 23, 16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(24);
+      pdf.text(tableLabel, pageWidth / 2, 25, { align: 'center' });
+
+      pdf.setFillColor(255, 255, 255);
+      pdf.setDrawColor(234, 216, 189);
+      pdf.roundedRect(qrX - 2, qrY - 2, qrSize + 4, qrSize + 4, 3, 3, 'FD');
+      pdf.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+
+      pdf.setFillColor(255, 255, 255);
+      pdf.setDrawColor(234, 216, 189);
+      pdf.roundedRect(logoX - 1.5, logoY - 1.5, logoSize + 3, logoSize + 3, 2, 2, 'FD');
+      pdf.addImage(logoDataUrl, 'PNG', logoX, logoY, logoSize, logoSize);
+
+      pdf.setTextColor(36, 23, 16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(12);
+      pdf.text('Escanéame para solicitar atención', pageWidth / 2, 122, { align: 'center' });
+
+      pdf.save(fileName);
+      message.success({ content: 'PDF descargado.', key: messageKey });
+    } catch (error) {
+      message.error({ content: formatError(error), key: messageKey });
+    }
   }, [buildTablePublicUrl, qrPreview.table]);
 
   const loadTables = useCallback(async () => {
@@ -736,6 +811,9 @@ export default function TableServiceModule() {
             >
               Copiar URL
             </Button>
+            <Button icon={<DownloadOutlined />} onClick={() => void handleDownloadQrPdf()}>
+              Descargar PDF
+            </Button>
             <Button onClick={handlePrintQr}>Imprimir</Button>
             <Button type="primary" onClick={closeQrPreview}>Cerrar</Button>
           </Space>
@@ -754,9 +832,6 @@ export default function TableServiceModule() {
                 background: '#fffaf0',
               }}
             >
-              <Text style={{ display: 'block', color: '#8a5a25', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2 }}>
-                Atención QR
-              </Text>
               <Title level={2} style={{ margin: '6px 0 0' }}>Mesa {qrPreview.table.code || '--'}</Title>
               <div
                 style={{
