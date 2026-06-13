@@ -10,6 +10,18 @@ import '../../data/services/order_api_service.dart';
 import '../providers/order_controller.dart';
 import 'new_order_page.dart';
 
+int _tableNumber(String code) => int.tryParse(code.trim()) ?? 0x3fffffff;
+
+int _compareTables(TableDto a, TableDto b) {
+  final numberCompare = _tableNumber(a.code).compareTo(_tableNumber(b.code));
+  if (numberCompare != 0) return numberCompare;
+
+  final codeCompare = a.code.toLowerCase().compareTo(b.code.toLowerCase());
+  if (codeCompare != 0) return codeCompare;
+
+  return (a.area ?? '').toLowerCase().compareTo((b.area ?? '').toLowerCase());
+}
+
 class OrdersPage extends ConsumerStatefulWidget {
   const OrdersPage({super.key});
 
@@ -29,19 +41,19 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
   // ── color por estado de la orden ────────────────────────────────────────
 
   Color _statusColor(OrderStatus status) => switch (status) {
-        OrderStatus.draft         => const Color(0xFF9E9E9E),
-        OrderStatus.confirmed     => const Color(0xFF40C4FF),
-        OrderStatus.inPreparation => const Color(0xFFFFAB00),
-        OrderStatus.ready         => const Color(0xFF69F0AE),
-        OrderStatus.delivered     => kGoldLight,
-        OrderStatus.cancelled     => const Color(0xFFFF6B6B),
-      };
+    OrderStatus.draft => const Color(0xFF9E9E9E),
+    OrderStatus.confirmed => const Color(0xFF40C4FF),
+    OrderStatus.inPreparation => const Color(0xFFFFAB00),
+    OrderStatus.ready => const Color(0xFF69F0AE),
+    OrderStatus.delivered => kGoldLight,
+    OrderStatus.cancelled => const Color(0xFFFF6B6B),
+  };
 
   IconData _typeIcon(OrderType type) => switch (type) {
-        OrderType.dineIn   => Icons.table_restaurant_rounded,
-        OrderType.takeout  => Icons.shopping_bag_outlined,
-        OrderType.delivery => Icons.delivery_dining_rounded,
-      };
+    OrderType.dineIn => Icons.table_restaurant_rounded,
+    OrderType.takeout => Icons.shopping_bag_outlined,
+    OrderType.delivery => Icons.delivery_dining_rounded,
+  };
 
   // ── acciones ─────────────────────────────────────────────────────────────
 
@@ -72,19 +84,21 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     String? address,
   ) {
     Navigator.of(context)
-        .push<bool>(MaterialPageRoute(
-          builder: (_) => NewOrderPage(
-            type: type,
-            table: table,
-            clientName: client,
-            deliveryAddress: address,
+        .push<bool>(
+          MaterialPageRoute(
+            builder: (_) => NewOrderPage(
+              type: type,
+              table: table,
+              clientName: client,
+              deliveryAddress: address,
+            ),
           ),
-        ))
+        )
         .then((created) {
-      if (created == true) {
-        ref.read(ordersControllerProvider.notifier).load();
-      }
-    });
+          if (created == true) {
+            ref.read(ordersControllerProvider.notifier).load();
+          }
+        });
   }
 
   // ── build ─────────────────────────────────────────────────────────────────
@@ -135,7 +149,11 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline_rounded, size: 52, color: kGold.withAlpha(140)),
+              Icon(
+                Icons.error_outline_rounded,
+                size: 52,
+                color: kGold.withAlpha(140),
+              ),
               const SizedBox(height: 16),
               Text(
                 state.errorMessage!,
@@ -144,7 +162,8 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
               ),
               const SizedBox(height: 20),
               OutlinedButton.icon(
-                onPressed: () => ref.read(ordersControllerProvider.notifier).load(),
+                onPressed: () =>
+                    ref.read(ordersControllerProvider.notifier).load(),
                 icon: const Icon(Icons.refresh_rounded),
                 label: const Text('Reintentar'),
               ),
@@ -166,13 +185,20 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                 shape: BoxShape.circle,
                 border: Border.all(color: kGoldDark.withAlpha(80)),
               ),
-              child: const Icon(Icons.receipt_long_outlined, size: 44, color: kGold),
+              child: const Icon(
+                Icons.receipt_long_outlined,
+                size: 44,
+                color: kGold,
+              ),
             ),
             const SizedBox(height: 20),
             Text(
               'Sin pedidos activos',
               style: GoogleFonts.cinzel(
-                  color: kParchment, fontSize: 17, fontWeight: FontWeight.w600),
+                color: kParchment,
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -213,7 +239,11 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                     children: [
                       Row(
                         children: [
-                          Icon(_typeIcon(order.type), size: 18, color: kGoldLight),
+                          Icon(
+                            _typeIcon(order.type),
+                            size: 18,
+                            color: kGoldLight,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -238,7 +268,8 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                           const SizedBox(width: 14),
                           _Meta(
                             icon: Icons.shopping_basket_outlined,
-                            text: '${order.items.length} ítem${order.items.length != 1 ? 's' : ''}',
+                            text:
+                                '${order.items.length} ítem${order.items.length != 1 ? 's' : ''}',
                           ),
                           const SizedBox(width: 14),
                           _Meta(
@@ -253,18 +284,19 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                           width: double.infinity,
                           child: FilledButton.icon(
                             onPressed: () => _openMenuForOrder(
-                                order.type,
-                                order.tableId != null
-                                    ? TableDto(
-                                        id: order.tableId!,
-                                        code: order.tableCode ?? '',
-                                        name: 'Mesa ${order.tableCode}',
-                                        isActive: true,
-                                        currentStatus: 'Occupied',
-                                      )
-                                    : null,
-                                order.customerName,
-                                order.deliveryAddress),
+                              order.type,
+                              order.tableId != null
+                                  ? TableDto(
+                                      id: order.tableId!,
+                                      code: order.tableCode ?? '',
+                                      name: 'Mesa ${order.tableCode}',
+                                      isActive: true,
+                                      currentStatus: 'Occupied',
+                                    )
+                                  : null,
+                              order.customerName,
+                              order.deliveryAddress,
+                            ),
                             icon: const Icon(Icons.edit_rounded, size: 16),
                             label: const Text('Continuar pedido'),
                           ),
@@ -285,10 +317,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
 // ── Sheet para iniciar un nuevo pedido ────────────────────────────────────
 
 class _NewOrderSheet extends StatefulWidget {
-  const _NewOrderSheet({
-    required this.apiService,
-    required this.onConfirm,
-  });
+  const _NewOrderSheet({required this.apiService, required this.onConfirm});
 
   final OrderApiService apiService;
   final void Function(OrderType, TableDto?, String?, String?) onConfirm;
@@ -314,10 +343,20 @@ class _NewOrderSheetState extends State<_NewOrderSheet> {
     setState(() => _loadingTables = true);
     try {
       final tables = await widget.apiService.getTables();
-      tables.sort((a, b) => a.code.compareTo(b.code));
-      if (mounted) setState(() { _tables = tables; _loadingTables = false; });
+      tables.sort(_compareTables);
+      if (mounted) {
+        setState(() {
+          _tables = tables;
+          _loadingTables = false;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() { _tables = []; _loadingTables = false; });
+      if (mounted) {
+        setState(() {
+          _tables = [];
+          _loadingTables = false;
+        });
+      }
     }
   }
 
@@ -367,11 +406,18 @@ class _NewOrderSheetState extends State<_NewOrderSheet> {
 
           // Selector de tipo (domicilio solo desde caja web)
           Row(
-            children: [OrderType.dineIn, OrderType.takeout].map((t) => _TypeButton(
-              type: t,
-              selected: _type == t,
-              onTap: () => setState(() { _type = t; _selectedTable = null; }),
-            )).toList(),
+            children: [OrderType.dineIn, OrderType.takeout]
+                .map(
+                  (t) => _TypeButton(
+                    type: t,
+                    selected: _type == t,
+                    onTap: () => setState(() {
+                      _type = t;
+                      _selectedTable = null;
+                    }),
+                  ),
+                )
+                .toList(),
           ),
           const SizedBox(height: 20),
 
@@ -385,11 +431,13 @@ class _NewOrderSheetState extends State<_NewOrderSheet> {
             child: FilledButton.icon(
               onPressed: _canConfirm
                   ? () => widget.onConfirm(
-                        _type,
-                        _selectedTable,
-                        _clientCtrl.text.trim().isEmpty ? null : _clientCtrl.text.trim(),
-                        null,
-                      )
+                      _type,
+                      _selectedTable,
+                      _clientCtrl.text.trim().isEmpty
+                          ? null
+                          : _clientCtrl.text.trim(),
+                      null,
+                    )
                   : null,
               icon: const Icon(Icons.arrow_forward_rounded),
               label: const Text('Seleccionar ítems'),
@@ -426,7 +474,10 @@ class _NewOrderSheetState extends State<_NewOrderSheet> {
         Text(
           'Selecciona la mesa',
           style: GoogleFonts.lato(
-              color: kParchmentDim, fontSize: 13, fontWeight: FontWeight.w600),
+            color: kParchmentDim,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 10),
         Wrap(
@@ -439,20 +490,23 @@ class _NewOrderSheetState extends State<_NewOrderSheet> {
               onTap: free ? () => setState(() => _selectedTable = t) : null,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: selected
                       ? kGold.withAlpha(30)
                       : free
-                          ? kBgCard
-                          : kBgMid,
+                      ? kBgCard
+                      : kBgMid,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: selected
                         ? kGold
                         : free
-                            ? kGoldDark.withAlpha(80)
-                            : kGoldDark.withAlpha(30),
+                        ? kGoldDark.withAlpha(80)
+                        : kGoldDark.withAlpha(30),
                     width: selected ? 1.5 : 1,
                   ),
                 ),
@@ -465,8 +519,8 @@ class _NewOrderSheetState extends State<_NewOrderSheet> {
                         color: selected
                             ? kGold
                             : free
-                                ? kParchment
-                                : kParchmentDim.withAlpha(120),
+                            ? kParchment
+                            : kParchmentDim.withAlpha(120),
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
@@ -481,16 +535,24 @@ class _NewOrderSheetState extends State<_NewOrderSheet> {
                       ),
                     const SizedBox(height: 2),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
-                        color: (free ? const Color(0xFF69F0AE) : const Color(0xFFFF6B6B))
-                            .withAlpha(30),
+                        color:
+                            (free
+                                    ? const Color(0xFF69F0AE)
+                                    : const Color(0xFFFF6B6B))
+                                .withAlpha(30),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         free ? 'Libre' : 'Ocupada',
                         style: GoogleFonts.lato(
-                          color: free ? const Color(0xFF69F0AE) : const Color(0xFFFF6B6B),
+                          color: free
+                              ? const Color(0xFF69F0AE)
+                              : const Color(0xFFFF6B6B),
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
                         ),
@@ -513,7 +575,10 @@ class _NewOrderSheetState extends State<_NewOrderSheet> {
         Text(
           'Nombre del cliente (opcional)',
           style: GoogleFonts.lato(
-              color: kParchmentDim, fontSize: 13, fontWeight: FontWeight.w600),
+            color: kParchmentDim,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 8),
         TextField(
@@ -535,7 +600,10 @@ class _NewOrderSheetState extends State<_NewOrderSheet> {
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: kGold),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 12,
+            ),
           ),
           style: GoogleFonts.lato(color: kParchment),
           textCapitalization: TextCapitalization.words,
@@ -559,10 +627,10 @@ class _TypeButton extends StatelessWidget {
   final VoidCallback onTap;
 
   IconData get _icon => switch (type) {
-        OrderType.dineIn   => Icons.table_restaurant_rounded,
-        OrderType.takeout  => Icons.shopping_bag_outlined,
-        OrderType.delivery => Icons.delivery_dining_rounded,
-      };
+    OrderType.dineIn => Icons.table_restaurant_rounded,
+    OrderType.takeout => Icons.shopping_bag_outlined,
+    OrderType.delivery => Icons.delivery_dining_rounded,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -623,7 +691,10 @@ class _StatusChip extends StatelessWidget {
       child: Text(
         label,
         style: GoogleFonts.lato(
-            color: color, fontSize: 11, fontWeight: FontWeight.w700),
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -644,7 +715,10 @@ class _Meta extends StatelessWidget {
         const SizedBox(width: 3),
         Text(
           text,
-          style: GoogleFonts.lato(fontSize: 12, color: kParchmentDim.withAlpha(160)),
+          style: GoogleFonts.lato(
+            fontSize: 12,
+            color: kParchmentDim.withAlpha(160),
+          ),
         ),
       ],
     );

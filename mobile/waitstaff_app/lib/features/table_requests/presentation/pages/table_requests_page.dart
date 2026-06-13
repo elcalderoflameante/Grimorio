@@ -10,6 +10,27 @@ import '../../../auth/presentation/providers/auth_controller.dart';
 import '../../data/models/table_service_models.dart';
 import '../providers/table_requests_controller.dart';
 
+int _requestTableNumber(String code) => int.tryParse(code.trim()) ?? 0x3fffffff;
+
+int _compareRequestsByTable(TableServiceRequest a, TableServiceRequest b) {
+  final numberCompare = _requestTableNumber(
+    a.tableCode,
+  ).compareTo(_requestTableNumber(b.tableCode));
+  if (numberCompare != 0) return numberCompare;
+
+  final codeCompare = a.tableCode.toLowerCase().compareTo(
+    b.tableCode.toLowerCase(),
+  );
+  if (codeCompare != 0) return codeCompare;
+
+  final areaCompare = (a.tableArea ?? '').toLowerCase().compareTo(
+    (b.tableArea ?? '').toLowerCase(),
+  );
+  if (areaCompare != 0) return areaCompare;
+
+  return a.requestedAt.compareTo(b.requestedAt);
+}
+
 class TableRequestsPage extends ConsumerStatefulWidget {
   const TableRequestsPage({super.key});
 
@@ -41,21 +62,21 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
 
   Color _statusColor(TableServiceRequestStatus status) {
     return switch (status) {
-      TableServiceRequestStatus.pending    => const Color(0xFFFFAB00),
-      TableServiceRequestStatus.taken      => const Color(0xFF40C4FF),
+      TableServiceRequestStatus.pending => const Color(0xFFFFAB00),
+      TableServiceRequestStatus.taken => const Color(0xFF40C4FF),
       TableServiceRequestStatus.inProgress => const Color(0xFF40C4FF),
-      TableServiceRequestStatus.completed  => const Color(0xFF69F0AE),
-      TableServiceRequestStatus.cancelled  => const Color(0xFF9E9E9E),
+      TableServiceRequestStatus.completed => const Color(0xFF69F0AE),
+      TableServiceRequestStatus.cancelled => const Color(0xFF9E9E9E),
     };
   }
 
   String _statusLabel(TableServiceRequestStatus status) {
     return switch (status) {
-      TableServiceRequestStatus.pending    => 'Pendiente',
-      TableServiceRequestStatus.taken      => 'Tomada',
+      TableServiceRequestStatus.pending => 'Pendiente',
+      TableServiceRequestStatus.taken => 'Tomada',
       TableServiceRequestStatus.inProgress => 'En proceso',
-      TableServiceRequestStatus.completed  => 'Completada',
-      TableServiceRequestStatus.cancelled  => 'Cancelada',
+      TableServiceRequestStatus.completed => 'Completada',
+      TableServiceRequestStatus.cancelled => 'Cancelada',
     };
   }
 
@@ -65,17 +86,25 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
   Widget build(BuildContext context) {
     final state = ref.watch(tableRequestsControllerProvider);
 
-    final activeRequests = state.requests
-        .where((r) =>
-            r.status != TableServiceRequestStatus.completed &&
-            r.status != TableServiceRequestStatus.cancelled)
-        .toList(growable: false);
+    final activeRequests =
+        state.requests
+            .where(
+              (r) =>
+                  r.status != TableServiceRequestStatus.completed &&
+                  r.status != TableServiceRequestStatus.cancelled,
+            )
+            .toList()
+          ..sort(_compareRequestsByTable);
 
-    final historyRequests = state.requests
-        .where((r) =>
-            r.status == TableServiceRequestStatus.completed ||
-            r.status == TableServiceRequestStatus.cancelled)
-        .toList(growable: false);
+    final historyRequests =
+        state.requests
+            .where(
+              (r) =>
+                  r.status == TableServiceRequestStatus.completed ||
+                  r.status == TableServiceRequestStatus.cancelled,
+            )
+            .toList()
+          ..sort(_compareRequestsByTable);
 
     return Scaffold(
       appBar: AppBar(
@@ -160,7 +189,11 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline_rounded, size: 56, color: kGold.withAlpha(160)),
+              Icon(
+                Icons.error_outline_rounded,
+                size: 56,
+                color: kGold.withAlpha(160),
+              ),
               const SizedBox(height: 16),
               Text(
                 state.errorMessage!,
@@ -169,8 +202,9 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
               ),
               const SizedBox(height: 24),
               OutlinedButton.icon(
-                onPressed: () =>
-                    ref.read(tableRequestsControllerProvider.notifier).loadRequests(),
+                onPressed: () => ref
+                    .read(tableRequestsControllerProvider.notifier)
+                    .loadRequests(),
                 icon: const Icon(Icons.refresh_rounded),
                 label: const Text('Reintentar'),
               ),
@@ -192,12 +226,20 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
                 shape: BoxShape.circle,
                 border: Border.all(color: kGoldDark.withAlpha(80), width: 1),
               ),
-              child: Icon(Icons.auto_awesome_outlined, size: 40, color: kGold.withAlpha(160)),
+              child: Icon(
+                Icons.auto_awesome_outlined,
+                size: 40,
+                color: kGold.withAlpha(160),
+              ),
             ),
             const SizedBox(height: 20),
             Text(
               'Sin solicitudes activas',
-              style: GoogleFonts.cinzel(color: kParchment, fontSize: 16, fontWeight: FontWeight.w600),
+              style: GoogleFonts.cinzel(
+                color: kParchment,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -242,12 +284,20 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
                 shape: BoxShape.circle,
                 border: Border.all(color: kGoldDark.withAlpha(60), width: 1),
               ),
-              child: Icon(Icons.history_rounded, size: 40, color: kParchmentDim.withAlpha(160)),
+              child: Icon(
+                Icons.history_rounded,
+                size: 40,
+                color: kParchmentDim.withAlpha(160),
+              ),
             ),
             const SizedBox(height: 20),
             Text(
               'Sin historial reciente',
-              style: GoogleFonts.cinzel(color: kParchment, fontSize: 16, fontWeight: FontWeight.w600),
+              style: GoogleFonts.cinzel(
+                color: kParchment,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -275,16 +325,16 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
   Widget _buildActiveCard(TableServiceRequest request) {
     final statusColor = _statusColor(request.status);
     final actionLabel = switch (request.status) {
-      TableServiceRequestStatus.pending    => 'Tomar solicitud',
-      TableServiceRequestStatus.taken      => 'Iniciar atención',
+      TableServiceRequestStatus.pending => 'Tomar solicitud',
+      TableServiceRequestStatus.taken => 'Iniciar atención',
       TableServiceRequestStatus.inProgress => 'Completar solicitud',
-      _                                    => null,
+      _ => null,
     };
     final actionIcon = switch (request.status) {
-      TableServiceRequestStatus.pending    => Icons.play_arrow_rounded,
-      TableServiceRequestStatus.taken      => Icons.bolt_rounded,
+      TableServiceRequestStatus.pending => Icons.play_arrow_rounded,
+      TableServiceRequestStatus.taken => Icons.bolt_rounded,
       TableServiceRequestStatus.inProgress => Icons.check_rounded,
-      _                                    => null,
+      _ => null,
     };
 
     return Card(
@@ -322,7 +372,10 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
                                 const SizedBox(height: 5),
                                 Text(
                                   request.displayDescription,
-                                  style: GoogleFonts.lato(color: kParchment, fontSize: 14),
+                                  style: GoogleFonts.lato(
+                                    color: kParchment,
+                                    fontSize: 14,
+                                  ),
                                 ),
                                 const SizedBox(height: 5),
                                 _MetaText(
@@ -333,7 +386,10 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
                             ),
                           ),
                           const SizedBox(width: 10),
-                          _StatusChip(label: _statusLabel(request.status), color: statusColor),
+                          _StatusChip(
+                            label: _statusLabel(request.status),
+                            color: statusColor,
+                          ),
                         ],
                       ),
                       if (actionLabel != null && actionIcon != null) ...[
@@ -342,7 +398,9 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
                           width: double.infinity,
                           child: FilledButton.icon(
                             onPressed: () {
-                              final ctrl = ref.read(tableRequestsControllerProvider.notifier);
+                              final ctrl = ref.read(
+                                tableRequestsControllerProvider.notifier,
+                              );
                               switch (request.status) {
                                 case TableServiceRequestStatus.pending:
                                   ctrl.takeRequest(request.id);
@@ -393,7 +451,9 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
               ),
               padding: const EdgeInsets.all(8),
               child: Icon(
-                isCompleted ? Icons.check_circle_outline_rounded : Icons.cancel_outlined,
+                isCompleted
+                    ? Icons.check_circle_outline_rounded
+                    : Icons.cancel_outlined,
                 color: statusColor,
                 size: 20,
               ),
@@ -414,7 +474,11 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
                           ),
                         ),
                       ),
-                      _StatusChip(label: _statusLabel(request.status), color: statusColor, small: true),
+                      _StatusChip(
+                        label: _statusLabel(request.status),
+                        color: statusColor,
+                        small: true,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -427,9 +491,15 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
                     spacing: 12,
                     runSpacing: 2,
                     children: [
-                      _MetaText(icon: Icons.access_time_rounded, text: _formatTime(resolvedAt)),
+                      _MetaText(
+                        icon: Icons.access_time_rounded,
+                        text: _formatTime(resolvedAt),
+                      ),
                       if (request.takenByName != null)
-                        _MetaText(icon: Icons.person_outline_rounded, text: request.takenByName!),
+                        _MetaText(
+                          icon: Icons.person_outline_rounded,
+                          text: request.takenByName!,
+                        ),
                     ],
                   ),
                 ],
@@ -446,23 +516,23 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
   Widget _buildConnectionBanner(TableRequestsState state) {
     final (icon, bg, fg, label) = switch (state.connectionStatus) {
       TableRequestsConnectionStatus.connecting => (
-          Icons.sync_rounded,
-          const Color(0xFFFFAB00).withAlpha(22),
-          const Color(0xFFFFAB00),
-          'Conectando tiempo real...',
-        ),
+        Icons.sync_rounded,
+        const Color(0xFFFFAB00).withAlpha(22),
+        const Color(0xFFFFAB00),
+        'Conectando tiempo real...',
+      ),
       TableRequestsConnectionStatus.connected => (
-          Icons.wifi_tethering_rounded,
-          const Color(0xFF69F0AE).withAlpha(20),
-          const Color(0xFF69F0AE),
-          'Tiempo real activo · Actualización automática',
-        ),
+        Icons.wifi_tethering_rounded,
+        const Color(0xFF69F0AE).withAlpha(20),
+        const Color(0xFF69F0AE),
+        'Tiempo real activo · Actualización automática',
+      ),
       TableRequestsConnectionStatus.degraded => (
-          Icons.cloud_off_rounded,
-          const Color(0xFFFF6B6B).withAlpha(22),
-          const Color(0xFFFF6B6B),
-          'Modo respaldo · Recarga periódica',
-        ),
+        Icons.cloud_off_rounded,
+        const Color(0xFFFF6B6B).withAlpha(22),
+        const Color(0xFFFF6B6B),
+        'Modo respaldo · Recarga periódica',
+      ),
     };
 
     return Padding(
@@ -503,20 +573,28 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
       final hasPermission = await _overlayBubbleService.canDrawOverlays();
       if (!hasPermission) {
         await _overlayBubbleService.requestOverlayPermission();
-        messenger.showSnackBar(const SnackBar(
-          content: Text('Habilita "Mostrar sobre otras apps" y vuelve a tocar el botón.'),
-        ));
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Habilita "Mostrar sobre otras apps" y vuelve a tocar el botón.',
+            ),
+          ),
+        );
         return;
       }
       await _overlayBubbleService.showBubble();
       if (!mounted) return;
-      messenger.showSnackBar(const SnackBar(
-        content: Text('Burbuja activada. Tócala para volver a la app.'),
-      ));
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Burbuja activada. Tócala para volver a la app.'),
+        ),
+      );
     } on PlatformException {
-      messenger.showSnackBar(const SnackBar(
-        content: Text('No se pudo activar la burbuja flotante.'),
-      ));
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo activar la burbuja flotante.'),
+        ),
+      );
     }
   }
 
@@ -534,7 +612,11 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
 // ── Widgets auxiliares ─────────────────────────────────────────────────────
 
 class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.label, required this.color, this.small = false});
+  const _StatusChip({
+    required this.label,
+    required this.color,
+    this.small = false,
+  });
 
   final String label;
   final Color color;
@@ -605,7 +687,10 @@ class _MetaText extends StatelessWidget {
         const SizedBox(width: 3),
         Text(
           text,
-          style: GoogleFonts.lato(fontSize: 12, color: kParchmentDim.withAlpha(160)),
+          style: GoogleFonts.lato(
+            fontSize: 12,
+            color: kParchmentDim.withAlpha(160),
+          ),
         ),
       ],
     );

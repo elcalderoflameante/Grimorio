@@ -20,12 +20,13 @@ import {
   notification,
   message,
 } from 'antd';
-import { EditOutlined, PlusOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
+import { DownloadOutlined, EditOutlined, PlusOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
 import * as signalR from '@microsoft/signalr';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
 import { tableServiceApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
+import { compareTablesByNumber } from '../../utils/tableOrdering';
 import {
   QR_SERVER_BASE_URL,
   REQUEST_STATUS,
@@ -48,6 +49,8 @@ const { useBreakpoint } = Grid;
 
 const PUBLIC_APP_BASE_URL = (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined)?.replace(/\/$/, '')
   || window.location.origin;
+const WAITER_APP_APK_URL = (import.meta.env.VITE_WAITER_APP_APK_URL as string | undefined)
+  || '/downloads/grimorio-meseros.apk';
 
 
 interface TableFormValues {
@@ -209,7 +212,7 @@ export default function TableServiceModule() {
     const parsed = Array.isArray(response.data)
       ? response.data.map((item) => normalizeTable(item))
       : [];
-    setTables(parsed);
+    setTables([...parsed].sort(compareTablesByNumber));
   }, [branchId]);
 
   const loadRequests = useCallback(async () => {
@@ -539,7 +542,14 @@ export default function TableServiceModule() {
   return (
     <Card
       title="Atención por QR"
-      extra={<Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>Recargar</Button>}
+      extra={(
+        <Space wrap>
+          <Button icon={<DownloadOutlined />} href={WAITER_APP_APK_URL} download>
+            Descargar APK meseros
+          </Button>
+          <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>Recargar</Button>
+        </Space>
+      )}
       size="small"
     >
       <Tabs

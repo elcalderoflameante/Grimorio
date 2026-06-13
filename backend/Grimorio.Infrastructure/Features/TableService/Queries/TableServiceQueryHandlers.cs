@@ -4,6 +4,7 @@ using Grimorio.Domain.Entities.POS;
 using Grimorio.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 
 namespace Grimorio.Infrastructure.Features.TableService.Queries;
 
@@ -17,8 +18,6 @@ public class GetRestaurantTablesQueryHandler : IRequestHandler<GetRestaurantTabl
     {
         var tables = await _context.RestaurantTables
             .Where(x => x.BranchId == request.BranchId && !x.IsDeleted)
-            .OrderBy(x => x.Area ?? string.Empty)
-            .ThenBy(x => x.Code)
             .Include(x => x.Orders.Where(o =>
                 !o.IsDeleted &&
                 o.Status != OrderStatus.Draft &&
@@ -27,7 +26,11 @@ public class GetRestaurantTablesQueryHandler : IRequestHandler<GetRestaurantTabl
                 o.PaidAt == null))
             .ToListAsync(cancellationToken);
 
-        return tables.Select(x =>
+        return tables
+            .OrderBy(x => GetTableNumber(x.Code) ?? int.MaxValue)
+            .ThenBy(x => x.Code, StringComparer.Create(CultureInfo.GetCultureInfo("es-EC"), ignoreCase: true))
+            .ThenBy(x => x.Area ?? string.Empty, StringComparer.Create(CultureInfo.GetCultureInfo("es-EC"), ignoreCase: true))
+            .Select(x =>
         {
             var activeOrder = x.Orders.FirstOrDefault();
             return new RestaurantTableDto
@@ -45,6 +48,11 @@ public class GetRestaurantTablesQueryHandler : IRequestHandler<GetRestaurantTabl
             };
         }).ToList();
     }
+
+    private static int? GetTableNumber(string? code)
+        => int.TryParse(code?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var number)
+            ? number
+            : null;
 }
 
 public class GetRestaurantTableByTokenQueryHandler : IRequestHandler<GetRestaurantTableByTokenQuery, PublicTableInfoDto?>
