@@ -27,6 +27,7 @@ import { PERMISSIONS } from '../../constants/permissions';
 import { tableServiceApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
 import { compareTablesByNumber } from '../../utils/tableOrdering';
+import ecfLogo from '../../assets/ECF-Logo.png';
 import {
   QR_SERVER_BASE_URL,
   REQUEST_STATUS,
@@ -44,7 +45,7 @@ import type {
   TableServiceRequestStatus,
 } from '../../types';
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
 const { useBreakpoint } = Grid;
 
 const PUBLIC_APP_BASE_URL = (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined)?.replace(/\/$/, '')
@@ -104,6 +105,14 @@ const formatTableLabel = (code?: string, area?: string | null) => {
   const label = `Mesa ${code || '--'}`;
   return area?.trim() ? `${label} (${area.trim()})` : label;
 };
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 
 export default function TableServiceModule() {
   const { branchId, token, hasPermission } = useAuth();
@@ -174,6 +183,7 @@ export default function TableServiceModule() {
     if (!qrPreview.table) return;
     const fullUrl = buildTablePublicUrl(qrPreview.table.publicToken);
     const qrUrl = `${QR_SERVER_BASE_URL}?size=420x420&data=${encodeURIComponent(fullUrl)}`;
+    const tableLabel = `Mesa ${qrPreview.table.code || '--'}`;
 
     const printWindow = window.open('', '_blank', 'width=900,height=700');
     if (!printWindow) {
@@ -186,18 +196,60 @@ export default function TableServiceModule() {
         <head>
           <title>QR ${formatTableLabel(qrPreview.table.code)}</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 24px; text-align: center; }
-            h1 { margin: 0 0 8px; font-size: 22px; }
-            p { margin: 0 0 12px; color: #555; }
-            img { width: 360px; height: 360px; }
-            .meta { margin-top: 12px; font-size: 14px; color: #333; }
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-family: Arial, sans-serif;
+              background: #f4efe6;
+              color: #241710;
+            }
+            .qr-card {
+              width: 420px;
+              padding: 28px 30px 24px;
+              text-align: center;
+              border: 1px solid #d8c3a3;
+              border-radius: 20px;
+              background: #fffaf0;
+            }
+            .logo { width: 116px; height: auto; margin-bottom: 14px; }
+            .eyebrow {
+              margin: 0 0 8px;
+              color: #8a5a25;
+              font-size: 12px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 2px;
+            }
+            h1 { margin: 0; font-size: 34px; line-height: 1; }
+            .qr {
+              width: 300px;
+              height: 300px;
+              padding: 12px;
+              border: 1px solid #e6d8c5;
+              border-radius: 16px;
+              background: #fff;
+            }
+            .cta { margin: 16px 0 0; font-size: 17px; font-weight: 700; }
+            .meta { margin-top: 8px; font-size: 11px; color: #8a8178; word-break: break-all; }
+            @media print {
+              body { background: #fff; }
+              .qr-card { box-shadow: none; }
+            }
           </style>
         </head>
         <body>
-          <h1>${formatTableLabel(qrPreview.table.code)}</h1>
-          <p>${qrPreview.table.area || 'Área general'}</p>
-          <img src="${qrUrl}" alt="QR Mesa ${qrPreview.table.code}" />
-          <div class="meta">${fullUrl}</div>
+          <section class="qr-card">
+            <img class="logo" src="${escapeHtml(ecfLogo)}" alt="El Caldero Flameante" />
+            <p class="eyebrow">Atención QR</p>
+            <h1>${escapeHtml(tableLabel)}</h1>
+            <img class="qr" src="${escapeHtml(qrUrl)}" alt="QR ${escapeHtml(tableLabel)}" />
+            <p class="cta">Escanéame para solicitar atención</p>
+            <div class="meta">${escapeHtml(fullUrl)}</div>
+          </section>
         </body>
       </html>
     `);
@@ -671,12 +723,40 @@ export default function TableServiceModule() {
       >
         {qrPreview.table && (
           <Space direction="vertical" style={{ width: '100%', alignItems: 'center' }}>
-            <Text type="secondary">{qrPreview.table.area || 'Área general'}</Text>
-            <img
-              src={`${QR_SERVER_BASE_URL}?size=420x420&data=${encodeURIComponent(buildTablePublicUrl(qrPreview.table.publicToken))}`}
-              alt={`QR-Mesa-${qrPreview.table.code}`}
-              style={{ width: '100%', maxWidth: 320, height: 'auto', aspectRatio: '1 / 1' }}
-            />
+            <div
+              style={{
+                width: '100%',
+                maxWidth: 360,
+                padding: '24px 22px',
+                textAlign: 'center',
+                border: '1px solid #ead8bd',
+                borderRadius: 16,
+                background: '#fffaf0',
+              }}
+            >
+              <img src={ecfLogo} alt="El Caldero Flameante" style={{ width: 112, height: 'auto', marginBottom: 12 }} />
+              <Text style={{ display: 'block', color: '#8a5a25', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2 }}>
+                Atención QR
+              </Text>
+              <Title level={2} style={{ margin: '6px 0 0' }}>Mesa {qrPreview.table.code || '--'}</Title>
+              <img
+                src={`${QR_SERVER_BASE_URL}?size=420x420&data=${encodeURIComponent(buildTablePublicUrl(qrPreview.table.publicToken))}`}
+                alt={`QR-Mesa-${qrPreview.table.code}`}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  maxWidth: 280,
+                  height: 'auto',
+                  aspectRatio: '1 / 1',
+                  margin: '18px auto 12px',
+                  padding: 10,
+                  border: '1px solid #ead8bd',
+                  borderRadius: 14,
+                  background: '#fff',
+                }}
+              />
+              <Text strong style={{ display: 'block', fontSize: 16 }}>Escanéame para solicitar atención</Text>
+            </div>
             <Text copyable>{buildTablePublicUrl(qrPreview.table.publicToken)}</Text>
           </Space>
         )}
