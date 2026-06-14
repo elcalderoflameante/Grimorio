@@ -46,6 +46,9 @@ class TableServiceSignalRService {
 
     connection.onclose(({Exception? error}) {
       debugPrint('[SignalR] Connection closed: $error');
+      if (identical(_connection, connection)) {
+        _connection = null;
+      }
       onDisconnected?.call();
     });
 

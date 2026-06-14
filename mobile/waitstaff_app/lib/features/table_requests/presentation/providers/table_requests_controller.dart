@@ -47,7 +47,9 @@ class TableRequestsController extends StateNotifier<TableRequestsState> {
 
   final Ref _ref;
   Timer? _refreshTimer;
+  Timer? _reconnectTimer;
   bool _isRefreshing = false;
+  bool _isConnectingSignalR = false;
 
   Future<void> initialize() async {
     await _ref.read(alertServiceProvider).initialize();
@@ -130,6 +132,7 @@ class TableRequestsController extends StateNotifier<TableRequestsState> {
       );
     };
     signalR.onConnected = () {
+      _stopSignalRReconnect();
       state = state.copyWith(
         connectionStatus: TableRequestsConnectionStatus.connected,
       );
@@ -138,6 +141,7 @@ class TableRequestsController extends StateNotifier<TableRequestsState> {
       state = state.copyWith(
         connectionStatus: TableRequestsConnectionStatus.degraded,
       );
+      _startSignalRReconnect();
     };
     signalR.onAnyEvent = () {
       _refreshRequests(showLoading: false);
@@ -147,12 +151,37 @@ class TableRequestsController extends StateNotifier<TableRequestsState> {
       _upsertRequest(request);
     };
     signalR.onRequestUpdated = (request) => _upsertRequest(request);
-    signalR.connect().catchError((e) {
+    _tryConnectSignalR();
+  }
+
+  Future<void> _tryConnectSignalR() async {
+    if (_isConnectingSignalR) return;
+
+    _isConnectingSignalR = true;
+    try {
+      await _ref.read(tableServiceSignalRServiceProvider).connect();
+    } catch (e) {
       debugPrint('[SignalR] Connection failed: $e');
       state = state.copyWith(
         connectionStatus: TableRequestsConnectionStatus.degraded,
       );
+      _startSignalRReconnect();
+    } finally {
+      _isConnectingSignalR = false;
+    }
+  }
+
+  void _startSignalRReconnect() {
+    if (_reconnectTimer != null) return;
+
+    _reconnectTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+      _tryConnectSignalR();
     });
+  }
+
+  void _stopSignalRReconnect() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
   }
 
   Future<void> _notifyIncomingRequest(TableServiceRequest request) async {
@@ -185,6 +214,7 @@ class TableRequestsController extends StateNotifier<TableRequestsState> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _stopSignalRReconnect();
     _ref.read(tableServiceSignalRServiceProvider).disconnect();
     super.dispose();
   }
