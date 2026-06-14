@@ -115,6 +115,9 @@ const escapeHtml = (value: string) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 
+const buildQrImageUrl = (data: string, size: number) =>
+  `${QR_SERVER_BASE_URL}?size=${size}x${size}&ecc=H&format=png&data=${encodeURIComponent(data)}`;
+
 const loadImageAsDataUrl = async (src: string) => {
   const response = await fetch(src);
   if (!response.ok) throw new Error('No se pudo cargar la imagen.');
@@ -196,7 +199,7 @@ export default function TableServiceModule() {
   const handlePrintQr = useCallback(() => {
     if (!qrPreview.table) return;
     const fullUrl = buildTablePublicUrl(qrPreview.table.publicToken);
-    const qrUrl = `${QR_SERVER_BASE_URL}?size=420x420&data=${encodeURIComponent(fullUrl)}`;
+    const qrUrl = buildQrImageUrl(fullUrl, 420);
     const tableLabel = `Mesa ${qrPreview.table.code || '--'}`;
 
     const printWindow = window.open('', '_blank', 'width=900,height=700');
@@ -256,8 +259,8 @@ export default function TableServiceModule() {
               position: absolute;
               left: 50%;
               top: 50%;
-              width: 58px;
-              height: 58px;
+              width: 44px;
+              height: 44px;
               padding: 6px;
               object-fit: contain;
               border: 1px solid #ead8bd;
@@ -297,7 +300,7 @@ export default function TableServiceModule() {
     const tableLabel = `Mesa ${qrPreview.table.code || '--'}`;
     const fileName = `qr-mesa-${(qrPreview.table.code || 'sin-numero').replace(/[^a-z0-9_-]/gi, '-')}.pdf`;
     const fullUrl = buildTablePublicUrl(qrPreview.table.publicToken);
-    const qrUrl = `${QR_SERVER_BASE_URL}?size=1000x1000&data=${encodeURIComponent(fullUrl)}`;
+    const qrUrl = buildQrImageUrl(fullUrl, 1200);
     const messageKey = 'download-table-qr-pdf';
 
     try {
@@ -317,7 +320,7 @@ export default function TableServiceModule() {
       const qrSize = 76;
       const qrX = (pageWidth - qrSize) / 2;
       const qrY = 36;
-      const logoSize = 16;
+      const logoSize = 10;
       const logoX = qrX + (qrSize - logoSize) / 2;
       const logoY = qrY + (qrSize - logoSize) / 2;
 
@@ -338,7 +341,7 @@ export default function TableServiceModule() {
 
       pdf.setFillColor(255, 255, 255);
       pdf.setDrawColor(234, 216, 189);
-      pdf.roundedRect(logoX - 1.5, logoY - 1.5, logoSize + 3, logoSize + 3, 2, 2, 'FD');
+      pdf.roundedRect(logoX - 1.2, logoY - 1.2, logoSize + 2.4, logoSize + 2.4, 1.6, 1.6, 'FD');
       pdf.addImage(logoDataUrl, 'PNG', logoX, logoY, logoSize, logoSize);
 
       pdf.setTextColor(36, 23, 16);
@@ -578,7 +581,7 @@ export default function TableServiceModule() {
       key: 'qr',
       render: (_: unknown, record: RestaurantTableDto) => {
         const fullUrl = buildTablePublicUrl(record.publicToken);
-        const qrUrl = `${QR_SERVER_BASE_URL}?size=90x90&data=${encodeURIComponent(fullUrl)}`;
+        const qrUrl = buildQrImageUrl(fullUrl, 90);
         return (
           <Space wrap>
             <img
@@ -843,7 +846,7 @@ export default function TableServiceModule() {
                 }}
               >
                 <img
-                  src={`${QR_SERVER_BASE_URL}?size=420x420&data=${encodeURIComponent(buildTablePublicUrl(qrPreview.table.publicToken))}`}
+                  src={buildQrImageUrl(buildTablePublicUrl(qrPreview.table.publicToken), 420)}
                   alt={`QR-Mesa-${qrPreview.table.code}`}
                   style={{
                     display: 'block',
@@ -863,8 +866,8 @@ export default function TableServiceModule() {
                     position: 'absolute',
                     left: '50%',
                     top: '50%',
-                    width: 54,
-                    height: 54,
+                    width: 42,
+                    height: 42,
                     padding: 6,
                     objectFit: 'contain',
                     border: '1px solid #ead8bd',
