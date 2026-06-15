@@ -1,0 +1,4 @@
+storePassword=CAMBIAR_STORE_PASSWORD
+keyPassword=CAMBIAR_KEY_PASSWORD
+keyAlias=grimorio-estaciones
+storeFile=../app/grimorio-estaciones-release.jks

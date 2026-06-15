@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Table, Button, Modal, Form, Input, Select, Switch, Popconfirm, Space, Typography, message, Tag } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { DownloadOutlined, PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { posApi } from '../../services/api';
 import type { WorkStationDto, StationType } from '../../types';
 import { formatError } from '../../utils/errorHandler';
@@ -17,6 +17,8 @@ const TIPOS_ESTACION: { label: string; value: StationType; color: string }[] = [
 
 const tipoLabel = (tipo: StationType) => TIPOS_ESTACION.find(t => t.value === tipo)?.label ?? tipo;
 const tipoColor = (tipo: StationType) => TIPOS_ESTACION.find(t => t.value === tipo)?.color ?? 'default';
+const STATION_APP_APK_URL = (import.meta.env.VITE_STATION_APP_APK_URL as string | undefined)
+  || '/downloads/grimorio-estaciones.apk';
 
 export default function StationsConfig() {
   const [estaciones, setEstaciones] = useState<WorkStationDto[]>([]);
@@ -63,7 +65,12 @@ export default function StationsConfig() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Title level={5} style={{ margin: 0 }}>Estaciones de Trabajo</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>Nueva estación</Button>
+        <Space wrap>
+          <Button icon={<DownloadOutlined />} href={STATION_APP_APK_URL} download>
+            Descargar APK estaciones
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>Nueva estación</Button>
+        </Space>
       </div>
 
       <Table

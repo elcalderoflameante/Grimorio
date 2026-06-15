@@ -13,3 +13,15 @@ El boton del ERP apunta por defecto a:
 ```text
 /downloads/grimorio-meseros.apk
 ```
+
+La app de estaciones debe publicarse con este nombre:
+
+```text
+grimorio-estaciones.apk
+```
+
+El boton del ERP apunta por defecto a:
+
+```text
+/downloads/grimorio-estaciones.apk
+```
