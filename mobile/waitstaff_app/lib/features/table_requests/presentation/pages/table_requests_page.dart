@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/services/overlay_bubble_service.dart';
+import '../../../../core/services/screen_awake_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/providers/auth_controller.dart';
 import '../../data/models/table_service_models.dart';
@@ -41,12 +42,14 @@ class TableRequestsPage extends ConsumerStatefulWidget {
 class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
     with TickerProviderStateMixin {
   final OverlayBubbleService _overlayBubbleService = OverlayBubbleService();
+  final ScreenAwakeService _screenAwakeService = ScreenAwakeService();
   late final TabController _tabController;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _screenAwakeService.setKeepScreenOn(true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(tableRequestsControllerProvider.notifier).initialize();
     });
@@ -54,6 +57,7 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
 
   @override
   void dispose() {
+    _screenAwakeService.setKeepScreenOn(false);
     _tabController.dispose();
     super.dispose();
   }
