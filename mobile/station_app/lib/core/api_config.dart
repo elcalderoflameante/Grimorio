@@ -12,6 +12,14 @@ class ApiConfig {
     );
   }
 
+  static String get hubBaseUrl {
+    final api = baseUrl;
+    if (api.endsWith('/api')) {
+      return api.substring(0, api.length - 4);
+    }
+    return api;
+  }
+
   static String _normalize(String v) =>
       v.endsWith('/') ? v.substring(0, v.length - 1) : v;
 }

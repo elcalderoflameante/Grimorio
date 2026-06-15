@@ -212,9 +212,9 @@ class StationProvider extends ChangeNotifier {
       notifyListeners();
     };
 
-    debugPrint('[Provider] Conectando a ${ApiConfig.baseUrl} con stationId=$_stationId');
+    debugPrint('[Provider] Conectando a ${ApiConfig.hubBaseUrl} con stationId=$_stationId');
     try {
-      await _hub.connect(ApiConfig.baseUrl, _token, _stationId!);
+      await _hub.connect(ApiConfig.hubBaseUrl, _token, _stationId!);
       debugPrint('[Provider] Hub conectado OK');
       await _loadInitialItems();
       await _speech.startListening();

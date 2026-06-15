@@ -32,7 +32,7 @@ class ApiService {
   }
 
   Future<List<WorkStation>> getStations() => _get(
-        '/api/pos/estaciones',
+        '/pos/estaciones',
         (body) => (body as List)
             .map((e) => WorkStation.fromJson(e as Map<String, dynamic>))
             .where((s) => s.isActive)
@@ -40,14 +40,14 @@ class ApiService {
       );
 
   Future<List<StationItem>> getStationItems(String stationId) => _get(
-        '/api/pos/estaciones/$stationId/items',
+        '/pos/estaciones/$stationId/items',
         (body) => (body as List)
             .map((e) => StationItem.fromJson(e as Map<String, dynamic>))
             .toList(),
       );
 
   Future<List<StationItem>> getCompletedStationItems(String stationId) => _get(
-        '/api/pos/estaciones/$stationId/completados',
+        '/pos/estaciones/$stationId/completados',
         (body) => (body as List)
             .map((e) => StationItem.fromJson(e as Map<String, dynamic>))
             .toList(),
@@ -56,7 +56,7 @@ class ApiService {
   Future<void> updateItemStatus(String orderItemId, String status) async {
     final response = await http
         .patch(
-          Uri.parse('$_base/api/pos/orden-items/$orderItemId/estado'),
+          Uri.parse('$_base/pos/orden-items/$orderItemId/estado'),
           headers: _headers,
           body: jsonEncode({'estado': status}),
         )

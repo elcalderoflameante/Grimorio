@@ -40,10 +40,10 @@ storeFile=../app/grimorio-estaciones-release.jks
 
 ### 3. Generar la APK
 
-Usar la URL publica real del ERP. En esta app no se agrega `/api` al `API_BASE_URL`, porque el codigo ya lo agrega internamente en cada endpoint.
+Usar la URL publica real del API. Debe terminar en `/api`, igual que la app de meseros. La app deriva la URL de hubs desde esa base.
 
 ```powershell
-flutter build apk --release --dart-define=API_BASE_URL=https://erp.elcalderoflameante.com
+flutter build apk --release --dart-define=API_BASE_URL=https://erp.elcalderoflameante.com/api
 ```
 
 Salida esperada:
@@ -73,7 +73,7 @@ Para actualizar la app instalada en tablets o pantallas de estacion:
 
 1. Mantener la misma llave `.jks`.
 2. Subir `version` en `pubspec.yaml`, por ejemplo `1.0.1+2`.
-3. Volver a ejecutar `flutter build apk --release --dart-define=API_BASE_URL=https://erp.elcalderoflameante.com`.
+3. Volver a ejecutar `flutter build apk --release --dart-define=API_BASE_URL=https://erp.elcalderoflameante.com/api`.
 4. Reemplazar `frontend\public\downloads\grimorio-estaciones.apk`.
 5. Desplegar el frontend.
 

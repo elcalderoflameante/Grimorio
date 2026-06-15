@@ -38,7 +38,7 @@ class AuthService {
   }
 
   Future<String> login(String email, String password) async {
-    final url = Uri.parse('${ApiConfig.baseUrl}/api/auth/login');
+    final url = Uri.parse('${ApiConfig.baseUrl}/auth/login');
     final response = await http
         .post(
           url,
