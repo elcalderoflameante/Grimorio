@@ -87,7 +87,7 @@ class AlertService {
     );
 
     await _vibrate();
-    final ttsText = '${_ttsTableLabel(request)}, solicita: $detail';
+    final ttsText = 'Nueva solicitud en ${_normalizeTableName(request)}, $detail';
     debugPrint('[TTS] type=${request.type.name} | customMessage="${request.customMessage}" | ttsDescription="${request.ttsDescription}" | texto="$ttsText"');
     await _speak(ttsText);
   }
