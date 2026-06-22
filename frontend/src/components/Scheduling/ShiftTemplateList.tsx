@@ -84,9 +84,7 @@ export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
   const loadWorkAreas = useCallback(async () => {
     try {
       const response = await workAreaApi.getAll(branchId);
-      const areas = Array.isArray(response.data) ? response.data : [];
-      setWorkAreas(areas);
-      setWorkRoles(areas.flatMap(area => area.workRoles ?? []));
+      setWorkAreas(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       message.error(formatError(error));
       console.error(error);
@@ -130,10 +128,10 @@ export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
     } else {
       setEditingTemplate(null);
       form.resetFields();
-      setWorkRoles(workAreas.flatMap(area => area.workRoles ?? []));
+      setWorkRoles([]);
     }
     setModalVisible(true);
-  }, [form, loadWorkRoles, workAreas]);
+  }, [form, loadWorkRoles]);
 
   const handleWorkAreaChange = (workAreaId: string) => {
     form.setFieldValue('workRoleId', undefined);

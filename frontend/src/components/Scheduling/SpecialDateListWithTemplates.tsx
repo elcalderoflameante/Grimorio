@@ -5,7 +5,7 @@ import dayjs, { Dayjs } from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 import type { SpecialDateDto, CreateSpecialDateDto, UpdateSpecialDateDto, SpecialDateTemplateDto, CreateSpecialDateTemplateDto, UpdateSpecialDateTemplateDto, WorkAreaDto, WorkRoleDto } from '../../types';
 import { specialDateApi } from '../../services/specialDateApi';
-import { specialDateTemplateApi, workAreaApi, workRoleApi } from '../../services/api';
+import { specialDateTemplateApi, workAreaApi } from '../../services/api';
 
 interface SpecialDateListProps {
   branchId: string;
@@ -94,12 +94,10 @@ export const SpecialDateListWithTemplates: React.FC<SpecialDateListProps> = ({ b
   const loadWorkAreasAndRoles = useCallback(async () => {
     if (!branchId) return;
     try {
-      const [areasResponse, rolesResponse] = await Promise.all([
-        workAreaApi.getAll(branchId),
-        workRoleApi.getAll(branchId)
-      ]);
-      setWorkAreas(areasResponse.data || []);
-      setWorkRoles(rolesResponse.data || []);
+      const areasResponse = await workAreaApi.getAll(branchId);
+      const areas = Array.isArray(areasResponse.data) ? areasResponse.data : [];
+      setWorkAreas(areas);
+      setWorkRoles(areas.flatMap(area => area.workRoles ?? []));
     } catch (error) {
       message.error('Error al cargar áreas y roles');
       console.error(error);
