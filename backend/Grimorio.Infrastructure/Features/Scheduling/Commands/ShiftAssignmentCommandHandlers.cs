@@ -7,6 +7,58 @@ using Grimorio.Infrastructure.Persistence;
 
 namespace Grimorio.Infrastructure.Features.Scheduling.Commands;
 
+internal static class EffectiveShiftTemplateCapacity
+{
+    public static async Task<int> GetAsync(
+        GrimorioDbContext context,
+        Guid branchId,
+        DateTime date,
+        Guid workAreaId,
+        Guid workRoleId,
+        TimeSpan startTime,
+        TimeSpan endTime,
+        CancellationToken cancellationToken)
+    {
+        var specialDate = await context.SpecialDates
+            .AsNoTracking()
+            .FirstOrDefaultAsync(sd =>
+                sd.BranchId == branchId &&
+                sd.Date.Date == date.Date &&
+                !sd.IsDeleted, cancellationToken);
+
+        if (specialDate != null)
+        {
+            var specialTemplates = await context.SpecialDateTemplates
+                .AsNoTracking()
+                .Where(st => st.SpecialDateId == specialDate.Id && !st.IsDeleted)
+                .ToListAsync(cancellationToken);
+
+            if (specialTemplates.Count > 0)
+            {
+                return specialTemplates
+                    .Where(st =>
+                        st.WorkAreaId == workAreaId &&
+                        st.WorkRoleId == workRoleId &&
+                        st.StartTime == startTime &&
+                        st.EndTime == endTime)
+                    .Sum(st => st.RequiredCount);
+            }
+        }
+
+        return await context.ShiftTemplates
+            .AsNoTracking()
+            .Where(st =>
+                st.BranchId == branchId &&
+                st.DayOfWeek == date.DayOfWeek &&
+                st.WorkAreaId == workAreaId &&
+                st.WorkRoleId == workRoleId &&
+                st.StartTime == startTime &&
+                st.EndTime == endTime &&
+                !st.IsDeleted)
+            .SumAsync(st => st.RequiredCount, cancellationToken);
+    }
+}
+
 public class CreateShiftAssignmentCommandHandler : IRequestHandler<CreateShiftAssignmentCommand, ShiftAssignmentDto>
 {
     private readonly GrimorioDbContext _context;
@@ -33,22 +85,18 @@ public class CreateShiftAssignmentCommandHandler : IRequestHandler<CreateShiftAs
         if (workRole == null)
             throw new InvalidOperationException("Rol de trabajo no encontrado.");
 
-        var matchingTemplates = await _context.ShiftTemplates
-            .AsNoTracking()
-            .Where(st =>
-                st.BranchId == employee.BranchId &&
-                st.DayOfWeek == request.Date.DayOfWeek &&
-                st.WorkAreaId == request.WorkAreaId &&
-                st.WorkRoleId == request.WorkRoleId &&
-                st.StartTime == request.StartTime &&
-                st.EndTime == request.EndTime &&
-                !st.IsDeleted)
-            .ToListAsync(cancellationToken);
+        var requiredTemplateCount = await EffectiveShiftTemplateCapacity.GetAsync(
+            _context,
+            employee.BranchId,
+            request.Date,
+            request.WorkAreaId,
+            request.WorkRoleId,
+            request.StartTime,
+            request.EndTime,
+            cancellationToken);
 
-        if (matchingTemplates.Count == 0)
-            throw new InvalidOperationException("El turno no coincide con ninguna plantilla creada para ese día, área, rol y horario.");
-
-        var requiredTemplateCount = matchingTemplates.Sum(st => st.RequiredCount);
+        if (requiredTemplateCount == 0)
+            throw new InvalidOperationException("El turno no coincide con ninguna plantilla efectiva para ese día, área, rol y horario.");
 
         var assignedTemplateCount = await _context.ShiftAssignments
             .CountAsync(sa =>
@@ -159,22 +207,18 @@ public class UpdateShiftAssignmentCommandHandler : IRequestHandler<UpdateShiftAs
         if (!hasRole)
             throw new InvalidOperationException("El empleado no tiene asignado el rol de este turno.");
 
-        var matchingTemplates = await _context.ShiftTemplates
-            .AsNoTracking()
-            .Where(st =>
-                st.BranchId == employee.BranchId &&
-                st.DayOfWeek == request.Date.DayOfWeek &&
-                st.WorkAreaId == shiftAssignment.WorkAreaId &&
-                st.WorkRoleId == shiftAssignment.WorkRoleId &&
-                st.StartTime == request.StartTime &&
-                st.EndTime == request.EndTime &&
-                !st.IsDeleted)
-            .ToListAsync(cancellationToken);
+        var requiredTemplateCount = await EffectiveShiftTemplateCapacity.GetAsync(
+            _context,
+            employee.BranchId,
+            request.Date,
+            shiftAssignment.WorkAreaId,
+            shiftAssignment.WorkRoleId,
+            request.StartTime,
+            request.EndTime,
+            cancellationToken);
 
-        if (matchingTemplates.Count == 0)
-            throw new InvalidOperationException("El turno no coincide con ninguna plantilla creada para ese día, área, rol y horario.");
-
-        var requiredTemplateCount = matchingTemplates.Sum(st => st.RequiredCount);
+        if (requiredTemplateCount == 0)
+            throw new InvalidOperationException("El turno no coincide con ninguna plantilla efectiva para ese día, área, rol y horario.");
 
         var assignedTemplateCount = await _context.ShiftAssignments
             .CountAsync(sa =>

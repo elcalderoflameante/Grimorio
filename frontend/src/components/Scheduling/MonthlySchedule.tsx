@@ -8,6 +8,8 @@ import dayjs, { Dayjs } from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek';
 import 'dayjs/locale/es';
 import { scheduleShiftApi, scheduleConfigurationApi, workAreaApi, workRoleApi, employeeWorkRoleApi, branchApi, shiftTemplateApi } from '../../services/api';
+import { specialDateApi } from '../../services/specialDateApi';
+import { specialDateTemplateApi } from '../../services/specialDateTemplateApi';
 import { useAuth } from '../../context/useAuth';
 import { formatError } from '../../utils/errorHandler';
 import { EmployeeStats } from './EmployeeStats';
@@ -609,7 +611,16 @@ export const MonthlySchedule = () => {
       const endTime = (values.endTime as Dayjs).format('HH:mm:ss');
       const templatesResponse = await shiftTemplateApi.getAll(branchId, dayOfWeek);
       const dayTemplates = Array.isArray(templatesResponse.data) ? templatesResponse.data : [];
-      const matchingTemplates = dayTemplates.filter((template) =>
+      const specialDatesResponse = await specialDateApi.getAll(branchId);
+      const specialDate = (Array.isArray(specialDatesResponse.data) ? specialDatesResponse.data : [])
+        .find(item => dayjs(item.date).format('YYYY-MM-DD') === selectedDate);
+      const specialTemplates = specialDate
+        ? (await specialDateTemplateApi.getBySpecialDateId(specialDate.id)).data
+        : [];
+      const effectiveTemplates = Array.isArray(specialTemplates) && specialTemplates.length > 0
+        ? specialTemplates
+        : dayTemplates;
+      const matchingTemplates = effectiveTemplates.filter((template) =>
         template.workAreaId === values.workAreaId &&
         template.workRoleId === values.workRoleId &&
         template.startTime.substring(0, 5) === startTime.substring(0, 5) &&

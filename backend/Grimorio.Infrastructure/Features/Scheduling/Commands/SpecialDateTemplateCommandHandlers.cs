@@ -7,6 +7,26 @@ using Grimorio.Infrastructure.Persistence;
 
 namespace Grimorio.Infrastructure.Features.Scheduling.Commands;
 
+internal static class SpecialDateShiftInvalidation
+{
+    public static async Task InvalidateAsync(
+        GrimorioDbContext context,
+        Guid branchId,
+        DateTime date,
+        CancellationToken cancellationToken)
+    {
+        var shifts = await context.ShiftAssignments
+            .Where(sa => sa.BranchId == branchId && sa.Date.Date == date.Date && !sa.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        foreach (var shift in shifts)
+        {
+            shift.IsDeleted = true;
+            shift.DeletedAt = DateTime.UtcNow;
+        }
+    }
+}
+
 public class CreateSpecialDateTemplateCommandHandler : IRequestHandler<CreateSpecialDateTemplateCommand, SpecialDateTemplateDto>
 {
     private readonly GrimorioDbContext _context;
@@ -36,6 +56,7 @@ public class CreateSpecialDateTemplateCommandHandler : IRequestHandler<CreateSpe
         var template = new SpecialDateTemplate
         {
             Id = Guid.NewGuid(),
+            BranchId = specialDate.BranchId,
             SpecialDateId = request.SpecialDateId,
             StartTime = request.StartTime,
             EndTime = request.EndTime,
@@ -50,6 +71,8 @@ public class CreateSpecialDateTemplateCommandHandler : IRequestHandler<CreateSpe
         };
 
         _context.SpecialDateTemplates.Add(template);
+        await SpecialDateShiftInvalidation.InvalidateAsync(
+            _context, specialDate.BranchId, specialDate.Date, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
 
         return new SpecialDateTemplateDto
@@ -62,6 +85,7 @@ public class CreateSpecialDateTemplateCommandHandler : IRequestHandler<CreateSpe
             LunchDuration = template.LunchDuration,
             WorkAreaId = template.WorkAreaId,
             WorkAreaName = workArea.Name,
+            WorkAreaColor = workArea.Color,
             WorkRoleId = template.WorkRoleId,
             WorkRoleName = workRole.Name,
             RequiredCount = template.RequiredCount,
@@ -79,6 +103,7 @@ public class UpdateSpecialDateTemplateCommandHandler : IRequestHandler<UpdateSpe
     public async Task<SpecialDateTemplateDto> Handle(UpdateSpecialDateTemplateCommand request, CancellationToken cancellationToken)
     {
         var template = await _context.SpecialDateTemplates
+            .Include(t => t.SpecialDate)
             .Include(t => t.WorkArea)
             .Include(t => t.WorkRole)
             .FirstOrDefaultAsync(t => t.Id == request.Id && !t.IsDeleted, cancellationToken);
@@ -97,6 +122,8 @@ public class UpdateSpecialDateTemplateCommandHandler : IRequestHandler<UpdateSpe
         template.UpdatedAt = DateTime.UtcNow;
         template.UpdatedBy = Guid.Empty;
 
+        await SpecialDateShiftInvalidation.InvalidateAsync(
+            _context, template.SpecialDate!.BranchId, template.SpecialDate.Date, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
 
         return new SpecialDateTemplateDto
@@ -109,6 +136,7 @@ public class UpdateSpecialDateTemplateCommandHandler : IRequestHandler<UpdateSpe
             LunchDuration = template.LunchDuration,
             WorkAreaId = template.WorkAreaId,
             WorkAreaName = template.WorkArea!.Name,
+            WorkAreaColor = template.WorkArea.Color,
             WorkRoleId = template.WorkRoleId,
             WorkRoleName = template.WorkRole!.Name,
             RequiredCount = template.RequiredCount,
@@ -126,6 +154,7 @@ public class DeleteSpecialDateTemplateCommandHandler : IRequestHandler<DeleteSpe
     public async Task<bool> Handle(DeleteSpecialDateTemplateCommand request, CancellationToken cancellationToken)
     {
         var template = await _context.SpecialDateTemplates
+            .Include(t => t.SpecialDate)
             .FirstOrDefaultAsync(t => t.Id == request.Id && !t.IsDeleted, cancellationToken);
 
         if (template == null)
@@ -135,6 +164,8 @@ public class DeleteSpecialDateTemplateCommandHandler : IRequestHandler<DeleteSpe
         template.DeletedAt = DateTime.UtcNow;
         template.DeletedBy = Guid.Empty;
 
+        await SpecialDateShiftInvalidation.InvalidateAsync(
+            _context, template.SpecialDate!.BranchId, template.SpecialDate.Date, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
         return true;
     }

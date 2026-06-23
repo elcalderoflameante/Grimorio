@@ -608,6 +608,7 @@ export interface SpecialDateTemplateDto {
   lunchDuration?: string;
   workAreaId: string;
   workAreaName: string;
+  workAreaColor: string;
   workRoleId: string;
   workRoleName: string;
   requiredCount: number;
@@ -631,6 +632,8 @@ export interface UpdateSpecialDateTemplateDto {
   endTime: string;
   breakDuration?: string;
   lunchDuration?: string;
+  workAreaId: string;
+  workRoleId: string;
   requiredCount: number;
   notes?: string;
 }

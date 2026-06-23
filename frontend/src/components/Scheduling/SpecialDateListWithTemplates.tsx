@@ -5,7 +5,8 @@ import dayjs, { Dayjs } from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 import type { SpecialDateDto, CreateSpecialDateDto, UpdateSpecialDateDto, SpecialDateTemplateDto, CreateSpecialDateTemplateDto, UpdateSpecialDateTemplateDto, WorkAreaDto, WorkRoleDto } from '../../types';
 import { specialDateApi } from '../../services/specialDateApi';
-import { specialDateTemplateApi, workAreaApi, workRoleApi } from '../../services/api';
+import { specialDateTemplateApi, workAreaApi, workRoleApi, scheduleShiftApi } from '../../services/api';
+import { formatError } from '../../utils/errorHandler';
 
 interface SpecialDateListProps {
   branchId: string;
@@ -241,11 +242,42 @@ export const SpecialDateListWithTemplates: React.FC<SpecialDateListProps> = ({ b
     templateForm.resetFields();
   };
 
+  const confirmShiftRemoval = useCallback(async (specialDateId: string): Promise<boolean> => {
+    const specialDate = specialDates.find(item => item.id === specialDateId);
+    if (!specialDate) return true;
+
+    try {
+      const date = dayjs(specialDate.date).format('YYYY-MM-DD');
+      const response = await scheduleShiftApi.getByDate(branchId, date);
+      const assignedShifts = Array.isArray(response.data) ? response.data : [];
+      if (assignedShifts.length === 0) return true;
+
+      return await new Promise<boolean>(resolve => {
+        Modal.confirm({
+          title: 'Reasignar turnos del día especial',
+          content: 'Hay ' + assignedShifts.length + ' turno(s) asignado(s) para el '
+            + dayjs(specialDate.date).format('DD/MM/YYYY')
+            + '. Al cambiar las plantillas especiales se eliminarán para que puedas volver a asignarlos con la nueva configuración.',
+          okText: 'Continuar y eliminar turnos',
+          cancelText: 'Cancelar',
+          okButtonProps: { danger: true },
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        });
+      });
+    } catch (error) {
+      message.error(formatError(error));
+      return false;
+    }
+  }, [branchId, specialDates]);
+
   const handleSubmitTemplate = async (values: TemplateFormValues) => {
     if (!selectedSpecialDateId) {
       message.error('Error: No se seleccionó día especial');
       return;
     }
+
+    if (!await confirmShiftRemoval(selectedSpecialDateId)) return;
 
     try {
       setLoading(true);
@@ -255,6 +287,8 @@ export const SpecialDateListWithTemplates: React.FC<SpecialDateListProps> = ({ b
         endTime: values.endTime.format('HH:mm:ss'),
         breakDuration: minutesToTimeSpan(values.breakMinutes),
         lunchDuration: minutesToTimeSpan(values.lunchMinutes),
+        workAreaId: values.workAreaId,
+        workRoleId: values.workRoleId,
         requiredCount: values.requiredCount,
         notes: values.notes?.trim(),
       };
@@ -284,6 +318,8 @@ export const SpecialDateListWithTemplates: React.FC<SpecialDateListProps> = ({ b
   };
 
   const handleDeleteTemplate = useCallback(async (specialDateId: string, templateId: string) => {
+    if (!await confirmShiftRemoval(specialDateId)) return;
+
     try {
       setLoading(true);
       await specialDateTemplateApi.delete(templateId);
@@ -295,7 +331,7 @@ export const SpecialDateListWithTemplates: React.FC<SpecialDateListProps> = ({ b
     } finally {
       setLoading(false);
     }
-  }, [loadTemplatesForDate]);
+  }, [confirmShiftRemoval, loadTemplatesForDate]);
 
   const handleExpand = (expanded: boolean, record: SpecialDateDto) => {
     if (expanded) {

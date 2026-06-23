@@ -42,13 +42,17 @@ import {
   scheduleShiftApi,
   shiftTemplateApi,
 } from '../../services/api';
+import { specialDateApi } from '../../services/specialDateApi';
+import { specialDateTemplateApi } from '../../services/specialDateTemplateApi';
 import { useAuth } from '../../context/useAuth';
 import { formatError } from '../../utils/errorHandler';
-import type { EmployeeDto, ShiftAssignmentDto, ShiftTemplateDto } from '../../types';
+import type { EmployeeDto, ShiftAssignmentDto, ShiftTemplateDto, SpecialDateTemplateDto } from '../../types';
 
 dayjs.locale('es');
 
 const { Text } = Typography;
+
+type BoardTemplate = ShiftTemplateDto & { effectiveDate?: string };
 
 const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
@@ -62,7 +66,7 @@ const personNameSortKey = (name?: string) => {
   return `${rest.join(' ')} ${first}`;
 };
 
-const compareTemplatesByAreaAndName = (a: ShiftTemplateDto, b: ShiftTemplateDto) =>
+const compareTemplatesByAreaAndName = (a: BoardTemplate, b: BoardTemplate) =>
   compareText(a.workAreaName, b.workAreaName)
     || compareText(a.workRoleName, b.workRoleName)
     || compareText(a.startTime, b.startTime)
@@ -177,7 +181,7 @@ export const WeeklyScheduleBoard = ({
   // -------------------------------------------------------------------------
   // Estado
   // -------------------------------------------------------------------------
-  const [templates, setTemplates] = useState<ShiftTemplateDto[]>([]);
+  const [templates, setTemplates] = useState<BoardTemplate[]>([]);
   const [slots, setSlots] = useState<Record<string, BoardSlot>>({});
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -220,7 +224,7 @@ export const WeeklyScheduleBoard = ({
   // Carga de plantillas + asignaciones existentes
   // -------------------------------------------------------------------------
   const buildSlots = useCallback(
-    (tmplList: ShiftTemplateDto[], existing: ShiftAssignmentDto[]) => {
+    (tmplList: BoardTemplate[], existing: ShiftAssignmentDto[]) => {
       const nextSlots: Record<string, BoardSlot> = {};
       const existingByTemplate: Record<string, ShiftAssignmentDto[]> = {};
       const consumedExistingByTemplate: Record<string, number> = {};
@@ -248,9 +252,11 @@ export const WeeklyScheduleBoard = ({
         const dateStr = day.format('YYYY-MM-DD');
         const dow = day.day(); // 0=Dom..6=Sáb
 
-        const dayTemplates = tmplList
-          .filter(t => t.dayOfWeek === dow)
-          .sort(compareTemplatesByAreaAndName);
+        const specialTemplates = tmplList.filter(t => t.effectiveDate === dateStr);
+        const dayTemplates = (specialTemplates.length > 0
+          ? specialTemplates
+          : tmplList.filter(t => !t.effectiveDate && t.dayOfWeek === dow)
+        ).sort(compareTemplatesByAreaAndName);
 
         for (const tmpl of dayTemplates) {
           for (let idx = 0; idx < tmpl.requiredCount; idx++) {
@@ -298,19 +304,41 @@ export const WeeklyScheduleBoard = ({
         uniqueYearMonth.map(({ year, month }) => scheduleShiftApi.getMonthly(branchId, year, month)),
       );
 
-      const [tmplRes, shiftsRes] = await Promise.all([
+      const [tmplRes, specialDatesRes, shiftsRes] = await Promise.all([
         shiftTemplateApi.getAll(branchId),
+        specialDateApi.getAll(branchId),
         Promise.resolve({
           data: monthlyShiftResponses
             .flatMap(res => (Array.isArray(res.data) ? res.data : [])),
         }),
       ]);
 
-      const tmplList = Array.isArray(tmplRes.data) ? [...tmplRes.data].sort(compareTemplatesByAreaAndName) : [];
+      const weekDayStrings = new Set(weekDays.map(d => d.format('YYYY-MM-DD')));
+      const relevantSpecialDates = (Array.isArray(specialDatesRes.data) ? specialDatesRes.data : [])
+        .filter(specialDate => weekDayStrings.has(dayjs(specialDate.date).format('YYYY-MM-DD')));
+      const specialTemplateResponses = await Promise.all(
+        relevantSpecialDates.map(specialDate =>
+          specialDateTemplateApi.getBySpecialDateId(specialDate.id),
+        ),
+      );
+
+      const specialTemplates: BoardTemplate[] = relevantSpecialDates.flatMap((specialDate, index) => {
+        const effectiveDate = dayjs(specialDate.date).format('YYYY-MM-DD');
+        const dateTemplates: SpecialDateTemplateDto[] = Array.isArray(specialTemplateResponses[index].data)
+          ? specialTemplateResponses[index].data
+          : [];
+        return dateTemplates.map(template => ({
+          ...template,
+          branchId,
+          dayOfWeek: dayjs(specialDate.date).day(),
+          effectiveDate,
+        }));
+      });
+      const normalTemplates: BoardTemplate[] = Array.isArray(tmplRes.data) ? tmplRes.data : [];
+      const tmplList = [...normalTemplates, ...specialTemplates].sort(compareTemplatesByAreaAndName);
       const existingShifts = Array.isArray(shiftsRes.data) ? shiftsRes.data : [];
 
       // Filtrar turnos de la semana visible
-      const weekDayStrings = new Set(weekDays.map(d => d.format('YYYY-MM-DD')));
       const weekShifts = existingShifts.filter(s =>
         weekDayStrings.has(dayjs(s.date).format('YYYY-MM-DD')),
       );
@@ -894,9 +922,11 @@ export const WeeklyScheduleBoard = ({
                   const dow = day.day();
                   const isToday = day.isSame(dayjs(), 'day');
                   const isLockedDay = !day.isSame(selectedMonth, 'month');
-                  const dayTemplates = templates
-                    .filter(t => t.dayOfWeek === dow)
-                    .sort(compareTemplatesByAreaAndName);
+                  const specialTemplates = templates.filter(t => t.effectiveDate === dateStr);
+                  const dayTemplates = (specialTemplates.length > 0
+                    ? specialTemplates
+                    : templates.filter(t => !t.effectiveDate && t.dayOfWeek === dow)
+                  ).sort(compareTemplatesByAreaAndName);
 
                   const daySlots = Object.values(slots).filter(
                     s => s.date === dateStr,
@@ -1203,9 +1233,11 @@ export const WeeklyScheduleBoard = ({
             const dow = day.day();
             const isToday = day.isSame(dayjs(), 'day');
             const isLocked = !day.isSame(selectedMonth, 'month');
-            const dayTemplates = templates
-              .filter(t => t.dayOfWeek === dow)
-              .sort(compareTemplatesByAreaAndName);
+            const specialTemplates = templates.filter(t => t.effectiveDate === dateStr);
+            const dayTemplates = (specialTemplates.length > 0
+              ? specialTemplates
+              : templates.filter(t => !t.effectiveDate && t.dayOfWeek === dow)
+            ).sort(compareTemplatesByAreaAndName);
             const daySlots = Object.values(slots).filter(s => s.date === dateStr);
             const assignedIds = new Set(daySlots.filter(s => s.employee).map(s => s.employee!.id));
             const freeEmployees = eligibleEmployees.filter(e => !assignedIds.has(e.id));
