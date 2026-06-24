@@ -19,11 +19,14 @@ internal static class EffectiveShiftTemplateCapacity
         TimeSpan endTime,
         CancellationToken cancellationToken)
     {
+        var utcDayStart = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
+        var utcDayEnd = utcDayStart.AddDays(1);
         var specialDate = await context.SpecialDates
             .AsNoTracking()
             .FirstOrDefaultAsync(sd =>
                 sd.BranchId == branchId &&
-                sd.Date.Date == date.Date &&
+                sd.Date >= utcDayStart &&
+                sd.Date < utcDayEnd &&
                 !sd.IsDeleted, cancellationToken);
 
         if (specialDate != null)
@@ -245,8 +248,6 @@ public class ReplaceWeeklyShiftAssignmentsCommandHandler
                     $"Los turnos del {group.Key.Date:dd/MM/yyyy} superan los cupos de la plantilla.");
         }
 
-        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-
         var existingAssignments = await _context.ShiftAssignments
             .Where(sa =>
                 sa.BranchId == request.BranchId &&
@@ -285,7 +286,6 @@ public class ReplaceWeeklyShiftAssignmentsCommandHandler
 
         _context.ShiftAssignments.AddRange(createdAssignments);
         await _context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
 
         return createdAssignments.Select(assignment => new ShiftAssignmentDto
         {

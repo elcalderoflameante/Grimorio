@@ -45,7 +45,7 @@ import {
 import { specialDateApi } from '../../services/specialDateApi';
 import { specialDateTemplateApi } from '../../services/specialDateTemplateApi';
 import { useAuth } from '../../context/useAuth';
-import { formatError } from '../../utils/errorHandler';
+import { formatError, getDetailedError } from '../../utils/errorHandler';
 import type { EmployeeDto, ShiftAssignmentDto, ShiftTemplateDto, SpecialDateTemplateDto } from '../../types';
 
 dayjs.locale('es');
@@ -559,7 +559,10 @@ export const WeeklyScheduleBoard = ({
 
       onConfirmed?.();
     } catch (err) {
-      message.error(formatError(err));
+      const details = getDetailedError(err);
+      message.error(details.detail
+        ? `${details.message}: ${details.detail}`
+        : formatError(err));
     } finally {
       if (isMounted.current) setConfirming(false);
     }
