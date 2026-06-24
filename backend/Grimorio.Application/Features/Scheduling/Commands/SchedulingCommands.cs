@@ -111,6 +111,14 @@ public class CreateShiftAssignmentCommand : IRequest<ShiftAssignmentDto>
     public string? Notes { get; set; }
 }
 
+public class ReplaceWeeklyShiftAssignmentsCommand : IRequest<List<ShiftAssignmentDto>>
+{
+    public Guid BranchId { get; set; }
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
+    public List<CreateShiftAssignmentCommand> Assignments { get; set; } = new();
+}
+
 public class UpdateShiftAssignmentCommand : IRequest<ShiftAssignmentDto>
 {
     public Guid Id { get; set; }

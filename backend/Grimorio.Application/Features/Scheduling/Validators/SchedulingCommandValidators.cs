@@ -122,6 +122,23 @@ public class CreateShiftAssignmentCommandValidator : AbstractValidator<CreateShi
     }
 }
 
+public class ReplaceWeeklyShiftAssignmentsCommandValidator : AbstractValidator<ReplaceWeeklyShiftAssignmentsCommand>
+{
+    public ReplaceWeeklyShiftAssignmentsCommandValidator()
+    {
+        RuleFor(x => x.BranchId).NotEmpty();
+        RuleFor(x => x.StartDate).NotEmpty();
+        RuleFor(x => x.EndDate)
+            .NotEmpty()
+            .GreaterThanOrEqualTo(x => x.StartDate);
+        RuleFor(x => x)
+            .Must(x => (x.EndDate.Date - x.StartDate.Date).TotalDays <= 6)
+            .WithMessage("El rango para confirmar no puede superar una semana.");
+        RuleForEach(x => x.Assignments)
+            .SetValidator(new CreateShiftAssignmentCommandValidator());
+    }
+}
+
 public class UpdateShiftAssignmentCommandValidator : AbstractValidator<UpdateShiftAssignmentCommand>
 {
     public UpdateShiftAssignmentCommandValidator()

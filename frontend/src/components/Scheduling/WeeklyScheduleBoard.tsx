@@ -515,68 +515,47 @@ export const WeeklyScheduleBoard = ({
         return;
       }
 
-      // Borrar turnos existentes de la semana y recrear
       const weekEnd = weekStart.add(6, 'day');
-      const weekDayStrings = new Set(
-        weekDays
-          .filter(d => d.isSame(selectedMonth, 'month'))
-          .map(d => d.format('YYYY-MM-DD')),
-      );
+      const daysToReplace = weekDays.filter(day => day.isSame(selectedMonth, 'month'));
+      if (daysToReplace.length === 0) return;
 
-      // Obtener turnos actuales de la semana
-      const uniqueYearMonth = Array.from(
-        new Set(weekDays.map(d => `${d.year()}-${d.month() + 1}`)),
-      ).map(v => {
-        const [year, month] = v.split('-').map(Number);
-        return { year, month };
+      const assignments = toSave.flatMap(slot => {
+        const tmpl = templates.find(template => template.id === slot.templateId);
+        if (!tmpl || !slot.employee) return [];
+        return [{
+          employeeId: slot.employee.id,
+          date: slot.date,
+          startTime: tmpl.startTime,
+          endTime: tmpl.endTime,
+          breakDuration: tmpl.breakDuration,
+          lunchDuration: tmpl.lunchDuration,
+          workAreaId: tmpl.workAreaId,
+          workRoleId: tmpl.workRoleId,
+          notes: tmpl.notes,
+        }];
       });
-      const existingResponses = await Promise.all(
-        uniqueYearMonth.map(({ year, month }) => scheduleShiftApi.getMonthly(branchId, year, month)),
+
+      const response = await scheduleShiftApi.replaceWeek(
+        branchId,
+        daysToReplace[0].format('YYYY-MM-DD'),
+        daysToReplace[daysToReplace.length - 1].format('YYYY-MM-DD'),
+        assignments,
       );
-      const weekShifts = existingResponses
-        .flatMap(res => (Array.isArray(res.data) ? res.data : []))
-        .filter(s => weekDayStrings.has(dayjs(s.date).format('YYYY-MM-DD')));
-
-      // Eliminar los existentes
-      await Promise.all(weekShifts.map(s => scheduleShiftApi.delete(s.id)));
-
-      // Crear los nuevos
-      const errors: string[] = [];
+      const savedAssignments = Array.isArray(response.data) ? response.data : [];
       const savedIdsBySlotKey: Record<string, string> = {};
-      for (const slot of toSave) {
-        const tmpl = templates.find(t => t.id === slot.templateId);
-        if (!tmpl || !slot.employee) continue;
-        try {
-          const response = await scheduleShiftApi.create({
-            employeeId: slot.employee.id,
-            date: slot.date,
-            startTime: tmpl.startTime,
-            endTime: tmpl.endTime,
-            breakDuration: tmpl.breakDuration,
-            lunchDuration: tmpl.lunchDuration,
-            workAreaId: tmpl.workAreaId,
-            workRoleId: tmpl.workRoleId,
-            notes: tmpl.notes,
-          });
-          savedIdsBySlotKey[slotId(slot)] = response.data.id;
-        } catch (error) {
-          errors.push(`${slot.employee.firstName} ${slot.employee.lastName} - ${slot.date}: ${formatError(error)}`);
-        }
-      }
+      toSave.forEach((slot, index) => {
+        const saved = savedAssignments[index];
+        if (saved) savedIdsBySlotKey[slotId(slot)] = saved.id;
+      });
 
-      if (errors.length) {
-        message.warning(`Semana confirmada con ${errors.length} error(es): ${errors.slice(0, 3).join(', ')}`);
-        await loadWeek();
-      } else {
-        setSlots(prev => {
-          const next = { ...prev };
-          for (const [key, id] of Object.entries(savedIdsBySlotKey)) {
-            if (next[key]) next[key] = { ...next[key], existingShiftId: id };
-          }
-          return next;
-        });
-        message.success(`Semana del ${weekStart.format('DD/MM')} al ${weekEnd.format('DD/MM')} confirmada correctamente.`);
-      }
+      setSlots(prev => {
+        const next = { ...prev };
+        for (const [key, id] of Object.entries(savedIdsBySlotKey)) {
+          if (next[key]) next[key] = { ...next[key], existingShiftId: id };
+        }
+        return next;
+      });
+      message.success(`Semana del ${weekStart.format('DD/MM')} al ${weekEnd.format('DD/MM')} confirmada correctamente.`);
 
       onConfirmed?.();
     } catch (err) {

@@ -385,9 +385,21 @@ export const scheduleShiftApi = {
     }),
   getFreeEmployees: (branchId: string, date: string): Promise<AxiosResponse<EmployeeDto[]>> =>
     apiClient.get<EmployeeDto[]>('/scheduling/shifts/free-employees', { params: { branchId, date } }),
-  create: (data: CreateShiftAssignmentDto): Promise<AxiosResponse<ShiftAssignmentDto>> =>
-    apiClient.post<ShiftAssignmentDto>('/scheduling/shifts', data),
-  getEligibleEmployees: (): Promise<AxiosResponse<EmployeeDto[]>> =>
+    create: (data: CreateShiftAssignmentDto): Promise<AxiosResponse<ShiftAssignmentDto>> =>
+      apiClient.post<ShiftAssignmentDto>('/scheduling/shifts', data),
+    replaceWeek: (
+      branchId: string,
+      startDate: string,
+      endDate: string,
+      assignments: CreateShiftAssignmentDto[]
+    ): Promise<AxiosResponse<ShiftAssignmentDto[]>> =>
+      apiClient.post<ShiftAssignmentDto[]>('/scheduling/shifts/replace-week', {
+        branchId,
+        startDate,
+        endDate,
+        assignments,
+      }),
+    getEligibleEmployees: (): Promise<AxiosResponse<EmployeeDto[]>> =>
     apiClient.get<EmployeeDto[]>('/scheduling/employees/eligible'),
   update: (id: string, data: UpdateShiftAssignmentDto): Promise<AxiosResponse<ShiftAssignmentDto>> =>
     apiClient.put<ShiftAssignmentDto>(`/scheduling/shifts/${id}`, data),

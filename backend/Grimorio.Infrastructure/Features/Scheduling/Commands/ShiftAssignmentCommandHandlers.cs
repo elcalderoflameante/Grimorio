@@ -166,6 +166,149 @@ public class CreateShiftAssignmentCommandHandler : IRequestHandler<CreateShiftAs
     }
 }
 
+public class ReplaceWeeklyShiftAssignmentsCommandHandler
+    : IRequestHandler<ReplaceWeeklyShiftAssignmentsCommand, List<ShiftAssignmentDto>>
+{
+    private readonly GrimorioDbContext _context;
+
+    public ReplaceWeeklyShiftAssignmentsCommandHandler(GrimorioDbContext context) => _context = context;
+
+    public async Task<List<ShiftAssignmentDto>> Handle(
+        ReplaceWeeklyShiftAssignmentsCommand request,
+        CancellationToken cancellationToken)
+    {
+        var startDate = request.StartDate.Date;
+        var endDate = request.EndDate.Date;
+        var assignments = request.Assignments;
+
+        if (assignments.Any(a => a.Date.Date < startDate || a.Date.Date > endDate))
+            throw new InvalidOperationException("Hay turnos fuera del rango de la semana a confirmar.");
+
+        var duplicateEmployeeDay = assignments
+            .GroupBy(a => new { a.EmployeeId, Date = a.Date.Date })
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicateEmployeeDay != null)
+            throw new InvalidOperationException("Un empleado no puede ocupar más de un turno en el mismo día.");
+
+        var employeeIds = assignments.Select(a => a.EmployeeId).Distinct().ToList();
+        var employees = await _context.Employees
+            .AsNoTracking()
+            .Where(e =>
+                employeeIds.Contains(e.Id) &&
+                e.BranchId == request.BranchId &&
+                !e.IsDeleted)
+            .ToDictionaryAsync(e => e.Id, cancellationToken);
+        if (employees.Count != employeeIds.Count)
+            throw new InvalidOperationException("Uno o más empleados no existen en la sucursal seleccionada.");
+
+        var areaIds = assignments.Select(a => a.WorkAreaId).Distinct().ToList();
+        var areas = await _context.WorkAreas
+            .AsNoTracking()
+            .Where(a => areaIds.Contains(a.Id) && a.BranchId == request.BranchId && !a.IsDeleted)
+            .ToDictionaryAsync(a => a.Id, cancellationToken);
+        if (areas.Count != areaIds.Count)
+            throw new InvalidOperationException("Una o más áreas de trabajo no existen en la sucursal seleccionada.");
+
+        var roleIds = assignments.Select(a => a.WorkRoleId).Distinct().ToList();
+        var roles = await _context.WorkRoles
+            .AsNoTracking()
+            .Where(r => roleIds.Contains(r.Id) && !r.IsDeleted)
+            .ToDictionaryAsync(r => r.Id, cancellationToken);
+        if (roles.Count != roleIds.Count)
+            throw new InvalidOperationException("Uno o más roles de trabajo no existen.");
+
+        var templateGroups = assignments.GroupBy(a => new
+        {
+            Date = a.Date.Date,
+            a.WorkAreaId,
+            a.WorkRoleId,
+            a.StartTime,
+            a.EndTime
+        });
+        foreach (var group in templateGroups)
+        {
+            var capacity = await EffectiveShiftTemplateCapacity.GetAsync(
+                _context,
+                request.BranchId,
+                group.Key.Date,
+                group.Key.WorkAreaId,
+                group.Key.WorkRoleId,
+                group.Key.StartTime,
+                group.Key.EndTime,
+                cancellationToken);
+
+            if (capacity == 0)
+                throw new InvalidOperationException(
+                    $"No existe una plantilla efectiva para el turno del {group.Key.Date:dd/MM/yyyy}.");
+            if (group.Count() > capacity)
+                throw new InvalidOperationException(
+                    $"Los turnos del {group.Key.Date:dd/MM/yyyy} superan los cupos de la plantilla.");
+        }
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+
+        var existingAssignments = await _context.ShiftAssignments
+            .Where(sa =>
+                sa.BranchId == request.BranchId &&
+                sa.Date.Date >= startDate &&
+                sa.Date.Date <= endDate &&
+                !sa.IsDeleted)
+            .ToListAsync(cancellationToken);
+        foreach (var existing in existingAssignments)
+        {
+            existing.IsDeleted = true;
+            existing.DeletedAt = DateTime.UtcNow;
+        }
+
+        var createdAssignments = assignments.Select(item =>
+        {
+            var breakMinutes = item.BreakDuration?.TotalMinutes ?? 0;
+            var lunchMinutes = item.LunchDuration?.TotalMinutes ?? 0;
+            var totalMinutes = (item.EndTime - item.StartTime).TotalMinutes - breakMinutes - lunchMinutes;
+
+            return new ShiftAssignment
+            {
+                BranchId = request.BranchId,
+                EmployeeId = item.EmployeeId,
+                Date = item.Date.Date,
+                StartTime = item.StartTime,
+                EndTime = item.EndTime,
+                BreakDuration = item.BreakDuration,
+                LunchDuration = item.LunchDuration,
+                WorkAreaId = item.WorkAreaId,
+                WorkRoleId = item.WorkRoleId,
+                WorkedHours = (decimal)(totalMinutes / 60.0),
+                Notes = item.Notes,
+                IsApproved = false,
+            };
+        }).ToList();
+
+        _context.ShiftAssignments.AddRange(createdAssignments);
+        await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return createdAssignments.Select(assignment => new ShiftAssignmentDto
+        {
+            Id = assignment.Id,
+            EmployeeId = assignment.EmployeeId,
+            EmployeeName = $"{employees[assignment.EmployeeId].FirstName} {employees[assignment.EmployeeId].LastName}",
+            Date = assignment.Date,
+            StartTime = assignment.StartTime,
+            EndTime = assignment.EndTime,
+            BreakDuration = assignment.BreakDuration,
+            LunchDuration = assignment.LunchDuration,
+            WorkAreaId = assignment.WorkAreaId,
+            WorkAreaName = areas[assignment.WorkAreaId].Name,
+            WorkAreaColor = areas[assignment.WorkAreaId].Color,
+            WorkRoleId = assignment.WorkRoleId,
+            WorkRoleName = roles[assignment.WorkRoleId].Name,
+            WorkedHours = assignment.WorkedHours,
+            Notes = assignment.Notes,
+            IsApproved = assignment.IsApproved,
+        }).ToList();
+    }
+}
+
 public class UpdateShiftAssignmentCommandHandler : IRequestHandler<UpdateShiftAssignmentCommand, ShiftAssignmentDto>
 {
     private readonly GrimorioDbContext _context;

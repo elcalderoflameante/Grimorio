@@ -429,6 +429,30 @@ public class SchedulingController : ControllerBase
     /// Crea una asignación de turno.
     /// </summary>
     [Authorize(Policy = "RRHH.Scheduling.Manage")]
+    [HttpPost("shifts/replace-week")]
+    public async Task<IActionResult> ReplaceWeeklyShiftAssignments(
+        [FromBody] ReplaceWeeklyShiftAssignmentsCommand command)
+    {
+        try
+        {
+            var result = await _mediator.Send(command);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new
+            {
+                message = "No se pudo confirmar la semana. Los turnos anteriores no fueron modificados.",
+                error = ex.GetBaseException().Message
+            });
+        }
+    }
+
+    [Authorize(Policy = "RRHH.Scheduling.Manage")]
     [HttpPost("shifts")]
     public async Task<IActionResult> CreateShiftAssignment([FromBody] CreateShiftAssignmentCommand command)
     {
