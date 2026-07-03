@@ -313,8 +313,19 @@ public class OrderPaymentDto
     public decimal OrderAmount { get; set; }
     public DateTime PaidAt { get; set; }
     public List<PaymentLineDto> Lines { get; set; } = [];
+    public List<OrderPaymentItemDto> Items { get; set; } = [];
     public Guid? ElectronicDocumentId { get; set; }
     public string? ElectronicDocumentStatus { get; set; }
+}
+
+public class OrderPaymentItemDto
+{
+    public Guid Id { get; set; }
+    public Guid OrderItemId { get; set; }
+    public string ItemName { get; set; } = string.Empty;
+    public decimal Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal Total { get; set; }
 }
 
 public class SalesProfitabilityReportDto
@@ -386,6 +397,13 @@ public class AddOrderPaymentDto
     public Guid? CustomerId { get; set; }
     public Guid? CashSessionId { get; set; }
     public List<AddPaymentLineDto> Lines { get; set; } = [];
+    public List<AddOrderPaymentItemDto> Items { get; set; } = [];
+}
+
+public class AddOrderPaymentItemDto
+{
+    public Guid OrderItemId { get; set; }
+    public decimal Quantity { get; set; }
 }
 
 // ── InvoiceTemplate ───────────────────────────────────────────────────────────

@@ -247,6 +247,23 @@ public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQue
                 .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.Quantity) })
                 .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, ct);
 
+        var reservedByArticle = articleIds.Count == 0
+            ? new Dictionary<Guid, decimal>()
+            : await _db.StockReservations
+                .AsNoTracking()
+                .Where(x => x.BranchId == req.BranchId
+                    && !x.IsDeleted
+                    && articleIds.Contains(x.ArticleId)
+                    && x.Status == Grimorio.Domain.Entities.Inventory.StockReservationStatus.Active)
+                .GroupBy(x => x.ArticleId)
+                .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.BaseQuantity) })
+                .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, ct);
+
+        foreach (var (articleId, reservedQuantity) in reservedByArticle)
+        {
+            stockByArticle[articleId] = Math.Max(0, stockByArticle.GetValueOrDefault(articleId) - reservedQuantity);
+        }
+
         var conversions = await _db.UnitConversions
             .AsNoTracking()
             .Where(x => x.BranchId == req.BranchId && !x.IsDeleted)

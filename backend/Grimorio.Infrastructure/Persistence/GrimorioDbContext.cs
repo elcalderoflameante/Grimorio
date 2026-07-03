@@ -81,6 +81,7 @@ public class GrimorioDbContext : DbContext
     public DbSet<CashRegister> CashRegisters { get; set; } = null!;
     public DbSet<CashSession> CashSessions { get; set; } = null!;
     public DbSet<OrderPayment> OrderPayments { get; set; } = null!;
+    public DbSet<OrderPaymentItem> OrderPaymentItems { get; set; } = null!;
     public DbSet<PaymentLine> PaymentLines { get; set; } = null!;
 
     // === Menú ===
@@ -102,6 +103,7 @@ public class GrimorioDbContext : DbContext
     public DbSet<Warehouse> Warehouses { get; set; } = null!;
     public DbSet<WarehouseStock> WarehouseStock { get; set; } = null!;
     public DbSet<StockMovement> StockMovements { get; set; } = null!;
+    public DbSet<StockReservation> StockReservations { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

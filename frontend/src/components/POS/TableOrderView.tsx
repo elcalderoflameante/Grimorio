@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Alert, Button, Card, Checkbox, Col, Divider, Empty, Input, InputNumber,
+  Alert, Button, Card, Checkbox, Col, Divider, Empty, Input, InputNumber, Popconfirm,
   List, Modal, Row, Select, Space, Spin, Tabs, Tag, Tooltip, Typography, message,
 } from 'antd';
 import {
@@ -76,7 +76,7 @@ interface CartLine {
 
 interface Props {
   orderId: string;
-  table: RestaurantTableDto;
+  table?: RestaurantTableDto;
   branchId: string;
   onClose: () => void;
   onTableUpdated: () => void;
@@ -110,8 +110,11 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const [payLines, setPayLines] = useState<PayLine[]>([]);
   const [splitRows, setSplitRows] = useState<Record<string, SplitRow>>({});
   const [paying, setPaying] = useState(false);
+  const [cancellingOrder, setCancellingOrder] = useState(false);
+  const [cancellingItemId, setCancellingItemId] = useState<string | null>(null);
   const [cashSessionId, setCashSessionId] = useState<string | undefined>(undefined);
   const canUpdateOrders = hasPermission(PERMISSIONS.pos.ordersUpdate);
+  const canCancelOrders = hasPermission(PERMISSIONS.pos.ordersCancel);
   const canChargeOrders = hasPermission(PERMISSIONS.billing.cashCharge);
 
   const loadAll = useCallback(async () => {
@@ -138,7 +141,20 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       if (methodsRes.status === 'fulfilled') setMethods(methodsRes.value.data);
       if (banksRes.status === 'fulfilled') setCardBanks(banksRes.value.data);
       if (catsRes.status === 'fulfilled') setCategories(catsRes.value.data);
-      if (itemsRes.status === 'fulfilled') setMenuItems(itemsRes.value.data);
+      if (itemsRes.status === 'fulfilled') {
+        let loadedMenuItems = itemsRes.value.data;
+        if (orderRes.status === 'fulfilled') {
+          const itemIdsWithChoices = [...new Set(orderRes.value.data.items
+            .filter(i => i.ingredientChoices?.length > 0)
+            .map(i => i.menuItemId))];
+          if (itemIdsWithChoices.length > 0) {
+            const details = await Promise.all(itemIdsWithChoices.map(id => menuApi.getItem(id).then(r => r.data)));
+            const detailsById = new Map(details.map(item => [item.id, item]));
+            loadedMenuItems = loadedMenuItems.map(item => detailsById.get(item.id) ?? item);
+          }
+        }
+        setMenuItems(loadedMenuItems);
+      }
       setCashSessionId(sessionRes.status === 'fulfilled' ? sessionRes.value.data.id : undefined);
     } finally {
       setLoading(false);
@@ -168,6 +184,21 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   }, [cardBanks, methods, showPayModal]);
 
   const alreadyPaid = payments.reduce((s, p) => s + p.orderAmount, 0);
+  const paidQtyByItem = payments.reduce<Record<string, number>>((acc, payment) => {
+    payment.items?.forEach(item => {
+      acc[item.orderItemId] = (acc[item.orderItemId] ?? 0) + item.quantity;
+    });
+    return acc;
+  }, {});
+  const hasAmbiguousPayments = payments.some(payment => !payment.items?.length);
+  const getPendingItemQty = (itemId: string, quantity: number) =>
+    Math.max(0, quantity - (paidQtyByItem[itemId] ?? 0));
+  const isItemPaid = (itemId: string) => (paidQtyByItem[itemId] ?? 0) > 0;
+  const activeOrderItems = order?.items.filter(item => item.status !== 'Cancelled') ?? [];
+  const canCancelWholeOrder = canCancelOrders
+    && payments.length === 0
+    && activeOrderItems.length > 0
+    && activeOrderItems.every(item => item.status === 'Pending');
   const remaining = order ? Math.max(0, order.total - alreadyPaid) : 0;
   const isFullyPaid = remaining <= 0.01;
   const cartSubtotal = cart.reduce((s, l) => s + l.price * l.quantity, 0);
@@ -175,7 +206,9 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const splitSubtotal = order
     ? order.items.reduce((sum, item) => {
         const row = splitRows[item.id];
-        return row?.checked ? sum + item.unitPrice * row.qty : sum;
+        const pendingQty = getPendingItemQty(item.id, item.quantity);
+        const qty = Math.min(row?.qty ?? pendingQty, pendingQty);
+        return row?.checked ? sum + item.unitPrice * qty : sum;
       }, 0)
     : 0;
 
@@ -318,6 +351,15 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         documentType: docType,
         customerId: customer?.id,
         cashSessionId,
+        items: payTab === 'split'
+          ? order.items
+              .filter(item => splitRows[item.id]?.checked)
+              .map(item => ({
+                orderItemId: item.id,
+                quantity: Math.min(splitRows[item.id]?.qty ?? 0, getPendingItemQty(item.id, item.quantity)),
+              }))
+              .filter(item => item.quantity > 0)
+          : [],
         lines: payLines.map(l => ({
           methodId: l.methodId,
           amountTendered: l.amountTendered,
@@ -337,6 +379,38 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       message.error(err?.response?.data?.message ?? 'Error al registrar cobro');
     } finally {
       setPaying(false);
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    if (!order) return;
+    setCancellingOrder(true);
+    try {
+      await posApi.cancelOrder(order.id);
+      message.success('Orden cancelada');
+      await loadAll();
+      onTableUpdated();
+      onClose();
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } };
+      message.error(err?.response?.data?.message ?? 'Error al cancelar la orden');
+    } finally {
+      setCancellingOrder(false);
+    }
+  };
+
+  const handleCancelItem = async (orderItemId: string) => {
+    setCancellingItemId(orderItemId);
+    try {
+      await posApi.cancelOrderItem(orderItemId);
+      message.success('Item cancelado');
+      await loadAll();
+      onTableUpdated();
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } };
+      message.error(err?.response?.data?.message ?? 'Error al cancelar el item');
+    } finally {
+      setCancellingItemId(null);
     }
   };
 
@@ -479,8 +553,10 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
         Selecciona los ítems de este cobro:
       </Text>
-      {order.items.filter(i => i.status !== 'Cancelled').map(item => {
-        const row = splitRows[item.id] ?? { checked: false, qty: item.quantity };
+      {order.items.filter(i => i.status !== 'Cancelled' && getPendingItemQty(i.id, i.quantity) > 0).map(item => {
+        const pendingQty = getPendingItemQty(item.id, item.quantity);
+        const row = splitRows[item.id] ?? { checked: false, qty: pendingQty };
+        const selectedQty = Math.min(row.qty, pendingQty);
         return (
           <div key={item.id} style={{
             display: 'flex', alignItems: 'center', gap: 8,
@@ -491,7 +567,12 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
             <Checkbox
               checked={row.checked}
               onChange={e => setSplitRows(prev => ({
-                ...prev, [item.id]: { ...prev[item.id], checked: e.target.checked },
+                ...prev,
+                [item.id]: {
+                  ...prev[item.id],
+                  checked: e.target.checked,
+                  qty: Math.min(prev[item.id]?.qty ?? pendingQty, pendingQty),
+                },
               }))}
             />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -500,14 +581,14 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
             </div>
             {row.checked ? (
               <InputNumber
-                size="small" min={1} max={item.quantity} value={row.qty} style={{ width: 60 }}
-                onChange={v => setSplitRows(prev => ({ ...prev, [item.id]: { ...prev[item.id], qty: v ?? 1 } }))}
+                size="small" min={1} max={pendingQty} value={selectedQty} style={{ width: 60 }}
+                onChange={v => setSplitRows(prev => ({ ...prev, [item.id]: { ...prev[item.id], qty: Math.min(v ?? 1, pendingQty) } }))}
               />
             ) : (
-              <Text type="secondary" style={{ fontSize: 12 }}>×{item.quantity}</Text>
+              <Text type="secondary" style={{ fontSize: 12 }}>×{pendingQty}</Text>
             )}
             <Text strong style={{ width: 60, textAlign: 'right', fontSize: 13 }}>
-              ${(item.unitPrice * (row.checked ? row.qty : item.quantity)).toFixed(2)}
+              ${(item.unitPrice * (row.checked ? selectedQty : pendingQty)).toFixed(2)}
             </Text>
           </div>
         );
@@ -524,7 +605,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         <Space>
           <Button icon={<ArrowLeftOutlined />} onClick={onClose}>Volver al mapa</Button>
-          <Title level={5} style={{ margin: 0 }}>Mesa {table.code}</Title>
+          <Title level={5} style={{ margin: 0 }}>{table ? `Mesa ${table.code}` : 'Venta directa'}</Title>
           <Tag>Orden #{order.number}</Tag>
           <Tag color={STATUS_COLORS[order.status]}>{STATUS_LABELS[order.status] ?? order.status}</Tag>
         </Space>
@@ -615,7 +696,12 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                 <List
                   dataSource={order.items}
                   size="small"
-                  renderItem={item => (
+                  renderItem={item => {
+                    const canCancelItem = canCancelOrders
+                      && item.status === 'Pending'
+                      && !isItemPaid(item.id)
+                      && !hasAmbiguousPayments;
+                    return (
                     <List.Item style={{ padding: '4px 0' }}>
                       <div style={{ width: '100%', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                         <Text strong style={{ minWidth: 24, fontSize: 13 }}>{item.quantity}×</Text>
@@ -633,12 +719,30 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                         <Tag color={ITEM_STATUS_COLORS[item.status]} style={{ fontSize: 11 }}>
                           {ITEM_STATUS_LABELS[item.status] ?? item.status}
                         </Tag>
+                        {canCancelItem && (
+                          <Popconfirm
+                            title="Cancelar item"
+                            description="Se liberara la reserva de inventario de este plato."
+                            okText="Si, cancelar"
+                            cancelText="No"
+                            onConfirm={() => handleCancelItem(item.id)}
+                          >
+                            <Button
+                              danger
+                              size="small"
+                              type="text"
+                              icon={<DeleteOutlined />}
+                              loading={cancellingItemId === item.id}
+                            />
+                          </Popconfirm>
+                        )}
                         <Text strong style={{ minWidth: 56, textAlign: 'right', fontSize: 13 }}>
                           ${item.totalPrice.toFixed(2)}
                         </Text>
                       </div>
                     </List.Item>
-                  )}
+                    );
+                  }}
                 />
 
                 {cart.length > 0 && (
@@ -762,6 +866,19 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                 Guardar nuevos ítems
               </Button>
             )}
+            {canCancelWholeOrder && (
+              <Popconfirm
+                title="Cancelar orden"
+                description={table ? 'Se liberaran las reservas de inventario y la mesa quedara disponible.' : 'Se liberaran las reservas de inventario de esta venta.'}
+                okText="Si, cancelar"
+                cancelText="No"
+                onConfirm={handleCancelOrder}
+              >
+                <Button block danger loading={cancellingOrder} icon={<DeleteOutlined />}>
+                  Cancelar orden
+                </Button>
+              </Popconfirm>
+            )}
             {isFullyPaid ? (
               <Alert type="success" icon={<CheckCircleOutlined />} title="Orden pagada completamente" showIcon />
             ) : canChargeOrders ? (
@@ -782,7 +899,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         title={
           <Space>
             <Text strong>Cobrar Orden #{order.number}</Text>
-            <Tag>{table.code}</Tag>
+            <Tag>{table?.code ?? 'Mostrador'}</Tag>
           </Space>
         }
         open={showPayModal}

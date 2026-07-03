@@ -162,6 +162,7 @@ public static class AuthSeeder
             [
                 AppConstants.Permissions.AdminBranchView,
                 AppConstants.Permissions.PosOrdersView,
+                AppConstants.Permissions.PosDirectSaleCreate,
                 AppConstants.Permissions.PosTablesView,
                 AppConstants.Permissions.BillingCustomersView,
                 AppConstants.Permissions.BillingCustomersManage,

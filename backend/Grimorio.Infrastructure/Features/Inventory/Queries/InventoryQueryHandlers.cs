@@ -202,6 +202,23 @@ public class GetCurrentStockHandler : IRequestHandler<GetCurrentStockQuery, List
                 })
                 .ToListAsync(ct);
 
+        var reservationsQuery = _db.StockReservations
+            .AsNoTracking()
+            .Where(r => r.BranchId == req.BranchId
+                && articleIds.Contains(r.ArticleId)
+                && r.Status == StockReservationStatus.Active
+                && !r.IsDeleted);
+
+        if (req.WarehouseId.HasValue)
+            reservationsQuery = reservationsQuery.Where(r => r.WarehouseId == req.WarehouseId.Value);
+
+        var reservedByArticleWarehouse = articleIds.Count == 0
+            ? new Dictionary<(Guid ArticleId, Guid WarehouseId), decimal>()
+            : await reservationsQuery
+                .GroupBy(r => new { r.ArticleId, r.WarehouseId })
+                .Select(g => new { g.Key.ArticleId, g.Key.WarehouseId, Quantity = g.Sum(r => r.BaseQuantity) })
+                .ToDictionaryAsync(x => (x.ArticleId, x.WarehouseId), x => x.Quantity, ct);
+
         var result = new List<WarehouseStockDto>();
 
         foreach (var a in articles)
@@ -235,6 +252,8 @@ public class GetCurrentStockHandler : IRequestHandler<GetCurrentStockQuery, List
                 foreach (var s in stocks)
                 {
                     if (req.WarehouseId.HasValue && s.WarehouseId != req.WarehouseId.Value) continue;
+                    var reservedQuantity = reservedByArticleWarehouse.GetValueOrDefault((s.ArticleId, s.WarehouseId));
+                    var availableQuantity = Math.Max(0, s.Quantity - reservedQuantity);
                     result.Add(new WarehouseStockDto
                     {
                         ArticleId = a.Id,
@@ -246,9 +265,11 @@ public class GetCurrentStockHandler : IRequestHandler<GetCurrentStockQuery, List
                         WarehouseId = s.WarehouseId,
                         WarehouseName = s.WarehouseName,
                         Quantity = s.Quantity,
+                        ReservedQuantity = reservedQuantity,
+                        AvailableQuantity = availableQuantity,
                         UnitSymbol = a.BaseUnit?.Symbol ?? string.Empty,
                         MinStock = a.MinStock,
-                        LowStock = a.StockAlertActive && s.Quantity <= a.MinStock,
+                        LowStock = a.StockAlertActive && availableQuantity <= a.MinStock,
                         LastUpdatedAt = s.LastUpdatedAt,
                     });
                 }

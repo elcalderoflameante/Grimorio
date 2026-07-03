@@ -50,6 +50,15 @@ public class CreateOrderCommand : IRequest<OrderDto>
     public List<CreateOrderItemDto> Items { get; set; } = [];
 }
 
+public class CreateDirectSaleCommand : IRequest<OrderDto>
+{
+    public Guid BranchId { get; set; }
+    public Guid? CashierId { get; set; }
+    public string? CustomerName { get; set; }
+    public string? Notes { get; set; }
+    public List<CreateOrderItemDto> Items { get; set; } = [];
+}
+
 public class UpdateOrderItemsCommand : IRequest<OrderDto>
 {
     public Guid OrderId { get; set; }
@@ -72,6 +81,12 @@ public class DeliverOrderCommand : IRequest<OrderDto>
 public class CancelOrderCommand : IRequest<OrderDto>
 {
     public Guid OrderId { get; set; }
+    public Guid BranchId { get; set; }
+}
+
+public class CancelOrderItemCommand : IRequest<OrderDto>
+{
+    public Guid OrderItemId { get; set; }
     public Guid BranchId { get; set; }
 }
 

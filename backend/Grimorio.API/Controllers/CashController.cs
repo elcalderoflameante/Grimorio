@@ -280,6 +280,11 @@ public class CashController : ControllerBase
                 CardBrand = l.CardBrand,
                 AuthorizationNumber = l.AuthorizationNumber,
             }).ToList(),
+            Items = dto.Items.Select(i => new PaymentItemCommand
+            {
+                OrderItemId = i.OrderItemId,
+                Quantity = i.Quantity,
+            }).ToList(),
         });
         return Ok(result);
     }

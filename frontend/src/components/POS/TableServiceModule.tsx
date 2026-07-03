@@ -97,7 +97,7 @@ const normalizeTable = (raw: unknown): RestaurantTableDto => {
     isActive: Boolean(table.isActive ?? table.IsActive ?? true),
     posX: Number((table as RestaurantTableDto).posX ?? 0),
     posY: Number((table as RestaurantTableDto).posY ?? 0),
-    currentStatus: ((table as RestaurantTableDto).currentStatus ?? 'Free') as 'Free' | 'Occupied',
+    currentStatus: ((table as RestaurantTableDto).currentStatus ?? 'Free') as RestaurantTableDto['currentStatus'],
     currentOrderId: (table as RestaurantTableDto).currentOrderId,
   };
 };

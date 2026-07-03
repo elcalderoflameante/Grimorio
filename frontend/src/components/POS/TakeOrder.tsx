@@ -21,6 +21,7 @@ interface Props {
   table?: RestaurantTableDto;
   orderType: OrderType;
   existingOrder?: OrderDto;
+  directSale?: boolean;
   onClose: () => void;
   onConfirm: (order: OrderDto) => void;
 }
@@ -50,7 +51,7 @@ function choicesLabel(choices: CreateIngredientChoiceDto[] | undefined, items: M
   }).filter(Boolean).join(', ');
 }
 
-export default function TakeOrder({ table, orderType, existingOrder, onClose, onConfirm }: Props) {
+export default function TakeOrder({ table, orderType, existingOrder, directSale = false, onClose, onConfirm }: Props) {
   const [categories, setCategories] = useState<MenuCategoryDto[]>([]);
   const [items, setItems] = useState<MenuItemDto[]>([]);
   const [availability, setAvailability] = useState<MenuItemAvailabilityDto[]>([]);
@@ -78,8 +79,20 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
           menuApi.getItems({ activeOnly: true, availableOnly: true, lightweight: true }),
         ]);
         const stock = await menuApi.getAvailability({ activeOnly: true, availableOnly: true });
+        let menuItems = its.data;
+        if (existingOrder) {
+          const itemIdsWithChoices = [...new Set(existingOrder.items
+            .filter(i => i.ingredientChoices?.length > 0)
+            .map(i => i.menuItemId))];
+          if (itemIdsWithChoices.length > 0) {
+            const details = await Promise.all(itemIdsWithChoices.map(id => menuApi.getItem(id).then(r => r.data)));
+            const detailsById = new Map(details.map(item => [item.id, item]));
+            menuItems = menuItems.map(item => detailsById.get(item.id) ?? item);
+          }
+        }
+
         setCategories(cats.data);
-        setItems(its.data);
+        setItems(menuItems);
         setAvailability(stock.data);
         if (cats.data.length > 0) setActiveCategory(cats.data[0].id);
 
@@ -301,6 +314,18 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
       }));
 
       let order: OrderDto;
+      if (directSale) {
+        order = (await posApi.createDirectSale({
+          type: 'Takeout',
+          customerName: clientName || undefined,
+          notes: notes || undefined,
+          items: itemsPayload,
+        })).data;
+        message.success(`Venta #${order.number} lista para cobrar`);
+        onConfirm(order);
+        return;
+      }
+
       if (existingOrder) {
         order = (await posApi.updateItems(existingOrder.id, itemsPayload)).data;
       } else {
@@ -316,7 +341,7 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
 
       if (confirm) {
         order = (await posApi.confirmOrder(order.id)).data;
-        message.success(`Pedido #${order.number} enviado a cocina`);
+        message.success(`Pedido #${order.number} enviado a preparar`);
         onConfirm(order);
       } else {
         message.success('Pedido guardado como borrador');
@@ -335,7 +360,7 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
         <Button icon={<ArrowLeftOutlined />} onClick={onClose} />
         <div>
           <Title level={5} style={{ margin: 0 }}>
-            {orderType === 'DineIn' && table ? `Mesa ${table.code}` : orderType === 'Takeout' ? 'Para llevar' : 'Delivery'}
+            {directSale ? 'Venta directa' : orderType === 'DineIn' && table ? `Mesa ${table.code}` : orderType === 'Takeout' ? 'Para llevar' : 'Delivery'}
           </Title>
           {(orderType === 'Takeout' || orderType === 'Delivery') && (
             <Text type="secondary" style={{ fontSize: 12 }}>
@@ -343,7 +368,9 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
             </Text>
           )}
         </div>
-        <Tag color={orderType === 'DineIn' ? 'blue' : orderType === 'Takeout' ? 'orange' : 'purple'}>{orderType}</Tag>
+        <Tag color={directSale ? 'green' : orderType === 'DineIn' ? 'blue' : orderType === 'Takeout' ? 'orange' : 'purple'}>
+          {directSale ? 'Mostrador' : orderType}
+        </Tag>
       </div>
 
       {/* Cliente info for non-table orders */}
@@ -542,11 +569,13 @@ export default function TakeOrder({ table, orderType, existingOrder, onClose, on
 
             <Space direction="vertical" style={{ width: '100%' }} size={6}>
               <Button type="primary" icon={<SendOutlined />} block loading={saving} disabled={lines.length === 0} onClick={() => handleSave(true)}>
-                Enviar a cocina
+                {directSale ? 'Crear venta' : 'Enviar a preparar'}
               </Button>
-              <Button icon={<CheckOutlined />} block loading={saving} disabled={lines.length === 0} onClick={() => handleSave(false)}>
-                Guardar borrador
-              </Button>
+              {!directSale && (
+                <Button icon={<CheckOutlined />} block loading={saving} disabled={lines.length === 0} onClick={() => handleSave(false)}>
+                  Guardar borrador
+                </Button>
+              )}
             </Space>
           </div>
         </Col>

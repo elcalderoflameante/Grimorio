@@ -686,7 +686,7 @@ export interface RestaurantTableDto {
   isActive: boolean;
   posX: number;
   posY: number;
-  currentStatus: 'Free' | 'Occupied';
+  currentStatus: 'Free' | 'Draft' | 'Occupied';
   currentOrderId?: string;
 }
 
@@ -864,6 +864,8 @@ export interface WarehouseStockDto {
   warehouseId: string;
   warehouseName: string;
   quantity: number;
+  reservedQuantity: number;
+  availableQuantity: number;
   unitSymbol: string;
   minStock: number;
   lowStock: boolean;
@@ -1481,8 +1483,18 @@ export interface OrderPaymentDto {
   orderAmount: number;
   paidAt: string;
   lines: PaymentLineDto[];
+  items: OrderPaymentItemDto[];
   electronicDocumentId?: string;
   electronicDocumentStatus?: string;
+}
+
+export interface OrderPaymentItemDto {
+  id: string;
+  orderItemId: string;
+  itemName: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
 }
 
 export interface SalesProfitabilityItemDto {
@@ -1549,6 +1561,12 @@ export interface AddOrderPaymentDto {
   customerId?: string;
   cashSessionId?: string;
   lines: AddPaymentLineDto[];
+  items: AddOrderPaymentItemDto[];
+}
+
+export interface AddOrderPaymentItemDto {
+  orderItemId: string;
+  quantity: number;
 }
 
 // ── Billing: IVA y configuración fiscal ──────────────────────────────────────

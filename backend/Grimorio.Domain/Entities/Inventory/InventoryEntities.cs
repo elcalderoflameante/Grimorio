@@ -25,6 +25,13 @@ public enum MovementType
     NegativeAdjustment = 12,
 }
 
+public enum StockReservationStatus
+{
+    Active = 1,
+    Consumed = 2,
+    Released = 3,
+}
+
 public class MeasurementUnit : BaseEntity
 {
     public string Name { get; set; } = string.Empty;
@@ -72,6 +79,7 @@ public class InventoryArticle : BaseEntity
     public virtual MeasurementUnit? BaseUnit { get; set; }
     public virtual ICollection<WarehouseStock> Stocks { get; set; } = [];
     public virtual ICollection<StockMovement> Movements { get; set; } = [];
+    public virtual ICollection<StockReservation> Reservations { get; set; } = [];
 }
 
 public class Warehouse : BaseEntity
@@ -83,6 +91,7 @@ public class Warehouse : BaseEntity
 
     public virtual ICollection<WarehouseStock> Stocks { get; set; } = [];
     public virtual ICollection<StockMovement> Movements { get; set; } = [];
+    public virtual ICollection<StockReservation> Reservations { get; set; } = [];
 }
 
 public class WarehouseStock : BaseEntity
@@ -107,6 +116,25 @@ public class StockMovement : BaseEntity
     public string? Reference { get; set; }
     public string? Notes { get; set; }
     public Guid? OrderItemId { get; set; }
+
+    public virtual InventoryArticle? Article { get; set; }
+    public virtual Warehouse? Warehouse { get; set; }
+    public virtual MeasurementUnit? Unit { get; set; }
+}
+
+public class StockReservation : BaseEntity
+{
+    public Guid OrderId { get; set; }
+    public Guid OrderItemId { get; set; }
+    public Guid ArticleId { get; set; }
+    public Guid WarehouseId { get; set; }
+    public decimal Quantity { get; set; }
+    public Guid UnitId { get; set; }
+    public decimal BaseQuantity { get; set; }
+    public StockReservationStatus Status { get; set; } = StockReservationStatus.Active;
+    public DateTime ReservedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? ConsumedAt { get; set; }
+    public DateTime? ReleasedAt { get; set; }
 
     public virtual InventoryArticle? Article { get; set; }
     public virtual Warehouse? Warehouse { get; set; }

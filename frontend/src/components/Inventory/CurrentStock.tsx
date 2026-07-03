@@ -14,6 +14,8 @@ const TIPO_COLOR: Record<string, string> = {
   Supply: 'orange',
 };
 
+const formatQuantity = (value: number, unit: string) => `${Number(value).toFixed(2)} ${unit}`;
+
 export default function CurrentStock() {
   const [stock, setStock] = useState<WarehouseStockDto[]>([]);
   const [bodegas, setBodegas] = useState<WarehouseDto[]>([]);
@@ -44,6 +46,7 @@ export default function CurrentStock() {
   useEffect(() => { load(); }, [load]);
 
   const bajoStockCount = stock.filter(s => s.lowStock).length;
+  const reservedCount = stock.filter(s => s.reservedQuantity > 0).length;
 
   return (
     <div>
@@ -53,6 +56,11 @@ export default function CurrentStock() {
           {bajoStockCount > 0 && (
             <Tag color="warning" icon={<WarningOutlined />}>
               {bajoStockCount} artículo{bajoStockCount > 1 ? 's' : ''} bajo stock
+            </Tag>
+          )}
+          {reservedCount > 0 && (
+            <Tag color="processing">
+              {reservedCount} con reserva
             </Tag>
           )}
         </Space>
@@ -109,17 +117,33 @@ export default function CurrentStock() {
           { title: 'Categoría', dataIndex: 'categoryName', key: 'categoryName' },
           { title: 'Bodega', dataIndex: 'warehouseName', key: 'warehouseName' },
           {
-            title: 'Cantidad', key: 'cantidad',
+            title: 'Stock fisico', key: 'cantidad',
             render: (_: unknown, s: WarehouseStockDto) => (
               <Badge
                 status={s.lowStock ? 'error' : 'success'}
-                text={`${s.quantity} ${s.unitSymbol}`}
+                text={formatQuantity(s.quantity, s.unitSymbol)}
+              />
+            ),
+          },
+          {
+            title: 'Reservado', key: 'reservedQuantity',
+            render: (_: unknown, s: WarehouseStockDto) =>
+              s.reservedQuantity > 0
+                ? <Tag color="processing">{formatQuantity(s.reservedQuantity, s.unitSymbol)}</Tag>
+                : <Typography.Text type="secondary">0 {s.unitSymbol}</Typography.Text>,
+          },
+          {
+            title: 'Disponible', key: 'availableQuantity',
+            render: (_: unknown, s: WarehouseStockDto) => (
+              <Badge
+                status={s.lowStock ? 'error' : 'success'}
+                text={formatQuantity(s.availableQuantity, s.unitSymbol)}
               />
             ),
           },
           {
             title: 'Stock mín.', key: 'stockMin',
-            render: (_: unknown, s: WarehouseStockDto) => `${s.minStock} ${s.unitSymbol}`,
+            render: (_: unknown, s: WarehouseStockDto) => formatQuantity(s.minStock, s.unitSymbol),
           },
           {
             title: 'Última actualización', dataIndex: 'lastUpdatedAt', key: 'lastUpdatedAt',

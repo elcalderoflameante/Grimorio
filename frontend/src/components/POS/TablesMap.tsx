@@ -84,6 +84,11 @@ export default function TablesMap({ branchId, onSelectTable, refreshKey }: Props
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
             {group.tables.map(table => {
               const occupied = table.currentStatus === 'Occupied';
+              const draft = table.currentStatus === 'Draft';
+              const borderColor = occupied ? '#ff4d4f' : draft ? '#faad14' : '#52c41a';
+              const background = occupied ? '#fff1f0' : draft ? '#fffbe6' : '#f6ffed';
+              const tagColor = occupied ? 'error' : draft ? 'warning' : 'success';
+              const statusLabel = occupied ? 'Ocupada' : draft ? 'Borrador' : 'Libre';
               return (
                 <Tooltip key={table.id} title={`${group.area} · ${table.capacity} personas`}>
                   <Card
@@ -94,20 +99,20 @@ export default function TablesMap({ branchId, onSelectTable, refreshKey }: Props
                       width: 110,
                       textAlign: 'center',
                       cursor: 'pointer',
-                      borderColor: occupied ? '#ff4d4f' : '#52c41a',
-                      background: occupied ? '#fff1f0' : '#f6ffed',
+                      borderColor,
+                      background,
                     }}
                     styles={{ body: { padding: '12px 8px' } }}
                   >
                     <div style={{ fontSize: 18, fontWeight: 700 }}>Mesa {table.code}</div>
                     <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>{table.capacity} personas</div>
-                    <Tag color={occupied ? 'error' : 'success'} style={{ fontSize: 11 }}>
-                      {occupied ? 'Ocupada' : 'Libre'}
+                    <Tag color={tagColor} style={{ fontSize: 11 }}>
+                      {statusLabel}
                     </Tag>
-                    {occupied && (
+                    {(occupied || draft) && (
                       <Badge
                         count="●"
-                        style={{ background: 'transparent', color: '#ff4d4f', boxShadow: 'none', fontSize: 10 }}
+                        style={{ background: 'transparent', color: borderColor, boxShadow: 'none', fontSize: 10 }}
                       />
                     )}
                   </Card>

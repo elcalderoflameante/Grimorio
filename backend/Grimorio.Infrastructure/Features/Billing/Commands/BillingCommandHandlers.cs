@@ -597,11 +597,26 @@ public class CloseCashSessionHandler : IRequestHandler<CloseCashSessionCommand, 
 
     public async Task<CashSessionDto> Handle(CloseCashSessionCommand req, CancellationToken ct)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+
         var session = await _db.CashSessions
-            .Include(s => s.CashRegister)
-            .Include(s => s.Payments).ThenInclude(p => p.Lines).ThenInclude(l => l.Config)
-            .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId && !x.IsDeleted, ct)
+            .FromSqlInterpolated($"""
+                SELECT * FROM billing."CashSessions"
+                WHERE "Id" = {req.Id}
+                    AND "BranchId" = {req.BranchId}
+                    AND "IsDeleted" = false
+                FOR UPDATE
+                """)
+            .FirstOrDefaultAsync(ct)
             ?? throw new KeyNotFoundException("Sesión no encontrada.");
+
+        await _db.Entry(session).Reference(s => s.CashRegister).LoadAsync(ct);
+        await _db.Entry(session)
+            .Collection(s => s.Payments)
+            .Query()
+            .Where(p => !p.IsDeleted)
+            .Include(p => p.Lines).ThenInclude(l => l.Config)
+            .LoadAsync(ct);
 
         if (session.Status != CashSessionStatus.Open)
             throw new InvalidOperationException("La sesión ya está cerrada.");
@@ -616,6 +631,8 @@ public class CloseCashSessionHandler : IRequestHandler<CloseCashSessionCommand, 
         session.CloseNotes = req.Notes?.Trim();
         session.Status = CashSessionStatus.Closed;
         await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+
         return BillingMapper.MapSession(session);
     }
 }
@@ -678,6 +695,8 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
 
         var order = await _db.Orders
             .Include(o => o.Payments)
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.MenuItem)
             .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
             ?? throw new KeyNotFoundException("Orden no encontrada.");
 
@@ -715,7 +734,62 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
             if (!exists) throw new KeyNotFoundException("Cliente no encontrado.");
         }
 
+        var selectedItems = req.Items
+            .Where(i => i.Quantity > 0)
+            .GroupBy(i => i.OrderItemId)
+            .Select(g => new PaymentItemCommand { OrderItemId = g.Key, Quantity = g.Sum(i => i.Quantity) })
+            .ToList();
+
+        var remainingQuantityBeforePayment = new Dictionary<Guid, decimal>();
+        List<OrderPaymentItem> paymentItems = [];
+        if (selectedItems.Count > 0)
+        {
+            var selectedItemIds = selectedItems.Select(i => i.OrderItemId).ToList();
+            var orderItemsById = order.Items
+                .Where(i => selectedItemIds.Contains(i.Id) && i.Status != OrderItemStatus.Cancelled)
+                .ToDictionary(i => i.Id);
+
+            if (orderItemsById.Count != selectedItemIds.Distinct().Count())
+                throw new InvalidOperationException("Uno o mas items seleccionados no pertenecen a la orden o estan cancelados.");
+
+            var paidQuantities = await _db.OrderPaymentItems
+                .Where(i => i.BranchId == req.BranchId
+                    && selectedItemIds.Contains(i.OrderItemId)
+                    && !i.IsDeleted)
+                .GroupBy(i => i.OrderItemId)
+                .Select(g => new { OrderItemId = g.Key, Quantity = g.Sum(i => i.Quantity) })
+                .ToDictionaryAsync(x => x.OrderItemId, x => x.Quantity, ct);
+
+            foreach (var selected in selectedItems)
+            {
+                var item = orderItemsById[selected.OrderItemId];
+                var paidQuantity = paidQuantities.GetValueOrDefault(item.Id);
+                var remainingQuantity = item.Quantity - paidQuantity;
+                if (selected.Quantity > remainingQuantity + 0.0001m)
+                    throw new InvalidOperationException($"La cantidad a cobrar de {item.MenuItem?.Name ?? "item"} supera lo pendiente.");
+
+                remainingQuantityBeforePayment[item.Id] = remainingQuantity;
+                paymentItems.Add(new OrderPaymentItem
+                {
+                    Id = Guid.NewGuid(),
+                    BranchId = req.BranchId,
+                    OrderPaymentId = Guid.Empty,
+                    OrderItemId = item.Id,
+                    Quantity = selected.Quantity,
+                    UnitPrice = item.UnitPrice,
+                    Total = Math.Round(item.UnitPrice * selected.Quantity, 2),
+                    OrderItem = item,
+                });
+            }
+
+            var itemsAmount = paymentItems.Sum(i => i.Total);
+            if (Math.Abs(itemsAmount - req.OrderAmount) > 0.01m)
+                throw new InvalidOperationException($"El total de items seleccionados ({itemsAmount:F2}) no coincide con el monto a cobrar ({req.OrderAmount:F2}).");
+        }
+
         var paidAt = DateTime.UtcNow;
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
 
         // Si el frontend no envió sesión, auto-asignar la activa del sucursal
         var session = req.CashSessionId.HasValue
@@ -736,6 +810,19 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
         if (session.OpenedBy != req.UserId)
             throw new InvalidOperationException("No puedes cobrar en una sesion de caja abierta por otro usuario.");
 
+        await _db.CashSessions
+            .FromSqlInterpolated($"""
+                SELECT * FROM billing."CashSessions"
+                WHERE "Id" = {session.Id}
+                FOR UPDATE
+                """)
+            .AsNoTracking()
+            .FirstAsync(ct);
+        await _db.Entry(session).ReloadAsync(ct);
+
+        if (session.Status != CashSessionStatus.Open)
+            throw new InvalidOperationException("La sesion de caja ya fue cerrada. Abre una nueva caja para cobrar.");
+
         var payment = new OrderPayment
         {
             Id = Guid.NewGuid(), BranchId = req.BranchId,
@@ -743,6 +830,8 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
             CustomerId = req.CustomerId, DocumentType = docType,
             OrderAmount = req.OrderAmount, PaidAt = paidAt,
         };
+        foreach (var item in paymentItems)
+            item.OrderPaymentId = payment.Id;
 
         var remainingChange = totalChange;
         var lines = req.Lines.Select(l =>
@@ -787,6 +876,7 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
         }).ToList();
 
         payment.Lines = lines;
+        payment.Items = paymentItems;
         _db.OrderPayments.Add(payment);
 
         var newRemaining = remaining - req.OrderAmount;
@@ -799,6 +889,9 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
 
         await _db.SaveChangesAsync(ct);
 
+        if (paymentItems.Count > 0)
+            await DeductInventoryForPaymentItemsAsync(paymentItems, remainingQuantityBeforePayment, order.Number, req.BranchId, ct);
+
         if (isFullyPaid)
             await DeductInventoryForOrderAsync(order.Id, order.Number, req.BranchId, ct);
 
@@ -806,11 +899,116 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
             ? await _db.Customers.FindAsync([req.CustomerId.Value], ct)
             : null;
 
+        await transaction.CommitAsync(ct);
+
         return BillingMapper.MapPayment(payment, order.Number, customer);
+    }
+
+    private async Task DeductInventoryForPaymentItemsAsync(
+        IReadOnlyCollection<OrderPaymentItem> paymentItems,
+        IReadOnlyDictionary<Guid, decimal> remainingQuantityBeforePayment,
+        int orderNumber,
+        Guid branchId,
+        CancellationToken ct)
+    {
+        var itemIds = paymentItems.Select(i => i.OrderItemId).Distinct().ToList();
+        if (itemIds.Count == 0) return;
+
+        var reservations = await _db.StockReservations
+            .Where(r => r.BranchId == branchId
+                && itemIds.Contains(r.OrderItemId)
+                && r.Status == StockReservationStatus.Active
+                && !r.IsDeleted)
+            .ToListAsync(ct);
+
+        if (reservations.Count == 0) return;
+
+        var reservationsByItem = reservations.GroupBy(r => r.OrderItemId).ToDictionary(g => g.Key, g => g.ToList());
+        var now = DateTime.UtcNow;
+
+        foreach (var paymentItem in paymentItems)
+        {
+            if (!reservationsByItem.TryGetValue(paymentItem.OrderItemId, out var itemReservations))
+                continue;
+
+            var remainingBefore = remainingQuantityBeforePayment.GetValueOrDefault(paymentItem.OrderItemId);
+            if (remainingBefore <= 0) continue;
+
+            var factor = Math.Min(1m, paymentItem.Quantity / remainingBefore);
+            foreach (var reservation in itemReservations)
+            {
+                var quantityToConsume = reservation.Quantity * factor;
+                if (quantityToConsume <= 0) continue;
+
+                await _mediator.Send(new RegisterMovementCommand
+                {
+                    BranchId = branchId,
+                    ArticleId = reservation.ArticleId,
+                    WarehouseId = reservation.WarehouseId,
+                    Type = MovementType.SaleDeduction,
+                    Quantity = quantityToConsume,
+                    UnitId = reservation.UnitId,
+                    Reference = $"Orden #{orderNumber}",
+                }, ct);
+
+                if (quantityToConsume >= reservation.Quantity - 0.0001m)
+                {
+                    reservation.Status = StockReservationStatus.Consumed;
+                    reservation.ConsumedAt = now;
+                }
+                else
+                {
+                    reservation.Quantity -= quantityToConsume;
+                    reservation.BaseQuantity -= quantityToConsume;
+                }
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
     }
 
     private async Task DeductInventoryForOrderAsync(Guid orderId, int orderNumber, Guid branchId, CancellationToken ct)
     {
+        var reservations = await _db.StockReservations
+            .Where(r => r.BranchId == branchId
+                && r.OrderId == orderId
+                && r.Status == StockReservationStatus.Active
+                && !r.IsDeleted)
+            .ToListAsync(ct);
+
+        if (reservations.Count > 0)
+        {
+            foreach (var reservation in reservations)
+            {
+                try
+                {
+                    await _mediator.Send(new RegisterMovementCommand
+                    {
+                        BranchId = branchId,
+                        ArticleId = reservation.ArticleId,
+                        WarehouseId = reservation.WarehouseId,
+                        Type = MovementType.SaleDeduction,
+                        Quantity = reservation.Quantity,
+                        UnitId = reservation.UnitId,
+                        Reference = $"Orden #{orderNumber}",
+                    }, ct);
+
+                    reservation.Status = StockReservationStatus.Consumed;
+                    reservation.ConsumedAt = DateTime.UtcNow;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "No se pudo consumir reserva de inventario: reserva {ReservationId}, artículo {ArticleId}, orden #{OrderNumber}",
+                        reservation.Id, reservation.ArticleId, orderNumber);
+                    throw;
+                }
+            }
+
+            await _db.SaveChangesAsync(ct);
+            return;
+        }
+
         var order = await _db.Orders
             .Include(o => o.Items.Where(i => !i.IsDeleted))
                 .ThenInclude(i => i.MenuItem)
@@ -874,6 +1072,7 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
                     _logger.LogWarning(ex,
                         "No se pudo descontar inventario: artículo {ArticleId}, unidad {UnitId}, orden #{OrderNumber}",
                         articleId, ingredient.UnitId, orderNumber);
+                    throw;
                 }
             }
         }
@@ -1385,6 +1584,15 @@ internal static class BillingMapper
             CardBankName = l.CardBankName,
             CardBrand = l.CardBrand,
             AuthorizationNumber = l.AuthorizationNumber,
+        }).ToList(),
+        Items = p.Items.Select(i => new OrderPaymentItemDto
+        {
+            Id = i.Id,
+            OrderItemId = i.OrderItemId,
+            ItemName = i.OrderItem?.MenuItem?.Name ?? string.Empty,
+            Quantity = i.Quantity,
+            UnitPrice = i.UnitPrice,
+            Total = i.Total,
         }).ToList(),
         ElectronicDocumentId = elDoc?.Id,
         ElectronicDocumentStatus = elDoc?.Status.ToString(),

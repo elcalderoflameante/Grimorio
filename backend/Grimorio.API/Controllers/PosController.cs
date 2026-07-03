@@ -145,6 +145,54 @@ public class PosController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.DirectSale.Create")]
+    [HttpPost("ventas-directas")]
+    public async Task<IActionResult> CreateDirectSale([FromBody] CreateOrderDto dto)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        TryGetUserId(out var userId);
+
+        var result = await _mediator.Send(new CreateDirectSaleCommand
+        {
+            BranchId = branchId,
+            CashierId = userId == Guid.Empty ? null : userId,
+            CustomerName = dto.CustomerName,
+            Notes = dto.Notes,
+            Items = dto.Items,
+        });
+
+        var confirmedAt = result.ConfirmedAt ?? result.CreatedAt;
+        var itemsByStation = result.Items
+            .Where(i => i.StationId.HasValue)
+            .GroupBy(i => i.StationId!.Value);
+        foreach (var group in itemsByStation)
+        {
+            var payload = group.Select(i => new
+            {
+                orderItemId = i.Id,
+                orderId = result.Id,
+                orderNumber = result.Number,
+                orderType = result.Type,
+                tableCode = result.TableCode,
+                customerName = result.CustomerName,
+                itemName = i.ItemName,
+                quantity = i.Quantity,
+                notes = i.Notes,
+                status = i.Status,
+                confirmedAt,
+                ingredientChoices = i.IngredientChoices.Select(c => new
+                {
+                    chosenArticleName = c.ChosenArticleName,
+                }),
+            });
+            await _kitchenHub.Clients
+                .Group(KitchenHub.GetStationGroup(group.Key))
+                .SendAsync(KitchenHub.NewItemsEvent, payload);
+        }
+
+        return Ok(result);
+    }
+
     [Authorize(Policy = "POS.Orders.Update")]
     [HttpPut("ordenes/{id:guid}/items")]
     public async Task<IActionResult> UpdateItems(Guid id, [FromBody] UpdateOrderItemsDto dto)
@@ -250,6 +298,25 @@ public class PosController : ControllerBase
         await _kitchenHub.Clients
             .Group(KitchenHub.GetBranchGroup(branchId))
             .SendAsync(KitchenHub.OrderCancelledEvent, new { orderId = result.Id });
+
+        return Ok(result);
+    }
+
+    [Authorize(Policy = "POS.Orders.Cancel")]
+    [HttpPost("orden-items/{id:guid}/cancelar")]
+    public async Task<IActionResult> CancelOrderItem(Guid id)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new CancelOrderItemCommand { OrderItemId = id, BranchId = branchId });
+
+        await _kitchenHub.Clients
+            .Group(KitchenHub.GetBranchGroup(branchId))
+            .SendAsync(KitchenHub.ItemUpdatedEvent, new
+            {
+                orderItemId = id,
+                orderId = result.Id,
+                status = "Cancelled",
+            });
 
         return Ok(result);
     }

@@ -247,6 +247,13 @@ public class PayOrderCommand : IRequest<OrderPaymentDto>
     public Guid? CustomerId { get; set; }
     public Guid? CashSessionId { get; set; }
     public List<PaymentLineCommand> Lines { get; set; } = [];
+    public List<PaymentItemCommand> Items { get; set; } = [];
+}
+
+public class PaymentItemCommand
+{
+    public Guid OrderItemId { get; set; }
+    public decimal Quantity { get; set; }
 }
 
 // ── InvoiceTemplate ───────────────────────────────────────────────────────────

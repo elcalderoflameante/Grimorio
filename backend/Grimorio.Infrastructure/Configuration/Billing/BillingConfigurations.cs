@@ -276,3 +276,30 @@ public class PaymentLineConfiguration : BaseEntityConfiguration<PaymentLine>
             .OnDelete(DeleteBehavior.SetNull);
     }
 }
+
+public class OrderPaymentItemConfiguration : BaseEntityConfiguration<OrderPaymentItem>
+{
+    public override void Configure(EntityTypeBuilder<OrderPaymentItem> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("OrderPaymentItems", "billing");
+
+        builder.Property(x => x.Quantity).HasColumnType("numeric(18,4)");
+        builder.Property(x => x.UnitPrice).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Total).HasColumnType("numeric(18,2)");
+
+        builder.HasOne(x => x.Payment)
+            .WithMany(p => p.Items)
+            .HasForeignKey(x => x.OrderPaymentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.OrderItem)
+            .WithMany()
+            .HasForeignKey(x => x.OrderItemId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => x.OrderPaymentId);
+        builder.HasIndex(x => x.OrderItemId);
+        builder.HasIndex(x => new { x.BranchId, x.OrderItemId });
+    }
+}

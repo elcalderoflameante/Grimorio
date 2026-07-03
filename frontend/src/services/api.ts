@@ -589,6 +589,8 @@ export const posApi = {
     apiClient.get<OrderDto>(`/pos/ordenes/${id}`),
   createOrder: (data: CreateOrderDto): Promise<AxiosResponse<OrderDto>> =>
     apiClient.post<OrderDto>('/pos/ordenes', data),
+  createDirectSale: (data: CreateOrderDto): Promise<AxiosResponse<OrderDto>> =>
+    apiClient.post<OrderDto>('/pos/ventas-directas', data),
   updateItems: (id: string, items: CreateOrderItemDto[]): Promise<AxiosResponse<OrderDto>> =>
     apiClient.put<OrderDto>(`/pos/ordenes/${id}/items`, { items }),
   confirmOrder: (id: string): Promise<AxiosResponse<OrderDto>> =>
@@ -597,6 +599,8 @@ export const posApi = {
     apiClient.post<OrderDto>(`/pos/ordenes/${id}/entregar`),
   cancelOrder: (id: string): Promise<AxiosResponse<OrderDto>> =>
     apiClient.post<OrderDto>(`/pos/ordenes/${id}/cancelar`),
+  cancelOrderItem: (id: string): Promise<AxiosResponse<OrderDto>> =>
+    apiClient.post<OrderDto>(`/pos/orden-items/${id}/cancelar`),
   setItemStatus: (id: string, estado: string): Promise<AxiosResponse<OrderItemDto>> =>
     apiClient.patch<OrderItemDto>(`/pos/orden-items/${id}/estado`, { estado }),
 

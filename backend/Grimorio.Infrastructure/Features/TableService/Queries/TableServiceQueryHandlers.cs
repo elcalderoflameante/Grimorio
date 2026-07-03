@@ -20,7 +20,6 @@ public class GetRestaurantTablesQueryHandler : IRequestHandler<GetRestaurantTabl
             .Where(x => x.BranchId == request.BranchId && !x.IsDeleted)
             .Include(x => x.Orders.Where(o =>
                 !o.IsDeleted &&
-                o.Status != OrderStatus.Draft &&
                 o.Status != OrderStatus.Cancelled &&
                 o.Status != OrderStatus.Delivered &&
                 o.PaidAt == null))
@@ -32,7 +31,10 @@ public class GetRestaurantTablesQueryHandler : IRequestHandler<GetRestaurantTabl
             .ThenBy(x => x.Area ?? string.Empty, StringComparer.Create(CultureInfo.GetCultureInfo("es-EC"), ignoreCase: true))
             .Select(x =>
         {
-            var activeOrder = x.Orders.FirstOrDefault();
+            var activeOrder = x.Orders
+                .OrderBy(o => o.Status == OrderStatus.Draft ? 0 : 1)
+                .ThenByDescending(o => o.CreatedAt)
+                .FirstOrDefault();
             return new RestaurantTableDto
             {
                 Id = x.Id,
@@ -43,7 +45,9 @@ public class GetRestaurantTablesQueryHandler : IRequestHandler<GetRestaurantTabl
                 PublicToken = x.PublicToken,
                 IsActive = x.IsActive,
                 PublicUrl = $"/mesa/{x.PublicToken}",
-                CurrentStatus = activeOrder != null ? "Occupied" : "Free",
+                CurrentStatus = activeOrder == null
+                    ? "Free"
+                    : activeOrder.Status == OrderStatus.Draft ? "Draft" : "Occupied",
                 CurrentOrderId = activeOrder?.Id,
             };
         }).ToList();

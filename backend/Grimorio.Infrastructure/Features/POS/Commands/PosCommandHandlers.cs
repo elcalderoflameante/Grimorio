@@ -1,6 +1,7 @@
 using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.POS.Commands;
 using Grimorio.Domain.Entities.POS;
+using Grimorio.Infrastructure.Features.Inventory;
 using Grimorio.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -193,6 +194,110 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
     }
 }
 
+public class CreateDirectSaleCommandHandler : IRequestHandler<CreateDirectSaleCommand, OrderDto>
+{
+    private readonly GrimorioDbContext _db;
+    public CreateDirectSaleCommandHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<OrderDto> Handle(CreateDirectSaleCommand req, CancellationToken ct)
+    {
+        if (req.Items.Count == 0)
+            throw new InvalidOperationException("La venta directa no tiene items.");
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+
+        var number = await _db.Orders
+            .Where(o => o.BranchId == req.BranchId)
+            .MaxAsync(o => (int?)o.Number, ct) ?? 0;
+        number++;
+
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            BranchId = req.BranchId,
+            Number = number,
+            Type = OrderType.Takeout,
+            Status = OrderStatus.Confirmed,
+            ConfirmedAt = DateTime.UtcNow,
+            WaiterId = req.CashierId,
+            CustomerName = req.CustomerName?.Trim(),
+            Notes = req.Notes?.Trim(),
+        };
+
+        var itemMenuIds = req.Items.Select(i => i.MenuItemId).Distinct().ToList();
+        var menuItems = await _db.MenuItems
+            .Where(m => itemMenuIds.Contains(m.Id) && !m.IsDeleted)
+            .Include(m => m.Station)
+            .Include(m => m.TaxRate)
+            .ToListAsync(ct);
+
+        decimal subtotal = 0, discountTotal = 0;
+        decimal base15 = 0, base0 = 0, baseExempt = 0, iva15 = 0, ice = 0;
+        foreach (var itemDto in req.Items)
+        {
+            var menuItem = menuItems.FirstOrDefault(m => m.Id == itemDto.MenuItemId)
+                ?? throw new InvalidOperationException($"Item no encontrado: {itemDto.MenuItemId}");
+
+            var (discountAmt, taxableBase, taxAmt, totalPrice) = PosMapper.CalcItem(menuItem.Price, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage);
+            subtotal += menuItem.Price * itemDto.Quantity;
+            discountTotal += discountAmt;
+            PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, taxableBase, taxAmt, ref base15, ref base0, ref baseExempt, ref iva15, ref ice);
+
+            var orderItem = new OrderItem
+            {
+                Id = Guid.NewGuid(),
+                BranchId = req.BranchId,
+                MenuItemId = itemDto.MenuItemId,
+                StationId = menuItem.StationId,
+                Quantity = itemDto.Quantity,
+                UnitPrice = menuItem.Price,
+                DiscountPct = itemDto.DiscountPct,
+                DiscountAmount = discountAmt,
+                TaxRateId = menuItem.TaxRateId,
+                TaxAmount = taxAmt,
+                TotalPrice = totalPrice,
+                Notes = itemDto.Notes?.Trim(),
+                Status = OrderItemStatus.Pending,
+            };
+
+            foreach (var choice in itemDto.IngredientChoices)
+                orderItem.IngredientChoices.Add(new OrderItemIngredientChoice
+                {
+                    BranchId = req.BranchId,
+                    RecipeIngredientId = choice.RecipeIngredientId,
+                    ChosenArticleId = choice.ChosenArticleId,
+                });
+
+            order.Items.Add(orderItem);
+        }
+
+        order.Subtotal = subtotal;
+        order.DiscountTotal = discountTotal;
+        order.TaxableBase15 = base15;
+        order.TaxableBase0 = base0;
+        order.TaxableBaseExempt = baseExempt;
+        order.Iva15 = iva15;
+        order.Ice = ice;
+        order.TaxAmount = iva15 + ice;
+        order.Total = subtotal - discountTotal;
+
+        _db.Orders.Add(order);
+        await StockReservationService.ReserveOrderItemsAsync(_db, req.BranchId, order.Id, order.Items.ToList(), ct);
+        await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+
+        var created = await _db.Orders
+            .Include(o => o.Table)
+            .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
+            .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.IngredientChoices.Where(c => !c.IsDeleted))
+                    .ThenInclude(c => c.ChosenArticle)
+            .FirstAsync(o => o.Id == order.Id, ct);
+        return PosMapper.MapOrder(created);
+    }
+}
+
 public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCommand, OrderDto>
 {
     private readonly GrimorioDbContext _db;
@@ -231,6 +336,7 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
 
         decimal addedSubtotal = 0, addedDiscount = 0;
         decimal addedBase15 = 0, addedBase0 = 0, addedBaseExempt = 0, addedIva15 = 0, addedIce = 0;
+        var newItems = new List<OrderItem>();
         foreach (var itemDto in req.Items)
         {
             var menuItem = menuItems.FirstOrDefault(m => m.Id == itemDto.MenuItemId)
@@ -266,6 +372,7 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
                     ChosenArticleId = choice.ChosenArticleId,
                 });
             _db.OrderItems.Add(newItem);
+            newItems.Add(newItem);
         }
 
         if (order.Status == OrderStatus.Draft)
@@ -291,6 +398,8 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
             order.Ice += addedIce;
             order.TaxAmount += addedIva15 + addedIce;
             order.Total += addedSubtotal - addedDiscount;
+
+            await StockReservationService.ReserveOrderItemsAsync(_db, req.BranchId, order.Id, newItems, ct);
         }
 
         await _db.SaveChangesAsync(ct);
@@ -318,6 +427,8 @@ public class ConfirmOrderCommandHandler : IRequestHandler<ConfirmOrderCommand, O
             .Include(o => o.Table)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.IngredientChoices.Where(c => !c.IsDeleted))
             .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
             ?? throw new InvalidOperationException("Orden no encontrada.");
 
@@ -327,9 +438,15 @@ public class ConfirmOrderCommandHandler : IRequestHandler<ConfirmOrderCommand, O
         if (!order.Items.Any(i => !i.IsDeleted))
             throw new InvalidOperationException("La orden no tiene ítems.");
 
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+
         order.Status = OrderStatus.Confirmed;
         order.ConfirmedAt = DateTime.UtcNow;
+        await StockReservationService.ReserveOrderItemsAsync(_db, req.BranchId, order.Id, order.Items.ToList(), ct);
         await _db.SaveChangesAsync(ct);
+
+        await transaction.CommitAsync(ct);
+
         return PosMapper.MapOrder(order);
     }
 }
@@ -366,11 +483,112 @@ public class CancelOrderCommandHandler : IRequestHandler<CancelOrderCommand, Ord
             .Include(o => o.Table)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
+            .Include(o => o.Payments.Where(p => !p.IsDeleted))
             .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
             ?? throw new InvalidOperationException("Orden no encontrada.");
 
+        if (order.Status == OrderStatus.Cancelled)
+            throw new InvalidOperationException("La orden ya esta cancelada.");
+
+        if (order.Payments.Any(p => !p.IsDeleted))
+            throw new InvalidOperationException("No se puede cancelar una orden con pagos registrados.");
+
+        var activeItems = order.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled).ToList();
+        if (activeItems.Any(i => i.Status != OrderItemStatus.Pending))
+            throw new InvalidOperationException("Solo se puede cancelar toda la orden si ningun plato ha empezado a prepararse.");
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+
         order.Status = OrderStatus.Cancelled;
+        await StockReservationService.ReleaseOrderReservationsAsync(_db, req.BranchId, order.Id, ct);
         await _db.SaveChangesAsync(ct);
+
+        await transaction.CommitAsync(ct);
+
+        return PosMapper.MapOrder(order);
+    }
+}
+
+public class CancelOrderItemCommandHandler : IRequestHandler<CancelOrderItemCommand, OrderDto>
+{
+    private readonly GrimorioDbContext _db;
+    public CancelOrderItemCommandHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<OrderDto> Handle(CancelOrderItemCommand req, CancellationToken ct)
+    {
+        var item = await _db.OrderItems
+            .Include(i => i.Order)!.ThenInclude(o => o!.Payments.Where(p => !p.IsDeleted))
+                .ThenInclude(p => p.Items)
+            .Include(i => i.Order)!.ThenInclude(o => o!.Table)
+            .Include(i => i.Order)!.ThenInclude(o => o!.Items.Where(oi => !oi.IsDeleted))
+                .ThenInclude(oi => oi.TaxRate)
+            .Include(i => i.Order)!.ThenInclude(o => o!.Items.Where(oi => !oi.IsDeleted))
+                .ThenInclude(oi => oi.MenuItem)
+            .Include(i => i.Order)!.ThenInclude(o => o!.Items.Where(oi => !oi.IsDeleted))
+                .ThenInclude(oi => oi.Station)
+            .Include(i => i.MenuItem)
+            .Include(i => i.Station)
+            .FirstOrDefaultAsync(i => i.Id == req.OrderItemId && i.BranchId == req.BranchId && !i.IsDeleted, ct)
+            ?? throw new InvalidOperationException("Item de orden no encontrado.");
+
+        var order = item.Order ?? throw new InvalidOperationException("Orden no encontrada.");
+        if (order.Status == OrderStatus.Cancelled)
+            throw new InvalidOperationException("La orden ya esta cancelada.");
+
+        if (item.Status == OrderItemStatus.Cancelled)
+            throw new InvalidOperationException("El item ya esta cancelado.");
+
+        if (item.Status != OrderItemStatus.Pending)
+            throw new InvalidOperationException("Solo se puede cancelar un plato que aun no empezo a prepararse.");
+
+        var payments = order.Payments.Where(p => !p.IsDeleted).ToList();
+        if (payments.Any(p => p.Items.Count == 0))
+            throw new InvalidOperationException("No se puede cancelar un item cuando existe un cobro sin detalle por item.");
+
+        var paidQuantity = payments
+            .SelectMany(p => p.Items.Where(pi => !pi.IsDeleted && pi.OrderItemId == item.Id))
+            .Sum(pi => pi.Quantity);
+        if (paidQuantity > 0)
+            throw new InvalidOperationException("No se puede cancelar un item que ya fue cobrado.");
+
+        var activeItemsBeforeCancel = order.Items
+            .Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled)
+            .ToList();
+        if (activeItemsBeforeCancel.Count == 1 && payments.Count > 0)
+            throw new InvalidOperationException("No se puede cancelar el ultimo item activo de una orden con pagos registrados.");
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+
+        item.Status = OrderItemStatus.Cancelled;
+        await StockReservationService.ReleaseOrderItemReservationsAsync(_db, req.BranchId, item.Id, ct);
+
+        PosMapper.RecalculateOrderTotals(order);
+
+        var activeItems = order.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled).ToList();
+        if (activeItems.Count == 0)
+        {
+            order.Status = OrderStatus.Cancelled;
+        }
+        else if (activeItems.Any(i => i.Status == OrderItemStatus.InPreparation))
+        {
+            order.Status = OrderStatus.InPreparation;
+        }
+        else if (activeItems.All(i => i.Status == OrderItemStatus.Ready))
+        {
+            order.Status = OrderStatus.Ready;
+        }
+        else
+        {
+            order.Status = OrderStatus.Confirmed;
+        }
+
+        var paidAmount = payments.Sum(p => p.OrderAmount);
+        if (paidAmount > order.Total + 0.01m)
+            throw new InvalidOperationException("No se puede cancelar el item porque los pagos registrados superarian el nuevo total de la orden.");
+
+        await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+
         return PosMapper.MapOrder(order);
     }
 }
@@ -463,6 +681,35 @@ internal static class PosMapper
         Type = e.Type.ToString(),
         IsActive = e.IsActive,
     };
+
+    public static void RecalculateOrderTotals(Order order)
+    {
+        decimal subtotal = 0, discountTotal = 0;
+        decimal base15 = 0, base0 = 0, baseExempt = 0, iva15 = 0, ice = 0;
+
+        foreach (var item in order.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled))
+        {
+            var (discountAmt, taxableBase, taxAmt, _) = CalcItem(
+                item.UnitPrice,
+                item.Quantity,
+                item.DiscountPct,
+                item.TaxRate?.Percentage);
+
+            subtotal += item.UnitPrice * item.Quantity;
+            discountTotal += discountAmt;
+            ClassifyTax(item.TaxRate?.SriCode, taxableBase, taxAmt, ref base15, ref base0, ref baseExempt, ref iva15, ref ice);
+        }
+
+        order.Subtotal = subtotal;
+        order.DiscountTotal = discountTotal;
+        order.TaxableBase15 = base15;
+        order.TaxableBase0 = base0;
+        order.TaxableBaseExempt = baseExempt;
+        order.Iva15 = iva15;
+        order.Ice = ice;
+        order.TaxAmount = iva15 + ice;
+        order.Total = subtotal - discountTotal;
+    }
 
     public static OrderDto MapOrder(Order o) => new()
     {

@@ -134,6 +134,8 @@ public class WarehouseStockDto
     public Guid WarehouseId { get; set; }
     public string WarehouseName { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
+    public decimal ReservedQuantity { get; set; }
+    public decimal AvailableQuantity { get; set; }
     public string UnitSymbol { get; set; } = string.Empty;
     public decimal MinStock { get; set; }
     public bool LowStock { get; set; }

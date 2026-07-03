@@ -189,6 +189,19 @@ public class OrderPayment : BaseEntity
     public virtual CashSession? CashSession { get; set; }
     public virtual Customer? Customer { get; set; }
     public virtual ICollection<PaymentLine> Lines { get; set; } = [];
+    public virtual ICollection<OrderPaymentItem> Items { get; set; } = [];
+}
+
+public class OrderPaymentItem : BaseEntity
+{
+    public Guid OrderPaymentId { get; set; }
+    public Guid OrderItemId { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal Total { get; set; }
+
+    public virtual OrderPayment? Payment { get; set; }
+    public virtual POS.OrderItem? OrderItem { get; set; }
 }
 
 // ── PaymentLine ───────────────────────────────────────────────────────────────

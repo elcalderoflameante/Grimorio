@@ -163,3 +163,44 @@ public class MovimientoStockConfiguration : BaseEntityConfiguration<StockMovemen
         builder.HasIndex(x => new { x.BranchId, x.Type, x.CreatedAt });
     }
 }
+
+public class StockReservationConfiguration : BaseEntityConfiguration<StockReservation>
+{
+    public override void Configure(EntityTypeBuilder<StockReservation> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("StockReservations", "inv");
+
+        builder.Property(x => x.Quantity).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.BaseQuantity).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(30).IsRequired();
+        builder.Property(x => x.ReservedAt)
+            .HasColumnType("timestamp with time zone")
+            .IsRequired();
+        builder.Property(x => x.ConsumedAt).HasColumnType("timestamp with time zone");
+        builder.Property(x => x.ReleasedAt).HasColumnType("timestamp with time zone");
+
+        builder.HasOne(x => x.Article)
+            .WithMany(x => x.Reservations)
+            .HasForeignKey(x => x.ArticleId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.Warehouse)
+            .WithMany(x => x.Reservations)
+            .HasForeignKey(x => x.WarehouseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.Unit)
+            .WithMany()
+            .HasForeignKey(x => x.UnitId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => new { x.BranchId, x.OrderId });
+        builder.HasIndex(x => new { x.BranchId, x.OrderItemId });
+        builder.HasIndex(x => new { x.BranchId, x.ArticleId, x.WarehouseId, x.Status })
+            .HasFilter("\"IsDeleted\" = false");
+        builder.HasIndex(x => new { x.BranchId, x.OrderItemId, x.ArticleId, x.WarehouseId, x.Status })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = false AND \"Status\" = 'Active'");
+    }
+}

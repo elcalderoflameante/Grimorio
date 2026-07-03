@@ -3,7 +3,7 @@ import { Button, Modal, Space, Typography, message, Alert } from 'antd';
 import { ShoppingCartOutlined, CarOutlined } from '@ant-design/icons';
 import { useAuth } from '../../context/useAuth';
 import type { OrderDto, RestaurantTableDto, OrderType } from '../../types';
-import { cashApi } from '../../services/api';
+import { cashApi, posApi } from '../../services/api';
 import TablesMap from './TablesMap';
 import TakeOrder from './TakeOrder';
 import TableOrderView from './TableOrderView';
@@ -23,7 +23,9 @@ export default function PosOrderModule() {
   const [hasSession, setHasSession] = useState<boolean | null>(null);
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
   const [tablesRefreshKey, setTablesRefreshKey] = useState(0);
+  const [directSaleMode, setDirectSaleMode] = useState(false);
   const canCreateOrders = hasPermission(PERMISSIONS.pos.ordersCreate);
+  const canDirectSale = hasPermission(PERMISSIONS.pos.directSaleCreate) && hasPermission(PERMISSIONS.billing.cashCharge);
 
   useEffect(() => {
     cashApi.getActiveSession()
@@ -33,12 +35,24 @@ export default function PosOrderModule() {
 
   if (!branchId) return <Text type="danger">Sin sucursal asignada</Text>;
 
-  const handleSelectTable = (table: RestaurantTableDto) => {
+  const handleSelectTable = async (table: RestaurantTableDto) => {
     if (!hasSession) {
       message.warning('Debes abrir la caja antes de tomar pedidos');
       return;
     }
     setSelectedTable(table);
+    setDirectSaleMode(false);
+    if (table.currentStatus === 'Draft' && table.currentOrderId) {
+      try {
+        const order = (await posApi.getOrden(table.currentOrderId)).data;
+        setOrderType('DineIn');
+        setActiveOrder(order);
+        setView('order');
+      } catch (e) {
+        message.error('No se pudo cargar el borrador de la mesa');
+      }
+      return;
+    }
     if (table.currentStatus === 'Occupied' && table.currentOrderId) {
       setDetailOrderId(table.currentOrderId);
       setView('table-detail');
@@ -67,15 +81,44 @@ export default function PosOrderModule() {
     setSelectedTable(null);
     setOrderType(type);
     setActiveOrder(null);
+    setDirectSaleMode(false);
     setShowTypeModal(false);
     setView('order');
   };
 
+  const handleDirectSale = () => {
+    if (!canDirectSale) {
+      message.warning('No tienes permiso para crear ventas directas');
+      return;
+    }
+    if (!hasSession) {
+      message.warning('Debes abrir la caja antes de realizar ventas directas');
+      return;
+    }
+    setSelectedTable(null);
+    setOrderType('Takeout');
+    setActiveOrder(null);
+    setDetailOrderId(null);
+    setDirectSaleMode(true);
+    setView('order');
+  };
+
   const handleOrderConfirmed = (order: OrderDto) => {
+    if (directSaleMode) {
+      setDetailOrderId(order.id);
+      setSelectedTable(null);
+      setActiveOrder(null);
+      setDirectSaleMode(false);
+      setView('table-detail');
+      refreshTables();
+      return;
+    }
     message.success(`Orden #${order.number} confirmada`);
     setView('map');
     setSelectedTable(null);
     setActiveOrder(null);
+    setDirectSaleMode(false);
+    refreshTables();
   };
 
   const handleClose = () => {
@@ -83,6 +126,8 @@ export default function PosOrderModule() {
     setSelectedTable(null);
     setActiveOrder(null);
     setDetailOrderId(null);
+    setDirectSaleMode(false);
+    refreshTables();
   };
 
   const refreshTables = () => setTablesRefreshKey(k => k + 1);
@@ -102,9 +147,18 @@ export default function PosOrderModule() {
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <Title level={5} style={{ margin: 0 }}>Mapa de Mesas</Title>
-            {canCreateOrders && <Button icon={<ShoppingCartOutlined />} onClick={() => setShowTypeModal(true)}>
-              Nuevo pedido
-            </Button>}
+            <Space>
+              {canDirectSale && (
+                <Button type="primary" icon={<ShoppingCartOutlined />} onClick={handleDirectSale}>
+                  Venta directa
+                </Button>
+              )}
+              {canCreateOrders && (
+                <Button icon={<ShoppingCartOutlined />} onClick={() => setShowTypeModal(true)}>
+                  Nuevo pedido
+                </Button>
+              )}
+            </Space>
           </div>
           <TablesMap branchId={branchId} onSelectTable={handleSelectTable} refreshKey={tablesRefreshKey} />
         </div>
@@ -115,15 +169,16 @@ export default function PosOrderModule() {
           table={selectedTable ?? undefined}
           orderType={orderType}
           existingOrder={activeOrder ?? undefined}
+          directSale={directSaleMode}
           onClose={handleClose}
           onConfirm={handleOrderConfirmed}
         />
       )}
 
-      {view === 'table-detail' && selectedTable && detailOrderId && (
+      {view === 'table-detail' && detailOrderId && (
         <TableOrderView
           orderId={detailOrderId}
-          table={selectedTable}
+          table={selectedTable ?? undefined}
           branchId={branchId}
           onClose={handleClose}
           onTableUpdated={refreshTables}

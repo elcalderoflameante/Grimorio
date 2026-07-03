@@ -68,6 +68,7 @@ public static class AppConstants
         public const string PosOrdersCreate = "POS.Orders.Create";
         public const string PosOrdersUpdate = "POS.Orders.Update";
         public const string PosOrdersCancel = "POS.Orders.Cancel";
+        public const string PosDirectSaleCreate = "POS.DirectSale.Create";
         public const string PosKitchenView = "POS.Kitchen.View";
         public const string PosKitchenUpdate = "POS.Kitchen.Update";
         public const string PosStationsView = "POS.Stations.View";
@@ -145,6 +146,7 @@ public static class AppConstants
             new(PosOrdersCreate, "Crear pedidos", "POS"),
             new(PosOrdersUpdate, "Editar, confirmar o entregar pedidos", "POS"),
             new(PosOrdersCancel, "Cancelar pedidos", "POS"),
+            new(PosDirectSaleCreate, "Crear ventas directas de mostrador", "POS"),
             new(PosKitchenView, "Ver items de cocina", "POS"),
             new(PosKitchenUpdate, "Cambiar estado de items de cocina", "POS"),
             new(PosStationsView, "Ver estaciones", "POS"),
