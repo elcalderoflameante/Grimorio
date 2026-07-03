@@ -303,6 +303,7 @@ public class PosController : ControllerBase
     }
 
     [Authorize(Policy = "POS.Orders.Cancel")]
+    [HttpPost("ordenes/items/{id:guid}/cancelar")]
     [HttpPost("orden-items/{id:guid}/cancelar")]
     public async Task<IActionResult> CancelOrderItem(Guid id)
     {
@@ -322,6 +323,7 @@ public class PosController : ControllerBase
     }
 
     [Authorize(Policy = "POS.Kitchen.Update")]
+    [HttpPatch("ordenes/items/{id:guid}/estado")]
     [HttpPatch("orden-items/{id:guid}/estado")]
     public async Task<IActionResult> SetItemEstado(Guid id, [FromBody] SetItemEstadoBody body)
     {

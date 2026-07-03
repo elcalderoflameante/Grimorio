@@ -48,9 +48,10 @@ Convencion de nombres:
 | `POS.Orders.View` | Ver pedidos y resumen de pedidos activos | POS > Pedidos | `GET /api/pos/ordenes*` |
 | `POS.Orders.Create` | Crear pedidos | POS > Pedidos | `POST /api/pos/ordenes` |
 | `POS.Orders.Update` | Editar items, confirmar o entregar pedidos | POS > Pedidos | `PUT /api/pos/ordenes/{id}/items`, `POST /api/pos/ordenes/{id}/confirmar`, `POST /api/pos/ordenes/{id}/entregar` |
-| `POS.Orders.Cancel` | Cancelar pedidos | POS > Pedidos | `POST /api/pos/ordenes/{id}/cancelar` |
+| `POS.Orders.Cancel` | Cancelar pedidos o items pendientes | POS > Pedidos | `POST /api/pos/ordenes/{id}/cancelar`, `POST /api/pos/ordenes/items/{id}/cancelar` |
+| `POS.DirectSale.Create` | Crear ventas directas de mostrador | POS > Pedidos | `POST /api/pos/ventas-directas` |
 | `POS.Kitchen.View` | Ver items de estaciones/KDS | POS > Estaciones | `GET /api/pos/estaciones/{id}/items`, `GET /api/pos/estaciones/{id}/completados` |
-| `POS.Kitchen.Update` | Cambiar estado de items de cocina | POS > Estaciones | `PATCH /api/pos/orden-items/{id}/estado` |
+| `POS.Kitchen.Update` | Cambiar estado de items de cocina | POS > Estaciones | `PATCH /api/pos/ordenes/items/{id}/estado` |
 | `POS.Stations.View` | Ver estaciones | POS > Estaciones | `GET /api/pos/estaciones` |
 | `POS.Stations.Manage` | Administrar estaciones | POS > Estaciones | `POST/PUT/DELETE /api/pos/estaciones` |
 | `POS.Tables.View` | Ver mesas QR | POS > Pedidos / Atencion QR | `GET /api/tableService/tables` |
@@ -120,7 +121,7 @@ Los endpoints `public/*` de `TableService` quedan sin permiso de usuario porque 
 | --- | --- |
 | `Administrador` | Todos los permisos |
 | `Supervisor` | Ver todo, operar POS/caja, compras e inventario, sin administrar usuarios/permisos ni configuraciones fiscales sensibles |
-| `Cajero` | `POS.Orders.View`, `Billing.Customers.*`, `Billing.Cash.*`, `Billing.PaymentMethods.View`, `Billing.Sri.View`, `Billing.Sri.Generate` |
+| `Cajero` | `POS.Orders.View`, `POS.DirectSale.Create`, `Billing.Customers.*`, `Billing.Cash.*`, `Billing.PaymentMethods.View`, `Billing.Sri.View`, `Billing.Sri.Generate` |
 | `Mesero` | `POS.Orders.View`, `POS.Orders.Create`, `POS.Orders.Update`, `POS.Tables.View`, `POS.TableRequests.View`, `POS.TableRequests.Update`, `Menu.Categories.View`, `Menu.Items.View` |
 | `Cocina` | `POS.Kitchen.View`, `POS.Kitchen.Update`, `POS.Stations.View` |
 | `Bodega` | `Inventory.*`, `Purchases.Suppliers.View`, `Purchases.Orders.View` |

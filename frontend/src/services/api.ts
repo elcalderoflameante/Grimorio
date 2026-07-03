@@ -600,9 +600,9 @@ export const posApi = {
   cancelOrder: (id: string): Promise<AxiosResponse<OrderDto>> =>
     apiClient.post<OrderDto>(`/pos/ordenes/${id}/cancelar`),
   cancelOrderItem: (id: string): Promise<AxiosResponse<OrderDto>> =>
-    apiClient.post<OrderDto>(`/pos/orden-items/${id}/cancelar`),
+    apiClient.post<OrderDto>(`/pos/ordenes/items/${id}/cancelar`),
   setItemStatus: (id: string, estado: string): Promise<AxiosResponse<OrderItemDto>> =>
-    apiClient.patch<OrderItemDto>(`/pos/orden-items/${id}/estado`, { estado }),
+    apiClient.patch<OrderItemDto>(`/pos/ordenes/items/${id}/estado`, { estado }),
 
   // Monitor de estación
   getStationItems: (estacionId: string): Promise<AxiosResponse<StationItemDto[]>> =>

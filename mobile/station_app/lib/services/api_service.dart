@@ -56,7 +56,7 @@ class ApiService {
   Future<void> updateItemStatus(String orderItemId, String status) async {
     final response = await http
         .patch(
-          Uri.parse('$_base/pos/orden-items/$orderItemId/estado'),
+          Uri.parse('$_base/pos/ordenes/items/$orderItemId/estado'),
           headers: _headers,
           body: jsonEncode({'estado': status}),
         )
