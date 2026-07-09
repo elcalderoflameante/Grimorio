@@ -429,6 +429,7 @@ public class ConfirmOrderCommandHandler : IRequestHandler<ConfirmOrderCommand, O
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
             .Include(o => o.Items.Where(i => !i.IsDeleted))
                 .ThenInclude(i => i.IngredientChoices.Where(c => !c.IsDeleted))
+                    .ThenInclude(c => c.ChosenArticle)
             .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
             ?? throw new InvalidOperationException("Orden no encontrada.");
 
@@ -590,6 +591,31 @@ public class CancelOrderItemCommandHandler : IRequestHandler<CancelOrderItemComm
         await transaction.CommitAsync(ct);
 
         return PosMapper.MapOrder(order);
+    }
+}
+
+public class UpdateOrderItemNotesCommandHandler : IRequestHandler<UpdateOrderItemNotesCommand, OrderItemDto>
+{
+    private readonly GrimorioDbContext _db;
+    public UpdateOrderItemNotesCommandHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<OrderItemDto> Handle(UpdateOrderItemNotesCommand req, CancellationToken ct)
+    {
+        var item = await _db.OrderItems
+            .Include(i => i.MenuItem)
+            .Include(i => i.Station)
+            .Include(i => i.IngredientChoices.Where(c => !c.IsDeleted))
+                .ThenInclude(c => c.ChosenArticle)
+            .FirstOrDefaultAsync(i => i.Id == req.OrderItemId && i.BranchId == req.BranchId && !i.IsDeleted, ct)
+            ?? throw new InvalidOperationException("Item de orden no encontrado.");
+
+        if (item.Status != OrderItemStatus.Pending)
+            throw new InvalidOperationException("Solo se puede editar la observacion de un plato que aun no empezo a prepararse.");
+
+        item.Notes = string.IsNullOrWhiteSpace(req.Notes) ? null : req.Notes.Trim();
+        await _db.SaveChangesAsync(ct);
+
+        return PosMapper.MapOrderItem(item);
     }
 }
 

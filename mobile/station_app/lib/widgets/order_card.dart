@@ -15,8 +15,12 @@ class OrderCard extends StatelessWidget {
 
   String _orderTitle() {
     final first = items.first;
-    if (first.tableCode != null) return 'Mesa ${first.tableCode}';
-    if (first.customerName != null) return first.customerName!;
+    if (first.tableCode != null) {
+      return 'Pedido #${first.orderNumber} - Mesa ${first.tableCode}';
+    }
+    if (first.customerName != null) {
+      return 'Pedido #${first.orderNumber} - ${first.customerName!}';
+    }
     return 'Pedido #${first.orderNumber}';
   }
 
@@ -56,6 +60,12 @@ class OrderCard extends StatelessWidget {
     if (hasPending && mins >= 20) return Colors.redAccent;
     if (hasPending && mins >= 10) return Colors.orange;
     return const Color(0xFF2A2A4A);
+  }
+
+  String? _orderNotes() {
+    final notes = items.first.orderNotes?.trim();
+    if (notes == null || notes.isEmpty) return null;
+    return notes;
   }
 
   @override
@@ -120,6 +130,29 @@ class OrderCard extends StatelessWidget {
           ),
 
           // ── Ítems ─────────────────────────────────────────────────────
+          if (_orderNotes() != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline_rounded,
+                      color: Colors.amberAccent, size: 14),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _orderNotes()!,
+                      style: const TextStyle(
+                        color: Colors.amberAccent,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           Padding(
             padding: const EdgeInsets.all(6),
             child: Column(

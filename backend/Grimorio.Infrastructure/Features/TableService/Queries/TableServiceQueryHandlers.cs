@@ -23,6 +23,7 @@ public class GetRestaurantTablesQueryHandler : IRequestHandler<GetRestaurantTabl
                 o.Status != OrderStatus.Cancelled &&
                 o.Status != OrderStatus.Delivered &&
                 o.PaidAt == null))
+                .ThenInclude(o => o.Payments.Where(p => !p.IsDeleted))
             .ToListAsync(cancellationToken);
 
         return tables
@@ -35,6 +36,8 @@ public class GetRestaurantTablesQueryHandler : IRequestHandler<GetRestaurantTabl
                 .OrderBy(o => o.Status == OrderStatus.Draft ? 0 : 1)
                 .ThenByDescending(o => o.CreatedAt)
                 .FirstOrDefault();
+            var paidAmount = activeOrder?.Payments.Where(p => !p.IsDeleted).Sum(p => p.OrderAmount) ?? 0m;
+            var pendingPayment = activeOrder == null ? 0m : Math.Max(0m, activeOrder.Total - paidAmount);
             return new RestaurantTableDto
             {
                 Id = x.Id,
@@ -49,6 +52,9 @@ public class GetRestaurantTablesQueryHandler : IRequestHandler<GetRestaurantTabl
                     ? "Free"
                     : activeOrder.Status == OrderStatus.Draft ? "Draft" : "Occupied",
                 CurrentOrderId = activeOrder?.Id,
+                CurrentOrderStartedAt = activeOrder?.ConfirmedAt ?? activeOrder?.CreatedAt,
+                CurrentOrderTotal = activeOrder?.Total ?? 0m,
+                PendingPaymentTotal = pendingPayment,
             };
         }).ToList();
     }

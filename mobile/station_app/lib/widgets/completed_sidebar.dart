@@ -102,6 +102,19 @@ class _CompletedTileState extends State<_CompletedTile> {
     return 'hace $mins min';
   }
 
+  String _orderTitle() {
+    if (widget.order.orderLabel == '#${widget.order.orderNumber}') {
+      return 'Pedido #${widget.order.orderNumber}';
+    }
+    return 'Pedido #${widget.order.orderNumber} - ${widget.order.orderLabel}';
+  }
+
+  String? _orderNotes() {
+    final notes = widget.order.orderNotes?.trim();
+    if (notes == null || notes.isEmpty) return null;
+    return notes;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -133,13 +146,35 @@ class _CompletedTileState extends State<_CompletedTile> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.order.orderLabel,
+                        _orderTitle(),
                         style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 13),
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if (_orderNotes() != null) ...[
+                        const SizedBox(height: 3),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.info_outline_rounded,
+                                color: Colors.amberAccent, size: 11),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                _orderNotes()!,
+                                style: const TextStyle(
+                                    color: Colors.amberAccent,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 2),
                       Row(
                         children: [

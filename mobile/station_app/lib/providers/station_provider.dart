@@ -22,8 +22,8 @@ class StationProvider extends ChangeNotifier {
   HubConnectionState connectionState = HubConnectionState.Disconnected;
 
   String _token = '';
-  String? _stationId;
-  String? _stationName;
+  List<String> _stationIds = [];
+  List<String> _stationNames = [];
 
   List<StationItem> items = [];
   List<CompletedOrder> completedOrders = [];
@@ -32,7 +32,11 @@ class StationProvider extends ChangeNotifier {
   bool isLoading = false;
   bool isListening = false;
 
-  String? get stationName => _stationName;
+  String? get stationName {
+    if (_stationNames.isEmpty) return null;
+    if (_stationNames.length == 1) return _stationNames.first;
+    return _stationNames.join(' + ');
+  }
   String get serverUrl => ApiConfig.baseUrl;
 
   bool get ttsEnabled => _tts.enabled;
@@ -70,12 +74,12 @@ class StationProvider extends ChangeNotifier {
     await _initSpeech();
 
     _token = await _auth.getToken() ?? '';
-    _stationId = await _auth.getSavedStationId();
-    _stationName = await _auth.getSavedStationName();
+    _stationIds = await _auth.getSavedStationIds();
+    _stationNames = await _auth.getSavedStationNames();
 
     if (_token.isEmpty) {
       appState = AppState.unauthenticated;
-    } else if (_stationId == null) {
+    } else if (_stationIds.isEmpty) {
       appState = AppState.pickingStation;
     } else {
       appState = AppState.ready;
@@ -122,10 +126,10 @@ class StationProvider extends ChangeNotifier {
 
     try {
       _token = await _auth.login(email, password);
-      _stationId = await _auth.getSavedStationId();
-      _stationName = await _auth.getSavedStationName();
+      _stationIds = await _auth.getSavedStationIds();
+      _stationNames = await _auth.getSavedStationNames();
 
-      if (_stationId == null) {
+      if (_stationIds.isEmpty) {
         appState = AppState.pickingStation;
       } else {
         appState = AppState.ready;
@@ -144,10 +148,13 @@ class StationProvider extends ChangeNotifier {
     return api.getStations();
   }
 
-  Future<void> selectStation(WorkStation station) async {
-    await _auth.saveStation(station.id, station.name);
-    _stationId = station.id;
-    _stationName = station.name;
+  Future<void> selectStations(List<WorkStation> stations) async {
+    final selected = stations.where((s) => s.isActive).toList();
+    if (selected.isEmpty) return;
+
+    _stationIds = selected.map((s) => s.id).toList();
+    _stationNames = selected.map((s) => s.name).toList();
+    await _auth.saveStations(_stationIds, _stationNames);
     appState = AppState.ready;
     await _startHub();
     notifyListeners();
@@ -195,10 +202,14 @@ class StationProvider extends ChangeNotifier {
       notifyListeners();
     };
 
-    _hub.onItemUpdated = (orderItemId, orderId, status) {
+    _hub.onItemUpdated = (orderItemId, orderId, status, notes) {
       final idx = items.indexWhere((e) => e.orderItemId == orderItemId);
       if (idx != -1) {
         items[idx].status = status;
+        if (notes != null) {
+          items[idx].notes = notes.isEmpty ? null : notes;
+          _tts.enqueue(TtsService.buildItemNotesUpdated(items[idx], notes));
+        }
         _checkOrderCompletion(orderId);
         _speech.updateItems(items);
         notifyListeners();
@@ -212,9 +223,9 @@ class StationProvider extends ChangeNotifier {
       notifyListeners();
     };
 
-    debugPrint('[Provider] Conectando a ${ApiConfig.hubBaseUrl} con stationId=$_stationId');
+    debugPrint('[Provider] Conectando a ${ApiConfig.hubBaseUrl} con stationIds=$_stationIds');
     try {
-      await _hub.connect(ApiConfig.hubBaseUrl, _token, _stationId!);
+      await _hub.connect(ApiConfig.hubBaseUrl, _token, _stationIds);
       debugPrint('[Provider] Hub conectado OK');
       await _loadInitialItems();
       await _speech.startListening();
@@ -233,15 +244,22 @@ class StationProvider extends ChangeNotifier {
   Future<void> _loadInitialItems() async {
     final api = ApiService(token: _token);
 
-    items = await api.getStationItems(_stationId!);
+    final activeItems = <StationItem>[];
+    for (final stationId in _stationIds) {
+      activeItems.addAll(await api.getStationItems(stationId));
+    }
+    items = _dedupeItems(activeItems);
 
     List<StationItem> completedItems = [];
-    try {
-      completedItems = await api.getCompletedStationItems(_stationId!);
-    } catch (e) {
-      if (e is UnauthorizedException) rethrow;
-      debugPrint('[Provider] Completados no disponibles: $e');
+    for (final stationId in _stationIds) {
+      try {
+        completedItems.addAll(await api.getCompletedStationItems(stationId));
+      } catch (e) {
+        if (e is UnauthorizedException) rethrow;
+        debugPrint('[Provider] Completados no disponibles para $stationId: $e');
+      }
     }
+    completedItems = _dedupeItems(completedItems);
 
     final byOrder = <String, List<StationItem>>{};
     for (final item in completedItems) {
@@ -269,6 +287,7 @@ class StationProvider extends ChangeNotifier {
         orderNumber: first.orderNumber,
         orderLabel: first.orderLabel,
         orderType: first.orderType,
+        orderNotes: first.orderNotes,
         completedAt: completedAt,
         items: List.unmodifiable(entry.value),
       );
@@ -283,8 +302,8 @@ class StationProvider extends ChangeNotifier {
     await _hub.dispose();
     await _auth.logout();
     _token = '';
-    _stationId = null;
-    _stationName = null;
+    _stationIds = [];
+    _stationNames = [];
     items = [];
     completedOrders = [];
     errorMessage = 'Tu sesión expiró. Vuelve a iniciar sesión.';
@@ -305,12 +324,22 @@ class StationProvider extends ChangeNotifier {
           orderNumber: first.orderNumber,
           orderLabel: first.orderLabel,
           orderType: first.orderType,
+          orderNotes: first.orderNotes,
           completedAt: DateTime.now(),
           items: List.unmodifiable(orderItems),
         ),
       );
     }
     items.removeWhere((e) => e.orderId == orderId);
+  }
+
+  List<StationItem> _dedupeItems(List<StationItem> source) {
+    final byId = <String, StationItem>{};
+    for (final item in source) {
+      byId[item.orderItemId] = item;
+    }
+    return byId.values.toList()
+      ..sort((a, b) => a.confirmedAt.compareTo(b.confirmedAt));
   }
 
   Future<void> advanceItemStatus(StationItem item) async {
@@ -365,8 +394,8 @@ class StationProvider extends ChangeNotifier {
     await _speech.stop();
     await _hub.dispose();
     await _auth.clearStation();
-    _stationId = null;
-    _stationName = null;
+    _stationIds = [];
+    _stationNames = [];
     items = [];
     completedOrders = [];
     appState = AppState.pickingStation;
@@ -378,8 +407,8 @@ class StationProvider extends ChangeNotifier {
     await _hub.dispose();
     await _auth.logout();
     _token = '';
-    _stationId = null;
-    _stationName = null;
+    _stationIds = [];
+    _stationNames = [];
     items = [];
     completedOrders = [];
     appState = AppState.unauthenticated;

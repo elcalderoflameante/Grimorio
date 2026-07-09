@@ -83,6 +83,7 @@ Estos modulos mantienen rutas operativas en espanol para ser consistentes con el
 - `POST /api/pos/ordenes/{id}/entregar`
 - `POST /api/pos/ordenes/{id}/cancelar`
 - `POST /api/pos/ordenes/items/{id}/cancelar`
+- `PATCH /api/pos/ordenes/items/{id}/observacion`
 - `PATCH /api/pos/ordenes/items/{id}/estado`
 
 Compatibilidad temporal:

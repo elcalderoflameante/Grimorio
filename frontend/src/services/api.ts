@@ -98,7 +98,6 @@ import type {
   ActiveOrderSummaryDto,
   CreateOrderDto,
   OrderItemDto,
-  StationItemDto,
   CreateOrderItemDto,
   SupplierDto,
   CreateSupplierDto,
@@ -601,12 +600,11 @@ export const posApi = {
     apiClient.post<OrderDto>(`/pos/ordenes/${id}/cancelar`),
   cancelOrderItem: (id: string): Promise<AxiosResponse<OrderDto>> =>
     apiClient.post<OrderDto>(`/pos/ordenes/items/${id}/cancelar`),
+  updateOrderItemNotes: (id: string, notes?: string): Promise<AxiosResponse<OrderItemDto>> =>
+    apiClient.patch<OrderItemDto>(`/pos/ordenes/items/${id}/observacion`, { notes }),
   setItemStatus: (id: string, estado: string): Promise<AxiosResponse<OrderItemDto>> =>
     apiClient.patch<OrderItemDto>(`/pos/ordenes/items/${id}/estado`, { estado }),
 
-  // Monitor de estación
-  getStationItems: (estacionId: string): Promise<AxiosResponse<StationItemDto[]>> =>
-    apiClient.get<StationItemDto[]>(`/pos/estaciones/${estacionId}/items`),
 };
 
 export const purchasesApi = {

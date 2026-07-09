@@ -13,9 +13,10 @@ class StationItem {
   final String orderType;
   final String? tableCode;
   final String? customerName;
+  final String? orderNotes;
   final String itemName;
   final int quantity;
-  final String? notes;
+  String? notes;
   String status;
   final DateTime confirmedAt;
   final DateTime? updatedAt;
@@ -28,6 +29,7 @@ class StationItem {
     required this.orderType,
     this.tableCode,
     this.customerName,
+    this.orderNotes,
     required this.itemName,
     required this.quantity,
     this.notes,
@@ -44,6 +46,7 @@ class StationItem {
         orderType: json['orderType'] as String,
         tableCode: json['tableCode'] as String?,
         customerName: json['customerName'] as String?,
+        orderNotes: json['orderNotes'] as String?,
         itemName: json['itemName'] as String,
         quantity: json['quantity'] as int,
         notes: json['notes'] as String?,

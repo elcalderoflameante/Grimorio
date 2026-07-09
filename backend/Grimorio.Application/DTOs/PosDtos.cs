@@ -127,6 +127,11 @@ public class UpdateOrderItemsDto
     public List<CreateOrderItemDto> Items { get; set; } = [];
 }
 
+public class UpdateOrderItemNotesDto
+{
+    public string? Notes { get; set; }
+}
+
 // ── Items por estación (monitor) ──────────────────────────────────────────
 
 public class StationItemDto
@@ -137,6 +142,7 @@ public class StationItemDto
     public string OrderType { get; set; } = string.Empty;
     public string? TableCode { get; set; }
     public string? CustomerName { get; set; }
+    public string? OrderNotes { get; set; }
     public string ItemName { get; set; } = string.Empty;
     public int Quantity { get; set; }
     public string? Notes { get; set; }

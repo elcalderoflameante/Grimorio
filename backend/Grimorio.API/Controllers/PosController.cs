@@ -175,6 +175,7 @@ public class PosController : ControllerBase
                 orderType = result.Type,
                 tableCode = result.TableCode,
                 customerName = result.CustomerName,
+                orderNotes = result.Notes,
                 itemName = i.ItemName,
                 quantity = i.Quantity,
                 notes = i.Notes,
@@ -220,6 +221,7 @@ public class PosController : ControllerBase
                 orderType = result.Type,
                 tableCode = result.TableCode,
                 customerName = result.CustomerName,
+                orderNotes = result.Notes,
                 itemName = i.ItemName,
                 quantity = i.Quantity,
                 notes = i.Notes,
@@ -260,6 +262,7 @@ public class PosController : ControllerBase
                 orderType = result.Type,
                 tableCode = result.TableCode,
                 customerName = result.CustomerName,
+                orderNotes = result.Notes,
                 itemName = i.ItemName,
                 quantity = i.Quantity,
                 notes = i.Notes,
@@ -318,6 +321,34 @@ public class PosController : ControllerBase
                 orderId = result.Id,
                 status = "Cancelled",
             });
+
+        return Ok(result);
+    }
+
+    [Authorize(Policy = "POS.Orders.Update")]
+    [HttpPatch("ordenes/items/{id:guid}/observacion")]
+    public async Task<IActionResult> UpdateOrderItemNotes(Guid id, [FromBody] UpdateOrderItemNotesDto dto)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new UpdateOrderItemNotesCommand
+        {
+            OrderItemId = id,
+            BranchId = branchId,
+            Notes = dto.Notes,
+        });
+
+        if (result.StationId.HasValue)
+        {
+            await _kitchenHub.Clients
+                .Group(KitchenHub.GetStationGroup(result.StationId.Value))
+                .SendAsync(KitchenHub.ItemUpdatedEvent, new
+                {
+                    orderItemId = result.Id,
+                    orderId = result.OrderId,
+                    status = result.Status,
+                    notes = result.Notes ?? string.Empty,
+                });
+        }
 
         return Ok(result);
     }

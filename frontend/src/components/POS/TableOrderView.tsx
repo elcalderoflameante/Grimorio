@@ -4,7 +4,7 @@ import {
   List, Modal, Row, Select, Space, Spin, Tabs, Tag, Tooltip, Typography, message,
 } from 'antd';
 import {
-  ArrowLeftOutlined, CheckCircleOutlined, CheckOutlined, DeleteOutlined, DollarOutlined,
+  ArrowLeftOutlined, CheckCircleOutlined, CheckOutlined, DeleteOutlined, DollarOutlined, EditOutlined,
   MinusOutlined, PlusOutlined, QuestionCircleOutlined, ReloadOutlined, SplitCellsOutlined,
 } from '@ant-design/icons';
 import type {
@@ -112,6 +112,8 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const [paying, setPaying] = useState(false);
   const [cancellingOrder, setCancellingOrder] = useState(false);
   const [cancellingItemId, setCancellingItemId] = useState<string | null>(null);
+  const [editingItemObs, setEditingItemObs] = useState<{ itemId: string; itemName: string; obs: string } | null>(null);
+  const [savingItemObs, setSavingItemObs] = useState(false);
   const [cashSessionId, setCashSessionId] = useState<string | undefined>(undefined);
   const canUpdateOrders = hasPermission(PERMISSIONS.pos.ordersUpdate);
   const canCancelOrders = hasPermission(PERMISSIONS.pos.ordersCancel);
@@ -414,6 +416,23 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
     }
   };
 
+  const handleUpdateItemObservation = async () => {
+    if (!editingItemObs) return;
+    setSavingItemObs(true);
+    try {
+      await posApi.updateOrderItemNotes(editingItemObs.itemId, editingItemObs.obs || undefined);
+      message.success('Observacion actualizada');
+      setEditingItemObs(null);
+      await loadAll();
+      onTableUpdated();
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } };
+      message.error(err?.response?.data?.message ?? 'Error al actualizar la observacion');
+    } finally {
+      setSavingItemObs(false);
+    }
+  };
+
   if (loading) return <Spin style={{ display: 'block', margin: '80px auto' }} />;
   if (!order) return <Alert type="error" title="No se pudo cargar la orden" />;
 
@@ -701,6 +720,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                       && item.status === 'Pending'
                       && !isItemPaid(item.id)
                       && !hasAmbiguousPayments;
+                    const canEditItemNotes = canUpdateOrders && item.status === 'Pending';
                     return (
                     <List.Item style={{ padding: '4px 0' }}>
                       <div style={{ width: '100%', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
@@ -719,6 +739,20 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                         <Tag color={ITEM_STATUS_COLORS[item.status]} style={{ fontSize: 11 }}>
                           {ITEM_STATUS_LABELS[item.status] ?? item.status}
                         </Tag>
+                        {canEditItemNotes && (
+                          <Tooltip title="Editar observacion">
+                            <Button
+                              size="small"
+                              type="text"
+                              icon={<EditOutlined />}
+                              onClick={() => setEditingItemObs({
+                                itemId: item.id,
+                                itemName: item.itemName,
+                                obs: item.notes ?? '',
+                              })}
+                            />
+                          </Tooltip>
+                        )}
                         {canCancelItem && (
                           <Popconfirm
                             title="Cancelar item"
@@ -976,6 +1010,27 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
           value={obsModal?.obs}
           onChange={e => obsModal && setObsModal({ ...obsModal, obs: e.target.value })}
         />
+      </Modal>
+
+      <Modal
+        title={editingItemObs ? `Observacion: ${editingItemObs.itemName}` : 'Observacion del item'}
+        open={!!editingItemObs}
+        onOk={handleUpdateItemObservation}
+        confirmLoading={savingItemObs}
+        onCancel={() => setEditingItemObs(null)}
+        okText="Guardar"
+        cancelText="Cancelar"
+        width={360}
+      >
+        <Input.TextArea
+          rows={3}
+          placeholder="Ej: salsa aparte, sin cebolla..."
+          value={editingItemObs?.obs}
+          onChange={e => editingItemObs && setEditingItemObs({ ...editingItemObs, obs: e.target.value })}
+        />
+        <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+          Solo se puede editar mientras el plato siga pendiente.
+        </Text>
       </Modal>
 
       {/* Variable ingredient choice modal */}

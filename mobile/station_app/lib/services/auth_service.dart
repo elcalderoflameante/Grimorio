@@ -7,6 +7,8 @@ class AuthService {
   static const _keyToken       = 'auth_token';
   static const _keyStationId   = 'station_id';
   static const _keyStationName = 'station_name';
+  static const _keyStationIds   = 'station_ids';
+  static const _keyStationNames = 'station_names';
 
   String get serverUrl => ApiConfig.baseUrl;
 
@@ -15,26 +17,45 @@ class AuthService {
     return prefs.getString(_keyToken);
   }
 
-  Future<String?> getSavedStationId() async {
+  Future<List<String>> getSavedStationIds() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyStationId);
+    final ids = prefs.getStringList(_keyStationIds);
+    if (ids != null && ids.isNotEmpty) return ids;
+
+    final legacyId = prefs.getString(_keyStationId);
+    if (legacyId == null || legacyId.isEmpty) return [];
+    return [legacyId];
   }
 
-  Future<String?> getSavedStationName() async {
+  Future<List<String>> getSavedStationNames() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyStationName);
+    final names = prefs.getStringList(_keyStationNames);
+    if (names != null && names.isNotEmpty) return names;
+
+    final legacyName = prefs.getString(_keyStationName);
+    if (legacyName == null || legacyName.isEmpty) return [];
+    return [legacyName];
   }
 
-  Future<void> saveStation(String id, String name) async {
+  Future<void> saveStations(List<String> ids, List<String> names) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyStationId, id);
-    await prefs.setString(_keyStationName, name);
+    await prefs.setStringList(_keyStationIds, ids);
+    await prefs.setStringList(_keyStationNames, names);
+    if (ids.isNotEmpty) {
+      await prefs.setString(_keyStationId, ids.first);
+      await prefs.setString(_keyStationName, names.isNotEmpty ? names.first : '');
+    } else {
+      await prefs.remove(_keyStationId);
+      await prefs.remove(_keyStationName);
+    }
   }
 
   Future<void> clearStation() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyStationId);
     await prefs.remove(_keyStationName);
+    await prefs.remove(_keyStationIds);
+    await prefs.remove(_keyStationNames);
   }
 
   Future<String> login(String email, String password) async {
@@ -66,5 +87,7 @@ class AuthService {
     await prefs.remove(_keyToken);
     await prefs.remove(_keyStationId);
     await prefs.remove(_keyStationName);
+    await prefs.remove(_keyStationIds);
+    await prefs.remove(_keyStationNames);
   }
 }

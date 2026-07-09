@@ -9,12 +9,12 @@ class TtsService {
   bool _processing = false;
   bool enabled = true;
 
-  // El SpeechCommandService usa estos callbacks para pausar el mic mientras se habla
+  // El SpeechCommandService usa estos callbacks para pausar el mic mientras se habla.
   VoidCallback? onSpeakingStarted;
   VoidCallback? onSpeakingFinished;
 
   Future<void> init() async {
-    // Intentar locale ecuatoriano; el motor de Google puede tener es-EC o cae en es-US
+    // Intentar locale ecuatoriano; el motor de Google puede tener es-EC o caer en es-US.
     final langs = await _tts.getLanguages as List?;
     final available = langs?.map((e) => e.toString()).toList() ?? [];
 
@@ -28,7 +28,7 @@ class TtsService {
     }
     await _tts.setLanguage(chosen);
 
-    // Ritmo un poco más lento para mayor claridad en ambiente ruidoso de cocina
+    // Ritmo un poco mas lento para mayor claridad en ambiente ruidoso de cocina.
     await _tts.setSpeechRate(0.44);
     await _tts.setVolume(1.0);
     await _tts.setPitch(1.0);
@@ -60,13 +60,22 @@ class TtsService {
 
   Future<void> dispose() async => stop();
 
-  // ── Construcción de anuncios ──────────────────────────────────────────────
-
   static String buildAnnouncement(List<StationItem> items) =>
       _build('Pedido nuevo', items);
 
   static String buildAdditionAnnouncement(List<StationItem> items) =>
-      _build('Ítem adicional', items);
+      _build('Item adicional', items);
+
+  static String buildItemNotesUpdated(StationItem item, String? notes) {
+    final label = item.tableCode != null && item.tableCode!.isNotEmpty
+        ? 'Mesa ${item.tableCode}'
+        : 'numero ${item.orderNumber}';
+    final cleanNotes = notes?.trim();
+    if (cleanNotes == null || cleanNotes.isEmpty) {
+      return 'Observacion eliminada. $label. ${item.itemName}.';
+    }
+    return 'Observacion actualizada. $label. ${item.itemName}. $cleanNotes.';
+  }
 
   static String _build(String prefix, List<StationItem> items) {
     if (items.isEmpty) return '';
@@ -78,14 +87,21 @@ class TtsService {
     } else if (first.customerName != null && first.customerName!.isNotEmpty) {
       sb.write('${first.customerName}. ');
     } else {
-      sb.write('Número ${first.orderNumber}. ');
+      sb.write('Numero ${first.orderNumber}. ');
+    }
+
+    final orderNotes = first.orderNotes?.trim();
+    if (orderNotes != null && orderNotes.isNotEmpty) {
+      sb.write('Observacion general: $orderNotes. ');
     }
 
     for (final item in items) {
       final qty = item.quantity == 1 ? 'un' : '${item.quantity}';
       sb.write('$qty ${item.itemName}');
       if (item.ingredientChoices.isNotEmpty) {
-        sb.write(', ${item.ingredientChoices.map((c) => c.chosenArticleName).join(', ')}');
+        sb.write(
+          ', ${item.ingredientChoices.map((c) => c.chosenArticleName).join(', ')}',
+        );
       }
       if (item.notes != null && item.notes!.isNotEmpty) {
         sb.write(', ${item.notes}');

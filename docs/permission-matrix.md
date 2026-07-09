@@ -47,7 +47,7 @@ Convencion de nombres:
 | --- | --- | --- | --- |
 | `POS.Orders.View` | Ver pedidos y resumen de pedidos activos | POS > Pedidos | `GET /api/pos/ordenes*` |
 | `POS.Orders.Create` | Crear pedidos | POS > Pedidos | `POST /api/pos/ordenes` |
-| `POS.Orders.Update` | Editar items, confirmar o entregar pedidos | POS > Pedidos | `PUT /api/pos/ordenes/{id}/items`, `POST /api/pos/ordenes/{id}/confirmar`, `POST /api/pos/ordenes/{id}/entregar` |
+| `POS.Orders.Update` | Editar items, observaciones, confirmar o entregar pedidos | POS > Pedidos | `PUT /api/pos/ordenes/{id}/items`, `PATCH /api/pos/ordenes/items/{id}/observacion`, `POST /api/pos/ordenes/{id}/confirmar`, `POST /api/pos/ordenes/{id}/entregar` |
 | `POS.Orders.Cancel` | Cancelar pedidos o items pendientes | POS > Pedidos | `POST /api/pos/ordenes/{id}/cancelar`, `POST /api/pos/ordenes/items/{id}/cancelar` |
 | `POS.DirectSale.Create` | Crear ventas directas de mostrador | POS > Pedidos | `POST /api/pos/ventas-directas` |
 | `POS.Kitchen.View` | Ver items de estaciones/KDS | POS > Estaciones | `GET /api/pos/estaciones/{id}/items`, `GET /api/pos/estaciones/{id}/completados` |

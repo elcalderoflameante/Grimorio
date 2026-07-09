@@ -160,6 +160,7 @@ public class GetItemsByStationQueryHandler : IRequestHandler<GetItemsByStationQu
         OrderType = i.Order.Type.ToString(),
         TableCode = i.Order.Table?.Code,
         CustomerName = i.Order.CustomerName,
+        OrderNotes = i.Order.Notes,
         ItemName = i.MenuItem!.Name,
         Quantity = i.Quantity,
         Notes = i.Notes,

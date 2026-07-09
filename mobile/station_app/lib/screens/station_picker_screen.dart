@@ -12,11 +12,22 @@ class StationPickerScreen extends StatefulWidget {
 
 class _StationPickerScreenState extends State<StationPickerScreen> {
   late Future<List<WorkStation>> _future;
+  final Set<String> _selectedIds = {};
 
   @override
   void initState() {
     super.initState();
     _future = context.read<StationProvider>().loadStations();
+  }
+
+  void _toggleStation(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
   }
 
   @override
@@ -25,7 +36,8 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
       backgroundColor: const Color(0xFF1A1A2E),
       appBar: AppBar(
         backgroundColor: const Color(0xFF16213E),
-        title: const Text('Seleccionar estación', style: TextStyle(color: Colors.white)),
+        title: const Text('Seleccionar estaciones',
+            style: TextStyle(color: Colors.white)),
         actions: [
           TextButton.icon(
             onPressed: () => context.read<StationProvider>().logout(),
@@ -38,7 +50,9 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFFE94560)));
+            return const Center(
+              child: CircularProgressIndicator(color: Color(0xFFE94560)),
+            );
           }
 
           if (snapshot.hasError) {
@@ -46,7 +60,8 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+                  const Icon(Icons.error_outline,
+                      color: Colors.redAccent, size: 48),
                   const SizedBox(height: 12),
                   Text(
                     snapshot.error.toString().replaceFirst('Exception: ', ''),
@@ -70,7 +85,7 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
           if (stations.isEmpty) {
             return const Center(
               child: Text(
-                'No hay estaciones activas.\nCrea una en el panel de administración.',
+                'No hay estaciones activas.\nCrea una en el panel de administracion.',
                 style: TextStyle(color: Colors.white54),
                 textAlign: TextAlign.center,
               ),
@@ -83,29 +98,60 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  '¿Qué estación es esta tablet?',
+                  'Que estaciones vera esta tablet?',
                   style: TextStyle(
-                      color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Esta selección se guardará en el dispositivo.',
+                  'Selecciona una o varias. Emplatado puede ver Fritos + Parrilla para sacar pedidos completos.',
                   style: TextStyle(color: Colors.white54),
                 ),
                 const SizedBox(height: 24),
                 Expanded(
                   child: GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
                       maxCrossAxisExtent: 280,
-                      mainAxisExtent: 120,
+                      mainAxisExtent: 132,
                       crossAxisSpacing: 16,
                       mainAxisSpacing: 16,
                     ),
                     itemCount: stations.length,
                     itemBuilder: (context, i) {
                       final station = stations[i];
-                      return _StationCard(station: station);
+                      return _StationCard(
+                        station: station,
+                        selected: _selectedIds.contains(station.id),
+                        onToggle: () => _toggleStation(station.id),
+                      );
                     },
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton.icon(
+                    onPressed: _selectedIds.isEmpty
+                        ? null
+                        : () {
+                            final selected = stations
+                                .where((s) => _selectedIds.contains(s.id))
+                                .toList();
+                            context
+                                .read<StationProvider>()
+                                .selectStations(selected);
+                          },
+                    icon: const Icon(Icons.check_rounded),
+                    label: Text(
+                      _selectedIds.isEmpty
+                          ? 'Selecciona al menos una estacion'
+                          : 'Continuar con ${_selectedIds.length} estacion${_selectedIds.length == 1 ? '' : 'es'}',
+                    ),
                   ),
                 ),
               ],
@@ -119,7 +165,14 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
 
 class _StationCard extends StatelessWidget {
   final WorkStation station;
-  const _StationCard({required this.station});
+  final bool selected;
+  final VoidCallback onToggle;
+
+  const _StationCard({
+    required this.station,
+    required this.selected,
+    required this.onToggle,
+  });
 
   IconData _icon(String type) {
     switch (type.toLowerCase()) {
@@ -132,6 +185,9 @@ class _StationCard extends StatelessWidget {
       case 'postres':
       case 'dessert':
         return Icons.cake_outlined;
+      case 'fries':
+      case 'fritos':
+        return Icons.local_fire_department_outlined;
       default:
         return Icons.restaurant_outlined;
     }
@@ -140,22 +196,34 @@ class _StationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFF16213E),
+      color: selected ? const Color(0xFF233A5E) : const Color(0xFF16213E),
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => context.read<StationProvider>().selectStation(station),
+        onTap: onToggle,
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(_icon(station.type), color: const Color(0xFFE94560), size: 36),
+              Align(
+                alignment: Alignment.topRight,
+                child: Icon(
+                  selected ? Icons.check_circle_rounded : Icons.circle_outlined,
+                  color: selected ? const Color(0xFF4EE87A) : Colors.white30,
+                  size: 22,
+                ),
+              ),
+              const Spacer(),
+              Icon(_icon(station.type),
+                  color: const Color(0xFFE94560), size: 36),
               const SizedBox(height: 10),
               Text(
                 station.name,
                 style: const TextStyle(
-                    color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
@@ -164,6 +232,7 @@ class _StationCard extends StatelessWidget {
                 station.type,
                 style: const TextStyle(color: Colors.white54, fontSize: 12),
               ),
+              const Spacer(),
             ],
           ),
         ),

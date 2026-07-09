@@ -688,6 +688,9 @@ export interface RestaurantTableDto {
   posY: number;
   currentStatus: 'Free' | 'Draft' | 'Occupied';
   currentOrderId?: string;
+  currentOrderStartedAt?: string;
+  currentOrderTotal?: number;
+  pendingPaymentTotal?: number;
 }
 
 export interface CreateRestaurantTableDto {
@@ -1200,20 +1203,6 @@ export interface CreateOrderDto {
   deliveryAddress?: string;
   notes?: string;
   items: CreateOrderItemDto[];
-}
-
-export interface StationItemDto {
-  orderItemId: string;
-  orderId: string;
-  orderNumber: number;
-  orderType: OrderType;
-  tableCode?: string;
-  customerName?: string;
-  itemName: string;
-  quantity: number;
-  notes?: string;
-  status: OrderItemStatus;
-  confirmedAt: string;
 }
 
 // ── Purchases ───────────────────────────────────────────────────────────────

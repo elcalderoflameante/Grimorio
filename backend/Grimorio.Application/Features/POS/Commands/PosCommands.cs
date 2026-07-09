@@ -90,6 +90,13 @@ public class CancelOrderItemCommand : IRequest<OrderDto>
     public Guid BranchId { get; set; }
 }
 
+public class UpdateOrderItemNotesCommand : IRequest<OrderItemDto>
+{
+    public Guid OrderItemId { get; set; }
+    public Guid BranchId { get; set; }
+    public string? Notes { get; set; }
+}
+
 public class SetOrderItemStatusCommand : IRequest<OrderItemDto>
 {
     public Guid OrderItemId { get; set; }

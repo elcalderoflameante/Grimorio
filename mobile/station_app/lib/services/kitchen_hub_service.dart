@@ -3,7 +3,7 @@ import 'package:signalr_netcore/signalr_client.dart';
 import '../models/station_item.dart';
 
 typedef ItemsCallback = void Function(List<StationItem> items);
-typedef ItemUpdatedCallback = void Function(String orderItemId, String orderId, String status);
+typedef ItemUpdatedCallback = void Function(String orderItemId, String orderId, String status, String? notes);
 typedef OrderCancelledCallback = void Function(String orderId);
 typedef ConnectionCallback = void Function(HubConnectionState state);
 
@@ -15,7 +15,7 @@ class KitchenHubService {
   OrderCancelledCallback? onOrderCancelled;
   ConnectionCallback? onConnectionChanged;
 
-  Future<void> connect(String serverUrl, String token, String stationId) async {
+  Future<void> connect(String serverUrl, String token, List<String> stationIds) async {
     await dispose();
 
     final hubUrl = '$serverUrl/hubs/kitchen?access_token=$token';
@@ -37,7 +37,7 @@ class KitchenHubService {
 
     _connection!.onreconnected(({String? connectionId}) {
       onConnectionChanged?.call(HubConnectionState.Connected);
-      _joinStation(stationId);
+      _joinStations(stationIds);
     });
 
     _connection!.onclose(({Exception? error}) {
@@ -65,6 +65,7 @@ class KitchenHubService {
         data['orderItemId'] as String,
         data['orderId'] as String,
         data['status'] as String,
+        data['notes'] as String?,
       );
     });
 
@@ -82,12 +83,14 @@ class KitchenHubService {
       rethrow;
     }
     onConnectionChanged?.call(HubConnectionState.Connected);
-    await _joinStation(stationId);
+    await _joinStations(stationIds);
   }
 
-  Future<void> _joinStation(String stationId) async {
+  Future<void> _joinStations(List<String> stationIds) async {
     if (_connection?.state == HubConnectionState.Connected) {
-      await _connection!.invoke('JoinStation', args: [stationId]);
+      for (final stationId in stationIds) {
+        await _connection!.invoke('JoinStation', args: [stationId]);
+      }
     }
   }
 

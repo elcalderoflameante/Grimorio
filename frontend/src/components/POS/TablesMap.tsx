@@ -22,6 +22,7 @@ const getAreaLabel = (area?: string | null) => area?.trim() || 'General';
 export default function TablesMap({ branchId, onSelectTable, refreshKey }: Props) {
   const [tables, setTables] = useState<RestaurantTableDto[]>([]);
   const [loading, setLoading] = useState(false);
+  const [now, setNow] = useState(() => new Date());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -33,6 +34,11 @@ export default function TablesMap({ branchId, onSelectTable, refreshKey }: Props
   }, [branchId]);
 
   useEffect(() => { load(); }, [load, refreshKey]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const areaGroups = useMemo<AreaGroup[]>(() => {
     const groups = new Map<string, AreaGroup>();
@@ -89,6 +95,10 @@ export default function TablesMap({ branchId, onSelectTable, refreshKey }: Props
               const background = occupied ? '#fff1f0' : draft ? '#fffbe6' : '#f6ffed';
               const tagColor = occupied ? 'error' : draft ? 'warning' : 'success';
               const statusLabel = occupied ? 'Ocupada' : draft ? 'Borrador' : 'Libre';
+              const orderStartedAt = table.currentOrderStartedAt;
+              const showOrderInfo = (occupied || draft) && !!orderStartedAt;
+              const elapsed = showOrderInfo ? formatElapsed(orderStartedAt, now) : null;
+              const pending = formatCurrency(table.pendingPaymentTotal ?? 0);
               return (
                 <Tooltip key={table.id} title={`${group.area} · ${table.capacity} personas`}>
                   <Card
@@ -96,7 +106,7 @@ export default function TablesMap({ branchId, onSelectTable, refreshKey }: Props
                     size="small"
                     onClick={() => onSelectTable(table)}
                     style={{
-                      width: 110,
+                      width: 150,
                       textAlign: 'center',
                       cursor: 'pointer',
                       borderColor,
@@ -105,10 +115,24 @@ export default function TablesMap({ branchId, onSelectTable, refreshKey }: Props
                     styles={{ body: { padding: '12px 8px' } }}
                   >
                     <div style={{ fontSize: 18, fontWeight: 700 }}>Mesa {table.code}</div>
-                    <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>{table.capacity} personas</div>
-                    <Tag color={tagColor} style={{ fontSize: 11 }}>
-                      {statusLabel}
-                    </Tag>
+                    {!occupied && !draft && (
+                      <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>{table.capacity} personas</div>
+                    )}
+                    {!occupied && (
+                      <Tag color={tagColor} style={{ fontSize: 11 }}>
+                        {statusLabel}
+                      </Tag>
+                    )}
+                    {showOrderInfo && (
+                      <div style={{ marginTop: 8, display: 'grid', gap: 4 }}>
+                        <div style={{ fontSize: 12, color: '#595959', lineHeight: 1.2 }}>
+                          Tiempo: <strong>{elapsed}</strong>
+                        </div>
+                        <div style={{ fontSize: 12, color: '#262626', lineHeight: 1.2 }}>
+                          Pendiente: <strong>{pending}</strong>
+                        </div>
+                      </div>
+                    )}
                     {(occupied || draft) && (
                       <Badge
                         count="●"
@@ -124,4 +148,23 @@ export default function TablesMap({ branchId, onSelectTable, refreshKey }: Props
       ))}
     </div>
   );
+}
+
+function formatElapsed(startedAt: string, now: Date) {
+  const start = new Date(startedAt);
+  if (Number.isNaN(start.getTime())) return '--';
+
+  const totalMinutes = Math.max(0, Math.floor((now.getTime() - start.getTime()) / 60_000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours <= 0) return `${minutes} min`;
+  return `${hours}h ${minutes.toString().padStart(2, '0')}m`;
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('es-EC', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(value);
 }
