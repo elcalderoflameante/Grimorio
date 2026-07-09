@@ -64,6 +64,14 @@ public class ShiftTemplateDto
 /// <summary>
 /// DTO para Asignación de Turno (asignación concreta a un empleado)
 /// </summary>
+public class ShiftTemplateImpactDto
+{
+    public Guid ShiftTemplateId { get; set; }
+    public int FutureAssignmentsCount { get; set; }
+    public DateTime? FirstAffectedDate { get; set; }
+    public DateTime? LastAffectedDate { get; set; }
+}
+
 public class ShiftAssignmentDto
 {
     public Guid Id { get; set; }

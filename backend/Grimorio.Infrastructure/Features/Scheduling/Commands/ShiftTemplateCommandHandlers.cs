@@ -7,6 +7,47 @@ using Grimorio.Infrastructure.Persistence;
 
 namespace Grimorio.Infrastructure.Features.Scheduling.Commands;
 
+internal static class ShiftTemplateAssignmentImpact
+{
+    public static async Task<List<ShiftAssignment>> GetFutureAssignmentsAsync(
+        GrimorioDbContext context,
+        ShiftTemplate template,
+        CancellationToken cancellationToken)
+    {
+        var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
+
+        var candidates = await context.ShiftAssignments
+            .Where(sa =>
+                sa.BranchId == template.BranchId &&
+                sa.Date >= today &&
+                sa.WorkAreaId == template.WorkAreaId &&
+                sa.WorkRoleId == template.WorkRoleId &&
+                sa.StartTime == template.StartTime &&
+                sa.EndTime == template.EndTime &&
+                !sa.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        var specialDates = await context.SpecialDates
+            .Include(sd => sd.Templates.Where(t => !t.IsDeleted))
+            .Where(sd =>
+                sd.BranchId == template.BranchId &&
+                sd.Date >= today &&
+                !sd.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        var specialDatesWithTemplates = specialDates
+            .Where(sd => sd.Templates.Any())
+            .Select(sd => sd.Date.Date)
+            .ToHashSet();
+
+        return candidates
+            .Where(sa =>
+                sa.Date.DayOfWeek == template.DayOfWeek &&
+                !specialDatesWithTemplates.Contains(sa.Date.Date))
+            .ToList();
+    }
+}
+
 public class CreateShiftTemplateCommandHandler : IRequestHandler<CreateShiftTemplateCommand, ShiftTemplateDto>
 {
     private readonly GrimorioDbContext _context;
@@ -80,6 +121,26 @@ public class UpdateShiftTemplateCommandHandler : IRequestHandler<UpdateShiftTemp
         if (shiftTemplate == null)
             throw new InvalidOperationException("Plantilla de turno no encontrada.");
 
+        var structureChanged =
+            shiftTemplate.DayOfWeek != request.DayOfWeek ||
+            shiftTemplate.StartTime != request.StartTime ||
+            shiftTemplate.EndTime != request.EndTime ||
+            shiftTemplate.BreakDuration != request.BreakDuration ||
+            shiftTemplate.LunchDuration != request.LunchDuration ||
+            shiftTemplate.RequiredCount != request.RequiredCount;
+
+        if (structureChanged)
+        {
+            var affectedAssignments = await ShiftTemplateAssignmentImpact.GetFutureAssignmentsAsync(
+                _context, shiftTemplate, cancellationToken);
+
+            foreach (var assignment in affectedAssignments)
+            {
+                assignment.IsDeleted = true;
+                assignment.DeletedAt = DateTime.UtcNow;
+            }
+        }
+
         shiftTemplate.DayOfWeek = request.DayOfWeek;
         shiftTemplate.StartTime = request.StartTime;
         shiftTemplate.EndTime = request.EndTime;
@@ -124,7 +185,17 @@ public class DeleteShiftTemplateCommandHandler : IRequestHandler<DeleteShiftTemp
         if (shiftTemplate == null)
             throw new InvalidOperationException("Plantilla de turno no encontrada.");
 
+        var affectedAssignments = await ShiftTemplateAssignmentImpact.GetFutureAssignmentsAsync(
+            _context, shiftTemplate, cancellationToken);
+
+        foreach (var assignment in affectedAssignments)
+        {
+            assignment.IsDeleted = true;
+            assignment.DeletedAt = DateTime.UtcNow;
+        }
+
         shiftTemplate.IsDeleted = true;
+        shiftTemplate.DeletedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync(cancellationToken);
         return true;

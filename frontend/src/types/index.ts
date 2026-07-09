@@ -559,6 +559,13 @@ export interface ShiftTemplateDto {
   notes?: string;
 }
 
+export interface ShiftTemplateImpactDto {
+  shiftTemplateId: string;
+  futureAssignmentsCount: number;
+  firstAffectedDate?: string;
+  lastAffectedDate?: string;
+}
+
 export interface CreateShiftTemplateDto {
   branchId: string;
   dayOfWeek: number;

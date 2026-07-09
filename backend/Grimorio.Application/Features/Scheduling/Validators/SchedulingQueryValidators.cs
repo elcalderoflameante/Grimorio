@@ -62,6 +62,14 @@ public class GetShiftTemplateByIdQueryValidator : AbstractValidator<GetShiftTemp
     }
 }
 
+public class GetShiftTemplateImpactQueryValidator : AbstractValidator<GetShiftTemplateImpactQuery>
+{
+    public GetShiftTemplateImpactQueryValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty();
+    }
+}
+
 public class GetMonthlyShiftsQueryValidator : AbstractValidator<GetMonthlyShiftsQuery>
 {
     public GetMonthlyShiftsQueryValidator()

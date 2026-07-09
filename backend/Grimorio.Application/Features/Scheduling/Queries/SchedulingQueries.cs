@@ -49,6 +49,11 @@ public class GetShiftTemplateByIdQuery : IRequest<ShiftTemplateDto?>
     public Guid Id { get; set; }
 }
 
+public class GetShiftTemplateImpactQuery : IRequest<ShiftTemplateImpactDto>
+{
+    public Guid Id { get; set; }
+}
+
 // ======================== ShiftAssignment Queries ========================
 
 public class GetMonthlyShiftsQuery : IRequest<List<ShiftAssignmentDto>>

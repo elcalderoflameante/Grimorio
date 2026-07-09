@@ -58,6 +58,7 @@ const minutesToTimeSpan = (value?: number) => {
 };
 
 const parseTime = (value: string) => dayjs(`1970-01-01T${value}`);
+const formatDate = (value?: string) => value ? dayjs(value).format('DD/MM/YYYY') : undefined;
 
 export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
   const [templates, setTemplates] = useState<ShiftTemplateDto[]>([]);
@@ -138,6 +139,44 @@ export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
     loadWorkRoles(workAreaId);
   };
 
+  const hasStructuralChanges = (template: ShiftTemplateDto, values: ShiftTemplateFormValues) => {
+    return (
+      template.dayOfWeek !== values.dayOfWeek ||
+      template.startTime !== values.startTime.format('HH:mm:ss') ||
+      template.endTime !== values.endTime.format('HH:mm:ss') ||
+      (template.breakDuration || undefined) !== minutesToTimeSpan(values.breakMinutes) ||
+      (template.lunchDuration || undefined) !== minutesToTimeSpan(values.lunchMinutes) ||
+      template.requiredCount !== values.requiredCount
+    );
+  };
+
+  const confirmFutureAssignmentsRemoval = async (template: ShiftTemplateDto, action: 'editar' | 'eliminar') => {
+    const response = await shiftTemplateApi.getImpact(template.id);
+    const impact = response.data;
+
+    if (!impact.futureAssignmentsCount) {
+      return true;
+    }
+
+    const firstDate = formatDate(impact.firstAffectedDate);
+    const lastDate = formatDate(impact.lastAffectedDate);
+    const dateRange = firstDate && lastDate
+      ? firstDate === lastDate ? ` del ${firstDate}` : ` entre ${firstDate} y ${lastDate}`
+      : '';
+
+    return new Promise<boolean>((resolve) => {
+      Modal.confirm({
+        title: action === 'editar' ? 'Editar plantilla con turnos futuros' : 'Eliminar plantilla con turnos futuros',
+        content: `Hay ${impact.futureAssignmentsCount} turno(s) futuro(s) asignado(s)${dateRange}. Si continúas, esos turnos se eliminarán y deberás volver a planificarlos. Los turnos anteriores no se modificarán.`,
+        okText: 'Continuar',
+        cancelText: 'Cancelar',
+        okButtonProps: { danger: true },
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
+  };
+
   const handleSubmit = async (values: ShiftTemplateFormValues) => {
     try {
       setLoading(true);
@@ -152,6 +191,13 @@ export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
       };
 
       if (editingTemplate) {
+        if (hasStructuralChanges(editingTemplate, values)) {
+          const confirmed = await confirmFutureAssignmentsRemoval(editingTemplate, 'editar');
+          if (!confirmed) {
+            return;
+          }
+        }
+
         const updateData: UpdateShiftTemplateDto = {
           ...basePayload,
           id: editingTemplate.id,
@@ -181,10 +227,15 @@ export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
     }
   };
 
-  const handleDelete = useCallback(async (id: string) => {
+  const handleDelete = useCallback(async (template: ShiftTemplateDto) => {
     try {
+      const confirmed = await confirmFutureAssignmentsRemoval(template, 'eliminar');
+      if (!confirmed) {
+        return;
+      }
+
       setLoading(true);
-      await shiftTemplateApi.delete(id);
+      await shiftTemplateApi.delete(template.id);
       message.success('Plantilla eliminada');
       loadTemplates();
     } catch (error) {
@@ -246,7 +297,7 @@ export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
           <Button icon={<EditOutlined />} onClick={() => handleOpenModal(record)} />
           <Popconfirm
             title="¿Eliminar plantilla?"
-            onConfirm={() => handleDelete(record.id)}
+            onConfirm={() => handleDelete(record)}
             okText="Sí"
             cancelText="No"
           >

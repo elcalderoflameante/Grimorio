@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Scheduling.Queries;
+using Grimorio.Infrastructure.Features.Scheduling.Commands;
 using Grimorio.Infrastructure.Persistence;
 
 namespace Grimorio.Infrastructure.Features.Scheduling.Queries;
@@ -212,6 +213,34 @@ public class GetShiftTemplateByIdQueryHandler : IRequestHandler<GetShiftTemplate
                 RequiredCount = st.RequiredCount,
                 Notes = st.Notes
             }).FirstOrDefaultAsync(cancellationToken);
+    }
+}
+
+public class GetShiftTemplateImpactQueryHandler : IRequestHandler<GetShiftTemplateImpactQuery, ShiftTemplateImpactDto>
+{
+    private readonly GrimorioDbContext _context;
+
+    public GetShiftTemplateImpactQueryHandler(GrimorioDbContext context) => _context = context;
+
+    public async Task<ShiftTemplateImpactDto> Handle(GetShiftTemplateImpactQuery request, CancellationToken cancellationToken)
+    {
+        var template = await _context.ShiftTemplates
+            .AsNoTracking()
+            .FirstOrDefaultAsync(st => st.Id == request.Id && !st.IsDeleted, cancellationToken);
+
+        if (template == null)
+            throw new InvalidOperationException("Plantilla de turno no encontrada.");
+
+        var affectedAssignments = await ShiftTemplateAssignmentImpact.GetFutureAssignmentsAsync(
+            _context, template, cancellationToken);
+
+        return new ShiftTemplateImpactDto
+        {
+            ShiftTemplateId = template.Id,
+            FutureAssignmentsCount = affectedAssignments.Count,
+            FirstAffectedDate = affectedAssignments.Count > 0 ? affectedAssignments.Min(sa => sa.Date) : null,
+            LastAffectedDate = affectedAssignments.Count > 0 ? affectedAssignments.Max(sa => sa.Date) : null
+        };
     }
 }
 

@@ -300,6 +300,23 @@ public class SchedulingController : ControllerBase
     }
 
     /// <summary>
+    /// Obtiene cuÃ¡ntos turnos futuros se verÃ­an afectados al editar o eliminar una plantilla.
+    /// </summary>
+    [HttpGet("shift-templates/{id}/impact")]
+    public async Task<IActionResult> GetShiftTemplateImpact(Guid id)
+    {
+        try
+        {
+            var result = await _mediator.Send(new GetShiftTemplateImpactQuery { Id = id });
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Crea una plantilla de turno.
     /// </summary>
     [Authorize(Policy = "RRHH.Scheduling.Manage")]

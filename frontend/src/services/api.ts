@@ -36,6 +36,7 @@ import type {
   CreateShiftAssignmentDto,
   UpdateShiftAssignmentDto,
   ShiftTemplateDto,
+  ShiftTemplateImpactDto,
   CreateShiftTemplateDto,
   UpdateShiftTemplateDto,
   ShiftGenerationResultDto,
@@ -409,6 +410,8 @@ export const scheduleShiftApi = {
 export const shiftTemplateApi = {
   getAll: (branchId: string, dayOfWeek?: number): Promise<AxiosResponse<ShiftTemplateDto[]>> =>
     apiClient.get<ShiftTemplateDto[]>('/scheduling/shift-templates', { params: { branchId, dayOfWeek } }),
+  getImpact: (id: string): Promise<AxiosResponse<ShiftTemplateImpactDto>> =>
+    apiClient.get<ShiftTemplateImpactDto>(`/scheduling/shift-templates/${id}/impact`),
   create: (data: CreateShiftTemplateDto): Promise<AxiosResponse<ShiftTemplateDto>> =>
     apiClient.post<ShiftTemplateDto>('/scheduling/shift-templates', data),
   update: (id: string, data: UpdateShiftTemplateDto): Promise<AxiosResponse<ShiftTemplateDto>> =>
