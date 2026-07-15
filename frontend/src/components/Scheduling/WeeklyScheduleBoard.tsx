@@ -653,12 +653,26 @@ export const WeeklyScheduleBoard = ({
 
   const employeeWeeklyHours = useMemo(() => {
     const hoursByEmployee: Record<string, number> = {};
-    for (const assignment of previewAssignments) {
-      hoursByEmployee[assignment.employeeId] =
-        (hoursByEmployee[assignment.employeeId] ?? 0) + assignment.workedHours;
+
+    for (const slot of Object.values(slots)) {
+      if (!slot.employee) continue;
+
+      const tmpl = templates.find(t => t.id === slot.templateId);
+      if (!tmpl) continue;
+
+      const breakMinutes = parseDurationToMinutes(tmpl.breakDuration);
+      const lunchMinutes = parseDurationToMinutes(tmpl.lunchDuration);
+      const startDateTime = dayjs(`${slot.date}T${tmpl.startTime}`);
+      const endDateTime = dayjs(`${slot.date}T${tmpl.endTime}`);
+      const rawMinutes = Math.max(0, endDateTime.diff(startDateTime, 'minute'));
+      const workedHours = Math.max(0, rawMinutes - breakMinutes - lunchMinutes) / 60;
+
+      hoursByEmployee[slot.employee.id] =
+        (hoursByEmployee[slot.employee.id] ?? 0) + workedHours;
     }
+
     return hoursByEmployee;
-  }, [previewAssignments]);
+  }, [slots, templates]);
 
   const deleteWeekLabel = useMemo(() => {
     const days = weekDays.filter(d => d.isSame(selectedMonth, 'month'));
