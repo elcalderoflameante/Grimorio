@@ -651,6 +651,15 @@ export const WeeklyScheduleBoard = ({
     onPreviewAssignmentsChange?.(previewAssignments);
   }, [previewAssignments, onPreviewAssignmentsChange]);
 
+  const employeeWeeklyHours = useMemo(() => {
+    const hoursByEmployee: Record<string, number> = {};
+    for (const assignment of previewAssignments) {
+      hoursByEmployee[assignment.employeeId] =
+        (hoursByEmployee[assignment.employeeId] ?? 0) + assignment.workedHours;
+    }
+    return hoursByEmployee;
+  }, [previewAssignments]);
+
   const deleteWeekLabel = useMemo(() => {
     const days = weekDays.filter(d => d.isSame(selectedMonth, 'month'));
     if (days.length === 0) return '';
@@ -801,6 +810,7 @@ export const WeeklyScheduleBoard = ({
               {eligibleEmployees.map(emp => {
                 const busy = employeesOnBoard.has(emp.id);
                 const summary = employeeStatsSummary[emp.id] ?? { shiftCount: 0, totalHours: 0 };
+                const weeklyHours = employeeWeeklyHours[emp.id] ?? 0;
                 const freeSummary = employeeFreeDaysSummary[emp.id] ?? {
                   assignedDays: 0,
                   freeDays: 0,
@@ -824,6 +834,9 @@ export const WeeklyScheduleBoard = ({
                       title={`${emp.firstName} ${emp.lastName}`}
                       content={
                         <Space direction="vertical" size={2}>
+                          <Text style={{ fontSize: 12 }}>
+                            Horas de la semana: <Text strong>{weeklyHours.toFixed(1)} h</Text>
+                          </Text>
                           <Text style={{ fontSize: 12 }}>
                             Turnos del mes: <Text strong>{summary.shiftCount}</Text>
                           </Text>
@@ -884,7 +897,7 @@ export const WeeklyScheduleBoard = ({
                       </span>
                       <Space size={4}>
                         <Tag color="geekblue" style={{ marginInlineEnd: 0, fontSize: 11 }}>
-                          {summary.shiftCount}T
+                          {weeklyHours.toFixed(1)}h
                         </Tag>
                         {busy && <Badge status="processing" />}
                       </Space>
