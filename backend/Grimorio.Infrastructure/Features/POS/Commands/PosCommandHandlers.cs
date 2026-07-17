@@ -5,6 +5,9 @@ using Grimorio.Infrastructure.Features.Inventory;
 using Grimorio.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Grimorio.Infrastructure.Features.POS.Commands;
 
@@ -657,6 +660,322 @@ public class SetOrderItemStatusCommandHandler : IRequestHandler<SetOrderItemStat
 }
 
 // ── Mapper ────────────────────────────────────────────────────────────────────
+
+public class ProcessAlexaKitchenCommandHandler
+    : IRequestHandler<ProcessAlexaKitchenCommand, AlexaKitchenCommandResultDto>
+{
+    private static readonly string[] PreparationWords =
+        ["preparando", "preparacion", "prepara", "preparar", "proceso", "haciendo"];
+
+    private static readonly string[] ReadyWords =
+        ["listo", "lista", "completo", "completado", "terminado", "terminada"];
+
+    private static readonly string[] WholeOrderWords =
+        ["todo", "toda", "todos", "todas", "pedido", "orden", "comanda"];
+
+    private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "en",
+        "para", "por", "favor", "porfa", "item", "plato", "producto", "mesa",
+        "pedido", "orden", "comanda", "toda", "todo", "todos", "todas"
+    };
+
+    private readonly GrimorioDbContext _db;
+
+    public ProcessAlexaKitchenCommandHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<AlexaKitchenCommandResultDto> Handle(
+        ProcessAlexaKitchenCommand req,
+        CancellationToken ct)
+    {
+        var rawText = NormalizeText(req.RawText ?? string.Empty);
+        var actionText = NormalizeText(req.Action ?? rawText);
+        var targetStatus = ResolveStatus(actionText);
+        if (targetStatus == null)
+            return Fail("No entendi si quieres marcar preparando o listo.");
+
+        var tableCode = NormalizeText(req.TableCode ?? ExtractTableCode(rawText) ?? string.Empty);
+        var orderNumber = req.OrderNumber ?? ExtractOrderNumber(rawText);
+        if (string.IsNullOrWhiteSpace(tableCode) && orderNumber == null)
+            return Fail("No escuche la mesa o el numero de pedido.");
+
+        var items = await _db.OrderItems
+            .Where(i =>
+                i.BranchId == req.BranchId &&
+                !i.IsDeleted &&
+                i.Status != OrderItemStatus.Cancelled &&
+                i.Status != OrderItemStatus.Ready)
+            .Include(i => i.MenuItem)
+            .Include(i => i.Station)
+            .Include(i => i.Order).ThenInclude(o => o!.Table)
+            .Include(i => i.Order).ThenInclude(o => o!.Items.Where(oi => !oi.IsDeleted))
+            .Include(i => i.IngredientChoices.Where(c => !c.IsDeleted))
+                .ThenInclude(c => c.ChosenArticle)
+            .Where(i => i.Order != null &&
+                i.Order.PaidAt == null &&
+                i.Order.Status != OrderStatus.Cancelled &&
+                i.Order.Status != OrderStatus.Delivered &&
+                i.Order.Status != OrderStatus.Draft)
+            .AsSplitQuery()
+            .ToListAsync(ct);
+
+        var candidates = items
+            .Where(i => MatchesTarget(i, tableCode, orderNumber))
+            .Where(i => CanAdvanceTo(i.Status, targetStatus.Value))
+            .ToList();
+
+        if (candidates.Count == 0)
+            return Fail("No encontre esa mesa o pedido con platos pendientes.");
+
+        var itemText = NormalizeText(req.ItemText ?? ExtractItemText(rawText));
+        var isWholeOrder = req.AllItems ||
+            string.IsNullOrWhiteSpace(itemText) ||
+            WholeOrderWords.Any(w => Regex.IsMatch(itemText, $@"\b{Regex.Escape(w)}\b"));
+
+        var selected = isWholeOrder ? candidates : MatchItems(candidates, itemText);
+        if (selected.Count == 0)
+            return Fail("No encontre ese plato en la mesa o pedido.");
+
+        foreach (var item in selected)
+            item.Status = targetStatus.Value;
+
+        UpdateOrdersStatus(selected.Select(i => i.Order!).DistinctBy(o => o.Id));
+        await _db.SaveChangesAsync(ct);
+
+        var itemDtos = selected.Select(PosMapper.MapOrderItem).ToList();
+        var label = BuildSuccessLabel(selected);
+        var statusLabel = targetStatus == OrderItemStatus.InPreparation
+            ? "en preparacion"
+            : "listo";
+
+        return new AlexaKitchenCommandResultDto
+        {
+            Success = true,
+            Status = targetStatus.ToString(),
+            UpdatedCount = selected.Count,
+            Items = itemDtos,
+            Message = $"Oido chef, {label} {statusLabel}.",
+        };
+    }
+
+    private static AlexaKitchenCommandResultDto Fail(string message) => new()
+    {
+        Success = false,
+        Message = message,
+    };
+
+    private static OrderItemStatus? ResolveStatus(string text)
+    {
+        if (PreparationWords.Any(text.Contains)) return OrderItemStatus.InPreparation;
+        if (ReadyWords.Any(text.Contains)) return OrderItemStatus.Ready;
+        return null;
+    }
+
+    private static bool CanAdvanceTo(OrderItemStatus current, OrderItemStatus target)
+    {
+        if (target == OrderItemStatus.InPreparation) return current == OrderItemStatus.Pending;
+        if (target == OrderItemStatus.Ready)
+            return current is OrderItemStatus.Pending or OrderItemStatus.InPreparation;
+        return false;
+    }
+
+    private static bool MatchesTarget(OrderItem item, string tableCode, int? orderNumber)
+    {
+        var tableMatches = !string.IsNullOrWhiteSpace(tableCode) &&
+            MatchesTable(NormalizeText(item.Order?.Table?.Code ?? string.Empty), tableCode);
+        var orderMatches = orderNumber.HasValue && item.Order?.Number == orderNumber.Value;
+        return tableMatches || orderMatches;
+    }
+
+    private static bool MatchesTable(string orderTable, string spokenTable)
+    {
+        if (orderTable == spokenTable) return true;
+        if (orderTable == $"mesa {spokenTable}" || orderTable == $"m {spokenTable}") return true;
+
+        var orderDigits = Regex.Match(orderTable, @"\d+").Value;
+        var spokenDigits = Regex.Match(spokenTable, @"\d+").Value;
+        return !string.IsNullOrWhiteSpace(orderDigits) &&
+            !string.IsNullOrWhiteSpace(spokenDigits) &&
+            orderDigits == spokenDigits;
+    }
+
+    private static List<OrderItem> MatchItems(List<OrderItem> candidates, string itemText)
+    {
+        var spokenTokens = Tokens(itemText);
+        if (spokenTokens.Count == 0) return [];
+
+        var scored = candidates
+            .Select(item => new { Item = item, Score = ScoreItem(item, itemText, spokenTokens) })
+            .Where(x => x.Score >= 1.5)
+            .OrderByDescending(x => x.Score)
+            .ToList();
+
+        if (scored.Count == 0) return [];
+        if (scored.Count > 1 && scored[0].Score - scored[1].Score < 0.75) return [];
+
+        return [scored[0].Item];
+    }
+
+    private static double ScoreItem(OrderItem item, string spokenText, List<string> spokenTokens)
+    {
+        var itemName = NormalizeText(item.MenuItem?.Name ?? string.Empty);
+        var choiceNames = NormalizeText(string.Join(" ",
+            item.IngredientChoices
+                .Where(c => !c.IsDeleted)
+                .Select(c => c.ChosenArticle?.Name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))));
+        var searchable = $"{itemName} {choiceNames}".Trim();
+        var itemTokens = Tokens(searchable);
+        var score = 0.0;
+
+        if (itemName == spokenText) score += 8;
+        if (searchable.Contains(spokenText) || spokenText.Contains(itemName)) score += 5;
+
+        foreach (var token in spokenTokens)
+        {
+            if (itemTokens.Contains(token)) score += 2;
+            else if (searchable.Contains(token)) score += 1;
+        }
+
+        if (itemTokens.Count > 0)
+        {
+            var matched = spokenTokens.Count(itemTokens.Contains);
+            score += (double)matched / itemTokens.Count;
+        }
+
+        return score;
+    }
+
+    private static void UpdateOrdersStatus(IEnumerable<Order> orders)
+    {
+        foreach (var order in orders)
+        {
+            var activeItems = order.Items
+                .Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled)
+                .ToList();
+
+            if (activeItems.Count == 0) continue;
+            if (activeItems.All(i => i.Status == OrderItemStatus.Ready))
+                order.Status = OrderStatus.Ready;
+            else if (activeItems.Any(i => i.Status == OrderItemStatus.InPreparation))
+                order.Status = OrderStatus.InPreparation;
+            else if (order.Status is OrderStatus.InPreparation or OrderStatus.Ready)
+                order.Status = OrderStatus.Confirmed;
+        }
+    }
+
+    private static string BuildSuccessLabel(List<OrderItem> items)
+    {
+        if (items.Count > 1)
+        {
+            var table = items.First().Order?.Table?.Code;
+            return !string.IsNullOrWhiteSpace(table)
+                ? $"pedido de {table}"
+                : $"pedido #{items.First().Order?.Number}";
+        }
+
+        return items[0].MenuItem?.Name ?? "plato";
+    }
+
+    private static string? ExtractTableCode(string text)
+    {
+        var match = Regex.Match(text, @"\bmesas?\s*([a-z0-9]+)\b");
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
+    private static int? ExtractOrderNumber(string text)
+    {
+        var match = Regex.Match(text, @"\b(?:pedido|orden|comanda)\s*(\d+)\b");
+        return match.Success && int.TryParse(match.Groups[1].Value, out var value)
+            ? value
+            : null;
+    }
+
+    private static string ExtractItemText(string text)
+    {
+        var cleaned = Regex.Replace(text, @"\bmesas?\s*[a-z0-9]+\b", " ");
+        cleaned = Regex.Replace(cleaned, @"\b(?:pedido|orden|comanda)\s*\d+\b", " ");
+
+        return string.Join(' ', cleaned
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(word =>
+                !StopWords.Contains(word) &&
+                !PreparationWords.Contains(word) &&
+                !ReadyWords.Contains(word)));
+    }
+
+    private static List<string> Tokens(string text) =>
+        NormalizeText(text)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(word => word.Length > 1 && !StopWords.Contains(word))
+            .Distinct()
+            .ToList();
+
+    private static string NormalizeText(string value)
+    {
+        var normalized = NormalizeNumbers(value)
+            .ToLowerInvariant()
+            .Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(normalized.Length);
+
+        foreach (var c in normalized)
+        {
+            var category = CharUnicodeInfo.GetUnicodeCategory(c);
+            if (category != UnicodeCategory.NonSpacingMark)
+                builder.Append(c);
+        }
+
+        return Regex.Replace(
+                Regex.Replace(builder.ToString().Normalize(NormalizationForm.FormC), @"[^a-z0-9\s]", " "),
+                @"\s+",
+                " ")
+            .Trim();
+    }
+
+    private static string NormalizeNumbers(string text)
+    {
+        var map = new Dictionary<string, string>
+        {
+            ["cero"] = "0",
+            ["uno"] = "1",
+            ["dos"] = "2",
+            ["tres"] = "3",
+            ["cuatro"] = "4",
+            ["cinco"] = "5",
+            ["seis"] = "6",
+            ["siete"] = "7",
+            ["ocho"] = "8",
+            ["nueve"] = "9",
+            ["diez"] = "10",
+            ["once"] = "11",
+            ["doce"] = "12",
+            ["trece"] = "13",
+            ["catorce"] = "14",
+            ["quince"] = "15",
+            ["dieciseis"] = "16",
+            ["diecisiete"] = "17",
+            ["dieciocho"] = "18",
+            ["diecinueve"] = "19",
+            ["veinte"] = "20",
+            ["veintiuno"] = "21",
+            ["veintidos"] = "22",
+            ["veintitres"] = "23",
+            ["veinticuatro"] = "24",
+            ["veinticinco"] = "25",
+            ["veintiseis"] = "26",
+            ["veintisiete"] = "27",
+            ["veintiocho"] = "28",
+            ["veintinueve"] = "29",
+            ["treinta"] = "30",
+        };
+
+        var result = text.ToLowerInvariant();
+        foreach (var (word, digit) in map)
+            result = Regex.Replace(result, $@"\b{word}\b", digit);
+
+        return Regex.Replace(result, @"\bveinti\s+(\d)\b", "2$1");
+    }
+}
 
 internal static class PosMapper
 {

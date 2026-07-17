@@ -43,6 +43,7 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
       GRIMORIO_ADMIN_EMAIL: ${GRIMORIO_ADMIN_EMAIL}
       GRIMORIO_ADMIN_PASSWORD: ${GRIMORIO_ADMIN_PASSWORD}
+      Alexa__KitchenCommandKey: ${ALEXA_KITCHEN_COMMAND_KEY}
     volumes:
       - ../../backend/secrets:/app/secrets:ro
       - data_protection_keys:/app/keys

@@ -132,6 +132,26 @@ public class UpdateOrderItemNotesDto
     public string? Notes { get; set; }
 }
 
+public class AlexaKitchenCommandDto
+{
+    public Guid BranchId { get; set; }
+    public string? RawText { get; set; }
+    public string? Action { get; set; }
+    public string? TableCode { get; set; }
+    public int? OrderNumber { get; set; }
+    public string? ItemText { get; set; }
+    public bool AllItems { get; set; }
+}
+
+public class AlexaKitchenCommandResultDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public string? Status { get; set; }
+    public int UpdatedCount { get; set; }
+    public List<OrderItemDto> Items { get; set; } = [];
+}
+
 // ── Items por estación (monitor) ──────────────────────────────────────────
 
 public class StationItemDto

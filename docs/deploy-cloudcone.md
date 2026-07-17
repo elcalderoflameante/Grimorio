@@ -17,7 +17,7 @@ Esta configuracion deja tres servicios en el VPS:
 ## 2. Preparar secretos y variables
 
 1. Copia `deploy/cloudcone/.env.example` a `deploy/cloudcone/.env`
-2. Ajusta `APP_DOMAIN`, `VITE_PUBLIC_APP_URL`, `CORS_ALLOWED_ORIGINS`, credenciales de DB, JWT y usuario admin inicial
+2. Ajusta `APP_DOMAIN`, `VITE_PUBLIC_APP_URL`, `CORS_ALLOWED_ORIGINS`, credenciales de DB, JWT, usuario admin inicial y `ALEXA_KITCHEN_COMMAND_KEY`
 3. Coloca tu Firebase Admin SDK en `backend/secrets/firebase-adminsdk.json`
 4. Mantén `DATA_PROTECTION_KEYS_PATH=/app/keys`; las llaves se guardan en un volumen persistente y no en `backend/secrets`
 
@@ -76,3 +76,4 @@ docker compose --env-file .env exec -T db pg_dump -U "$DB_USER" "$DB_NAME" > "ba
 - En un VPS de 4 GB, evita agregar Adminer, Redis o procesos extra hasta medir consumo real.
 - Si luego migras la base a un proveedor externo, basta con cambiar `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD`.
 - Si no defines `GRIMORIO_ADMIN_EMAIL` y `GRIMORIO_ADMIN_PASSWORD`, el sistema usara credenciales de desarrollo. No expongas produccion con esos valores.
+- `ALEXA_KITCHEN_COMMAND_KEY` debe ser un secreto largo y aleatorio. Docker lo expone al API como `Alexa__KitchenCommandKey`, que es la clave que valida `POST /api/alexa/kitchen-command`.

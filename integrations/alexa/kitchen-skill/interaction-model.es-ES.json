@@ -1,0 +1,114 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "grimorio",
+      "intents": [
+        {
+          "name": "KitchenCommandIntent",
+          "slots": [
+            {
+              "name": "action",
+              "type": "GRIMORIO_ACTION"
+            },
+            {
+              "name": "itemText",
+              "type": "GRIMORIO_ITEM"
+            },
+            {
+              "name": "tableCode",
+              "type": "AMAZON.NUMBER"
+            },
+            {
+              "name": "orderNumber",
+              "type": "AMAZON.NUMBER"
+            },
+            {
+              "name": "allItems",
+              "type": "GRIMORIO_ALL_ITEMS"
+            }
+          ],
+          "samples": [
+            "{action} mesa {tableCode}",
+            "{action} pedido {orderNumber}",
+            "{action} {itemText} mesa {tableCode}",
+            "{action} mesa {tableCode} {itemText}",
+            "{action} {allItems} mesa {tableCode}",
+            "{action} {allItems} el pedido mesa {tableCode}",
+            "{action} pedido mesa {tableCode}",
+            "mesa {tableCode} {action}",
+            "mesa {tableCode} {action} {itemText}",
+            "mesa {tableCode} {action} {allItems} el pedido"
+          ]
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        }
+      ],
+      "types": [
+        {
+          "name": "GRIMORIO_ACTION",
+          "values": [
+            {
+              "name": {
+                "value": "preparando",
+                "synonyms": ["prepara", "preparar", "en preparacion"]
+              }
+            },
+            {
+              "name": {
+                "value": "listo",
+                "synonyms": ["lista", "terminado", "terminada", "completo"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GRIMORIO_ALL_ITEMS",
+          "values": [
+            {
+              "name": {
+                "value": "todo",
+                "synonyms": ["toda", "todos", "todas", "todo el pedido", "pedido completo"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GRIMORIO_ITEM",
+          "values": [
+            {
+              "name": {
+                "value": "salchipapa"
+              }
+            },
+            {
+              "name": {
+                "value": "combo uno",
+                "synonyms": ["combo 1"]
+              }
+            },
+            {
+              "name": {
+                "value": "alitas"
+              }
+            },
+            {
+              "name": {
+                "value": "hamburguesa"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

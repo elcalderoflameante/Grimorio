@@ -103,3 +103,14 @@ public class SetOrderItemStatusCommand : IRequest<OrderItemDto>
     public Guid BranchId { get; set; }
     public string Status { get; set; } = string.Empty;
 }
+
+public class ProcessAlexaKitchenCommand : IRequest<AlexaKitchenCommandResultDto>
+{
+    public Guid BranchId { get; set; }
+    public string? RawText { get; set; }
+    public string? Action { get; set; }
+    public string? TableCode { get; set; }
+    public int? OrderNumber { get; set; }
+    public string? ItemText { get; set; }
+    public bool AllItems { get; set; }
+}
