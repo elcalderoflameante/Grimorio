@@ -161,9 +161,8 @@ Respuesta:
 
 Scaffold incluido:
 
-- `integrations/alexa/kitchen-skill/lambda/index.mjs`
-- `integrations/alexa/kitchen-skill/interaction-model.es-US.json` si el dispositivo Alexa esta en Espanol Estados Unidos
-- `integrations/alexa/kitchen-skill/interaction-model.es-ES.json` si el dispositivo Alexa esta en Espanol Espana
+- `integrations/alexa/kitchen-skill/lambda/index.js`
+- `integrations/alexa/kitchen-skill/interaction-model.es-US.json`
 
 La Lambda debe:
 
