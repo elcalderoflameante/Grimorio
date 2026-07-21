@@ -1,6 +1,6 @@
 # Grimorio Estaciones
 
-Aplicacion Flutter para estaciones de cocina/barra. Muestra items pendientes por estacion, escucha eventos en tiempo real del hub de cocina y permite actualizar estados.
+Aplicacion Flutter para estaciones de cocina/barra. Muestra items pendientes por estacion, recibe eventos en tiempo real del hub de cocina y permite actualizar estados.
 
 ## Build de produccion Android
 

@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <application
-        android:label="station_app"
+        android:label="Grimorio KDS"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
