@@ -5,6 +5,9 @@ using Grimorio.Infrastructure.Features.POS.Commands;
 using Grimorio.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Grimorio.Infrastructure.Features.POS.Queries;
 
@@ -118,6 +121,200 @@ public class GetOrderDetailQueryHandler : IRequestHandler<GetOrderDetailQuery, O
             .FirstOrDefaultAsync(ct);
 
         return order == null ? null : PosMapper.MapOrder(order);
+    }
+}
+
+public class GetAlexaOrderRepeatQueryHandler
+    : IRequestHandler<GetAlexaOrderRepeatQuery, AlexaOrderRepeatResultDto>
+{
+    private readonly GrimorioDbContext _db;
+
+    public GetAlexaOrderRepeatQueryHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<AlexaOrderRepeatResultDto> Handle(
+        GetAlexaOrderRepeatQuery req,
+        CancellationToken ct)
+    {
+        var tableCode = NormalizeText(req.TableCode ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(tableCode) && req.OrderNumber == null)
+        {
+            return Fail("No escuche la mesa o el numero de pedido.");
+        }
+
+        var orders = await _db.Orders
+            .AsNoTracking()
+            .Where(o =>
+                o.BranchId == req.BranchId &&
+                !o.IsDeleted &&
+                o.PaidAt == null &&
+                o.Status != OrderStatus.Cancelled &&
+                o.Status != OrderStatus.Delivered &&
+                o.Status != OrderStatus.Draft)
+            .Include(o => o.Table)
+            .Include(o => o.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled))
+                .ThenInclude(i => i.MenuItem)
+            .Include(o => o.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled))
+                .ThenInclude(i => i.Station)
+            .Include(o => o.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled))
+                .ThenInclude(i => i.IngredientChoices.Where(c => !c.IsDeleted))
+                    .ThenInclude(c => c.ChosenArticle)
+            .AsSplitQuery()
+            .OrderByDescending(o => o.ConfirmedAt ?? o.CreatedAt)
+            .ToListAsync(ct);
+
+        var order = orders.FirstOrDefault(o => MatchesTarget(o, tableCode, req.OrderNumber));
+        if (order == null)
+        {
+            return Fail("No encontre un pedido activo para esa mesa.");
+        }
+
+        var items = order.Items
+            .Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled)
+            .OrderBy(i => i.CreatedAt)
+            .ToList();
+
+        if (items.Count == 0)
+        {
+            return Fail("Ese pedido no tiene platos activos.");
+        }
+
+        var itemDtos = items.Select(PosMapper.MapOrderItem).ToList();
+        var tableLabel = !string.IsNullOrWhiteSpace(order.Table?.Code)
+            ? order.Table.Code
+            : $"pedido {order.Number}";
+        var itemText = string.Join("; ", items.Select(BuildItemText));
+        var notes = string.IsNullOrWhiteSpace(order.Notes)
+            ? string.Empty
+            : $" Observacion general: {order.Notes.Trim()}.";
+
+        return new AlexaOrderRepeatResultDto
+        {
+            Success = true,
+            OrderId = order.Id,
+            OrderNumber = order.Number,
+            TableCode = order.Table?.Code,
+            Items = itemDtos,
+            Message = $"Pedido de {tableLabel}: {itemText}.{notes}",
+        };
+    }
+
+    private static AlexaOrderRepeatResultDto Fail(string message) => new()
+    {
+        Success = false,
+        Message = message,
+    };
+
+    private static bool MatchesTarget(Order order, string tableCode, int? orderNumber)
+    {
+        var orderMatches = orderNumber.HasValue && order.Number == orderNumber.Value;
+        var tableMatches = !string.IsNullOrWhiteSpace(tableCode) &&
+            MatchesTable(NormalizeText(order.Table?.Code ?? string.Empty), tableCode);
+        return orderMatches || tableMatches;
+    }
+
+    private static bool MatchesTable(string orderTable, string spokenTable)
+    {
+        if (orderTable == spokenTable) return true;
+        if (orderTable == $"mesa {spokenTable}" || orderTable == $"m {spokenTable}") return true;
+
+        var orderDigits = Regex.Match(orderTable, @"\d+").Value;
+        var spokenDigits = Regex.Match(spokenTable, @"\d+").Value;
+        return !string.IsNullOrWhiteSpace(orderDigits) &&
+            !string.IsNullOrWhiteSpace(spokenDigits) &&
+            orderDigits == spokenDigits;
+    }
+
+    private static string BuildItemText(OrderItem item)
+    {
+        var parts = new List<string>
+        {
+            $"{item.Quantity} {item.MenuItem?.Name ?? "plato"}"
+        };
+
+        var choices = item.IngredientChoices
+            .Where(c => !c.IsDeleted && !string.IsNullOrWhiteSpace(c.ChosenArticle?.Name))
+            .Select(c => c.ChosenArticle!.Name.Trim())
+            .ToList();
+        if (choices.Count > 0)
+            parts.Add($"con {string.Join(", ", choices)}");
+
+        if (!string.IsNullOrWhiteSpace(item.Notes))
+            parts.Add($"nota {item.Notes.Trim()}");
+
+        parts.Add(item.Status switch
+        {
+            OrderItemStatus.Pending => "pendiente",
+            OrderItemStatus.InPreparation => "en preparacion",
+            OrderItemStatus.Ready => "listo",
+            _ => item.Status.ToString(),
+        });
+
+        return string.Join(", ", parts);
+    }
+
+    private static string NormalizeText(string value)
+    {
+        var normalized = NormalizeNumbers(value)
+            .ToLowerInvariant()
+            .Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(normalized.Length);
+
+        foreach (var c in normalized)
+        {
+            var category = CharUnicodeInfo.GetUnicodeCategory(c);
+            if (category != UnicodeCategory.NonSpacingMark)
+                builder.Append(c);
+        }
+
+        return Regex.Replace(
+                Regex.Replace(builder.ToString().Normalize(NormalizationForm.FormC), @"[^a-z0-9\s]", " "),
+                @"\s+",
+                " ")
+            .Trim();
+    }
+
+    private static string NormalizeNumbers(string text)
+    {
+        var map = new Dictionary<string, string>
+        {
+            ["cero"] = "0",
+            ["uno"] = "1",
+            ["dos"] = "2",
+            ["tres"] = "3",
+            ["cuatro"] = "4",
+            ["cinco"] = "5",
+            ["seis"] = "6",
+            ["siete"] = "7",
+            ["ocho"] = "8",
+            ["nueve"] = "9",
+            ["diez"] = "10",
+            ["once"] = "11",
+            ["doce"] = "12",
+            ["trece"] = "13",
+            ["catorce"] = "14",
+            ["quince"] = "15",
+            ["dieciseis"] = "16",
+            ["diecisiete"] = "17",
+            ["dieciocho"] = "18",
+            ["diecinueve"] = "19",
+            ["veinte"] = "20",
+            ["veintiuno"] = "21",
+            ["veintidos"] = "22",
+            ["veintitres"] = "23",
+            ["veinticuatro"] = "24",
+            ["veinticinco"] = "25",
+            ["veintiseis"] = "26",
+            ["veintisiete"] = "27",
+            ["veintiocho"] = "28",
+            ["veintinueve"] = "29",
+            ["treinta"] = "30",
+        };
+
+        var result = text.ToLowerInvariant();
+        foreach (var (word, digit) in map)
+            result = Regex.Replace(result, $@"\b{word}\b", digit);
+
+        return Regex.Replace(result, @"\bveinti\s+(\d)\b", "2$1");
     }
 }
 

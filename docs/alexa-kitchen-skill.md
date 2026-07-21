@@ -92,6 +92,47 @@ mesa {tableCode} {action} {itemText}
 mesa {tableCode} {action} todo el pedido
 ```
 
+Intent: `RepeatOrderIntent`
+
+Slots:
+
+- `tableCode`: numero de mesa
+- `orderNumber`: numero de pedido
+
+Utterances:
+
+```text
+repite pedido mesa {tableCode}
+repite el pedido de la mesa {tableCode}
+dime el pedido de la mesa {tableCode}
+que tiene la mesa {tableCode}
+que pidio la mesa {tableCode}
+lee pedido mesa {tableCode}
+repite pedido {orderNumber}
+```
+
+Endpoint de lectura:
+
+`POST /api/alexa/order-repeat`
+
+Body:
+
+```json
+{
+  "branchId": "00000000-0000-0000-0000-000000000000",
+  "tableCode": "1"
+}
+```
+
+Respuesta:
+
+```json
+{
+  "success": true,
+  "message": "Pedido de Mesa 1: 1 salchipapa, pendiente; 1 combo uno, con BBQ, en preparacion."
+}
+```
+
 ## Lambda
 
 Scaffold incluido:

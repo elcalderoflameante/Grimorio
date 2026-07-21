@@ -3,6 +3,7 @@ using System.Text;
 using Grimorio.API.Hubs;
 using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.POS.Commands;
+using Grimorio.Application.Features.POS.Queries;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -52,6 +53,26 @@ public class AlexaController : ControllerBase
 
         if (result.Success)
             await NotifyKitchenAsync(result.Items);
+
+        return Ok(result);
+    }
+
+    [AllowAnonymous]
+    [HttpPost("order-repeat")]
+    public async Task<IActionResult> RepeatOrder([FromBody] AlexaOrderRepeatRequestDto dto)
+    {
+        if (!IsAuthorizedIntegrationRequest())
+            return Unauthorized(new { message = "Alexa integration key invalida." });
+
+        if (dto.BranchId == Guid.Empty)
+            return BadRequest(new { message = "BranchId es requerido." });
+
+        var result = await _mediator.Send(new GetAlexaOrderRepeatQuery
+        {
+            BranchId = dto.BranchId,
+            TableCode = dto.TableCode,
+            OrderNumber = dto.OrderNumber,
+        });
 
         return Ok(result);
     }

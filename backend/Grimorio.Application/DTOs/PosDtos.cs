@@ -152,6 +152,23 @@ public class AlexaKitchenCommandResultDto
     public List<OrderItemDto> Items { get; set; } = [];
 }
 
+public class AlexaOrderRepeatRequestDto
+{
+    public Guid BranchId { get; set; }
+    public string? TableCode { get; set; }
+    public int? OrderNumber { get; set; }
+}
+
+public class AlexaOrderRepeatResultDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public Guid? OrderId { get; set; }
+    public int? OrderNumber { get; set; }
+    public string? TableCode { get; set; }
+    public List<OrderItemDto> Items { get; set; } = [];
+}
+
 // ── Items por estación (monitor) ──────────────────────────────────────────
 
 public class StationItemDto

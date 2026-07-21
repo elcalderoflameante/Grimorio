@@ -23,7 +23,11 @@ export const handler = async (event) => {
   }
 
   if (request.intent?.name !== 'KitchenCommandIntent') {
-    return speak('Dime preparando o listo, la mesa y el plato.', false);
+    if (request.intent?.name === 'RepeatOrderIntent') {
+      return repeatOrder(request.intent.slots ?? {});
+    }
+
+    return speak('Dime preparando, listo, o repite pedido mesa y el numero.', false);
   }
 
   if (!apiBaseUrl || !branchId || !integrationKey) {
@@ -64,6 +68,39 @@ export const handler = async (event) => {
     return speak('No pude comunicarme con Grimorio.', false);
   }
 };
+
+async function repeatOrder(slots) {
+  if (!apiBaseUrl || !branchId || !integrationKey) {
+    return speak('Grimorio no esta configurado para Alexa.', true);
+  }
+
+  const tableCode = slotValue(slots.tableCode);
+  const orderNumber = Number.parseInt(slotValue(slots.orderNumber) ?? '', 10);
+
+  try {
+    const response = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/alexa/order-repeat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Grimorio-Alexa-Key': integrationKey,
+      },
+      body: JSON.stringify({
+        branchId,
+        tableCode,
+        orderNumber: Number.isNaN(orderNumber) ? null : orderNumber,
+      }),
+    });
+
+    if (!response.ok) {
+      return speak('No pude consultar el pedido en Grimorio.', false);
+    }
+
+    const result = await response.json();
+    return speak(result.message ?? 'No encontre ese pedido.', false);
+  } catch {
+    return speak('No pude consultar el pedido en Grimorio.', false);
+  }
+}
 
 function slotValue(slot) {
   return slot?.value?.trim() || undefined;

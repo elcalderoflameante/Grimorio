@@ -41,6 +41,33 @@
           ]
         },
         {
+          "name": "RepeatOrderIntent",
+          "slots": [
+            {
+              "name": "tableCode",
+              "type": "AMAZON.NUMBER"
+            },
+            {
+              "name": "orderNumber",
+              "type": "AMAZON.NUMBER"
+            }
+          ],
+          "samples": [
+            "repite pedido mesa {tableCode}",
+            "repite el pedido mesa {tableCode}",
+            "repite el pedido de la mesa {tableCode}",
+            "repiteme el pedido de la mesa {tableCode}",
+            "dime el pedido de la mesa {tableCode}",
+            "que tiene la mesa {tableCode}",
+            "que pidio la mesa {tableCode}",
+            "lee pedido mesa {tableCode}",
+            "lee el pedido de la mesa {tableCode}",
+            "repite pedido {orderNumber}",
+            "repite el pedido {orderNumber}",
+            "lee pedido {orderNumber}"
+          ]
+        },
+        {
           "name": "AMAZON.CancelIntent",
           "samples": []
         },
