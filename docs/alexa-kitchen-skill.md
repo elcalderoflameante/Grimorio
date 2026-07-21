@@ -115,6 +115,7 @@ Utterances:
 
 ```text
 repite pedido mesa {tableCode}
+repite todo el pedido de la mesa {tableCode}
 repite el pedido de la mesa {tableCode}
 dime el pedido de la mesa {tableCode}
 que tiene la mesa {tableCode}
