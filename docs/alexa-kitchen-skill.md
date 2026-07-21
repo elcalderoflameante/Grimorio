@@ -83,16 +83,21 @@ Utterances:
 {action} pedido {orderNumber}
 {action} {itemText} mesa {tableCode}
 {action} mesa {tableCode} {itemText}
+{itemText} {action} mesa {tableCode}
+{itemText} mesa {tableCode} {action}
+mesa {tableCode} {itemText} {action}
 {action} todo mesa {tableCode}
 {action} todo el pedido mesa {tableCode}
 {action} pedido mesa {tableCode}
-mesa {tableCode} {action}
 mesa {tableCode} {action} {itemText}
 mesa {tableCode} {action} todo el pedido
 ```
 
 Regla: `{action} mesa {tableCode}` no debe cambiar todos los platos. Para marcar toda la mesa,
 el usuario debe decir explicitamente `todo`, `toda la mesa` o `todo el pedido`.
+Las coincidencias parciales son validas cuando hay un solo plato probable: `combo 6 listo mesa 3`
+puede marcar `Combo 6 de alitas`. Si en la misma mesa hay dos platos parecidos, por ejemplo
+`Combo 6 de alitas` y `Combo 6 de salchichas`, Alexa debe pedir que se especifique cual.
 
 Intent: `RepeatOrderIntent`
 

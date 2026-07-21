@@ -31,10 +31,12 @@
             "{action} pedido {orderNumber}",
             "{action} {itemText} mesa {tableCode}",
             "{action} mesa {tableCode} {itemText}",
+            "{itemText} {action} mesa {tableCode}",
+            "{itemText} mesa {tableCode} {action}",
+            "mesa {tableCode} {itemText} {action}",
             "{action} {allItems} mesa {tableCode}",
             "{action} {allItems} el pedido mesa {tableCode}",
             "{action} pedido mesa {tableCode}",
-            "mesa {tableCode} {action}",
             "mesa {tableCode} {action} {itemText}",
             "mesa {tableCode} {action} {allItems} el pedido"
           ]
@@ -120,6 +122,12 @@
               "name": {
                 "value": "combo uno",
                 "synonyms": ["combo 1"]
+              }
+            },
+            {
+              "name": {
+                "value": "combo seis",
+                "synonyms": ["combo 6"]
               }
             },
             {

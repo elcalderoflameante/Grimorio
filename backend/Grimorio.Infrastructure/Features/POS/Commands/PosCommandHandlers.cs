@@ -734,7 +734,13 @@ public class ProcessAlexaKitchenCommandHandler
         if (!isWholeOrder && string.IsNullOrWhiteSpace(itemText))
             return Fail("Dime que plato de la mesa quieres marcar, o di todo el pedido.");
 
-        var selected = isWholeOrder ? candidates : MatchItems(candidates, itemText);
+        var match = isWholeOrder
+            ? MatchResult.Found(candidates)
+            : MatchItems(candidates, itemText);
+        if (match.IsAmbiguous)
+            return Fail(match.Message ?? "Hay varios platos parecidos. Dime cual exactamente.");
+
+        var selected = match.Items;
         if (selected.Count == 0)
             return Fail("No encontre ese plato en la mesa o pedido.");
 
@@ -801,10 +807,10 @@ public class ProcessAlexaKitchenCommandHandler
             orderDigits == spokenDigits;
     }
 
-    private static List<OrderItem> MatchItems(List<OrderItem> candidates, string itemText)
+    private static MatchResult MatchItems(List<OrderItem> candidates, string itemText)
     {
         var spokenTokens = Tokens(itemText);
-        if (spokenTokens.Count == 0) return [];
+        if (spokenTokens.Count == 0) return MatchResult.NotFound();
 
         var scored = candidates
             .Select(item => new { Item = item, Score = ScoreItem(item, itemText, spokenTokens) })
@@ -812,10 +818,32 @@ public class ProcessAlexaKitchenCommandHandler
             .OrderByDescending(x => x.Score)
             .ToList();
 
-        if (scored.Count == 0) return [];
-        if (scored.Count > 1 && scored[0].Score - scored[1].Score < 0.75) return [];
+        if (scored.Count == 0) return MatchResult.NotFound();
+        if (scored.Count > 1 && scored[0].Score - scored[1].Score < 0.75)
+        {
+            var options = scored
+                .Take(3)
+                .Select(x => x.Item.MenuItem?.Name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct()
+                .ToList();
+            var message = options.Count > 0
+                ? $"Hay varios platos parecidos: {string.Join(", ", options)}. Dime cual exactamente."
+                : "Hay varios platos parecidos. Dime cual exactamente.";
+            return MatchResult.Ambiguous(message);
+        }
 
-        return [scored[0].Item];
+        return MatchResult.Found([scored[0].Item]);
+    }
+
+    private sealed record MatchResult(
+        IReadOnlyList<OrderItem> Items,
+        bool IsAmbiguous,
+        string? Message)
+    {
+        public static MatchResult Found(IReadOnlyList<OrderItem> items) => new(items, false, null);
+        public static MatchResult NotFound() => new([], false, null);
+        public static MatchResult Ambiguous(string message) => new([], true, message);
     }
 
     private static double ScoreItem(OrderItem item, string spokenText, List<string> spokenTokens)
@@ -866,7 +894,7 @@ public class ProcessAlexaKitchenCommandHandler
         }
     }
 
-    private static string BuildSuccessLabel(List<OrderItem> items)
+    private static string BuildSuccessLabel(IReadOnlyList<OrderItem> items)
     {
         if (items.Count > 1)
         {
