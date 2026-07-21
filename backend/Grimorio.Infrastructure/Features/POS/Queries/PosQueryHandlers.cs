@@ -179,8 +179,8 @@ public class GetAlexaOrderRepeatQueryHandler
         }
 
         var itemDtos = items.Select(PosMapper.MapOrderItem).ToList();
-        var tableLabel = !string.IsNullOrWhiteSpace(order.Table?.Code)
-            ? order.Table.Code
+        var orderLabel = !string.IsNullOrWhiteSpace(order.Table?.Code)
+            ? FormatTableLabel(order.Table.Code)
             : $"pedido {order.Number}";
         var itemText = string.Join("; ", items.Select(BuildItemText));
         var notes = string.IsNullOrWhiteSpace(order.Notes)
@@ -194,7 +194,7 @@ public class GetAlexaOrderRepeatQueryHandler
             OrderNumber = order.Number,
             TableCode = order.Table?.Code,
             Items = itemDtos,
-            Message = $"Pedido de {tableLabel}: {itemText}.{notes}",
+            Message = $"Pedido {orderLabel}: {itemText}.{notes}",
         };
     }
 
@@ -250,6 +250,14 @@ public class GetAlexaOrderRepeatQueryHandler
         });
 
         return string.Join(", ", parts);
+    }
+
+    private static string FormatTableLabel(string tableCode)
+    {
+        var normalized = NormalizeText(tableCode);
+        if (normalized.StartsWith("mesa ")) return tableCode.Trim();
+        if (Regex.IsMatch(normalized, @"^\d+$")) return $"mesa {tableCode.Trim()}";
+        return tableCode.Trim();
     }
 
     private static string NormalizeText(string value)

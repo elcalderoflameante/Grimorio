@@ -729,8 +729,10 @@ public class ProcessAlexaKitchenCommandHandler
 
         var itemText = NormalizeText(req.ItemText ?? ExtractItemText(rawText));
         var isWholeOrder = req.AllItems ||
-            string.IsNullOrWhiteSpace(itemText) ||
             WholeOrderWords.Any(w => Regex.IsMatch(itemText, $@"\b{Regex.Escape(w)}\b"));
+
+        if (!isWholeOrder && string.IsNullOrWhiteSpace(itemText))
+            return Fail("Dime que plato de la mesa quieres marcar, o di todo el pedido.");
 
         var selected = isWholeOrder ? candidates : MatchItems(candidates, itemText);
         if (selected.Count == 0)
@@ -870,11 +872,19 @@ public class ProcessAlexaKitchenCommandHandler
         {
             var table = items.First().Order?.Table?.Code;
             return !string.IsNullOrWhiteSpace(table)
-                ? $"pedido de {table}"
+                ? $"pedido {FormatTableLabel(table)}"
                 : $"pedido #{items.First().Order?.Number}";
         }
 
         return items[0].MenuItem?.Name ?? "plato";
+    }
+
+    private static string FormatTableLabel(string tableCode)
+    {
+        var normalized = NormalizeText(tableCode);
+        if (normalized.StartsWith("mesa ")) return tableCode.Trim();
+        if (Regex.IsMatch(normalized, @"^\d+$")) return $"mesa {tableCode.Trim()}";
+        return tableCode.Trim();
     }
 
     private static string? ExtractTableCode(string text)

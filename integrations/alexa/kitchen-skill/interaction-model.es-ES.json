@@ -28,7 +28,6 @@
             }
           ],
           "samples": [
-            "{action} mesa {tableCode}",
             "{action} pedido {orderNumber}",
             "{action} {itemText} mesa {tableCode}",
             "{action} mesa {tableCode} {itemText}",

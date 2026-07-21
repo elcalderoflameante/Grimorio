@@ -80,7 +80,6 @@ Slots:
 Utterances:
 
 ```text
-{action} mesa {tableCode}
 {action} pedido {orderNumber}
 {action} {itemText} mesa {tableCode}
 {action} mesa {tableCode} {itemText}
@@ -91,6 +90,9 @@ mesa {tableCode} {action}
 mesa {tableCode} {action} {itemText}
 mesa {tableCode} {action} todo el pedido
 ```
+
+Regla: `{action} mesa {tableCode}` no debe cambiar todos los platos. Para marcar toda la mesa,
+el usuario debe decir explicitamente `todo`, `toda la mesa` o `todo el pedido`.
 
 Intent: `RepeatOrderIntent`
 
