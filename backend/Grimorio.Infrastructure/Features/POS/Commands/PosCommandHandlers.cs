@@ -946,8 +946,20 @@ public class ProcessAlexaKitchenCommandHandler
         NormalizeText(text)
             .Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .Where(word => word.Length > 1 && !StopWords.Contains(word))
+            .SelectMany(TokenVariants)
             .Distinct()
             .ToList();
+
+    private static IEnumerable<string> TokenVariants(string token)
+    {
+        yield return token;
+
+        if (token.Length > 4 && token.EndsWith("es"))
+            yield return token[..^2];
+
+        if (token.Length > 3 && token.EndsWith("s"))
+            yield return token[..^1];
+    }
 
     private static string NormalizeText(string value)
     {

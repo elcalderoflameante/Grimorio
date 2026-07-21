@@ -98,6 +98,9 @@ el usuario debe decir explicitamente `todo`, `toda la mesa` o `todo el pedido`.
 Las coincidencias parciales son validas cuando hay un solo plato probable: `combo 6 listo mesa 3`
 puede marcar `Combo 6 de alitas`. Si en la misma mesa hay dos platos parecidos, por ejemplo
 `Combo 6 de alitas` y `Combo 6 de salchichas`, Alexa debe pedir que se especifique cual.
+La Lambda solo envia `allItems: true` cuando el slot realmente contiene `todo`, `toda`,
+`todo el pedido` o equivalente; si Alexa coloca por error un plato plural como `salchipapas`
+en ese slot, se reenvia como texto de plato.
 
 Intent: `RepeatOrderIntent`
 

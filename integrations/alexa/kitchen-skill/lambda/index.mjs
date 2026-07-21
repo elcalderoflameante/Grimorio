@@ -40,6 +40,7 @@ export const handler = async (event) => {
   const orderNumber = Number.parseInt(slotValue(slots.orderNumber) ?? '', 10);
   const itemText = slotValue(slots.itemText);
   const allItemsText = slotValue(slots.allItems);
+  const isWholeOrder = isWholeOrderText(allItemsText);
 
   try {
     const response = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/alexa/kitchen-command`, {
@@ -53,8 +54,8 @@ export const handler = async (event) => {
         action,
         tableCode,
         orderNumber: Number.isNaN(orderNumber) ? null : orderNumber,
-        itemText,
-        allItems: Boolean(allItemsText),
+        itemText: itemText || (isWholeOrder ? undefined : allItemsText),
+        allItems: isWholeOrder,
       }),
     });
 
@@ -104,6 +105,17 @@ async function repeatOrder(slots) {
 
 function slotValue(slot) {
   return slot?.value?.trim() || undefined;
+}
+
+function isWholeOrderText(value) {
+  if (!value) return false;
+  const normalized = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+  return /\b(todo|toda|todos|todas|pedido completo|todo el pedido|toda la mesa)\b/.test(normalized);
 }
 
 function speak(outputSpeech, shouldEndSession) {
