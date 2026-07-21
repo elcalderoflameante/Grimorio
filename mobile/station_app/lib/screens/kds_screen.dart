@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:signalr_netcore/signalr_client.dart';
@@ -8,36 +7,6 @@ import '../widgets/completed_sidebar.dart';
 
 class KdsScreen extends StatelessWidget {
   const KdsScreen({super.key});
-
-  Future<void> _openOfflineSpeech(BuildContext context) async {
-    final opened = await context.read<StationProvider>().openSpeechOfflineSettings();
-    if (!opened && context.mounted) {
-      showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF1C1C3A),
-          title: const Text('Voz offline',
-              style: TextStyle(color: Colors.white, fontSize: 16)),
-          content: const Text(
-            'Este dispositivo no tiene una pantalla directa para descargar '
-            'idiomas de voz.\n\n'
-            'Ve a:\nAjustes → Sistema → Idioma e introducción de texto → '
-            'Entrada de voz → Reconocimiento de voz de Google → '
-            'Idiomas descargados\n\n'
-            'y descarga Español (Ecuador) o Español (EE.UU.).',
-            style: TextStyle(color: Colors.white70, fontSize: 13),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Entendido',
-                  style: TextStyle(color: Color(0xFFE94560))),
-            ),
-          ],
-        ),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,13 +50,6 @@ class KdsScreen extends StatelessWidget {
                 ),
               ),
             ),
-          // Indicador de micrófono activo
-          if (provider.isListening)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4),
-              child: _MicPulse(),
-            ),
-          // Toggle voz
           IconButton(
             tooltip: provider.ttsEnabled ? 'Silenciar voz' : 'Activar voz',
             icon: Icon(
@@ -104,7 +66,6 @@ class KdsScreen extends StatelessWidget {
             onSelected: (value) {
               if (value == 'change') context.read<StationProvider>().changeStation();
               if (value == 'logout') context.read<StationProvider>().logout();
-              if (value == 'offline_speech') _openOfflineSpeech(context);
             },
             itemBuilder: (_) => [
               const PopupMenuItem(
@@ -113,14 +74,6 @@ class KdsScreen extends StatelessWidget {
                   Icon(Icons.swap_horiz, color: Colors.white70, size: 18),
                   SizedBox(width: 8),
                   Text('Cambiar estación', style: TextStyle(color: Colors.white, fontSize: 14)),
-                ]),
-              ),
-              const PopupMenuItem(
-                value: 'offline_speech',
-                child: Row(children: [
-                  Icon(Icons.download_rounded, color: Colors.white70, size: 18),
-                  SizedBox(width: 8),
-                  Text('Descargar voz offline', style: TextStyle(color: Colors.white, fontSize: 14)),
                 ]),
               ),
               const PopupMenuItem(
@@ -288,65 +241,6 @@ class _ConnectionBadge extends StatelessWidget {
         const SizedBox(width: 5),
         Text(label, style: TextStyle(color: color, fontSize: 11)),
       ],
-    );
-  }
-}
-
-// Punto rojo pulsante que indica que el micrófono está escuchando
-class _MicPulse extends StatefulWidget {
-  const _MicPulse();
-
-  @override
-  State<_MicPulse> createState() => _MicPulseState();
-}
-
-class _MicPulseState extends State<_MicPulse>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
-    _scale = Tween<double>(begin: 0.7, end: 1.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _scale,
-      builder: (context, child) => Transform.scale(
-        scale: _scale.value,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: Colors.redAccent.withValues(
-                  alpha: 0.5 + 0.5 * math.sin(_ctrl.value * math.pi),
-                ),
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 4),
-            const Icon(Icons.mic, color: Colors.redAccent, size: 16),
-          ],
-        ),
-      ),
     );
   }
 }

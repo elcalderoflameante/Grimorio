@@ -7,7 +7,6 @@ import '../models/work_station.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/kitchen_hub_service.dart';
-import '../services/speech_command_service.dart';
 import '../services/tts_service.dart';
 
 enum AppState { unauthenticated, pickingStation, ready }
@@ -16,7 +15,6 @@ class StationProvider extends ChangeNotifier {
   final AuthService _auth = AuthService();
   final KitchenHubService _hub = KitchenHubService();
   final TtsService _tts = TtsService();
-  final SpeechCommandService _speech = SpeechCommandService();
 
   AppState appState = AppState.unauthenticated;
   HubConnectionState connectionState = HubConnectionState.Disconnected;
@@ -30,7 +28,6 @@ class StationProvider extends ChangeNotifier {
 
   String? errorMessage;
   bool isLoading = false;
-  bool isListening = false;
 
   String? get stationName {
     if (_stationNames.isEmpty) return null;
@@ -46,19 +43,6 @@ class StationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool get speechEnabled => _speech.enabled;
-  Future<void> setSpeechEnabled(bool value) async {
-    _speech.enabled = value;
-    if (value && appState == AppState.ready) {
-      await _speech.startListening();
-    } else if (!value) {
-      await _speech.stop();
-    }
-    notifyListeners();
-  }
-
-  Future<bool> openSpeechOfflineSettings() => _speech.openOfflineSettings();
-
   List<MapEntry<String, List<StationItem>>> get orderedGroups {
     final map = <String, List<StationItem>>{};
     for (final item in items) {
@@ -71,7 +55,6 @@ class StationProvider extends ChangeNotifier {
 
   Future<void> init() async {
     await _tts.init();
-    await _initSpeech();
 
     _token = await _auth.getToken() ?? '';
     _stationIds = await _auth.getSavedStationIds();
@@ -86,37 +69,6 @@ class StationProvider extends ChangeNotifier {
       await _startHub();
     }
     notifyListeners();
-  }
-
-  Future<void> _initSpeech() async {
-    _tts.onSpeakingStarted = _speech.pauseForTts;
-    _tts.onSpeakingFinished = _speech.resumeFromTts;
-
-    _speech.onListeningChanged = (listening) {
-      isListening = listening;
-      notifyListeners();
-    };
-
-    _speech.onCommand = (cmd) async {
-      final updatedItems = <StationItem>[];
-      for (final item in cmd.items) {
-        final updated = await advanceItemStatusTo(item, cmd.newStatus);
-        if (updated) updatedItems.add(item);
-      }
-      if (updatedItems.isEmpty) return;
-
-      final statusLabel = cmd.newStatus == 'InPreparation' ? 'en preparación' : 'listo';
-      final names = updatedItems.map((i) => i.itemName).join(', ');
-      _tts.enqueue('Oído chef. $names $statusLabel.');
-    };
-
-    _speech.onCommandNotUnderstood = (reason) => _tts.enqueue(reason);
-    _speech.onUnavailable = (message) {
-      errorMessage = message;
-      notifyListeners();
-    };
-
-    await _speech.init();
   }
 
   Future<void> login(String email, String password) async {
@@ -186,7 +138,8 @@ class StationProvider extends ChangeNotifier {
           additions.putIfAbsent(item.orderId, () => []).add(item);
         } else if (orderOnScreen) {
           additions.putIfAbsent(item.orderId, () => []).add(item);
-        } else {
+        }
+        if (!orderOnScreen && !orderCompleted) {
           brandNew.putIfAbsent(item.orderId, () => []).add(item);
         }
       }
@@ -198,7 +151,6 @@ class StationProvider extends ChangeNotifier {
         _tts.enqueue(TtsService.buildAdditionAnnouncement(entry.value));
       }
 
-      _speech.updateItems(items);
       notifyListeners();
     };
 
@@ -211,7 +163,6 @@ class StationProvider extends ChangeNotifier {
           _tts.enqueue(TtsService.buildItemNotesUpdated(items[idx], notes));
         }
         _checkOrderCompletion(orderId);
-        _speech.updateItems(items);
         notifyListeners();
       }
     };
@@ -219,7 +170,6 @@ class StationProvider extends ChangeNotifier {
     _hub.onOrderCancelled = (orderId) {
       items.removeWhere((e) => e.orderId == orderId);
       completedOrders.removeWhere((e) => e.orderId == orderId);
-      _speech.updateItems(items);
       notifyListeners();
     };
 
@@ -228,7 +178,6 @@ class StationProvider extends ChangeNotifier {
       await _hub.connect(ApiConfig.hubBaseUrl, _token, _stationIds);
       debugPrint('[Provider] Hub conectado OK');
       await _loadInitialItems();
-      await _speech.startListening();
     } catch (e) {
       if (e is UnauthorizedException) {
         debugPrint('[Provider] Token expirado, forzando re-login');
@@ -293,12 +242,10 @@ class StationProvider extends ChangeNotifier {
       );
     }).toList();
 
-    _speech.updateItems(items);
     notifyListeners();
   }
 
   Future<void> _forceLogout() async {
-    await _speech.stop();
     await _hub.dispose();
     await _auth.logout();
     _token = '';
@@ -358,7 +305,6 @@ class StationProvider extends ChangeNotifier {
 
     item.status = targetStatus;
     _checkOrderCompletion(item.orderId);
-    _speech.updateItems(items);
     notifyListeners();
 
     final api = ApiService(token: _token);
@@ -372,7 +318,6 @@ class StationProvider extends ChangeNotifier {
       item.status = previousStatus;
       items = previousItems;
       completedOrders = previousCompletedOrders;
-      _speech.updateItems(items);
       errorMessage = 'Sin sincronizar: ${e.toString().replaceFirst('Exception: ', '')}';
       notifyListeners();
       return false;
@@ -391,7 +336,6 @@ class StationProvider extends ChangeNotifier {
   }
 
   Future<void> changeStation() async {
-    await _speech.stop();
     await _hub.dispose();
     await _auth.clearStation();
     _stationIds = [];
@@ -403,7 +347,6 @@ class StationProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    await _speech.stop();
     await _hub.dispose();
     await _auth.logout();
     _token = '';
@@ -417,7 +360,6 @@ class StationProvider extends ChangeNotifier {
 
   @override
   void dispose() {
-    _speech.dispose();
     _hub.dispose();
     _tts.dispose();
     super.dispose();

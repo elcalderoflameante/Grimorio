@@ -1,5 +1,4 @@
 import 'dart:collection';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../models/station_item.dart';
 
@@ -8,10 +7,6 @@ class TtsService {
   final Queue<String> _queue = Queue();
   bool _processing = false;
   bool enabled = true;
-
-  // El SpeechCommandService usa estos callbacks para pausar el mic mientras se habla.
-  VoidCallback? onSpeakingStarted;
-  VoidCallback? onSpeakingFinished;
 
   Future<void> init() async {
     // Intentar locale ecuatoriano; el motor de Google puede tener es-EC o caer en es-US.
@@ -45,9 +40,7 @@ class TtsService {
     _processing = true;
     while (_queue.isNotEmpty) {
       final text = _queue.removeFirst();
-      onSpeakingStarted?.call();
       await _tts.speak(text);
-      onSpeakingFinished?.call();
     }
     _processing = false;
   }
