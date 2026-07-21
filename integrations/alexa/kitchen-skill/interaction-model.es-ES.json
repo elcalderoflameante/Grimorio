@@ -94,7 +94,7 @@
             {
               "name": {
                 "value": "listo",
-                "synonyms": ["lista", "terminado", "terminada", "completo"]
+                "synonyms": ["lista", "listos", "listas", "terminado", "terminada", "completo"]
               }
             }
           ]
@@ -115,7 +115,8 @@
           "values": [
             {
               "name": {
-                "value": "salchipapa"
+                "value": "salchipapa",
+                "synonyms": ["salchipapas"]
               }
             },
             {

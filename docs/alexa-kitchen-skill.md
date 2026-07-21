@@ -71,8 +71,8 @@ Intent: `KitchenCommandIntent`
 
 Slots:
 
-- `action`: `preparando`, `listo`, `lista`, `terminado`, `completo`
-- `itemText`: `salchipapa`, `combo uno`, `alitas`, `hamburguesa`, texto libre si el locale lo permite
+- `action`: `preparando`, `listo`, `lista`, `listos`, `listas`, `terminado`, `completo`
+- `itemText`: `salchipapa`/`salchipapas`, `combo uno`, `alitas`, `hamburguesa`, texto libre si el locale lo permite
 - `tableCode`: numero o codigo de mesa
 - `orderNumber`: numero de pedido
 - `allItems`: palabras como `todo`, `toda`, `pedido`

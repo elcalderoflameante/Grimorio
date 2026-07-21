@@ -668,7 +668,7 @@ public class ProcessAlexaKitchenCommandHandler
         ["preparando", "preparacion", "prepara", "preparar", "proceso", "haciendo"];
 
     private static readonly string[] ReadyWords =
-        ["listo", "lista", "completo", "completado", "terminado", "terminada"];
+        ["listo", "lista", "listos", "listas", "completo", "completado", "terminado", "terminada"];
 
     private static readonly string[] WholeOrderWords =
         ["todo", "toda", "todos", "todas", "pedido", "orden", "comanda"];
