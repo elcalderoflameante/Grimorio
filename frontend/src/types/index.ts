@@ -5,6 +5,7 @@ export interface UserDto {
   firstName: string;
   lastName: string;
   isActive: boolean;
+  hasKdsPin: boolean;
   roles: string[];
   roleDetails: UserRoleDto[];
 }

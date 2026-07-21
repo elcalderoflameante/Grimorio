@@ -50,6 +50,7 @@ public class CreateUserCommandHandler : IRequestHandler<CreateUserCommand, UserD
             FirstName = user.FirstName,
             LastName = user.LastName,
             IsActive = user.IsActive,
+            HasKdsPin = false,
             Roles = new List<string>(),
             RoleDetails = new List<UserRoleDto>()
         };
@@ -87,6 +88,7 @@ public class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand, UserD
             FirstName = user.FirstName,
             LastName = user.LastName,
             IsActive = user.IsActive,
+            HasKdsPin = user.KdsPinHash != null && user.KdsPinHash != "",
             Roles = user.UserRoles.Select(ur => ur.Role!.Name).ToList(),
             RoleDetails = user.UserRoles.Select(ur => new UserRoleDto
             {
@@ -213,6 +215,46 @@ public class ChangePasswordCommandHandler : IRequestHandler<ChangePasswordComman
         _context.Users.Update(user);
         await _context.SaveChangesAsync(cancellationToken);
 
+        return true;
+    }
+}
+
+public class SetKdsPinCommandHandler : IRequestHandler<SetKdsPinCommand, bool>
+{
+    private readonly GrimorioDbContext _context;
+    private readonly IPasswordHashingService _passwordHashingService;
+
+    public SetKdsPinCommandHandler(GrimorioDbContext context, IPasswordHashingService passwordHashingService)
+    {
+        _context = context;
+        _passwordHashingService = passwordHashingService;
+    }
+
+    public async Task<bool> Handle(SetKdsPinCommand request, CancellationToken cancellationToken)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Id == request.UserId && !u.IsDeleted, cancellationToken);
+
+        if (user == null)
+            throw new InvalidOperationException("Usuario no encontrado.");
+
+        var pin = request.Pin?.Trim();
+        if (string.IsNullOrEmpty(pin))
+        {
+            user.KdsPinHash = null;
+        }
+        else
+        {
+            if (pin.Length != 4 || !pin.All(char.IsDigit))
+                throw new InvalidOperationException("El PIN KDS debe tener 4 dígitos.");
+
+            user.KdsPinHash = _passwordHashingService.HashPassword(pin);
+        }
+
+        user.UpdatedAt = DateTime.UtcNow;
+        user.UpdatedBy = Guid.Empty;
+
+        await _context.SaveChangesAsync(cancellationToken);
         return true;
     }
 }

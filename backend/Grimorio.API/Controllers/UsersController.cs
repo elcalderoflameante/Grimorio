@@ -144,6 +144,25 @@ public class UsersController : ControllerBase
         }
     }
 
+    [Authorize(Policy = "Admin.Users.Update")]
+    [HttpPost("{id}/kds-pin")]
+    public async Task<IActionResult> SetKdsPin(Guid id, [FromBody] SetKdsPinDto dto)
+    {
+        try
+        {
+            var result = await _mediator.Send(new SetKdsPinCommand { UserId = id, Pin = dto.Pin });
+            return Ok(new { success = result, message = "PIN KDS actualizado correctamente." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, message = "Error al actualizar PIN KDS.", error = ex.Message });
+        }
+    }
+
     /// <summary>
     /// Cambia la contraseña de un usuario.
     /// </summary>

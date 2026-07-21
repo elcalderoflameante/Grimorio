@@ -32,6 +32,28 @@ public class RefreshTokenRequest
     public string RefreshToken { get; set; } = string.Empty;
 }
 
+public class KdsBranchDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+}
+
+public class KdsUserDto
+{
+    public Guid Id { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public bool HasKdsPin { get; set; }
+}
+
+public class KdsLoginRequest
+{
+    public Guid BranchId { get; set; }
+    public Guid UserId { get; set; }
+    public string Pin { get; set; } = string.Empty;
+}
+
 /// <summary>
 /// Información del usuario del JWT (claims).
 /// </summary>

@@ -25,6 +25,7 @@ public class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, List<UserDto>
                 FirstName = u.FirstName,
                 LastName = u.LastName,
                 IsActive = u.IsActive,
+                HasKdsPin = u.KdsPinHash != null && u.KdsPinHash != "",
                 Roles = u.UserRoles.Select(ur => ur.Role!.Name).ToList(),
                 RoleDetails = u.UserRoles.Select(ur => new UserRoleDto
                 {
@@ -57,6 +58,7 @@ public class GetUserByIdQueryHandler : IRequestHandler<GetUserByIdQuery, UserDto
                 FirstName = u.FirstName,
                 LastName = u.LastName,
                 IsActive = u.IsActive,
+                HasKdsPin = u.KdsPinHash != null && u.KdsPinHash != "",
                 Roles = u.UserRoles.Select(ur => ur.Role!.Name).ToList(),
                 RoleDetails = u.UserRoles.Select(ur => new UserRoleDto
                 {

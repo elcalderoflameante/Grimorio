@@ -58,13 +58,45 @@ class AuthService {
     await prefs.remove(_keyStationNames);
   }
 
-  Future<String> login(String email, String password) async {
-    final url = Uri.parse('${ApiConfig.baseUrl}/auth/login');
+  Future<List<KdsBranch>> getKdsBranches() async {
+    final url = Uri.parse('${ApiConfig.baseUrl}/auth/kds/branches');
+    final response = await http.get(url).timeout(const Duration(seconds: 15));
+
+    if (response.statusCode != 200) {
+      throw Exception('No se pudieron cargar las sucursales.');
+    }
+
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .map((e) => KdsBranch.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<KdsUser>> getKdsUsers(String branchId) async {
+    final url = Uri.parse('${ApiConfig.baseUrl}/auth/kds/users?branchId=$branchId');
+    final response = await http.get(url).timeout(const Duration(seconds: 15));
+
+    if (response.statusCode != 200) {
+      throw Exception('No se pudieron cargar los usuarios KDS.');
+    }
+
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .map((e) => KdsUser.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<String> login(String branchId, String userId, String pin) async {
+    final url = Uri.parse('${ApiConfig.baseUrl}/auth/kds/login');
     final response = await http
         .post(
           url,
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'email': email, 'password': password}),
+          body: jsonEncode({
+            'branchId': branchId,
+            'userId': userId,
+            'pin': pin,
+          }),
         )
         .timeout(const Duration(seconds: 15));
 
@@ -76,7 +108,7 @@ class AuthService {
       await prefs.setString(_keyToken, token);
       return token;
     } else if (response.statusCode == 401) {
-      throw Exception('Credenciales incorrectas.');
+      throw Exception('PIN incorrecto.');
     } else {
       throw Exception('Error del servidor (${response.statusCode}).');
     }
@@ -90,4 +122,45 @@ class AuthService {
     await prefs.remove(_keyStationIds);
     await prefs.remove(_keyStationNames);
   }
+}
+
+class KdsBranch {
+  final String id;
+  final String name;
+  final String code;
+
+  KdsBranch({
+    required this.id,
+    required this.name,
+    required this.code,
+  });
+
+  factory KdsBranch.fromJson(Map<String, dynamic> json) => KdsBranch(
+        id: json['id'] as String,
+        name: json['name'] as String? ?? '',
+        code: json['code'] as String? ?? '',
+      );
+}
+
+class KdsUser {
+  final String id;
+  final String firstName;
+  final String lastName;
+  final bool hasKdsPin;
+
+  KdsUser({
+    required this.id,
+    required this.firstName,
+    required this.lastName,
+    required this.hasKdsPin,
+  });
+
+  String get displayName => '$firstName $lastName'.trim();
+
+  factory KdsUser.fromJson(Map<String, dynamic> json) => KdsUser(
+        id: json['id'] as String,
+        firstName: json['firstName'] as String? ?? '',
+        lastName: json['lastName'] as String? ?? '',
+        hasKdsPin: json['hasKdsPin'] as bool? ?? false,
+      );
 }

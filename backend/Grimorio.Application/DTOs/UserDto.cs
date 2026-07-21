@@ -7,6 +7,7 @@ public class UserDto
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public bool IsActive { get; set; }
+    public bool HasKdsPin { get; set; }
     public List<string> Roles { get; set; } = new();
     public List<UserRoleDto> RoleDetails { get; set; } = new();
 }
@@ -35,4 +36,9 @@ public class UpdateUserDto
 public class AssignRolesDto
 {
     public List<string> RoleIds { get; set; } = new();
+}
+
+public class SetKdsPinDto
+{
+    public string? Pin { get; set; }
 }

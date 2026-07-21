@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Table, Button, Space, Modal, Form, Input, Switch, Select, message, Popconfirm, Tag } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, LockOutlined } from '@ant-design/icons';
+import { KeyOutlined, PlusOutlined, EditOutlined, DeleteOutlined, LockOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { userApi, roleApi } from '../../services/api';
 import type { UserDto, RoleDto, CreateUserDto, UpdateUserDto } from '../../types';
@@ -19,6 +19,10 @@ interface AssignFormValues {
   roleIds: string[];
 }
 
+interface KdsPinFormValues {
+  pin?: string;
+}
+
 export default function UserList() {
   const { hasPermission } = useAuth();
   const [users, setUsers] = useState<UserDto[]>([]);
@@ -26,10 +30,13 @@ export default function UserList() {
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [assignModalVisible, setAssignModalVisible] = useState(false);
+  const [kdsPinModalVisible, setKdsPinModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [assigningUserId, setAssigningUserId] = useState<string | null>(null);
+  const [kdsPinUser, setKdsPinUser] = useState<UserDto | null>(null);
   const [form] = Form.useForm<UserFormValues>();
   const [assignForm] = Form.useForm<AssignFormValues>();
+  const [kdsPinForm] = Form.useForm<KdsPinFormValues>();
   const canCreate = hasPermission(PERMISSIONS.admin.usersCreate);
   const canUpdate = hasPermission(PERMISSIONS.admin.usersUpdate);
   const canDelete = hasPermission(PERMISSIONS.admin.usersDelete);
@@ -117,6 +124,27 @@ export default function UserList() {
     }
   };
 
+  const handleSetKdsPin = async (values: KdsPinFormValues) => {
+    if (!kdsPinUser) return;
+
+    try {
+      await userApi.setKdsPin(kdsPinUser.id, values.pin?.trim());
+      message.success(values.pin ? 'PIN KDS actualizado' : 'PIN KDS eliminado');
+      setKdsPinModalVisible(false);
+      setKdsPinUser(null);
+      kdsPinForm.resetFields();
+      loadUsers();
+    } catch (error) {
+      message.error(formatError(error));
+    }
+  };
+
+  const handleOpenKdsPin = (user: UserDto) => {
+    setKdsPinUser(user);
+    kdsPinForm.resetFields();
+    setKdsPinModalVisible(true);
+  };
+
   const handleEdit = (user: UserDto) => {
     setEditingId(user.id);
     form.setFieldsValue({
@@ -161,6 +189,14 @@ export default function UserList() {
       ),
     },
     {
+      title: 'PIN KDS',
+      dataIndex: 'hasKdsPin',
+      key: 'hasKdsPin',
+      render: (hasKdsPin: boolean) => (
+        hasKdsPin ? <Tag color="green">Configurado</Tag> : <Tag>Sin PIN</Tag>
+      ),
+    },
+    {
       title: 'Activo',
       dataIndex: 'isActive',
       key: 'isActive',
@@ -173,6 +209,7 @@ export default function UserList() {
         <Space>
           {canUpdate && <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} />}
           {canUpdate && <Button icon={<LockOutlined />} onClick={() => handleOpenAssign(record)} title="Asignar roles" />}
+          {canUpdate && <Button icon={<KeyOutlined />} onClick={() => handleOpenKdsPin(record)} title="PIN KDS" />}
           {canDelete && <Popconfirm
             title="¿Eliminar usuario?"
             onConfirm={() => handleDelete(record.id)}
@@ -256,6 +293,53 @@ export default function UserList() {
               <Switch />
             </Form.Item>
           )}
+        </Form>
+      </Modal>
+
+      <Modal
+        title={`PIN KDS${kdsPinUser ? ` - ${kdsPinUser.firstName} ${kdsPinUser.lastName}` : ''}`}
+        open={kdsPinModalVisible}
+        onOk={() => kdsPinForm.submit()}
+        onCancel={() => {
+          setKdsPinModalVisible(false);
+          setKdsPinUser(null);
+          kdsPinForm.resetFields();
+        }}
+        footer={[
+          <Button
+            key="clear"
+            danger
+            disabled={!kdsPinUser?.hasKdsPin}
+            onClick={() => handleSetKdsPin({ pin: undefined })}
+          >
+            Quitar PIN
+          </Button>,
+          <Button
+            key="cancel"
+            onClick={() => {
+              setKdsPinModalVisible(false);
+              setKdsPinUser(null);
+              kdsPinForm.resetFields();
+            }}
+          >
+            Cancelar
+          </Button>,
+          <Button key="save" type="primary" onClick={() => kdsPinForm.submit()}>
+            Guardar
+          </Button>,
+        ]}
+      >
+        <Form form={kdsPinForm} layout="vertical" onFinish={handleSetKdsPin}>
+          <Form.Item
+            label="PIN de 4 dígitos"
+            name="pin"
+            rules={[
+              { required: true, message: 'Ingresa un PIN de 4 dígitos' },
+              { pattern: /^\d{4}$/, message: 'El PIN debe tener exactamente 4 dígitos' },
+            ]}
+          >
+            <Input.Password maxLength={4} inputMode="numeric" placeholder="0000" />
+          </Form.Item>
         </Form>
       </Modal>
 

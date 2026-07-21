@@ -20,6 +20,9 @@ public class UserConfiguration : BaseEntityConfiguration<User>
             .HasMaxLength(512)
             .IsRequired();
 
+        builder.Property(u => u.KdsPinHash)
+            .HasMaxLength(512);
+
         builder.Property(u => u.FirstName)
             .HasMaxLength(100)
             .IsRequired();

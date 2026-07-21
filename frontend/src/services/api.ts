@@ -193,6 +193,8 @@ export const userApi = {
     apiClient.delete<void>(`/users/${id}`),
   assignRoles: (id: string, roleIds: string[]): Promise<AxiosResponse<void>> => 
     apiClient.post<void>(`/users/${id}/roles`, { roleIds }),
+  setKdsPin: (id: string, pin?: string): Promise<AxiosResponse<{ success: boolean; message: string }>> =>
+    apiClient.post<{ success: boolean; message: string }>(`/users/${id}/kds-pin`, { pin }),
   changePassword: (id: string, currentPassword: string, newPassword: string): Promise<AxiosResponse<{ success: boolean; message: string }>> =>
     apiClient.post<{ success: boolean; message: string }>(`/users/${id}/change-password`, { currentPassword, newPassword }),
 };

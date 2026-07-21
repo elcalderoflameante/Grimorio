@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Auth.Commands;
+using Grimorio.Application.Features.Auth.Queries;
 
 namespace Grimorio.API.Controllers;
 
@@ -48,6 +49,55 @@ public class AuthController : ControllerBase
             };
 
             var result = await _mediator.Send(command);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error interno del servidor.", error = ex.Message });
+        }
+    }
+
+    [HttpGet("kds/branches")]
+    public async Task<IActionResult> GetKdsBranches()
+    {
+        var result = await _mediator.Send(new GetKdsBranchesQuery());
+        return Ok(result);
+    }
+
+    [HttpGet("kds/users")]
+    public async Task<IActionResult> GetKdsUsers([FromQuery] Guid branchId)
+    {
+        if (branchId == Guid.Empty)
+            return BadRequest(new { message = "Sucursal requerida." });
+
+        var result = await _mediator.Send(new GetKdsUsersQuery { BranchId = branchId });
+        return Ok(result);
+    }
+
+    [HttpPost("kds/login")]
+    public async Task<IActionResult> KdsLogin([FromBody] KdsLoginRequest request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        if (request.BranchId == Guid.Empty || request.UserId == Guid.Empty)
+            return BadRequest(new { message = "Sucursal y usuario son requeridos." });
+
+        if (string.IsNullOrWhiteSpace(request.Pin) || request.Pin.Length != 4 || !request.Pin.All(char.IsDigit))
+            return BadRequest(new { message = "PIN inválido." });
+
+        try
+        {
+            var result = await _mediator.Send(new KdsLoginCommand
+            {
+                BranchId = request.BranchId,
+                UserId = request.UserId,
+                Pin = request.Pin
+            });
             return Ok(result);
         }
         catch (UnauthorizedAccessException ex)

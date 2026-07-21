@@ -71,13 +71,17 @@ class StationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> login(String email, String password) async {
+  Future<List<KdsBranch>> loadKdsBranches() => _auth.getKdsBranches();
+
+  Future<List<KdsUser>> loadKdsUsers(String branchId) => _auth.getKdsUsers(branchId);
+
+  Future<void> login(String branchId, String userId, String pin) async {
     isLoading = true;
     errorMessage = null;
     notifyListeners();
 
     try {
-      _token = await _auth.login(email, password);
+      _token = await _auth.login(branchId, userId, pin);
       _stationIds = await _auth.getSavedStationIds();
       _stationNames = await _auth.getSavedStationNames();
 
