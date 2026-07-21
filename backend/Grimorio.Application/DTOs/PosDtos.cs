@@ -157,6 +157,8 @@ public class AlexaOrderRepeatRequestDto
     public Guid BranchId { get; set; }
     public string? TableCode { get; set; }
     public int? OrderNumber { get; set; }
+    public string? StationText { get; set; }
+    public string? ExcludeStationText { get; set; }
 }
 
 public class AlexaOrderRepeatResultDto
@@ -166,6 +168,8 @@ public class AlexaOrderRepeatResultDto
     public Guid? OrderId { get; set; }
     public int? OrderNumber { get; set; }
     public string? TableCode { get; set; }
+    public string? StationName { get; set; }
+    public string? ExcludedStationName { get; set; }
     public List<OrderItemDto> Items { get; set; } = [];
 }
 

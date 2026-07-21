@@ -108,6 +108,8 @@ Slots:
 
 - `tableCode`: numero de mesa
 - `orderNumber`: numero de pedido
+- `stationText`: estacion a repetir, por ejemplo `bar`, `fritos`, `parrilla`
+- `excludeStationText`: estacion a excluir, por ejemplo `sin bar`
 
 Utterances:
 
@@ -119,7 +121,19 @@ que tiene la mesa {tableCode}
 que pidio la mesa {tableCode}
 lee pedido mesa {tableCode}
 repite pedido {orderNumber}
+repite {stationText} mesa {tableCode}
+repite pedido {stationText} mesa {tableCode}
+que hay para {stationText} mesa {tableCode}
+que tiene {stationText} mesa {tableCode}
+repite pedido mesa {tableCode} sin {excludeStationText}
+repite mesa {tableCode} sin {excludeStationText}
+repite pedido mesa {tableCode} excepto {excludeStationText}
+que hay en mesa {tableCode} sin {excludeStationText}
 ```
+
+Si se indica una estacion, Grimorio responde solo los items de esa estacion. Si se usa
+`sin` o `excepto`, responde todo el pedido menos esa estacion. Sin filtro de estacion,
+mantiene el comportamiento normal y repite todo el pedido.
 
 Endpoint de lectura:
 
@@ -148,7 +162,8 @@ Respuesta:
 Scaffold incluido:
 
 - `integrations/alexa/kitchen-skill/lambda/index.mjs`
-- `integrations/alexa/kitchen-skill/interaction-model.es-ES.json`
+- `integrations/alexa/kitchen-skill/interaction-model.es-US.json` si el dispositivo Alexa esta en Espanol Estados Unidos
+- `integrations/alexa/kitchen-skill/interaction-model.es-ES.json` si el dispositivo Alexa esta en Espanol Espana
 
 La Lambda debe:
 

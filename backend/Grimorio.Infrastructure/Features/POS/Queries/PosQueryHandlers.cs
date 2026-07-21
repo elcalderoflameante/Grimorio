@@ -178,11 +178,62 @@ public class GetAlexaOrderRepeatQueryHandler
             return Fail("Ese pedido no tiene platos activos.");
         }
 
+        var stationText = NormalizeStationAlias(NormalizeText(req.StationText ?? string.Empty));
+        var excludeStationText = NormalizeStationAlias(NormalizeText(req.ExcludeStationText ?? string.Empty));
+
+        if (!string.IsNullOrWhiteSpace(stationText) && !string.IsNullOrWhiteSpace(excludeStationText))
+        {
+            return Fail("Dime solo una estacion, o dime sin una estacion.");
+        }
+
+        string? stationName = null;
+        string? excludedStationName = null;
+
+        if (!string.IsNullOrWhiteSpace(stationText))
+        {
+            var matchingStation = FindStation(items, stationText);
+            if (matchingStation == null)
+            {
+                return Fail($"No encontre items para la estacion {req.StationText} en ese pedido.");
+            }
+
+            stationName = matchingStation;
+            items = items
+                .Where(i => MatchesStation(i, stationText))
+                .ToList();
+        }
+        else if (!string.IsNullOrWhiteSpace(excludeStationText))
+        {
+            var matchingStation = FindStation(items, excludeStationText);
+            if (matchingStation == null)
+            {
+                return Fail($"No encontre la estacion {req.ExcludeStationText} en ese pedido.");
+            }
+
+            excludedStationName = matchingStation;
+            items = items
+                .Where(i => !MatchesStation(i, excludeStationText))
+                .ToList();
+        }
+
+        if (items.Count == 0)
+        {
+            var emptyScope = stationName != null
+                ? $"para {stationName}"
+                : $"sin {excludedStationName}";
+            return Fail($"No hay items {emptyScope} en ese pedido.");
+        }
+
         var itemDtos = items.Select(PosMapper.MapOrderItem).ToList();
         var orderLabel = !string.IsNullOrWhiteSpace(order.Table?.Code)
             ? FormatTableLabel(order.Table.Code)
             : $"pedido {order.Number}";
         var itemText = string.Join("; ", items.Select(BuildItemText));
+        var scope = stationName != null
+            ? $", {stationName}"
+            : excludedStationName != null
+                ? $", sin {excludedStationName}"
+                : string.Empty;
         var notes = string.IsNullOrWhiteSpace(order.Notes)
             ? string.Empty
             : $" Observacion general: {order.Notes.Trim()}.";
@@ -193,8 +244,10 @@ public class GetAlexaOrderRepeatQueryHandler
             OrderId = order.Id,
             OrderNumber = order.Number,
             TableCode = order.Table?.Code,
+            StationName = stationName,
+            ExcludedStationName = excludedStationName,
             Items = itemDtos,
-            Message = $"Pedido {orderLabel}: {itemText}.{notes}",
+            Message = $"Pedido {orderLabel}{scope}: {itemText}.{notes}",
         };
     }
 
@@ -222,6 +275,43 @@ public class GetAlexaOrderRepeatQueryHandler
         return !string.IsNullOrWhiteSpace(orderDigits) &&
             !string.IsNullOrWhiteSpace(spokenDigits) &&
             orderDigits == spokenDigits;
+    }
+
+    private static string? FindStation(List<OrderItem> items, string stationText)
+    {
+        return items
+            .Select(i => i.Station?.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct()
+            .FirstOrDefault(name => MatchesStationName(name!, stationText));
+    }
+
+    private static bool MatchesStation(OrderItem item, string stationText)
+    {
+        return MatchesStationName(item.Station?.Name ?? string.Empty, stationText);
+    }
+
+    private static bool MatchesStationName(string stationName, string stationText)
+    {
+        var normalizedStation = NormalizeText(stationName);
+        if (string.IsNullOrWhiteSpace(normalizedStation) || string.IsNullOrWhiteSpace(stationText))
+            return false;
+
+        return normalizedStation == stationText ||
+            normalizedStation.Contains(stationText) ||
+            stationText.Contains(normalizedStation);
+    }
+
+    private static string NormalizeStationAlias(string value)
+    {
+        return value switch
+        {
+            "bebida" or "bebidas" => "bar",
+            "frito" or "freidora" => "fritos",
+            "grill" or "asado" or "asados" => "parrilla",
+            "pase" or "despacho" => "emplatado",
+            _ => value,
+        };
     }
 
     private static string BuildItemText(OrderItem item)

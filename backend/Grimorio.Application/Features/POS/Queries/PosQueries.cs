@@ -33,6 +33,8 @@ public class GetAlexaOrderRepeatQuery : IRequest<AlexaOrderRepeatResultDto>
     public Guid BranchId { get; set; }
     public string? TableCode { get; set; }
     public int? OrderNumber { get; set; }
+    public string? StationText { get; set; }
+    public string? ExcludeStationText { get; set; }
 }
 
 public class GetItemsByStationQuery : IRequest<List<StationItemDto>>

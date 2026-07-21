@@ -72,6 +72,8 @@ public class AlexaController : ControllerBase
             BranchId = dto.BranchId,
             TableCode = dto.TableCode,
             OrderNumber = dto.OrderNumber,
+            StationText = dto.StationText,
+            ExcludeStationText = dto.ExcludeStationText,
         });
 
         return Ok(result);

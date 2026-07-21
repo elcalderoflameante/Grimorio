@@ -42,6 +42,8 @@ exports.handler = async function handler(event) {
   const action = slotValue(slots.action);
   const tableCode = slotValue(slots.tableCode);
   const orderNumber = Number.parseInt(slotValue(slots.orderNumber) || '', 10);
+  const stationText = slotValue(slots.stationText);
+  const excludeStationText = slotValue(slots.excludeStationText);
   const itemText = slotValue(slots.itemText);
   const allItemsText = slotValue(slots.allItems);
   const isWholeOrder = isWholeOrderText(allItemsText);
@@ -80,6 +82,8 @@ async function repeatOrder(slots) {
         branchId,
         tableCode,
         orderNumber: Number.isNaN(orderNumber) ? null : orderNumber,
+        stationText,
+        excludeStationText,
       },
     );
 
