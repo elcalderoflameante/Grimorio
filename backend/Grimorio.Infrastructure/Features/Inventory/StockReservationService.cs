@@ -33,13 +33,11 @@ internal static class StockReservationService
             .Where(r => r.BranchId == branchId && menuItemIds.Contains(r.MenuItemId) && !r.IsDeleted)
             .ToListAsync(ct);
 
-        if (recipes.Count == 0) return;
-
-        var choiceArticleIds = items
-            .SelectMany(i => i.IngredientChoices.Where(c => !c.IsDeleted).Select(c => c.ChosenArticleId))
+        var modifierArticleIds = items
+            .SelectMany(i => i.ModifierSelections.Where(s => !s.IsDeleted && s.ArticleId.HasValue).Select(s => s.ArticleId!.Value))
             .ToList();
         var articleIdsForRequirements = recipes.Select(r => r.ArticleId)
-            .Concat(choiceArticleIds)
+            .Concat(modifierArticleIds)
             .Distinct()
             .ToList();
         var articlesById = await db.InventoryArticles
@@ -179,17 +177,11 @@ internal static class StockReservationService
 
         foreach (var item in items)
         {
-            if (!recipesByMenuItem.TryGetValue(item.MenuItemId, out var recipe)) continue;
+            if (!recipesByMenuItem.TryGetValue(item.MenuItemId, out var recipe)) recipe = [];
 
             foreach (var ingredient in recipe)
             {
                 var articleId = ingredient.ArticleId;
-                if (ingredient.IsVariable)
-                {
-                    var choice = item.IngredientChoices
-                        .FirstOrDefault(c => c.RecipeIngredientId == ingredient.Id && !c.IsDeleted);
-                    if (choice != null) articleId = choice.ChosenArticleId;
-                }
 
                 articlesById.TryGetValue(articleId, out var article);
                 var baseUnitId = article?.BaseUnitId ?? Guid.Empty;
@@ -208,6 +200,33 @@ internal static class StockReservationService
                     baseUnitId,
                     baseQuantity,
                     article?.Name ?? "artículo"));
+            }
+        }
+
+        foreach (var item in items)
+        {
+            foreach (var selection in item.ModifierSelections.Where(s => !s.IsDeleted && s.ArticleId.HasValue))
+            {
+                if (!selection.UnitId.HasValue || selection.InventoryQuantity <= 0) continue;
+
+                var articleId = selection.ArticleId!.Value;
+                articlesById.TryGetValue(articleId, out var article);
+                var baseUnitId = article?.BaseUnitId ?? Guid.Empty;
+                if (baseUnitId == Guid.Empty) continue;
+
+                var baseQuantity = ConvertQuantity(
+                    selection.InventoryQuantity * selection.Quantity * item.Quantity,
+                    selection.UnitId.Value,
+                    baseUnitId,
+                    conversions,
+                    article?.Name ?? selection.OptionName);
+
+                result.Add(new StockRequirement(
+                    item.Id,
+                    articleId,
+                    baseUnitId,
+                    baseQuantity,
+                    article?.Name ?? selection.OptionName));
             }
         }
 

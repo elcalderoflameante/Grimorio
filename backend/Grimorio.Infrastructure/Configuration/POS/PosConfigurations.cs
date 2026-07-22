@@ -146,28 +146,44 @@ public class RestaurantTableConfiguration : IEntityTypeConfiguration<RestaurantT
     }
 }
 
-public class OrderItemIngredientChoiceConfiguration : IEntityTypeConfiguration<OrderItemIngredientChoice>
+public class OrderItemModifierSelectionConfiguration : IEntityTypeConfiguration<OrderItemModifierSelection>
 {
-    public void Configure(EntityTypeBuilder<OrderItemIngredientChoice> builder)
+    public void Configure(EntityTypeBuilder<OrderItemModifierSelection> builder)
     {
-        builder.ToTable("OrderItemIngredientChoices", "pos");
+        builder.ToTable("OrderItemModifierSelections", "pos");
+
+        builder.Property(x => x.GroupName).IsRequired().HasMaxLength(120);
+        builder.Property(x => x.OptionName).IsRequired().HasMaxLength(120);
+        builder.Property(x => x.UnitPriceDelta).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.InventoryQuantity).HasColumnType("numeric(18,4)");
 
         builder.HasOne(x => x.OrderItem)
-            .WithMany(x => x.IngredientChoices)
+            .WithMany(x => x.ModifierSelections)
             .HasForeignKey(x => x.OrderItemId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(x => x.RecipeIngredient)
+        builder.HasOne(x => x.ModifierGroup)
             .WithMany()
-            .HasForeignKey(x => x.RecipeIngredientId)
+            .HasForeignKey(x => x.ModifierGroupId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.ChosenArticle)
+        builder.HasOne(x => x.ModifierOption)
             .WithMany()
-            .HasForeignKey(x => x.ChosenArticleId)
+            .HasForeignKey(x => x.ModifierOptionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.Article)
+            .WithMany()
+            .HasForeignKey(x => x.ArticleId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.Unit)
+            .WithMany()
+            .HasForeignKey(x => x.UnitId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(x => x.OrderItemId);
+        builder.HasIndex(x => new { x.BranchId, x.ModifierGroupId });
     }
 }
 

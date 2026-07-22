@@ -4,13 +4,13 @@ import {
   List, Modal, Row, Select, Space, Spin, Tabs, Tag, Tooltip, Typography, message,
 } from 'antd';
 import {
-  ArrowLeftOutlined, CheckCircleOutlined, CheckOutlined, DeleteOutlined, DollarOutlined, EditOutlined,
+  ArrowLeftOutlined, CheckCircleOutlined, DeleteOutlined, DollarOutlined, EditOutlined,
   MinusOutlined, PlusOutlined, QuestionCircleOutlined, ReloadOutlined, SplitCellsOutlined,
 } from '@ant-design/icons';
 import type {
   OrderDto, RestaurantTableDto, PaymentMethodConfigDto,
   OrderPaymentDto, AddOrderPaymentDto, CustomerDto, MenuCategoryDto,
-  MenuItemDto, CreateOrderItemDto, CreateIngredientChoiceDto, CardBankDto,
+  MenuItemDto, CreateOrderItemDto, CreateModifierSelectionDto, CardBankDto,
 } from '../../types';
 import { cashApi, menuApi, paymentMethodsApi, posApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
@@ -18,18 +18,14 @@ import CustomerSelector from '../Billing/CustomerSelector';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
 
-function choicesLabel(choices: CreateIngredientChoiceDto[] | undefined, items: MenuItemDto[]): string | null {
-  if (!choices || choices.length === 0) return null;
-  const item = items.find(i => i.variableIngredients?.some(v => choices.some(c => c.recipeIngredientId === v.recipeIngredientId)));
+function modifiersLabel(selections: CreateModifierSelectionDto[] | undefined, items: MenuItemDto[], menuItemId: string): string | null {
+  if (!selections || selections.length === 0) return null;
+  const item = items.find(i => i.id === menuItemId);
   if (!item) return null;
-  return choices.map(c => {
-    const slot = item.variableIngredients.find(v => v.recipeIngredientId === c.recipeIngredientId);
-    if (!slot) return '';
-    const allOptions = [
-      { articleId: slot.defaultArticleId, articleName: slot.defaultArticleName },
-      ...slot.alternatives,
-    ];
-    return allOptions.find(o => o.articleId === c.chosenArticleId)?.articleName ?? c.chosenArticleId;
+  return selections.map(s => {
+    const opt = item.modifierGroups?.flatMap(g => g.options).find(o => o.id === s.modifierOptionId);
+    if (!opt) return '';
+    return s.quantity > 1 ? `${opt.name} x${s.quantity}` : opt.name;
   }).filter(Boolean).join(', ');
 }
 
@@ -71,7 +67,7 @@ interface PayLine {
 interface SplitRow { checked: boolean; qty: number }
 interface CartLine {
   menuItemId: string; name: string; price: number; quantity: number;
-  notes?: string; ingredientChoices: CreateIngredientChoiceDto[];
+  notes?: string; modifierSelections?: CreateModifierSelectionDto[];
 }
 
 interface Props {
@@ -96,10 +92,10 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Ingredient choice modal
-  const [choiceTarget, setChoiceTarget] = useState<MenuItemDto | null>(null);
-  const [pendingChoices, setPendingChoices] = useState<Record<string, string>>({});
-  const [choiceError, setChoiceError] = useState(false);
+  const [modifierTarget, setModifierTarget] = useState<MenuItemDto | null>(null);
+  const [modifierBaseLine, setModifierBaseLine] = useState<CartLine | null>(null);
+  const [pendingModifiers, setPendingModifiers] = useState<Record<string, number>>({});
+  const [modifierError, setModifierError] = useState(false);
   // Observation modal
   const [obsModal, setObsModal] = useState<{ idx: number; obs: string } | null>(null);
 
@@ -147,7 +143,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         let loadedMenuItems = itemsRes.value.data;
         if (orderRes.status === 'fulfilled') {
           const itemIdsWithChoices = [...new Set(orderRes.value.data.items
-            .filter(i => i.ingredientChoices?.length > 0)
+            .filter(i => i.modifierSelections?.length > 0)
             .map(i => i.menuItemId))];
           if (itemIdsWithChoices.length > 0) {
             const details = await Promise.all(itemIdsWithChoices.map(id => menuApi.getItem(id).then(r => r.data)));
@@ -240,8 +236,21 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   });
   const canPay = targetAmount > 0.001 && !needsCustomer && tenderCoversAmount && cardDetailsComplete;
 
+  const getCartLineCapacity = (line: CartLine): number | null => {
+    const item = menuItems.find(menuItem => menuItem.id === line.menuItemId);
+    const capacities: number[] = [];
+    for (const selection of line.modifierSelections ?? []) {
+      const option = item?.modifierGroups?.flatMap(group => group.options).find(o => o.id === selection.modifierOptionId);
+      if (!option?.isTracked) continue;
+      const available = option.availableQuantity ?? 0;
+      capacities.push(selection.quantity > 0 ? Math.floor(available / selection.quantity) : 0);
+    }
+
+    return capacities.length > 0 ? Math.min(...capacities) : null;
+  };
+
   const ensureItemDetail = async (item: MenuItemDto) => {
-    if (!item.hasVariableIngredients || item.variableIngredients?.length > 0) return item;
+    if (!item.hasModifiers || item.modifierGroups?.length > 0) return item;
     const detail = (await menuApi.getItem(item.id)).data;
     setMenuItems(prev => prev.map(current => current.id === detail.id ? detail : current));
     return detail;
@@ -257,45 +266,67 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       return;
     }
     const itemDetail = await ensureItemDetail(item);
-    if (itemDetail.variableIngredients?.length > 0) {
-      setPendingChoices({});
-      setChoiceError(false);
-      setChoiceTarget(itemDetail);
+    if (itemDetail.modifierGroups?.length > 0) {
+      setModifierBaseLine({ menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1 });
+      setPendingModifiers({});
+      setModifierError(false);
+      setModifierTarget(itemDetail);
       return;
     }
     setCart(prev => {
-      const existing = prev.findIndex(l => l.menuItemId === itemDetail.id && !l.ingredientChoices.length);
+      const existing = prev.findIndex(l => l.menuItemId === itemDetail.id && !l.modifierSelections?.length);
       if (existing >= 0) return prev.map((l, i) => i === existing ? { ...l, quantity: l.quantity + 1 } : l);
-      return [...prev, { menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1, ingredientChoices: [] }];
+      return [...prev, { menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1 }];
     });
   };
 
-  const confirmChoices = () => {
-    if (!choiceTarget) return;
-    if (isFullyPaid) {
-      setChoiceTarget(null);
-      setPendingChoices({});
-      message.info('La orden ya está pagada. No se pueden agregar más productos.');
+  const confirmModifiers = () => {
+    if (!modifierTarget || !modifierBaseLine) return;
+    const groups = modifierTarget.modifierGroups ?? [];
+    const invalid = groups.some(group => {
+      const total = group.options.reduce((sum, option) => sum + (pendingModifiers[option.id] ?? 0), 0);
+      const min = group.isRequired && group.minSelections === 0 ? 1 : group.minSelections;
+      const exceedsStock = group.options.some(option =>
+        option.isTracked && (pendingModifiers[option.id] ?? 0) > Math.floor(option.availableQuantity ?? 0));
+      return total < min
+        || total > group.maxSelections
+        || exceedsStock
+        || (!group.allowDuplicates && group.options.some(o => (pendingModifiers[o.id] ?? 0) > 1));
+    });
+    if (invalid) {
+      setModifierError(true);
       return;
     }
-    const missing = choiceTarget.variableIngredients.some(slot => !pendingChoices[slot.recipeIngredientId]);
-    if (missing) { setChoiceError(true); return; }
-    const choices: CreateIngredientChoiceDto[] = choiceTarget.variableIngredients.map(slot => ({
-      recipeIngredientId: slot.recipeIngredientId,
-      chosenArticleId: pendingChoices[slot.recipeIngredientId],
-    }));
+
+    const modifierSelections: CreateModifierSelectionDto[] = groups
+      .flatMap(group => group.options.map(option => ({ option, quantity: pendingModifiers[option.id] ?? 0 })))
+      .filter(x => x.quantity > 0)
+      .map(x => ({ modifierOptionId: x.option.id, quantity: x.quantity }));
+    const modifierPrice = groups
+      .flatMap(group => group.options)
+      .reduce((sum, option) => sum + option.priceDelta * (pendingModifiers[option.id] ?? 0), 0);
+
     setCart(prev => [...prev, {
-      menuItemId: choiceTarget.id, name: choiceTarget.name,
-      price: choiceTarget.price, quantity: 1, ingredientChoices: choices,
+      ...modifierBaseLine,
+      price: modifierBaseLine.price + modifierPrice,
+      modifierSelections,
     }]);
-    setChoiceTarget(null);
-    setPendingChoices({});
-    setChoiceError(false);
+    setModifierTarget(null);
+    setModifierBaseLine(null);
+    setPendingModifiers({});
+    setModifierError(false);
   };
 
   const updateCartQty = (idx: number, qty: number) => {
     if (qty <= 0) setCart(prev => prev.filter((_, i) => i !== idx));
-    else setCart(prev => prev.map((l, i) => i === idx ? { ...l, quantity: qty } : l));
+    else {
+      const capacity = getCartLineCapacity(cart[idx]);
+      if (capacity !== null && qty > capacity) {
+        message.warning(`Solo hay ${Math.floor(capacity)} disponible(s) para esta selección`);
+        return;
+      }
+      setCart(prev => prev.map((l, i) => i === idx ? { ...l, quantity: qty } : l));
+    }
   };
 
   const handleSave = async () => {
@@ -309,7 +340,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
     try {
       const newItems: CreateOrderItemDto[] = cart.map(l => ({
         menuItemId: l.menuItemId, quantity: l.quantity, notes: l.notes,
-        ingredientChoices: l.ingredientChoices,
+        modifierSelections: l.modifierSelections,
       }));
 
       let itemsPayload: CreateOrderItemDto[];
@@ -317,8 +348,9 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         // Draft: enviar todos los ítems (reemplaza)
         const existingItems: CreateOrderItemDto[] = order.items.map(i => ({
           menuItemId: i.menuItemId, quantity: i.quantity, notes: i.notes,
-          ingredientChoices: i.ingredientChoices.map(c => ({
-            recipeIngredientId: c.recipeIngredientId, chosenArticleId: c.chosenArticleId,
+          modifierSelections: i.modifierSelections?.map(s => ({
+            modifierOptionId: s.modifierOptionId,
+            quantity: s.quantity,
           })),
         }));
         itemsPayload = [...existingItems, ...newItems];
@@ -667,7 +699,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
             {visibleItems.map(item => {
               const inCart = cart.filter(l => l.menuItemId === item.id);
               const cartQty = inCart.reduce((s, l) => s + l.quantity, 0);
-              const hasVariable = item.hasVariableIngredients || item.variableIngredients?.length > 0;
+              const hasModifiers = item.hasModifiers || item.modifierGroups?.length > 0;
               return (
                 <Card
                   key={item.id}
@@ -685,7 +717,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                   <Text strong ellipsis style={{ display: 'block', fontSize: 13 }}>{item.name}</Text>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                     <Text type="secondary" style={{ fontSize: 12 }}>${item.price.toFixed(2)}</Text>
-                    {hasVariable && <QuestionCircleOutlined style={{ color: '#fa8c16', fontSize: 11 }} />}
+                    {hasModifiers && <QuestionCircleOutlined style={{ color: '#fa8c16', fontSize: 11 }} />}
                     {cartQty > 0 && (
                       <span style={{ marginLeft: 'auto', background: '#1677ff', color: '#fff', borderRadius: 10, padding: '0 6px', fontSize: 11 }}>
                         {cartQty}
@@ -727,10 +759,12 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                         <Text strong style={{ minWidth: 24, fontSize: 13 }}>{item.quantity}×</Text>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <Text ellipsis style={{ fontSize: 13 }}>{item.itemName}</Text>
-                          {item.ingredientChoices.length > 0 && (
+                          {item.modifierSelections?.length > 0 && (
                             <div>
-                              {item.ingredientChoices.map((c, i) => (
-                                <Tag key={i} color="orange" style={{ fontSize: 11 }}>{c.chosenArticleName}</Tag>
+                              {item.modifierSelections.map((s, i) => (
+                                <Tag key={i} color="blue" style={{ fontSize: 11 }}>
+                                  {s.quantity > 1 ? `${s.optionName} x${s.quantity}` : s.optionName}
+                                </Tag>
                               ))}
                             </div>
                           )}
@@ -783,7 +817,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                   <>
                     <Divider style={{ margin: '8px 0' }}>Nuevos ítems</Divider>
                     {cart.map((line, idx) => {
-                      const label = choicesLabel(line.ingredientChoices, menuItems);
+                      const modifierLabel = modifiersLabel(line.modifierSelections, menuItems, line.menuItemId);
                       return (
                         <div key={idx} style={{
                           background: '#e6f4ff', borderRadius: 6, padding: '6px 8px', marginBottom: 6,
@@ -799,7 +833,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                             <Button size="small" type="text" danger icon={<DeleteOutlined />}
                               onClick={() => updateCartQty(idx, 0)} />
                           </div>
-                          {label && <Tag color="orange" style={{ fontSize: 11, marginTop: 4 }}>{label}</Tag>}
+                          {modifierLabel && <Tag color="blue" style={{ fontSize: 11, marginTop: 4 }}>{modifierLabel}</Tag>}
                           <Button
                             type="link" size="small" style={{ padding: 0, fontSize: 11, display: 'block', marginTop: 2 }}
                             onClick={() => setObsModal({ idx, obs: line.notes ?? '' })}
@@ -1033,66 +1067,98 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         </Text>
       </Modal>
 
-      {/* Variable ingredient choice modal */}
       <Modal
-        title={choiceTarget?.name}
-        open={!!choiceTarget}
-        onOk={confirmChoices}
-        onCancel={() => { setChoiceTarget(null); setPendingChoices({}); setChoiceError(false); }}
+        title={modifierTarget?.name}
+        open={!!modifierTarget}
+        onOk={confirmModifiers}
+        onCancel={() => {
+          setModifierTarget(null);
+          setModifierBaseLine(null);
+          setPendingModifiers({});
+          setModifierError(false);
+        }}
         okText="Agregar al pedido"
         cancelText="Cancelar"
-        width={420}
+        width={460}
         okButtonProps={{ size: 'large' }}
         cancelButtonProps={{ size: 'large' }}
       >
-        {choiceTarget && (
+        {modifierTarget && (
           <div style={{ paddingTop: 8 }}>
-            {choiceError && (
+            {modifierError && (
               <Alert
-                type="error" showIcon
-                title="Debes seleccionar una opción antes de continuar"
+                type="error"
+                showIcon
+                title="Revisa las opciones requeridas"
                 style={{ marginBottom: 16 }}
               />
             )}
-            {choiceTarget.variableIngredients.map((slot, slotIdx) => {
-              const allOptions = [
-                { articleId: slot.defaultArticleId, articleName: slot.defaultArticleName },
-                ...slot.alternatives,
-              ];
-              const chosen = pendingChoices[slot.recipeIngredientId];
-              const slotMissing = choiceError && !chosen;
+            {modifierTarget.modifierGroups.map(group => {
+              const selectedCount = group.options.reduce((sum, option) => sum + (pendingModifiers[option.id] ?? 0), 0);
+              const min = group.isRequired && group.minSelections === 0 ? 1 : group.minSelections;
+              const groupInvalid = modifierError && (selectedCount < min || selectedCount > group.maxSelections);
               return (
-                <div key={slot.recipeIngredientId}>
-                  {choiceTarget.variableIngredients.length > 1 && (
-                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
-                      {slotIdx === 0 ? 'Elige una opción:' : 'Elige otra opción:'}
-                    </Text>
-                  )}
-                  <div style={{
-                    display: 'flex', flexWrap: 'wrap', gap: 10,
-                    marginBottom: slotIdx < choiceTarget.variableIngredients.length - 1 ? 20 : 0,
-                  }}>
-                    {allOptions.map(opt => {
-                      const selected = chosen === opt.articleId;
+                <div key={group.id} style={{ marginBottom: 18 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <Text strong style={{ fontSize: 13 }}>{group.name}</Text>
+                    <Tag color={groupInvalid ? 'red' : 'default'} style={{ fontSize: 11 }}>
+                      {selectedCount}/{group.maxSelections}
+                    </Tag>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                    {group.options.map(option => {
+                      const qty = pendingModifiers[option.id] ?? 0;
+                      const selected = qty > 0;
+                      const stockLimit = option.isTracked ? Math.floor(option.availableQuantity ?? 0) : null;
+                      const outOfStock = stockLimit !== null && stockLimit <= 0;
+                      const reachedOptionStock = stockLimit !== null && qty >= stockLimit;
+                      const disabledAdd = selectedCount >= group.maxSelections
+                        || (!group.allowDuplicates && qty >= 1)
+                        || reachedOptionStock;
                       return (
                         <div
-                          key={opt.articleId}
-                          onClick={() => {
-                            setPendingChoices(prev => ({ ...prev, [slot.recipeIngredientId]: opt.articleId }));
-                            setChoiceError(false);
-                          }}
+                          key={option.id}
                           style={{
-                            flex: '1 1 calc(33% - 10px)', minWidth: 100,
-                            padding: '14px 10px', borderRadius: 10, textAlign: 'center',
-                            cursor: 'pointer', userSelect: 'none', transition: 'all 0.15s',
-                            border: `2px solid ${selected ? '#1677ff' : slotMissing ? '#ff4d4f' : '#d9d9d9'}`,
-                            background: selected ? '#e6f4ff' : '#fff',
+                            flex: '1 1 calc(50% - 10px)',
+                            minWidth: 140,
+                            padding: 10,
+                            borderRadius: 8,
+                            border: `1px solid ${selected ? '#1677ff' : groupInvalid || outOfStock ? '#ff4d4f' : '#d9d9d9'}`,
+                            background: outOfStock ? '#fff1f0' : selected ? '#e6f4ff' : '#fff',
+                            opacity: outOfStock ? 0.65 : 1,
                           }}
                         >
-                          <div style={{ fontSize: 14, fontWeight: selected ? 600 : 400, color: selected ? '#1677ff' : '#262626', lineHeight: 1.3 }}>
-                            {opt.articleName}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+                            <Text style={{ fontSize: 13 }}>{option.name}</Text>
+                            {option.priceDelta !== 0 && (
+                              <Text type="secondary" style={{ fontSize: 12 }}>
+                                +${option.priceDelta.toFixed(2)}
+                              </Text>
+                            )}
                           </div>
-                          {selected && <CheckOutlined style={{ color: '#1677ff', fontSize: 12, marginTop: 4 }} />}
+                          {option.isTracked && (
+                            <Tag color={outOfStock ? 'red' : reachedOptionStock ? 'orange' : 'green'} style={{ fontSize: 11, marginTop: 6 }}>
+                              {outOfStock ? 'Sin stock' : `Disp. ${stockLimit}`}
+                            </Tag>
+                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                            <Button
+                              size="small"
+                              icon={<MinusOutlined />}
+                              disabled={qty <= 0}
+                              onClick={() => setPendingModifiers(prev => ({ ...prev, [option.id]: Math.max(0, qty - 1) }))}
+                            />
+                            <Text style={{ width: 24, textAlign: 'center' }}>{qty}</Text>
+                            <Button
+                              size="small"
+                              icon={<PlusOutlined />}
+                              disabled={disabledAdd}
+                              onClick={() => {
+                                setPendingModifiers(prev => ({ ...prev, [option.id]: qty + 1 }));
+                                setModifierError(false);
+                              }}
+                            />
+                          </div>
                         </div>
                       );
                     })}

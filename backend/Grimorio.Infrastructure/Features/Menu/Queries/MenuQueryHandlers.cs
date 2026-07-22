@@ -2,6 +2,7 @@
 using Grimorio.Application.Features.Menu.Queries;
 using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.Purchases;
+using Grimorio.Infrastructure.Features.Menu.Commands;
 using Grimorio.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -46,9 +47,12 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
                 .ThenInclude(r => r.Article)
             .Include(x => x.Recipe.Where(r => !r.IsDeleted))
                 .ThenInclude(r => r.Unit)
-            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
-                .ThenInclude(r => r.Alternatives.Where(a => !a.IsDeleted))
-                    .ThenInclude(a => a.Article)
+            .Include(x => x.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
+                .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
+                    .ThenInclude(o => o.Article)
+            .Include(x => x.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
+                .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
+                    .ThenInclude(o => o.Unit)
             .Where(x => x.BranchId == req.BranchId);
 
         if (req.CategoryId.HasValue) query = query.Where(x => x.MenuCategoryId == req.CategoryId.Value);
@@ -79,7 +83,7 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
                     TaxRateName = x.TaxRate != null ? x.TaxRate.Name : null,
                     TaxRatePercentage = x.TaxRate != null ? x.TaxRate.Percentage : null,
                     TaxRateSriCode = x.TaxRate != null ? x.TaxRate.SriCode : null,
-                    HasVariableIngredients = x.Recipe.Any(r => !r.IsDeleted && r.IsVariable),
+                    HasModifiers = x.ModifierGroups.Any(g => !g.IsDeleted && g.IsActive),
                 })
                 .ToListAsync(ct);
         }
@@ -108,22 +112,12 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
             TaxRateName = x.TaxRate?.Name,
             TaxRatePercentage = x.TaxRate?.Percentage,
             TaxRateSriCode = x.TaxRate?.SriCode,
-            HasVariableIngredients = x.Recipe.Any(r => !r.IsDeleted && r.IsVariable),
-            VariableIngredients = x.Recipe
-                .Where(r => !r.IsDeleted && r.IsVariable)
-                .Select(r => new VariableIngredientSlotDto
-                {
-                    RecipeIngredientId = r.Id,
-                    Quantity = r.Quantity,
-                    UnitSymbol = r.Unit?.Symbol ?? string.Empty,
-                    DefaultArticleId = r.ArticleId,
-                    DefaultArticleName = r.Article?.Name ?? string.Empty,
-                    Alternatives = r.Alternatives.Where(a => !a.IsDeleted).Select(a => new RecipeIngredientAlternativeDto
-                    {
-                        ArticleId = a.ArticleId,
-                        ArticleName = a.Article?.Name ?? string.Empty,
-                    }).ToList(),
-                }).ToList(),
+            HasModifiers = x.ModifierGroups.Any(g => !g.IsDeleted && g.IsActive),
+            ModifierGroups = MenuMapper.MapModifierGroups(x.ModifierGroups
+                .Where(g => !g.IsDeleted && g.IsActive)
+                .OrderBy(g => g.DisplayOrder)
+                .ThenBy(g => g.Name)
+                .ToList()),
         }).ToList();
     }
 }
@@ -142,14 +136,19 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
                 .ThenInclude(r => r.Article)
             .Include(x => x.Recipe.Where(r => !r.IsDeleted))
                 .ThenInclude(r => r.Unit)
-            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
-                .ThenInclude(r => r.Alternatives.Where(a => !a.IsDeleted))
-                    .ThenInclude(a => a.Article)
+            .Include(x => x.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
+                .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
+                    .ThenInclude(o => o.Article)
+                        .ThenInclude(a => a!.BaseUnit)
+            .Include(x => x.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
+                .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
+                    .ThenInclude(o => o.Unit)
             .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId, ct);
 
         if (item is null) return null;
+        var modifierAvailability = await BuildModifierAvailabilityAsync(item, req.BranchId, ct);
 
-        return new MenuItemDetailDto
+        var dto = new MenuItemDetailDto
         {
             Id = item.Id,
             MenuCategoryId = item.MenuCategoryId,
@@ -168,22 +167,12 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
             TaxRateName = item.TaxRate?.Name,
             TaxRatePercentage = item.TaxRate?.Percentage,
             TaxRateSriCode = item.TaxRate?.SriCode,
-            HasVariableIngredients = item.Recipe.Any(r => !r.IsDeleted && r.IsVariable),
-            VariableIngredients = item.Recipe
-                .Where(r => !r.IsDeleted && r.IsVariable)
-                .Select(r => new VariableIngredientSlotDto
-                {
-                    RecipeIngredientId = r.Id,
-                    Quantity = r.Quantity,
-                    UnitSymbol = r.Unit?.Symbol ?? string.Empty,
-                    DefaultArticleId = r.ArticleId,
-                    DefaultArticleName = r.Article?.Name ?? string.Empty,
-                    Alternatives = r.Alternatives.Where(a => !a.IsDeleted).Select(a => new RecipeIngredientAlternativeDto
-                    {
-                        ArticleId = a.ArticleId,
-                        ArticleName = a.Article?.Name ?? string.Empty,
-                    }).ToList(),
-                }).ToList(),
+            HasModifiers = item.ModifierGroups.Any(g => !g.IsDeleted && g.IsActive),
+            ModifierGroups = MenuMapper.MapModifierGroups(item.ModifierGroups
+                .Where(g => !g.IsDeleted && g.IsActive)
+                .OrderBy(g => g.DisplayOrder)
+                .ThenBy(g => g.Name)
+                .ToList()),
             Recipe = item.Recipe.Select(r => new RecipeIngredientDto
             {
                 Id = r.Id,
@@ -195,15 +184,111 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
                 UnitSymbol = r.Unit?.Symbol ?? string.Empty,
                 Quantity = r.Quantity,
                 Notes = r.Notes,
-                IsVariable = r.IsVariable,
-                Alternatives = r.Alternatives.Where(a => !a.IsDeleted).Select(a => new RecipeIngredientAlternativeDto
-                {
-                    ArticleId = a.ArticleId,
-                    ArticleName = a.Article?.Name ?? string.Empty,
-                }).ToList(),
             }).ToList(),
         };
+
+        ApplyModifierAvailability(dto.ModifierGroups, modifierAvailability);
+        return dto;
     }
+
+    private async Task<Dictionary<Guid, ModifierOptionAvailabilityInfo>> BuildModifierAvailabilityAsync(
+        MenuItem item,
+        Guid branchId,
+        CancellationToken ct)
+    {
+        var trackedOptions = item.ModifierGroups
+            .Where(g => !g.IsDeleted && g.IsActive)
+            .SelectMany(g => g.Options.Where(o => !o.IsDeleted && o.IsActive && o.ArticleId.HasValue && o.UnitId.HasValue && o.Quantity > 0))
+            .ToList();
+        if (trackedOptions.Count == 0) return [];
+
+        var articleIds = trackedOptions.Select(o => o.ArticleId!.Value).Distinct().ToList();
+        var stockByArticle = await _db.WarehouseStock
+            .AsNoTracking()
+            .Where(x => x.BranchId == branchId && !x.IsDeleted && articleIds.Contains(x.ArticleId))
+            .GroupBy(x => x.ArticleId)
+            .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.Quantity) })
+            .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, ct);
+
+        var reservedByArticle = await _db.StockReservations
+            .AsNoTracking()
+            .Where(x => x.BranchId == branchId
+                && !x.IsDeleted
+                && articleIds.Contains(x.ArticleId)
+                && x.Status == Grimorio.Domain.Entities.Inventory.StockReservationStatus.Active)
+            .GroupBy(x => x.ArticleId)
+            .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.BaseQuantity) })
+            .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, ct);
+
+        foreach (var (articleId, reservedQuantity) in reservedByArticle)
+        {
+            stockByArticle[articleId] = Math.Max(0, stockByArticle.GetValueOrDefault(articleId) - reservedQuantity);
+        }
+
+        var conversions = await _db.UnitConversions
+            .AsNoTracking()
+            .Where(x => x.BranchId == branchId && !x.IsDeleted)
+            .Select(x => new UnitConversionInfo(x.OriginUnitId, x.DestinationUnitId, x.Factor))
+            .ToListAsync(ct);
+
+        var result = new Dictionary<Guid, ModifierOptionAvailabilityInfo>();
+        foreach (var option in trackedOptions)
+        {
+            var article = option.Article;
+            var unitId = option.UnitId!.Value;
+            var articleId = option.ArticleId!.Value;
+            var requiredBase = article is null ? 0m : ConvertQuantity(option.Quantity, unitId, article.BaseUnitId, conversions);
+            var stock = stockByArticle.GetValueOrDefault(articleId);
+            var availableQuantity = requiredBase > 0 ? Math.Floor(stock / requiredBase) : 0m;
+            result[option.Id] = new ModifierOptionAvailabilityInfo(true, availableQuantity > 0, availableQuantity);
+        }
+
+        return result;
+    }
+
+    private static void ApplyModifierAvailability(
+        IEnumerable<MenuItemModifierGroupDto> groups,
+        IReadOnlyDictionary<Guid, ModifierOptionAvailabilityInfo> availabilityByOptionId)
+    {
+        foreach (var option in groups.SelectMany(g => g.Options))
+        {
+            if (!availabilityByOptionId.TryGetValue(option.Id, out var availability))
+            {
+                option.IsTracked = false;
+                option.IsAvailable = true;
+                option.AvailableQuantity = null;
+                continue;
+            }
+
+            option.IsTracked = availability.IsTracked;
+            option.IsAvailable = availability.IsAvailable;
+            option.AvailableQuantity = availability.AvailableQuantity;
+        }
+    }
+
+    private sealed record ModifierOptionAvailabilityInfo(
+        bool IsTracked,
+        bool IsAvailable,
+        decimal AvailableQuantity);
+
+    private static decimal ConvertQuantity(
+        decimal quantity,
+        Guid originUnitId,
+        Guid destinationUnitId,
+        IEnumerable<UnitConversionInfo> conversions)
+    {
+        if (originUnitId == destinationUnitId) return quantity;
+
+        var direct = conversions.FirstOrDefault(x => x.OriginUnitId == originUnitId && x.DestinationUnitId == destinationUnitId);
+        if (direct is not null) return quantity * direct.Factor;
+
+        var reverse = conversions.FirstOrDefault(x => x.OriginUnitId == destinationUnitId && x.DestinationUnitId == originUnitId);
+        if (reverse is not null && reverse.Factor != 0) return quantity / reverse.Factor;
+
+        return 0m;
+    }
+
+    private sealed record UnitConversionInfo(Guid OriginUnitId, Guid DestinationUnitId, decimal Factor);
 }
 
 public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQuery, List<MenuItemAvailabilityDto>>
@@ -220,10 +305,6 @@ public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQue
             .Include(x => x.Recipe.Where(r => !r.IsDeleted))
                 .ThenInclude(r => r.Article)
                     .ThenInclude(a => a!.BaseUnit)
-            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
-                .ThenInclude(r => r.Alternatives.Where(a => !a.IsDeleted))
-                    .ThenInclude(a => a.Article)
-                        .ThenInclude(a => a!.BaseUnit)
             .Where(x => x.BranchId == req.BranchId && !x.IsDeleted);
 
         if (req.CategoryId.HasValue) query = query.Where(x => x.MenuCategoryId == req.CategoryId.Value);
@@ -234,7 +315,7 @@ public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQue
 
         var articleIds = items
             .SelectMany(item => item.Recipe.Where(r => !r.IsDeleted).SelectMany(r =>
-                new[] { r.ArticleId }.Concat(r.Alternatives.Where(a => !a.IsDeleted).Select(a => a.ArticleId))))
+                new[] { r.ArticleId }))
             .Distinct()
             .ToList();
 
@@ -298,7 +379,7 @@ public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQue
 
         var capacities = new List<(decimal Quantity, string? LimitingArticleName)>();
 
-        foreach (var ingredient in recipe.Where(r => !r.IsVariable))
+        foreach (var ingredient in recipe)
         {
             var article = ingredient.Article;
             var requiredBase = article is null ? 0m : ConvertQuantity(ingredient.Quantity, ingredient.UnitId, article.BaseUnitId, conversions);
@@ -315,46 +396,8 @@ public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQue
                 StockQuantity = Math.Round(stock, 4),
                 StockUnitSymbol = article?.BaseUnit?.Symbol ?? string.Empty,
                 AvailableServings = Math.Floor(servings),
-                IsVariableOption = false,
             });
             capacities.Add((servings, article?.Name));
-        }
-
-        foreach (var ingredient in recipe.Where(r => r.IsVariable))
-        {
-            var options = new[] { new VariableOption(ingredient.ArticleId, ingredient.Article?.Name ?? string.Empty, ingredient.Article?.BaseUnitId ?? Guid.Empty, ingredient.Article?.BaseUnit?.Symbol ?? string.Empty) }
-                .Concat(ingredient.Alternatives.Where(a => !a.IsDeleted).Select(a =>
-                    new VariableOption(a.ArticleId, a.Article?.Name ?? string.Empty, a.Article?.BaseUnitId ?? Guid.Empty, a.Article?.BaseUnit?.Symbol ?? string.Empty)))
-                .GroupBy(x => x.ArticleId)
-                .Select(g => g.First())
-                .ToList();
-
-            var slotCapacity = 0m;
-            foreach (var option in options)
-            {
-                var requiredBase = option.BaseUnitId == Guid.Empty
-                    ? 0m
-                    : ConvertQuantity(ingredient.Quantity, ingredient.UnitId, option.BaseUnitId, conversions);
-                var stock = stockByArticle.TryGetValue(option.ArticleId, out var quantity) ? quantity : 0m;
-                var servings = requiredBase > 0 ? stock / requiredBase : 0m;
-                slotCapacity += servings;
-
-                dto.Components.Add(new MenuItemAvailabilityComponentDto
-                {
-                    RecipeIngredientId = ingredient.Id,
-                    ArticleId = option.ArticleId,
-                    ArticleName = option.ArticleName,
-                    RequiredQuantity = ingredient.Quantity,
-                    RequiredUnitSymbol = ingredient.Unit?.Symbol ?? string.Empty,
-                    StockQuantity = Math.Round(stock, 4),
-                    StockUnitSymbol = option.BaseUnitSymbol,
-                    AvailableServings = Math.Floor(servings),
-                    IsVariableOption = true,
-                });
-            }
-
-            capacities.Add((slotCapacity, options.OrderByDescending(o =>
-                stockByArticle.TryGetValue(o.ArticleId, out var quantity) ? quantity : 0m).FirstOrDefault()?.ArticleName));
         }
 
         var limiting = capacities.OrderBy(x => x.Quantity).FirstOrDefault();
@@ -382,7 +425,6 @@ public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQue
     }
 
     private sealed record UnitConversionInfo(Guid OriginUnitId, Guid DestinationUnitId, decimal Factor);
-    private sealed record VariableOption(Guid ArticleId, string ArticleName, Guid BaseUnitId, string BaseUnitSymbol);
 }
 
 public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQuery, List<MenuItemProfitabilityDto>>
@@ -532,7 +574,6 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
                 AverageUnitCost = Math.Round(averageCost, 4),
                 LastUnitCost = lastCost.HasValue ? Math.Round(lastCost.Value, 4) : null,
                 TotalCost = Math.Round(totalCost, 4),
-                IsVariable = ingredient.IsVariable,
                 HasCost = hasCost,
                 Warning = warning ?? (hasCost ? null : "Sin compras registradas para calcular costo."),
             });

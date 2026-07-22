@@ -186,6 +186,20 @@ public class MenuController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Policy = "Menu.Items.Manage")]
+    [HttpPut("items/{id:guid}/modifiers")]
+    public async Task<IActionResult> UpsertModifiers(Guid id, [FromBody] List<UpsertMenuItemModifierGroupDto> groups)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new UpsertMenuItemModifiersCommand
+        {
+            MenuItemId = id,
+            BranchId = branchId,
+            Groups = groups,
+        });
+        return Ok(result);
+    }
+
     // â”€â”€ Descuento por venta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Authorize(Policy = "Menu.StockConsume")]

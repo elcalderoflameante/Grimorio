@@ -92,13 +92,9 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
   // ── Carrito ───────────────────────────────────────────────────────────────
 
   void _addItem(MenuItemDto item) {
-    if (item.hasVariableIngredients) {
-      _showVariableChoiceDialog(item);
-      return;
-    }
     setState(() {
       final idx = _cart.indexWhere(
-        (c) => c.menuItemId == item.id && c.ingredientChoices.isEmpty,
+        (c) => c.menuItemId == item.id,
       );
       if (idx >= 0) {
         _cart[idx].quantity++;
@@ -108,152 +104,6 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
         );
       }
     });
-  }
-
-  Future<void> _showVariableChoiceDialog(MenuItemDto item) async {
-    // Map: recipeIngredientId -> chosen articleId
-    final Map<String, String> chosen = {
-      for (final slot in item.variableIngredients)
-        slot.recipeIngredientId: slot.defaultArticleId,
-    };
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: kBgCard,
-          title: Text(
-            item.name,
-            style: GoogleFonts.cinzel(color: kGold, fontSize: 15),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: item.variableIngredients.map((slot) {
-                final options = slot.allOptions;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${slot.quantity} ${slot.unitSymbol} de:',
-                        style: GoogleFonts.lato(
-                          color: kParchmentDim,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      ...options.map((opt) {
-                        final isSelected =
-                            chosen[slot.recipeIngredientId] == opt['articleId'];
-                        return GestureDetector(
-                          onTap: () => setDialogState(() {
-                            chosen[slot.recipeIngredientId] = opt['articleId']!;
-                          }),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 120),
-                            margin: const EdgeInsets.only(bottom: 6),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSelected ? kGold.withAlpha(30) : kBgMid,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isSelected
-                                    ? kGold
-                                    : kGoldDark.withAlpha(60),
-                                width: isSelected ? 1.5 : 1,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  isSelected
-                                      ? Icons.radio_button_checked_rounded
-                                      : Icons.radio_button_off_rounded,
-                                  size: 22,
-                                  color: isSelected
-                                      ? kGold
-                                      : kParchmentDim.withAlpha(120),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  opt['articleName']!,
-                                  style: GoogleFonts.lato(
-                                    color: isSelected
-                                        ? kParchment
-                                        : kParchmentDim,
-                                    fontSize: 15,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w600
-                                        : FontWeight.w400,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: Text(
-                'Cancelar',
-                style: GoogleFonts.lato(color: kParchmentDim),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: Text(
-                'Agregar',
-                style: GoogleFonts.lato(
-                  color: kGold,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (confirmed == true && mounted) {
-      final choices = item.variableIngredients.map((slot) {
-        final chosenId =
-            chosen[slot.recipeIngredientId] ?? slot.defaultArticleId;
-        final allOpts = slot.allOptions;
-        final name = allOpts.firstWhere(
-          (o) => o['articleId'] == chosenId,
-          orElse: () => {'articleName': chosenId},
-        )['articleName']!;
-        return CartItemChoice(
-          recipeIngredientId: slot.recipeIngredientId,
-          chosenArticleId: chosenId,
-          chosenArticleName: name,
-        );
-      }).toList();
-
-      setState(() {
-        _cart.add(
-          CartItem(
-            menuItemId: item.id,
-            name: item.name,
-            price: item.price,
-            ingredientChoices: choices,
-          ),
-        );
-      });
-    }
   }
 
   void _changeQuantity(int idx, int delta) {
@@ -837,16 +687,6 @@ class _CartRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (item.choicesLabel != null)
-                  Text(
-                    item.choicesLabel!,
-                    style: GoogleFonts.lato(
-                      color: const Color(0xFFFFAB00),
-                      fontSize: 11,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
                 if (item.notes != null)
                   Text(
                     item.notes!,

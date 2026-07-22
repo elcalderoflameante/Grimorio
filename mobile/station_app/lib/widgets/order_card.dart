@@ -253,14 +253,14 @@ class _ItemRow extends StatelessWidget {
                   ],
                 ),
                 // Ingredientes variables (ej: salsa bbq, mostaza miel…)
-                if (item.ingredientChoices.isNotEmpty) ...[
+                if (item.modifierSelections.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Padding(
                     padding: const EdgeInsets.only(left: 22),
                     child: Wrap(
                       spacing: 4,
                       runSpacing: 4,
-                      children: item.ingredientChoices
+                      children: item.modifierSelections
                           .map((c) => Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 6, vertical: 2),
@@ -271,7 +271,7 @@ class _ItemRow extends StatelessWidget {
                                       color: const Color(0xFF7C3AED).withValues(alpha: 0.5)),
                                 ),
                                 child: Text(
-                                  c.chosenArticleName,
+                                  c.label,
                                   style: const TextStyle(
                                       color: Color(0xFFBB86FC),
                                       fontSize: 11,

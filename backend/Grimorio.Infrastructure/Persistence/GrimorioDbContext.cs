@@ -74,7 +74,7 @@ public class GrimorioDbContext : DbContext
     public DbSet<WorkStation> WorkStations { get; set; } = null!;
     public DbSet<Order> Orders { get; set; } = null!;
     public DbSet<OrderItem> OrderItems { get; set; } = null!;
-    public DbSet<OrderItemIngredientChoice> OrderItemIngredientChoices { get; set; } = null!;
+    public DbSet<OrderItemModifierSelection> OrderItemModifierSelections { get; set; } = null!;
     public DbSet<Customer> Customers { get; set; } = null!;
     public DbSet<PaymentMethodConfig> PaymentMethodConfigs { get; set; } = null!;
     public DbSet<CardBank> CardBanks { get; set; } = null!;
@@ -87,8 +87,9 @@ public class GrimorioDbContext : DbContext
     // === Menú ===
     public DbSet<MenuCategory> MenuCategories { get; set; } = null!;
     public DbSet<MenuItem> MenuItems { get; set; } = null!;
+    public DbSet<MenuItemModifierGroup> MenuItemModifierGroups { get; set; } = null!;
+    public DbSet<MenuItemModifierOption> MenuItemModifierOptions { get; set; } = null!;
     public DbSet<RecipeIngredient> RecipeIngredients { get; set; } = null!;
-    public DbSet<RecipeIngredientAlternative> RecipeIngredientAlternatives { get; set; } = null!;
 
     // === Purchases ===
     public DbSet<Supplier> Suppliers { get; set; } = null!;

@@ -171,63 +171,6 @@ class MenuCategoryDto {
   );
 }
 
-class RecipeIngredientAlternativeDto {
-  final String articleId;
-  final String articleName;
-
-  const RecipeIngredientAlternativeDto({
-    required this.articleId,
-    required this.articleName,
-  });
-
-  factory RecipeIngredientAlternativeDto.fromJson(Map<String, dynamic> j) =>
-      RecipeIngredientAlternativeDto(
-        articleId: j['articleId'] as String,
-        articleName: j['articleName'] as String? ?? '',
-      );
-}
-
-class VariableIngredientSlotDto {
-  final String recipeIngredientId;
-  final double quantity;
-  final String unitSymbol;
-  final String defaultArticleId;
-  final String defaultArticleName;
-  final List<RecipeIngredientAlternativeDto> alternatives;
-
-  const VariableIngredientSlotDto({
-    required this.recipeIngredientId,
-    required this.quantity,
-    required this.unitSymbol,
-    required this.defaultArticleId,
-    required this.defaultArticleName,
-    required this.alternatives,
-  });
-
-  List<Map<String, String>> get allOptions => [
-    {'articleId': defaultArticleId, 'articleName': defaultArticleName},
-    ...alternatives.map(
-      (a) => {'articleId': a.articleId, 'articleName': a.articleName},
-    ),
-  ];
-
-  factory VariableIngredientSlotDto.fromJson(Map<String, dynamic> j) =>
-      VariableIngredientSlotDto(
-        recipeIngredientId: j['recipeIngredientId'] as String,
-        quantity: (j['quantity'] as num).toDouble(),
-        unitSymbol: j['unitSymbol'] as String? ?? '',
-        defaultArticleId: j['defaultArticleId'] as String,
-        defaultArticleName: j['defaultArticleName'] as String? ?? '',
-        alternatives: (j['alternatives'] as List<dynamic>? ?? [])
-            .map(
-              (e) => RecipeIngredientAlternativeDto.fromJson(
-                e as Map<String, dynamic>,
-              ),
-            )
-            .toList(),
-      );
-}
-
 class MenuItemDto {
   final String id;
   final String name;
@@ -237,7 +180,6 @@ class MenuItemDto {
   final String categoryName;
   final String? categoryColor;
   final bool isActive;
-  final List<VariableIngredientSlotDto> variableIngredients;
 
   const MenuItemDto({
     required this.id,
@@ -248,10 +190,7 @@ class MenuItemDto {
     required this.categoryName,
     this.categoryColor,
     required this.isActive,
-    required this.variableIngredients,
   });
-
-  bool get hasVariableIngredients => variableIngredients.isNotEmpty;
 
   factory MenuItemDto.fromJson(Map<String, dynamic> j) => MenuItemDto(
     id: j['id'] as String,
@@ -262,11 +201,6 @@ class MenuItemDto {
     categoryName: j['categoryName'] as String? ?? '',
     categoryColor: j['categoryColor'] as String?,
     isActive: j['isActive'] as bool? ?? true,
-    variableIngredients: (j['variableIngredients'] as List<dynamic>? ?? [])
-        .map(
-          (e) => VariableIngredientSlotDto.fromJson(e as Map<String, dynamic>),
-        )
-        .toList(),
   );
 }
 
@@ -313,18 +247,6 @@ class TableDto {
 
 // ── Carrito local (no viene del servidor) ─────────────────────────────────
 
-class CartItemChoice {
-  final String recipeIngredientId;
-  final String chosenArticleId;
-  final String chosenArticleName;
-
-  const CartItemChoice({
-    required this.recipeIngredientId,
-    required this.chosenArticleId,
-    required this.chosenArticleName,
-  });
-}
-
 class CartItem {
   final String menuItemId;
   final String name;
@@ -332,7 +254,6 @@ class CartItem {
   int quantity;
   String? notes;
   bool isTakeout;
-  final List<CartItemChoice> ingredientChoices;
 
   CartItem({
     required this.menuItemId,
@@ -341,12 +262,7 @@ class CartItem {
     this.quantity = 1,
     this.notes,
     this.isTakeout = false,
-    this.ingredientChoices = const [],
   });
 
   double get subtotal => price * quantity;
-
-  String? get choicesLabel => ingredientChoices.isEmpty
-      ? null
-      : ingredientChoices.map((c) => c.chosenArticleName).join(', ');
 }

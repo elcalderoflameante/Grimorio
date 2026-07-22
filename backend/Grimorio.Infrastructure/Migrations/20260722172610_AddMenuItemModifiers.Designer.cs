@@ -3,6 +3,7 @@ using System;
 using Grimorio.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Grimorio.Infrastructure.Migrations
 {
     [DbContext(typeof(GrimorioDbContext))]
-    partial class GrimorioDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260722172610_AddMenuItemModifiers")]
+    partial class AddMenuItemModifiers
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2448,6 +2451,9 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<bool>("IsVariable")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid>("MenuItemId")
                         .HasColumnType("uuid");
 
@@ -2484,6 +2490,64 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("RecipeIngredients", "menu");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Menu.RecipeIngredientAlternative", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("ArticleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("RecipeIngredientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ArticleId");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("RecipeIngredientId", "ArticleId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("RecipeIngredientAlternatives", "menu");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Organization.Branch", b =>
@@ -3185,6 +3249,56 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("OrderItems", "pos");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderItemIngredientChoice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChosenArticleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("OrderItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RecipeIngredientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChosenArticleId");
+
+                    b.HasIndex("OrderItemId");
+
+                    b.HasIndex("RecipeIngredientId");
+
+                    b.ToTable("OrderItemIngredientChoices", "pos");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderItemModifierSelection", b =>
@@ -4991,6 +5105,25 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("Unit");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Menu.RecipeIngredientAlternative", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Inventory.InventoryArticle", "Article")
+                        .WithMany()
+                        .HasForeignKey("ArticleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.Menu.RecipeIngredient", "RecipeIngredient")
+                        .WithMany("Alternatives")
+                        .HasForeignKey("RecipeIngredientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Article");
+
+                    b.Navigation("RecipeIngredient");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Organization.Employee", b =>
                 {
                     b.HasOne("Grimorio.Domain.Entities.Organization.Branch", "Branch")
@@ -5090,6 +5223,33 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("Station");
 
                     b.Navigation("TaxRate");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderItemIngredientChoice", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Inventory.InventoryArticle", "ChosenArticle")
+                        .WithMany()
+                        .HasForeignKey("ChosenArticleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.POS.OrderItem", "OrderItem")
+                        .WithMany("IngredientChoices")
+                        .HasForeignKey("OrderItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.Menu.RecipeIngredient", "RecipeIngredient")
+                        .WithMany()
+                        .HasForeignKey("RecipeIngredientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ChosenArticle");
+
+                    b.Navigation("OrderItem");
+
+                    b.Navigation("RecipeIngredient");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderItemModifierSelection", b =>
@@ -5444,6 +5604,11 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("Options");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Menu.RecipeIngredient", b =>
+                {
+                    b.Navigation("Alternatives");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Organization.Branch", b =>
                 {
                     b.Navigation("Employees");
@@ -5472,6 +5637,8 @@ namespace Grimorio.Infrastructure.Migrations
 
             modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderItem", b =>
                 {
+                    b.Navigation("IngredientChoices");
+
                     b.Navigation("ModifierSelections");
                 });
 

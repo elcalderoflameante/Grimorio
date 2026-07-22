@@ -91,10 +91,7 @@ export default function MenuProfitability() {
       key: 'article',
       render: (_: unknown, row: MenuItemProfitabilityIngredientDto) => (
         <Space direction="vertical" size={0}>
-          <Space size={6}>
-            <Text>{row.articleName || 'Sin nombre'}</Text>
-            {row.isVariable && <Tag color="orange">Variable</Tag>}
-          </Space>
+          <Text>{row.articleName || 'Sin nombre'}</Text>
           {row.internalCode && <Text type="secondary" style={{ fontSize: 12 }}>{row.internalCode}</Text>}
         </Space>
       ),

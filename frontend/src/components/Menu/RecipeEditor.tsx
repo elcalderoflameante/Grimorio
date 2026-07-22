@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Select, InputNumber, Input, Switch, Popconfirm, Typography, message, Tag, Space } from 'antd';
-import { PlusOutlined, DeleteOutlined, SaveOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Select, InputNumber, Input, Popconfirm, Typography, message, Tag } from 'antd';
+import { PlusOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons';
 import { menuApi, inventoryApi } from '../../services/api';
 import type { InventoryArticleDto, MeasurementUnitDto, UnitConversionDto, UpsertRecipeIngredientDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
@@ -20,7 +20,6 @@ export default function RecipeEditor({ itemId, itemName, open, onClose }: Props)
   const [unidades, setUnidades] = useState<MeasurementUnitDto[]>([]);
   const [conversiones, setConversiones] = useState<UnitConversionDto[]>([]);
   const [selectedArticleId, setSelectedArticleId] = useState<string | undefined>();
-  const [isVariable, setIsVariable] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm();
 
@@ -39,8 +38,6 @@ export default function RecipeEditor({ itemId, itemName, open, onClose }: Props)
           unitId: r.unitId,
           quantity: r.quantity,
           notes: r.notes,
-          isVariable: r.isVariable,
-          alternativeArticleIds: r.alternatives.map(a => a.articleId),
         })));
         setArticulos(a.data);
         setUnidades(u.data);
@@ -52,33 +49,14 @@ export default function RecipeEditor({ itemId, itemName, open, onClose }: Props)
 
   const addIngrediente = async () => {
     const values = await form.validateFields();
-    let articleId: string;
-    let alternativeArticleIds: string[];
-
-    if (values.isVariable) {
-      // All options come from the multi-select; first = default
-      const allOptions: string[] = values.optionArticleIds ?? [];
-      if (allOptions.length === 0) {
-        return;
-      }
-      articleId = allOptions[0];
-      alternativeArticleIds = allOptions.slice(1);
-    } else {
-      articleId = values.articleId;
-      alternativeArticleIds = [];
-    }
-
     setReceta(prev => [...prev, {
-      articleId,
+      articleId: values.articleId,
       unitId: values.unitId,
       quantity: values.quantity,
       notes: values.notes,
-      isVariable: values.isVariable ?? false,
-      alternativeArticleIds,
     }]);
     form.resetFields();
     setSelectedArticleId(undefined);
-    setIsVariable(false);
   };
 
   const removeIngrediente = (idx: number) => {
@@ -121,7 +99,6 @@ export default function RecipeEditor({ itemId, itemName, open, onClose }: Props)
     if (currentUnit && !newCompatible.has(currentUnit)) {
       form.setFieldValue('unitId', undefined);
     }
-    form.setFieldValue('alternativeArticleIds', []);
   };
 
   const getArticuloNombre = (id: string) => articulos.find(a => a.id === id)?.name ?? id;
@@ -129,7 +106,7 @@ export default function RecipeEditor({ itemId, itemName, open, onClose }: Props)
 
   return (
     <Modal
-      title={`Receta — ${itemName}`}
+      title={`Receta - ${itemName}`}
       open={open}
       onCancel={onClose}
       width={680}
@@ -150,35 +127,22 @@ export default function RecipeEditor({ itemId, itemName, open, onClose }: Props)
         size="small"
         pagination={false}
         style={{ marginBottom: 16 }}
-        locale={{ emptyText: 'Sin ingredientes aún' }}
+        locale={{ emptyText: 'Sin ingredientes aun' }}
         columns={[
           {
             title: 'Ingrediente', key: 'articulo',
-            render: (_: unknown, r: UpsertRecipeIngredientDto) => {
-              if (r.isVariable) {
-                const allOptions = [r.articleId, ...r.alternativeArticleIds];
-                return (
-                  <Space size={4} wrap>
-                    <Tag icon={<QuestionCircleOutlined />} color="orange" style={{ fontSize: 11 }}>Variable</Tag>
-                    {allOptions.map(id => (
-                      <Tag key={id} style={{ fontSize: 11 }}>{getArticuloNombre(id)}</Tag>
-                    ))}
-                  </Space>
-                );
-              }
-              return <span>{getArticuloNombre(r.articleId)}</span>;
-            },
+            render: (_: unknown, r: UpsertRecipeIngredientDto) => <span>{getArticuloNombre(r.articleId)}</span>,
           },
           {
             title: 'Cantidad', key: 'quantity',
             render: (_: unknown, r: UpsertRecipeIngredientDto) =>
               <Tag>{r.quantity} {getUnidadSimbolo(r.unitId)}</Tag>,
           },
-          { title: 'Observación', dataIndex: 'notes', key: 'obs' },
+          { title: 'Observacion', dataIndex: 'notes', key: 'obs' },
           {
             title: '', key: 'del', width: 50,
             render: (_: unknown, __: unknown, idx: number) => (
-              <Popconfirm title="¿Quitar?" onConfirm={() => removeIngrediente(idx)}>
+              <Popconfirm title="Quitar?" onConfirm={() => removeIngrediente(idx)}>
                 <Button size="small" danger icon={<DeleteOutlined />} />
               </Popconfirm>
             ),
@@ -194,40 +158,14 @@ export default function RecipeEditor({ itemId, itemName, open, onClose }: Props)
           <Form.Item name="unitId" label="Unidad" rules={[{ required: true }]} style={{ width: 130, marginBottom: 8 }}>
             <Select options={unidadOptions} placeholder="Unidad" />
           </Form.Item>
-          <Form.Item name="notes" label="Observación" style={{ flex: '1 1 140px', marginBottom: 8 }}>
+          <Form.Item name="notes" label="Observacion" style={{ flex: '1 1 140px', marginBottom: 8 }}>
             <Input placeholder="Opcional" />
-          </Form.Item>
-          <Form.Item name="isVariable" label="Variable" valuePropName="checked" style={{ marginBottom: 8 }}>
-            <Switch onChange={v => {
-              setIsVariable(v);
-              form.setFieldValue('articleId', undefined);
-              form.setFieldValue('optionArticleIds', []);
-              setSelectedArticleId(undefined);
-            }} />
           </Form.Item>
         </div>
 
-        {isVariable ? (
-          <Form.Item
-            name="optionArticleIds"
-            label="Opciones disponibles"
-            help="El mesero elegirá entre estas opciones al tomar el pedido. La primera de la lista es la predeterminada."
-            rules={[{ required: true, type: 'array', min: 2, message: 'Agrega al menos 2 opciones' }]}
-          >
-            <Select
-              mode="multiple"
-              options={articuloOptions}
-              placeholder="Seleccionar opciones (ej: Salsa BBQ, Salsa mostaza, Salsa teriyaki)..."
-              showSearch
-              optionFilterProp="label"
-              style={{ width: '100%' }}
-            />
-          </Form.Item>
-        ) : (
-          <Form.Item name="articleId" label="Ingrediente" rules={[{ required: true }]} style={{ marginBottom: 8 }}>
-            <Select options={articuloOptions} placeholder="Seleccionar ingrediente" showSearch optionFilterProp="label" onChange={handleArticleChange} />
-          </Form.Item>
-        )}
+        <Form.Item name="articleId" label="Ingrediente" rules={[{ required: true }]} style={{ marginBottom: 8 }}>
+          <Select options={articuloOptions} placeholder="Seleccionar ingrediente" showSearch optionFilterProp="label" onChange={handleArticleChange} />
+        </Form.Item>
 
         <Button icon={<PlusOutlined />} onClick={addIngrediente} type="dashed" block>
           Agregar ingrediente

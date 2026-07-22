@@ -1013,8 +1013,6 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
             .Include(o => o.Items.Where(i => !i.IsDeleted))
                 .ThenInclude(i => i.MenuItem)
                     .ThenInclude(m => m!.Recipe.Where(r => !r.IsDeleted))
-            .Include(o => o.Items.Where(i => !i.IsDeleted))
-                .ThenInclude(i => i.IngredientChoices.Where(c => !c.IsDeleted))
             .FirstOrDefaultAsync(o => o.Id == orderId, ct);
 
         if (order == null) return;
@@ -1036,13 +1034,6 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
             {
                 // Ingrediente variable: usar el artículo elegido por el cliente
                 var articleId = ingredient.ArticleId;
-                if (ingredient.IsVariable)
-                {
-                    var choice = item.IngredientChoices
-                        .FirstOrDefault(c => c.RecipeIngredientId == ingredient.Id);
-                    if (choice != null) articleId = choice.ChosenArticleId;
-                }
-
                 var qty = ingredient.Quantity * item.Quantity;
 
                 // Bodega con más stock para ese artículo, o la de respaldo

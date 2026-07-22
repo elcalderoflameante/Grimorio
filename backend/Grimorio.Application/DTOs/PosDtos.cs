@@ -67,17 +67,21 @@ public class ActiveOrderSummaryDto
     public int TotalItems { get; set; }
 }
 
-public class IngredientChoiceDto
+public class ModifierSelectionDto
 {
-    public Guid RecipeIngredientId { get; set; }
-    public Guid ChosenArticleId { get; set; }
-    public string ChosenArticleName { get; set; } = string.Empty;
+    public Guid ModifierGroupId { get; set; }
+    public Guid ModifierOptionId { get; set; }
+    public string GroupName { get; set; } = string.Empty;
+    public string OptionName { get; set; } = string.Empty;
+    public int Quantity { get; set; }
+    public decimal UnitPriceDelta { get; set; }
+    public decimal TotalPriceDelta { get; set; }
 }
 
-public class CreateIngredientChoiceDto
+public class CreateModifierSelectionDto
 {
-    public Guid RecipeIngredientId { get; set; }
-    public Guid ChosenArticleId { get; set; }
+    public Guid ModifierOptionId { get; set; }
+    public int Quantity { get; set; } = 1;
 }
 
 public class OrderItemDto
@@ -101,7 +105,7 @@ public class OrderItemDto
     public string? Notes { get; set; }
     public bool IsTakeout { get; set; }
     public string Status { get; set; } = string.Empty;
-    public List<IngredientChoiceDto> IngredientChoices { get; set; } = [];
+    public List<ModifierSelectionDto> ModifierSelections { get; set; } = [];
 }
 
 public class CreateOrderDto
@@ -121,7 +125,7 @@ public class CreateOrderItemDto
     public decimal DiscountPct { get; set; }
     public string? Notes { get; set; }
     public bool IsTakeout { get; set; }
-    public List<CreateIngredientChoiceDto> IngredientChoices { get; set; } = [];
+    public List<CreateModifierSelectionDto> ModifierSelections { get; set; } = [];
 }
 
 public class UpdateOrderItemsDto
@@ -193,5 +197,5 @@ public class StationItemDto
     public string Status { get; set; } = string.Empty;
     public DateTime ConfirmedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
-    public List<IngredientChoiceDto> IngredientChoices { get; set; } = [];
+    public List<ModifierSelectionDto> ModifierSelections { get; set; } = [];
 }

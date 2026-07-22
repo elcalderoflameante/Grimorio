@@ -1,9 +1,19 @@
-class IngredientChoice {
-  final String chosenArticleName;
-  const IngredientChoice({required this.chosenArticleName});
+class ModifierSelection {
+  final String optionName;
+  final int quantity;
 
-  factory IngredientChoice.fromJson(Map<String, dynamic> json) =>
-      IngredientChoice(chosenArticleName: json['chosenArticleName'] as String);
+  const ModifierSelection({
+    required this.optionName,
+    required this.quantity,
+  });
+
+  factory ModifierSelection.fromJson(Map<String, dynamic> json) =>
+      ModifierSelection(
+        optionName: json['optionName'] as String,
+        quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+      );
+
+  String get label => quantity > 1 ? '$optionName x$quantity' : optionName;
 }
 
 class StationItem {
@@ -21,7 +31,7 @@ class StationItem {
   String status;
   final DateTime confirmedAt;
   final DateTime? updatedAt;
-  final List<IngredientChoice> ingredientChoices;
+  final List<ModifierSelection> modifierSelections;
 
   StationItem({
     required this.orderItemId,
@@ -38,7 +48,7 @@ class StationItem {
     required this.status,
     required this.confirmedAt,
     this.updatedAt,
-    this.ingredientChoices = const [],
+    this.modifierSelections = const [],
   });
 
   factory StationItem.fromJson(Map<String, dynamic> json) => StationItem(
@@ -58,8 +68,8 @@ class StationItem {
         updatedAt: json['updatedAt'] != null
             ? DateTime.parse(json['updatedAt'] as String)
             : null,
-        ingredientChoices: (json['ingredientChoices'] as List<dynamic>? ?? [])
-            .map((e) => IngredientChoice.fromJson(e as Map<String, dynamic>))
+        modifierSelections: (json['modifierSelections'] as List<dynamic>? ?? [])
+            .map((e) => ModifierSelection.fromJson(e as Map<String, dynamic>))
             .toList(),
       );
 

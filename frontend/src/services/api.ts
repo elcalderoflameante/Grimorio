@@ -91,6 +91,8 @@ import type {
   UpdateMenuItemDto,
   RecipeIngredientDto,
   UpsertRecipeIngredientDto,
+  MenuItemModifierGroupDto,
+  UpsertMenuItemModifierGroupDto,
   DeductStockFromSaleDto,
   WorkStationDto,
   CreateWorkStationDto,
@@ -561,6 +563,8 @@ export const menuApi = {
     apiClient.put<RecipeIngredientDto[]>(`/menu/items/${itemId}/receta`, ingredientes),
   deleteIngredient: (id: string): Promise<AxiosResponse<void>> =>
     apiClient.delete<void>(`/menu/receta/${id}`),
+  upsertModifiers: (itemId: string, groups: UpsertMenuItemModifierGroupDto[]): Promise<AxiosResponse<MenuItemModifierGroupDto[]>> =>
+    apiClient.put<MenuItemModifierGroupDto[]>(`/menu/items/${itemId}/modifiers`, groups),
 
   // Descuento por venta
   deductStock: (data: DeductStockFromSaleDto): Promise<AxiosResponse<void>> =>

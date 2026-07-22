@@ -144,27 +144,14 @@ public class UpsertRecipeHandler : IRequestHandler<UpsertRecipeCommand, List<Rec
                 BranchId = req.BranchId, MenuItemId = req.MenuItemId,
                 ArticleId = ing.ArticleId, UnitId = ing.UnitId,
                 Quantity = ing.Quantity, Notes = ing.Notes,
-                IsVariable = ing.IsVariable,
             };
             _db.RecipeIngredients.Add(recipeIng);
-
-            foreach (var altId in ing.AlternativeArticleIds)
-            {
-                _db.RecipeIngredientAlternatives.Add(new RecipeIngredientAlternative
-                {
-                    BranchId = req.BranchId,
-                    RecipeIngredientId = recipeIng.Id,
-                    ArticleId = altId,
-                });
-            }
         }
         await _db.SaveChangesAsync(ct);
 
         var result = await _db.RecipeIngredients
             .Include(r => r.Article)
             .Include(r => r.Unit)
-            .Include(r => r.Alternatives.Where(a => !a.IsDeleted))
-                .ThenInclude(a => a.Article)
             .Where(r => r.MenuItemId == req.MenuItemId && r.BranchId == req.BranchId && !r.IsDeleted)
             .ToListAsync(ct);
 
@@ -174,12 +161,6 @@ public class UpsertRecipeHandler : IRequestHandler<UpsertRecipeCommand, List<Rec
             ArticleName = r.Article?.Name ?? string.Empty, InternalCode = r.Article?.InternalCode,
             UnitId = r.UnitId, UnitName = r.Unit?.Name ?? string.Empty,
             UnitSymbol = r.Unit?.Symbol ?? string.Empty, Quantity = r.Quantity, Notes = r.Notes,
-            IsVariable = r.IsVariable,
-            Alternatives = r.Alternatives.Where(a => !a.IsDeleted).Select(a => new RecipeIngredientAlternativeDto
-            {
-                ArticleId = a.ArticleId,
-                ArticleName = a.Article?.Name ?? string.Empty,
-            }).ToList(),
         }).ToList();
     }
 }
@@ -199,6 +180,98 @@ public class DeleteRecipeIngredientHandler : IRequestHandler<DeleteRecipeIngredi
     }
 }
 
+public class UpsertMenuItemModifiersHandler : IRequestHandler<UpsertMenuItemModifiersCommand, List<MenuItemModifierGroupDto>>
+{
+    private readonly GrimorioDbContext _db;
+    public UpsertMenuItemModifiersHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<List<MenuItemModifierGroupDto>> Handle(UpsertMenuItemModifiersCommand req, CancellationToken ct)
+    {
+        var itemExists = await _db.MenuItems
+            .AnyAsync(x => x.Id == req.MenuItemId && x.BranchId == req.BranchId && !x.IsDeleted, ct);
+        if (!itemExists)
+            throw new KeyNotFoundException("Item no encontrado");
+
+        foreach (var groupDto in req.Groups)
+        {
+            if (string.IsNullOrWhiteSpace(groupDto.Name))
+                throw new InvalidOperationException("El grupo de opciones requiere nombre.");
+            if (groupDto.MaxSelections < 1)
+                throw new InvalidOperationException("El máximo de selecciones debe ser mayor a cero.");
+            if (groupDto.MinSelections < 0 || groupDto.MinSelections > groupDto.MaxSelections)
+                throw new InvalidOperationException("El mínimo de selecciones no puede superar el máximo.");
+            if (groupDto.IsRequired && groupDto.MinSelections == 0)
+                groupDto.MinSelections = 1;
+            if (groupDto.Options.Count == 0)
+                throw new InvalidOperationException($"El grupo {groupDto.Name} requiere opciones.");
+        }
+
+        var existingGroups = await _db.MenuItemModifierGroups
+            .Include(g => g.Options)
+            .Where(g => g.MenuItemId == req.MenuItemId && g.BranchId == req.BranchId && !g.IsDeleted)
+            .ToListAsync(ct);
+
+        foreach (var existing in existingGroups)
+        {
+            existing.IsDeleted = true;
+            foreach (var option in existing.Options.Where(o => !o.IsDeleted))
+                option.IsDeleted = true;
+        }
+
+        foreach (var groupDto in req.Groups)
+        {
+            var group = new MenuItemModifierGroup
+            {
+                BranchId = req.BranchId,
+                MenuItemId = req.MenuItemId,
+                Name = groupDto.Name.Trim(),
+                MinSelections = groupDto.MinSelections,
+                MaxSelections = groupDto.MaxSelections,
+                IsRequired = groupDto.IsRequired,
+                AllowDuplicates = groupDto.AllowDuplicates,
+                DisplayOrder = groupDto.DisplayOrder,
+                IsActive = groupDto.IsActive,
+            };
+            _db.MenuItemModifierGroups.Add(group);
+
+            foreach (var optionDto in groupDto.Options)
+            {
+                if (string.IsNullOrWhiteSpace(optionDto.Name))
+                    throw new InvalidOperationException($"Una opción del grupo {groupDto.Name} no tiene nombre.");
+                if (optionDto.ArticleId.HasValue && (!optionDto.UnitId.HasValue || optionDto.Quantity <= 0))
+                    throw new InvalidOperationException($"La opción {optionDto.Name} requiere unidad y cantidad para inventario.");
+
+                _db.MenuItemModifierOptions.Add(new MenuItemModifierOption
+                {
+                    BranchId = req.BranchId,
+                    ModifierGroupId = group.Id,
+                    Name = optionDto.Name.Trim(),
+                    ArticleId = optionDto.ArticleId,
+                    UnitId = optionDto.UnitId,
+                    Quantity = optionDto.Quantity,
+                    PriceDelta = optionDto.PriceDelta,
+                    DisplayOrder = optionDto.DisplayOrder,
+                    IsActive = optionDto.IsActive,
+                });
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        var groups = await _db.MenuItemModifierGroups
+            .AsNoTracking()
+            .Include(g => g.Options.Where(o => !o.IsDeleted))
+                .ThenInclude(o => o.Article)
+            .Include(g => g.Options.Where(o => !o.IsDeleted))
+                .ThenInclude(o => o.Unit)
+            .Where(g => g.MenuItemId == req.MenuItemId && g.BranchId == req.BranchId && !g.IsDeleted)
+            .OrderBy(g => g.DisplayOrder).ThenBy(g => g.Name)
+            .ToListAsync(ct);
+
+        return MenuMapper.MapModifierGroups(groups);
+    }
+}
+
 public class DescontarStockVentaHandler : IRequestHandler<DeductStockFromSaleCommand, bool>
 {
     private readonly GrimorioDbContext _db;
@@ -214,24 +287,12 @@ public class DescontarStockVentaHandler : IRequestHandler<DeductStockFromSaleCom
                 .Where(r => r.MenuItemId == saleItem.MenuItemId && r.BranchId == req.BranchId && !r.IsDeleted)
                 .ToListAsync(ct);
 
-            List<Grimorio.Domain.Entities.POS.OrderItemIngredientChoice> choices = [];
-            if (saleItem.OrderItemId.HasValue)
-            {
-                choices = await _db.OrderItemIngredientChoices
-                    .Where(c => c.OrderItemId == saleItem.OrderItemId.Value && !c.IsDeleted)
-                    .ToListAsync(ct);
-            }
-
             foreach (var ingredient in recipe)
             {
-                var articleId = ingredient.IsVariable
-                    ? (choices.FirstOrDefault(c => c.RecipeIngredientId == ingredient.Id)?.ChosenArticleId ?? ingredient.ArticleId)
-                    : ingredient.ArticleId;
-
                 await _mediator.Send(new RegisterMovementCommand
                 {
                     BranchId = req.BranchId,
-                    ArticleId = articleId,
+                    ArticleId = ingredient.ArticleId,
                     WarehouseId = req.WarehouseId,
                     Type = Grimorio.Domain.Entities.Inventory.MovementType.SaleDeduction,
                     Quantity = ingredient.Quantity * saleItem.Quantity,
@@ -262,6 +323,44 @@ internal static class MenuMapper
             TaxRateName = taxRate?.Name ?? item.TaxRate?.Name,
             TaxRatePercentage = taxRate?.Percentage ?? item.TaxRate?.Percentage,
             TaxRateSriCode = taxRate?.SriCode ?? item.TaxRate?.SriCode,
-            HasVariableIngredients = item.Recipe.Any(r => !r.IsDeleted && r.IsVariable),
+            HasModifiers = item.ModifierGroups.Any(g => !g.IsDeleted && g.IsActive),
+            ModifierGroups = MapModifierGroups(item.ModifierGroups
+                .Where(g => !g.IsDeleted && g.IsActive)
+                .OrderBy(g => g.DisplayOrder)
+                .ThenBy(g => g.Name)
+                .ToList()),
         };
+
+    internal static List<MenuItemModifierGroupDto> MapModifierGroups(IEnumerable<MenuItemModifierGroup> groups) =>
+        groups.Select(g => new MenuItemModifierGroupDto
+        {
+            Id = g.Id,
+            MenuItemId = g.MenuItemId,
+            Name = g.Name,
+            MinSelections = g.MinSelections,
+            MaxSelections = g.MaxSelections,
+            IsRequired = g.IsRequired,
+            AllowDuplicates = g.AllowDuplicates,
+            DisplayOrder = g.DisplayOrder,
+            IsActive = g.IsActive,
+            Options = g.Options
+                .Where(o => !o.IsDeleted && o.IsActive)
+                .OrderBy(o => o.DisplayOrder)
+                .ThenBy(o => o.Name)
+                .Select(o => new MenuItemModifierOptionDto
+                {
+                    Id = o.Id,
+                    ModifierGroupId = o.ModifierGroupId,
+                    Name = o.Name,
+                    ArticleId = o.ArticleId,
+                    ArticleName = o.Article?.Name,
+                    UnitId = o.UnitId,
+                    UnitName = o.Unit?.Name,
+                    UnitSymbol = o.Unit?.Symbol,
+                    Quantity = o.Quantity,
+                    PriceDelta = o.PriceDelta,
+                    DisplayOrder = o.DisplayOrder,
+                    IsActive = o.IsActive,
+                }).ToList(),
+        }).ToList();
 }

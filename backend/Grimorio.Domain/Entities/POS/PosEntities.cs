@@ -135,16 +135,25 @@ public class OrderItem : BaseEntity
     public virtual Menu.MenuItem? MenuItem { get; set; }
     public virtual WorkStation? Station { get; set; }
     public virtual Billing.TaxRate? TaxRate { get; set; }
-    public virtual ICollection<OrderItemIngredientChoice> IngredientChoices { get; set; } = [];
+    public virtual ICollection<OrderItemModifierSelection> ModifierSelections { get; set; } = [];
 }
 
-public class OrderItemIngredientChoice : BaseEntity
+public class OrderItemModifierSelection : BaseEntity
 {
     public Guid OrderItemId { get; set; }
-    public Guid RecipeIngredientId { get; set; }
-    public Guid ChosenArticleId { get; set; }
+    public Guid ModifierGroupId { get; set; }
+    public Guid ModifierOptionId { get; set; }
+    public string GroupName { get; set; } = string.Empty;
+    public string OptionName { get; set; } = string.Empty;
+    public int Quantity { get; set; } = 1;
+    public decimal UnitPriceDelta { get; set; }
+    public Guid? ArticleId { get; set; }
+    public Guid? UnitId { get; set; }
+    public decimal InventoryQuantity { get; set; }
 
     public virtual OrderItem? OrderItem { get; set; }
-    public virtual Menu.RecipeIngredient? RecipeIngredient { get; set; }
-    public virtual Inventory.InventoryArticle? ChosenArticle { get; set; }
+    public virtual Menu.MenuItemModifierGroup? ModifierGroup { get; set; }
+    public virtual Menu.MenuItemModifierOption? ModifierOption { get; set; }
+    public virtual Inventory.InventoryArticle? Article { get; set; }
+    public virtual Inventory.MeasurementUnit? Unit { get; set; }
 }

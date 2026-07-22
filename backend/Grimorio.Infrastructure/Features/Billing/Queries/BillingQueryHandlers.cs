@@ -296,8 +296,6 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
             .Include(p => p.Order)!.ThenInclude(o => o!.Items.Where(i => !i.IsDeleted))
                 .ThenInclude(i => i.MenuItem)!.ThenInclude(m => m!.Recipe.Where(r => !r.IsDeleted))
                     .ThenInclude(r => r.Unit)
-            .Include(p => p.Order)!.ThenInclude(o => o!.Items.Where(i => !i.IsDeleted))
-                .ThenInclude(i => i.IngredientChoices.Where(c => !c.IsDeleted))
             .Where(p => p.BranchId == req.BranchId && !p.IsDeleted && p.Order != null);
 
         if (req.FromUtc.HasValue) query = query.Where(p => p.PaidAt >= req.FromUtc.Value);
@@ -312,9 +310,6 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
             .SelectMany(i => i.MenuItem?.Recipe ?? [])
             .Where(r => !r.IsDeleted)
             .Select(r => r.ArticleId)
-            .Concat(payments
-                .SelectMany(p => p.Order?.Items ?? [])
-                .SelectMany(i => i.IngredientChoices.Where(c => !c.IsDeleted).Select(c => c.ChosenArticleId)))
             .Distinct()
             .ToList();
 
@@ -508,13 +503,10 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
         missingCosts = false;
         conversionWarnings = false;
         var total = 0m;
-        var choices = item.IngredientChoices
-            .Where(c => !c.IsDeleted)
-            .ToDictionary(c => c.RecipeIngredientId, c => c.ChosenArticleId);
 
         foreach (var ingredient in item.MenuItem?.Recipe.Where(r => !r.IsDeleted) ?? [])
         {
-            var articleId = choices.GetValueOrDefault(ingredient.Id, ingredient.ArticleId);
+            var articleId = ingredient.ArticleId;
             var baseUnitId = baseUnitByArticle.GetValueOrDefault(articleId, ingredient.Article?.BaseUnitId ?? Guid.Empty);
             var baseQty = ConvertQuantity(ingredient.Quantity, ingredient.UnitId, baseUnitId, conversions);
 

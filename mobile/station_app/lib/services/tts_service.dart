@@ -91,9 +91,9 @@ class TtsService {
     for (final item in items) {
       final qty = item.quantity == 1 ? 'un' : '${item.quantity}';
       sb.write('$qty ${item.itemName}');
-      if (item.ingredientChoices.isNotEmpty) {
+      if (item.modifierSelections.isNotEmpty) {
         sb.write(
-          ', ${item.ingredientChoices.map((c) => c.chosenArticleName).join(', ')}',
+          ', ${item.modifierSelections.map((c) => c.label).join(', ')}',
         );
       }
       if (item.notes != null && item.notes!.isNotEmpty) {

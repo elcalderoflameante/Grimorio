@@ -187,9 +187,11 @@ public class PosController : ControllerBase
                 isTakeout = i.IsTakeout,
                 status = i.Status,
                 confirmedAt,
-                ingredientChoices = i.IngredientChoices.Select(c => new
+                modifierSelections = i.ModifierSelections.Select(s => new
                 {
-                    chosenArticleName = c.ChosenArticleName,
+                    groupName = s.GroupName,
+                    optionName = s.OptionName,
+                    quantity = s.Quantity,
                 }),
             });
             await _kitchenHub.Clients
@@ -234,9 +236,11 @@ public class PosController : ControllerBase
                 isTakeout = i.IsTakeout,
                 status = i.Status,
                 confirmedAt,
-                ingredientChoices = i.IngredientChoices.Select(c => new
+                modifierSelections = i.ModifierSelections.Select(s => new
                 {
-                    chosenArticleName = c.ChosenArticleName,
+                    groupName = s.GroupName,
+                    optionName = s.OptionName,
+                    quantity = s.Quantity,
                 }),
             });
             await _kitchenHub.Clients
@@ -252,7 +256,15 @@ public class PosController : ControllerBase
     public async Task<IActionResult> ConfirmOrder(Guid id)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
-        var result = await _mediator.Send(new ConfirmOrderCommand { OrderId = id, BranchId = branchId });
+        OrderDto result;
+        try
+        {
+            result = await _mediator.Send(new ConfirmOrderCommand { OrderId = id, BranchId = branchId });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
 
         // Notificar a cada estación sus nuevos ítems
         var confirmedAt = result.ConfirmedAt ?? result.CreatedAt;
@@ -276,9 +288,11 @@ public class PosController : ControllerBase
                 isTakeout = i.IsTakeout,
                 status = i.Status,
                 confirmedAt,
-                ingredientChoices = i.IngredientChoices.Select(c => new
+                modifierSelections = i.ModifierSelections.Select(s => new
                 {
-                    chosenArticleName = c.ChosenArticleName,
+                    groupName = s.GroupName,
+                    optionName = s.OptionName,
+                    quantity = s.Quantity,
                 }),
             });
             await _kitchenHub.Clients

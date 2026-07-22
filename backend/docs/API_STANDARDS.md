@@ -106,6 +106,17 @@ Compatibilidad temporal:
 - `GET /api/inventory/movimientos`
 - `POST /api/inventory/movimientos`
 
+### Menu
+
+- `GET /api/menu/items`
+- `GET /api/menu/items/{id}`
+- `POST /api/menu/items`
+- `PUT /api/menu/items/{id}`
+- `DELETE /api/menu/items/{id}`
+- `PUT /api/menu/items/{id}/receta`
+- `DELETE /api/menu/receta/{id}`
+- `PUT /api/menu/items/{id}/modifiers`
+
 ## Acciones especiales
 
 Cuando no aplica CRUD puro:

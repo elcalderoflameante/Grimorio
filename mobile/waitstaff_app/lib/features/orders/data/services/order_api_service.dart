@@ -76,15 +76,6 @@ class OrderApiService {
               'quantity': i.quantity,
               if (i.notes != null && i.notes!.isNotEmpty) 'notes': i.notes,
               'isTakeout': i.isTakeout,
-              if (i.ingredientChoices.isNotEmpty)
-                'ingredientChoices': i.ingredientChoices
-                    .map(
-                      (c) => {
-                        'recipeIngredientId': c.recipeIngredientId,
-                        'chosenArticleId': c.chosenArticleId,
-                      },
-                    )
-                    .toList(),
             },
           )
           .toList(),
@@ -120,14 +111,6 @@ class OrderApiService {
                 'quantity': i.quantity,
                 'notes': i.notes,
                 'isTakeout': i.isTakeout,
-                'ingredientChoices': i.ingredientChoices
-                    .map(
-                      (c) => {
-                        'recipeIngredientId': c.recipeIngredientId,
-                        'chosenArticleId': c.chosenArticleId,
-                      },
-                    )
-                    .toList(),
               },
             )
             .toList(),

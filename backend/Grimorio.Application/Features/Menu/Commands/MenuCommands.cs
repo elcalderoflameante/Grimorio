@@ -81,6 +81,13 @@ public class DeleteRecipeIngredientCommand : IRequest<bool>
     public Guid BranchId { get; set; }
 }
 
+public class UpsertMenuItemModifiersCommand : IRequest<List<MenuItemModifierGroupDto>>
+{
+    public Guid MenuItemId { get; set; }
+    public Guid BranchId { get; set; }
+    public List<UpsertMenuItemModifierGroupDto> Groups { get; set; } = [];
+}
+
 // ── Descuento por venta ───────────────────────────────────────────────────
 
 public class DeductStockFromSaleCommand : IRequest<bool>

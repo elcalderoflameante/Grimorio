@@ -84,16 +84,46 @@ public class RecipeIngredientConfiguration : BaseEntityConfiguration<RecipeIngre
     }
 }
 
-public class RecipeIngredientAlternativeConfiguration : BaseEntityConfiguration<RecipeIngredientAlternative>
+public class MenuItemModifierGroupConfiguration : BaseEntityConfiguration<MenuItemModifierGroup>
 {
-    public override void Configure(EntityTypeBuilder<RecipeIngredientAlternative> builder)
+    public override void Configure(EntityTypeBuilder<MenuItemModifierGroup> builder)
     {
         base.Configure(builder);
-        builder.ToTable("RecipeIngredientAlternatives", "menu");
+        builder.ToTable("MenuItemModifierGroups", "menu");
 
-        builder.HasOne(x => x.RecipeIngredient)
-            .WithMany(x => x.Alternatives)
-            .HasForeignKey(x => x.RecipeIngredientId)
+        builder.Property(x => x.Name).IsRequired().HasMaxLength(120);
+        builder.Property(x => x.MaxSelections).HasDefaultValue(1);
+        builder.Property(x => x.IsRequired).HasDefaultValue(true);
+        builder.Property(x => x.AllowDuplicates).HasDefaultValue(false);
+        builder.Property(x => x.DisplayOrder).HasDefaultValue(0);
+        builder.Property(x => x.IsActive).HasDefaultValue(true);
+
+        builder.HasOne(x => x.MenuItem)
+            .WithMany(x => x.ModifierGroups)
+            .HasForeignKey(x => x.MenuItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(x => new { x.BranchId, x.MenuItemId, x.DisplayOrder })
+            .HasFilter("\"IsDeleted\" = false");
+    }
+}
+
+public class MenuItemModifierOptionConfiguration : BaseEntityConfiguration<MenuItemModifierOption>
+{
+    public override void Configure(EntityTypeBuilder<MenuItemModifierOption> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("MenuItemModifierOptions", "menu");
+
+        builder.Property(x => x.Name).IsRequired().HasMaxLength(120);
+        builder.Property(x => x.Quantity).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.PriceDelta).HasColumnType("numeric(18,2)").IsRequired();
+        builder.Property(x => x.DisplayOrder).HasDefaultValue(0);
+        builder.Property(x => x.IsActive).HasDefaultValue(true);
+
+        builder.HasOne(x => x.ModifierGroup)
+            .WithMany(x => x.Options)
+            .HasForeignKey(x => x.ModifierGroupId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(x => x.Article)
@@ -101,7 +131,12 @@ public class RecipeIngredientAlternativeConfiguration : BaseEntityConfiguration<
             .HasForeignKey(x => x.ArticleId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(x => new { x.RecipeIngredientId, x.ArticleId })
-            .IsUnique().HasFilter("\"IsDeleted\" = false");
+        builder.HasOne(x => x.Unit)
+            .WithMany()
+            .HasForeignKey(x => x.UnitId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => new { x.BranchId, x.ModifierGroupId, x.DisplayOrder })
+            .HasFilter("\"IsDeleted\" = false");
     }
 }

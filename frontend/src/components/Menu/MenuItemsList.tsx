@@ -3,11 +3,12 @@ import {
   Table, Button, Modal, Form, Input, InputNumber, Select, Switch,
   Popconfirm, Space, Typography, message, Tag, Badge, Tooltip, Alert
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, UnorderedListOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, UnorderedListOutlined, ControlOutlined } from '@ant-design/icons';
 import { menuApi, posApi, taxApi } from '../../services/api';
 import type { MenuItemDto, MenuCategoryDto, CreateMenuItemDto, UpdateMenuItemDto, WorkStationDto, TaxRateDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 import RecipeEditor from './RecipeEditor';
+import ModifierEditor from './ModifierEditor';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
 
@@ -23,6 +24,7 @@ export default function MenuItemsList() {
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<MenuItemDto | null>(null);
   const [recetaItem, setRecetaItem] = useState<MenuItemDto | null>(null);
+  const [modifierItem, setModifierItem] = useState<MenuItemDto | null>(null);
   const [form] = Form.useForm();
   const canManage = hasPermission(PERMISSIONS.menu.itemsManage);
 
@@ -163,6 +165,20 @@ export default function MenuItemsList() {
             ),
           }] : []),
           ...(canManage ? [{
+            title: 'Opciones', key: 'modifiers', width: 95,
+            render: (_: unknown, item: MenuItemDto) => (
+              <Tooltip title="Ver/editar modificadores">
+                <Badge count={item.modifierGroups?.length ?? 0} size="small" showZero>
+                  <Button
+                    size="small"
+                    icon={<ControlOutlined />}
+                    onClick={() => setModifierItem(item)}
+                  />
+                </Badge>
+              </Tooltip>
+            ),
+          }] : []),
+          ...(canManage ? [{
             title: 'Acciones', key: 'acc', width: 100,
             render: (_: unknown, item: MenuItemDto) => (
               <Space>
@@ -265,6 +281,14 @@ export default function MenuItemsList() {
           itemName={recetaItem.name}
           open={!!recetaItem}
           onClose={() => { setRecetaItem(null); load(); }}
+        />
+      )}
+      {modifierItem && (
+        <ModifierEditor
+          itemId={modifierItem.id}
+          itemName={modifierItem.name}
+          open={!!modifierItem}
+          onClose={() => { setModifierItem(null); load(); }}
         />
       )}
     </div>

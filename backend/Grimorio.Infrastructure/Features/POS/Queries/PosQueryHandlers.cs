@@ -46,8 +46,7 @@ public class GetOrdersQueryHandler : IRequestHandler<GetOrdersQuery, List<OrderD
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
             .Include(o => o.Items.Where(i => !i.IsDeleted))
-                .ThenInclude(i => i.IngredientChoices.Where(c => !c.IsDeleted))
-                    .ThenInclude(c => c.ChosenArticle)
+                .ThenInclude(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .AsQueryable();
 
         if (req.ActiveOnly)
@@ -115,8 +114,7 @@ public class GetOrderDetailQueryHandler : IRequestHandler<GetOrderDetailQuery, O
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
             .Include(o => o.Items.Where(i => !i.IsDeleted))
-                .ThenInclude(i => i.IngredientChoices.Where(c => !c.IsDeleted))
-                    .ThenInclude(c => c.ChosenArticle)
+                .ThenInclude(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .AsSplitQuery()
             .FirstOrDefaultAsync(ct);
 
@@ -156,8 +154,7 @@ public class GetAlexaOrderRepeatQueryHandler
             .Include(o => o.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled))
                 .ThenInclude(i => i.Station)
             .Include(o => o.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled))
-                .ThenInclude(i => i.IngredientChoices.Where(c => !c.IsDeleted))
-                    .ThenInclude(c => c.ChosenArticle)
+                .ThenInclude(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .AsSplitQuery()
             .OrderByDescending(o => o.ConfirmedAt ?? o.CreatedAt)
             .ToListAsync(ct);
@@ -321,12 +318,12 @@ public class GetAlexaOrderRepeatQueryHandler
             $"{item.Quantity} {item.MenuItem?.Name ?? "plato"}"
         };
 
-        var choices = item.IngredientChoices
-            .Where(c => !c.IsDeleted && !string.IsNullOrWhiteSpace(c.ChosenArticle?.Name))
-            .Select(c => c.ChosenArticle!.Name.Trim())
+        var modifiers = item.ModifierSelections
+            .Where(s => !s.IsDeleted)
+            .Select(s => s.Quantity > 1 ? $"{s.OptionName} x{s.Quantity}" : s.OptionName)
             .ToList();
-        if (choices.Count > 0)
-            parts.Add($"con {string.Join(", ", choices)}");
+        if (modifiers.Count > 0)
+            parts.Add($"con {string.Join(", ", modifiers)}");
 
         if (!string.IsNullOrWhiteSpace(item.Notes))
             parts.Add($"nota {item.Notes.Trim()}");
@@ -423,8 +420,6 @@ public class GetItemsByStationQueryHandler : IRequestHandler<GetItemsByStationQu
 
     public async Task<List<StationItemDto>> Handle(GetItemsByStationQuery req, CancellationToken ct)
     {
-        // Include explícito necesario para cargar ChosenArticle.
-        // No se usa .Select() porque EF Core ignora los .Include() cuando hay proyección SQL.
         var entities = await _db.OrderItems
             .AsNoTracking()
             .Where(i =>
@@ -434,8 +429,7 @@ public class GetItemsByStationQueryHandler : IRequestHandler<GetItemsByStationQu
                 (i.Status == OrderItemStatus.Pending || i.Status == OrderItemStatus.InPreparation))
             .Include(i => i.MenuItem)
             .Include(i => i.Order).ThenInclude(o => o!.Table)
-            .Include(i => i.IngredientChoices.Where(c => !c.IsDeleted))
-                .ThenInclude(c => c.ChosenArticle)
+            .Include(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .Where(i => i.Order != null &&
                 i.Order.Status != OrderStatus.Cancelled &&
                 i.Order.Status != OrderStatus.Delivered &&
@@ -443,7 +437,6 @@ public class GetItemsByStationQueryHandler : IRequestHandler<GetItemsByStationQu
             .OrderBy(i => i.Order!.ConfirmedAt)
             .ToListAsync(ct);
 
-        // Mapeo en memoria: en este punto ChosenArticle ya está cargado
         return entities.Select(i => MapStationItem(i)).ToList();
     }
 
@@ -463,13 +456,17 @@ public class GetItemsByStationQueryHandler : IRequestHandler<GetItemsByStationQu
         Status = i.Status.ToString(),
         ConfirmedAt = i.Order.ConfirmedAt ?? i.Order.CreatedAt,
         UpdatedAt = i.UpdatedAt,
-        IngredientChoices = i.IngredientChoices
-            .Where(c => !c.IsDeleted)
-            .Select(c => new IngredientChoiceDto
+        ModifierSelections = i.ModifierSelections
+            .Where(s => !s.IsDeleted)
+            .Select(s => new ModifierSelectionDto
             {
-                RecipeIngredientId = c.RecipeIngredientId,
-                ChosenArticleId = c.ChosenArticleId,
-                ChosenArticleName = c.ChosenArticle?.Name ?? string.Empty,
+                ModifierGroupId = s.ModifierGroupId,
+                ModifierOptionId = s.ModifierOptionId,
+                GroupName = s.GroupName,
+                OptionName = s.OptionName,
+                Quantity = s.Quantity,
+                UnitPriceDelta = s.UnitPriceDelta,
+                TotalPriceDelta = s.UnitPriceDelta * s.Quantity,
             }).ToList(),
     };
 }
@@ -502,8 +499,7 @@ public class GetCompletedStationItemsQueryHandler
                 i.Order.ConfirmedAt < dayEnd)
             .Include(i => i.MenuItem)
             .Include(i => i.Order).ThenInclude(o => o!.Table)
-            .Include(i => i.IngredientChoices.Where(c => !c.IsDeleted))
-                .ThenInclude(c => c.ChosenArticle)
+            .Include(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .Where(i => i.Order!.Status != OrderStatus.Cancelled)
             .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt)
             .ToListAsync(ct);

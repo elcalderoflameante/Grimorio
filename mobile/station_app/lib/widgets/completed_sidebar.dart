@@ -266,10 +266,10 @@ class _ItemDetail extends StatelessWidget {
                   item.itemName,
                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
-                if (item.ingredientChoices.isNotEmpty)
+                if (item.modifierSelections.isNotEmpty)
                   Text(
-                    item.ingredientChoices
-                        .map((c) => c.chosenArticleName)
+                    item.modifierSelections
+                        .map((c) => c.label)
                         .join(', '),
                     style: const TextStyle(color: Color(0xFFBB86FC), fontSize: 11),
                   ),

@@ -42,8 +42,8 @@ public class MenuItemDto
     public string? TaxRateName { get; set; }
     public decimal? TaxRatePercentage { get; set; }
     public string? TaxRateSriCode { get; set; }
-    public bool HasVariableIngredients { get; set; }
-    public List<VariableIngredientSlotDto> VariableIngredients { get; set; } = [];
+    public bool HasModifiers { get; set; }
+    public List<MenuItemModifierGroupDto> ModifierGroups { get; set; } = [];
 }
 
 public class MenuItemDetailDto : MenuItemDto
@@ -72,7 +72,6 @@ public class MenuItemAvailabilityComponentDto
     public decimal StockQuantity { get; set; }
     public string StockUnitSymbol { get; set; } = string.Empty;
     public decimal AvailableServings { get; set; }
-    public bool IsVariableOption { get; set; }
 }
 
 public class CreateMenuItemDto
@@ -101,22 +100,6 @@ public class UpdateMenuItemDto
 
 // ── Recipe ────────────────────────────────────────────────────────────────
 
-public class RecipeIngredientAlternativeDto
-{
-    public Guid ArticleId { get; set; }
-    public string ArticleName { get; set; } = string.Empty;
-}
-
-public class VariableIngredientSlotDto
-{
-    public Guid RecipeIngredientId { get; set; }
-    public decimal Quantity { get; set; }
-    public string UnitSymbol { get; set; } = string.Empty;
-    public Guid DefaultArticleId { get; set; }
-    public string DefaultArticleName { get; set; } = string.Empty;
-    public List<RecipeIngredientAlternativeDto> Alternatives { get; set; } = [];
-}
-
 public class RecipeIngredientDto
 {
     public Guid Id { get; set; }
@@ -128,8 +111,64 @@ public class RecipeIngredientDto
     public string UnitSymbol { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     public string? Notes { get; set; }
-    public bool IsVariable { get; set; }
-    public List<RecipeIngredientAlternativeDto> Alternatives { get; set; } = [];
+}
+
+public class MenuItemModifierOptionDto
+{
+    public Guid Id { get; set; }
+    public Guid ModifierGroupId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public Guid? ArticleId { get; set; }
+    public string? ArticleName { get; set; }
+    public Guid? UnitId { get; set; }
+    public string? UnitName { get; set; }
+    public string? UnitSymbol { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal PriceDelta { get; set; }
+    public int DisplayOrder { get; set; }
+    public bool IsActive { get; set; }
+    public bool IsTracked { get; set; }
+    public bool IsAvailable { get; set; } = true;
+    public decimal? AvailableQuantity { get; set; }
+}
+
+public class MenuItemModifierGroupDto
+{
+    public Guid Id { get; set; }
+    public Guid MenuItemId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int MinSelections { get; set; }
+    public int MaxSelections { get; set; }
+    public bool IsRequired { get; set; }
+    public bool AllowDuplicates { get; set; }
+    public int DisplayOrder { get; set; }
+    public bool IsActive { get; set; }
+    public List<MenuItemModifierOptionDto> Options { get; set; } = [];
+}
+
+public class UpsertMenuItemModifierOptionDto
+{
+    public Guid? Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public Guid? ArticleId { get; set; }
+    public Guid? UnitId { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal PriceDelta { get; set; }
+    public int DisplayOrder { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
+public class UpsertMenuItemModifierGroupDto
+{
+    public Guid? Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int MinSelections { get; set; }
+    public int MaxSelections { get; set; } = 1;
+    public bool IsRequired { get; set; } = true;
+    public bool AllowDuplicates { get; set; }
+    public int DisplayOrder { get; set; }
+    public bool IsActive { get; set; } = true;
+    public List<UpsertMenuItemModifierOptionDto> Options { get; set; } = [];
 }
 
 // -- Rentabilidad de platos -----------------------------------------------
@@ -173,7 +212,6 @@ public class MenuItemProfitabilityIngredientDto
     public decimal? LastUnitCost { get; set; }
     public decimal TotalCost { get; set; }
     public decimal CostSharePercentage { get; set; }
-    public bool IsVariable { get; set; }
     public bool HasCost { get; set; }
     public string? Warning { get; set; }
 }
@@ -184,8 +222,6 @@ public class UpsertRecipeIngredientDto
     public Guid UnitId { get; set; }
     public decimal Quantity { get; set; }
     public string? Notes { get; set; }
-    public bool IsVariable { get; set; }
-    public List<Guid> AlternativeArticleIds { get; set; } = [];
 }
 
 // ── Descuento por venta ───────────────────────────────────────────────────

@@ -127,6 +127,8 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
             .Where(m => itemMenuIds.Contains(m.Id) && !m.IsDeleted)
             .Include(m => m.Station)
             .Include(m => m.TaxRate)
+            .Include(m => m.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
+                .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
             .ToListAsync(ct);
 
         decimal subtotal = 0, discountTotal = 0;
@@ -136,8 +138,10 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
             var menuItem = menuItems.FirstOrDefault(m => m.Id == itemDto.MenuItemId)
                 ?? throw new InvalidOperationException($"Ítem no encontrado: {itemDto.MenuItemId}");
 
-            var (discountAmt, taxableBase, taxAmt, totalPrice) = PosMapper.CalcItem(menuItem.Price, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage);
-            subtotal += menuItem.Price * itemDto.Quantity;
+            var modifierSelections = PosMapper.BuildModifierSelections(req.BranchId, itemDto, menuItem);
+            var unitPrice = menuItem.Price + modifierSelections.Sum(s => s.UnitPriceDelta * s.Quantity);
+            var (discountAmt, taxableBase, taxAmt, totalPrice) = PosMapper.CalcItem(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage);
+            subtotal += unitPrice * itemDto.Quantity;
             discountTotal += discountAmt;
             PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, taxableBase, taxAmt, ref base15, ref base0, ref baseExempt, ref iva15, ref ice);
 
@@ -148,7 +152,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
                 MenuItemId = itemDto.MenuItemId,
                 StationId = menuItem.StationId,
                 Quantity = itemDto.Quantity,
-                UnitPrice = menuItem.Price,
+                UnitPrice = unitPrice,
                 DiscountPct = itemDto.DiscountPct,
                 DiscountAmount = discountAmt,
                 TaxRateId = menuItem.TaxRateId,
@@ -158,13 +162,8 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
                 IsTakeout = itemDto.IsTakeout,
                 Status = OrderItemStatus.Pending,
             };
-            foreach (var choice in itemDto.IngredientChoices)
-                orderItem.IngredientChoices.Add(new OrderItemIngredientChoice
-                {
-                    BranchId = req.BranchId,
-                    RecipeIngredientId = choice.RecipeIngredientId,
-                    ChosenArticleId = choice.ChosenArticleId,
-                });
+            foreach (var selection in modifierSelections)
+                orderItem.ModifierSelections.Add(selection);
             order.Items.Add(orderItem);
         }
 
@@ -191,8 +190,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
             .Include(o => o.Table)
             .Include(o => o.Items).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items).ThenInclude(i => i.Station)
-            .Include(o => o.Items).ThenInclude(i => i.IngredientChoices)
-                .ThenInclude(c => c.ChosenArticle)
+            .Include(o => o.Items).ThenInclude(i => i.ModifierSelections)
             .FirstAsync(o => o.Id == id, ct);
         return PosMapper.MapOrder(order);
     }
@@ -233,6 +231,8 @@ public class CreateDirectSaleCommandHandler : IRequestHandler<CreateDirectSaleCo
             .Where(m => itemMenuIds.Contains(m.Id) && !m.IsDeleted)
             .Include(m => m.Station)
             .Include(m => m.TaxRate)
+            .Include(m => m.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
+                .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
             .ToListAsync(ct);
 
         decimal subtotal = 0, discountTotal = 0;
@@ -242,8 +242,10 @@ public class CreateDirectSaleCommandHandler : IRequestHandler<CreateDirectSaleCo
             var menuItem = menuItems.FirstOrDefault(m => m.Id == itemDto.MenuItemId)
                 ?? throw new InvalidOperationException($"Item no encontrado: {itemDto.MenuItemId}");
 
-            var (discountAmt, taxableBase, taxAmt, totalPrice) = PosMapper.CalcItem(menuItem.Price, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage);
-            subtotal += menuItem.Price * itemDto.Quantity;
+            var modifierSelections = PosMapper.BuildModifierSelections(req.BranchId, itemDto, menuItem);
+            var unitPrice = menuItem.Price + modifierSelections.Sum(s => s.UnitPriceDelta * s.Quantity);
+            var (discountAmt, taxableBase, taxAmt, totalPrice) = PosMapper.CalcItem(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage);
+            subtotal += unitPrice * itemDto.Quantity;
             discountTotal += discountAmt;
             PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, taxableBase, taxAmt, ref base15, ref base0, ref baseExempt, ref iva15, ref ice);
 
@@ -254,7 +256,7 @@ public class CreateDirectSaleCommandHandler : IRequestHandler<CreateDirectSaleCo
                 MenuItemId = itemDto.MenuItemId,
                 StationId = menuItem.StationId,
                 Quantity = itemDto.Quantity,
-                UnitPrice = menuItem.Price,
+                UnitPrice = unitPrice,
                 DiscountPct = itemDto.DiscountPct,
                 DiscountAmount = discountAmt,
                 TaxRateId = menuItem.TaxRateId,
@@ -265,13 +267,8 @@ public class CreateDirectSaleCommandHandler : IRequestHandler<CreateDirectSaleCo
                 Status = OrderItemStatus.Pending,
             };
 
-            foreach (var choice in itemDto.IngredientChoices)
-                orderItem.IngredientChoices.Add(new OrderItemIngredientChoice
-                {
-                    BranchId = req.BranchId,
-                    RecipeIngredientId = choice.RecipeIngredientId,
-                    ChosenArticleId = choice.ChosenArticleId,
-                });
+            foreach (var selection in modifierSelections)
+                orderItem.ModifierSelections.Add(selection);
 
             order.Items.Add(orderItem);
         }
@@ -296,8 +293,7 @@ public class CreateDirectSaleCommandHandler : IRequestHandler<CreateDirectSaleCo
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
             .Include(o => o.Items.Where(i => !i.IsDeleted))
-                .ThenInclude(i => i.IngredientChoices.Where(c => !c.IsDeleted))
-                    .ThenInclude(c => c.ChosenArticle)
+                .ThenInclude(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .FirstAsync(o => o.Id == order.Id, ct);
         return PosMapper.MapOrder(created);
     }
@@ -337,6 +333,8 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
             .Where(m => itemMenuIds.Contains(m.Id) && !m.IsDeleted)
             .Include(m => m.Station)
             .Include(m => m.TaxRate)
+            .Include(m => m.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
+                .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
             .ToListAsync(ct);
 
         decimal addedSubtotal = 0, addedDiscount = 0;
@@ -347,8 +345,10 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
             var menuItem = menuItems.FirstOrDefault(m => m.Id == itemDto.MenuItemId)
                 ?? throw new InvalidOperationException($"Ítem no encontrado: {itemDto.MenuItemId}");
 
-            var (discountAmt, taxableBase, taxAmt, totalPrice) = PosMapper.CalcItem(menuItem.Price, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage);
-            addedSubtotal += menuItem.Price * itemDto.Quantity;
+            var modifierSelections = PosMapper.BuildModifierSelections(req.BranchId, itemDto, menuItem);
+            var unitPrice = menuItem.Price + modifierSelections.Sum(s => s.UnitPriceDelta * s.Quantity);
+            var (discountAmt, taxableBase, taxAmt, totalPrice) = PosMapper.CalcItem(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage);
+            addedSubtotal += unitPrice * itemDto.Quantity;
             addedDiscount += discountAmt;
             PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, taxableBase, taxAmt, ref addedBase15, ref addedBase0, ref addedBaseExempt, ref addedIva15, ref addedIce);
 
@@ -360,7 +360,7 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
                 MenuItemId = itemDto.MenuItemId,
                 StationId = menuItem.StationId,
                 Quantity = itemDto.Quantity,
-                UnitPrice = menuItem.Price,
+                UnitPrice = unitPrice,
                 DiscountPct = itemDto.DiscountPct,
                 DiscountAmount = discountAmt,
                 TaxRateId = menuItem.TaxRateId,
@@ -370,13 +370,8 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
                 IsTakeout = itemDto.IsTakeout,
                 Status = OrderItemStatus.Pending,
             };
-            foreach (var choice in itemDto.IngredientChoices)
-                newItem.IngredientChoices.Add(new OrderItemIngredientChoice
-                {
-                    BranchId = req.BranchId,
-                    RecipeIngredientId = choice.RecipeIngredientId,
-                    ChosenArticleId = choice.ChosenArticleId,
-                });
+            foreach (var selection in modifierSelections)
+                newItem.ModifierSelections.Add(selection);
             _db.OrderItems.Add(newItem);
             newItems.Add(newItem);
         }
@@ -415,8 +410,7 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
             .Include(o => o.Items.Where(i => !i.IsDeleted))
-                .ThenInclude(i => i.IngredientChoices.Where(c => !c.IsDeleted))
-                    .ThenInclude(c => c.ChosenArticle)
+                .ThenInclude(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .FirstAsync(o => o.Id == order.Id, ct);
         return PosMapper.MapOrder(updated);
     }
@@ -434,8 +428,7 @@ public class ConfirmOrderCommandHandler : IRequestHandler<ConfirmOrderCommand, O
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
             .Include(o => o.Items.Where(i => !i.IsDeleted))
-                .ThenInclude(i => i.IngredientChoices.Where(c => !c.IsDeleted))
-                    .ThenInclude(c => c.ChosenArticle)
+                .ThenInclude(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
             ?? throw new InvalidOperationException("Orden no encontrada.");
 
@@ -469,6 +462,8 @@ public class DeliverOrderCommandHandler : IRequestHandler<DeliverOrderCommand, O
             .Include(o => o.Table)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
             ?? throw new InvalidOperationException("Orden no encontrada.");
 
@@ -490,6 +485,8 @@ public class CancelOrderCommandHandler : IRequestHandler<CancelOrderCommand, Ord
             .Include(o => o.Table)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .Include(o => o.Payments.Where(p => !p.IsDeleted))
             .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
             ?? throw new InvalidOperationException("Orden no encontrada.");
@@ -533,6 +530,8 @@ public class CancelOrderItemCommandHandler : IRequestHandler<CancelOrderItemComm
                 .ThenInclude(oi => oi.MenuItem)
             .Include(i => i.Order)!.ThenInclude(o => o!.Items.Where(oi => !oi.IsDeleted))
                 .ThenInclude(oi => oi.Station)
+            .Include(i => i.Order)!.ThenInclude(o => o!.Items.Where(oi => !oi.IsDeleted))
+                .ThenInclude(oi => oi.ModifierSelections.Where(s => !s.IsDeleted))
             .Include(i => i.MenuItem)
             .Include(i => i.Station)
             .FirstOrDefaultAsync(i => i.Id == req.OrderItemId && i.BranchId == req.BranchId && !i.IsDeleted, ct)
@@ -610,8 +609,7 @@ public class UpdateOrderItemNotesCommandHandler : IRequestHandler<UpdateOrderIte
         var item = await _db.OrderItems
             .Include(i => i.MenuItem)
             .Include(i => i.Station)
-            .Include(i => i.IngredientChoices.Where(c => !c.IsDeleted))
-                .ThenInclude(c => c.ChosenArticle)
+            .Include(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .FirstOrDefaultAsync(i => i.Id == req.OrderItemId && i.BranchId == req.BranchId && !i.IsDeleted, ct)
             ?? throw new InvalidOperationException("Item de orden no encontrado.");
 
@@ -635,6 +633,7 @@ public class SetOrderItemStatusCommandHandler : IRequestHandler<SetOrderItemStat
         var item = await _db.OrderItems
             .Include(i => i.MenuItem)
             .Include(i => i.Station)
+            .Include(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .FirstOrDefaultAsync(i => i.Id == req.OrderItemId && i.BranchId == req.BranchId && !i.IsDeleted, ct)
             ?? throw new InvalidOperationException("Ítem de orden no encontrado.");
 
@@ -712,8 +711,7 @@ public class ProcessAlexaKitchenCommandHandler
             .Include(i => i.Station)
             .Include(i => i.Order).ThenInclude(o => o!.Table)
             .Include(i => i.Order).ThenInclude(o => o!.Items.Where(oi => !oi.IsDeleted))
-            .Include(i => i.IngredientChoices.Where(c => !c.IsDeleted))
-                .ThenInclude(c => c.ChosenArticle)
+            .Include(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .Where(i => i.Order != null &&
                 i.Order.PaidAt == null &&
                 i.Order.Status != OrderStatus.Cancelled &&
@@ -852,12 +850,12 @@ public class ProcessAlexaKitchenCommandHandler
     private static double ScoreItem(OrderItem item, string spokenText, List<string> spokenTokens)
     {
         var itemName = NormalizeText(item.MenuItem?.Name ?? string.Empty);
-        var choiceNames = NormalizeText(string.Join(" ",
-            item.IngredientChoices
-                .Where(c => !c.IsDeleted)
-                .Select(c => c.ChosenArticle?.Name)
+        var modifierNames = NormalizeText(string.Join(" ",
+            item.ModifierSelections
+                .Where(s => !s.IsDeleted)
+                .Select(s => s.OptionName)
                 .Where(name => !string.IsNullOrWhiteSpace(name))));
-        var searchable = $"{itemName} {choiceNames}".Trim();
+        var searchable = $"{itemName} {modifierNames}".Trim();
         var itemTokens = Tokens(searchable);
         var score = 0.0;
 
@@ -1109,6 +1107,87 @@ internal static class PosMapper
         order.Total = subtotal - discountTotal;
     }
 
+    public static List<OrderItemModifierSelection> BuildModifierSelections(
+        Guid branchId,
+        CreateOrderItemDto itemDto,
+        Grimorio.Domain.Entities.Menu.MenuItem menuItem)
+    {
+        var groups = menuItem.ModifierGroups
+            .Where(g => !g.IsDeleted && g.IsActive)
+            .ToList();
+        if (groups.Count == 0)
+        {
+            if (itemDto.ModifierSelections.Count > 0)
+                throw new InvalidOperationException($"{menuItem.Name} no tiene modificadores configurados.");
+            return [];
+        }
+
+        var optionLookup = groups
+            .SelectMany(g => g.Options
+                .Where(o => !o.IsDeleted && o.IsActive)
+                .Select(o => new { Group = g, Option = o }))
+            .ToDictionary(x => x.Option.Id, x => x);
+
+        var selectionsByGroup = new Dictionary<Guid, List<OrderItemModifierSelection>>();
+        foreach (var selectionDto in itemDto.ModifierSelections)
+        {
+            if (selectionDto.Quantity <= 0)
+                throw new InvalidOperationException("La cantidad del modificador debe ser mayor a cero.");
+            if (!optionLookup.TryGetValue(selectionDto.ModifierOptionId, out var match))
+                throw new InvalidOperationException($"Opción de modificador no válida para {menuItem.Name}.");
+
+            if (!match.Group.AllowDuplicates && selectionDto.Quantity > 1)
+                throw new InvalidOperationException($"El grupo {match.Group.Name} no permite repetir opciones.");
+
+            if (match.Option.ArticleId.HasValue && (!match.Option.UnitId.HasValue || match.Option.Quantity <= 0))
+                throw new InvalidOperationException($"La opción {match.Option.Name} no tiene inventario configurado correctamente.");
+
+            var selection = new OrderItemModifierSelection
+            {
+                Id = Guid.NewGuid(),
+                BranchId = branchId,
+                ModifierGroupId = match.Group.Id,
+                ModifierOptionId = match.Option.Id,
+                GroupName = match.Group.Name,
+                OptionName = match.Option.Name,
+                Quantity = selectionDto.Quantity,
+                UnitPriceDelta = match.Option.PriceDelta,
+                ArticleId = match.Option.ArticleId,
+                UnitId = match.Option.UnitId,
+                InventoryQuantity = match.Option.Quantity,
+            };
+
+            if (!selectionsByGroup.TryGetValue(match.Group.Id, out var list))
+            {
+                list = [];
+                selectionsByGroup[match.Group.Id] = list;
+            }
+            list.Add(selection);
+        }
+
+        foreach (var group in groups)
+        {
+            selectionsByGroup.TryGetValue(group.Id, out var selections);
+            var selectedCount = selections?.Sum(s => s.Quantity) ?? 0;
+            var minSelections = group.IsRequired && group.MinSelections == 0 ? 1 : group.MinSelections;
+
+            if (selectedCount < minSelections)
+                throw new InvalidOperationException($"Debes seleccionar al menos {minSelections} opción(es) en {group.Name}.");
+            if (selectedCount > group.MaxSelections)
+                throw new InvalidOperationException($"Solo puedes seleccionar hasta {group.MaxSelections} opción(es) en {group.Name}.");
+            if (!group.AllowDuplicates && selections != null)
+            {
+                var duplicated = selections
+                    .GroupBy(s => s.ModifierOptionId)
+                    .Any(g => g.Count() > 1 || g.Sum(s => s.Quantity) > 1);
+                if (duplicated)
+                    throw new InvalidOperationException($"El grupo {group.Name} no permite opciones repetidas.");
+            }
+        }
+
+        return selectionsByGroup.Values.SelectMany(x => x).ToList();
+    }
+
     public static OrderDto MapOrder(Order o) => new()
     {
         Id = o.Id,
@@ -1158,13 +1237,17 @@ internal static class PosMapper
         Notes = i.Notes,
         IsTakeout = i.IsTakeout,
         Status = i.Status.ToString(),
-        IngredientChoices = i.IngredientChoices
-            .Where(c => !c.IsDeleted)
-            .Select(c => new IngredientChoiceDto
+        ModifierSelections = i.ModifierSelections
+            .Where(s => !s.IsDeleted)
+            .Select(s => new ModifierSelectionDto
             {
-                RecipeIngredientId = c.RecipeIngredientId,
-                ChosenArticleId = c.ChosenArticleId,
-                ChosenArticleName = c.ChosenArticle?.Name ?? string.Empty,
+                ModifierGroupId = s.ModifierGroupId,
+                ModifierOptionId = s.ModifierOptionId,
+                GroupName = s.GroupName,
+                OptionName = s.OptionName,
+                Quantity = s.Quantity,
+                UnitPriceDelta = s.UnitPriceDelta,
+                TotalPriceDelta = s.UnitPriceDelta * s.Quantity,
             }).ToList(),
     };
 }

@@ -949,20 +949,6 @@ export interface CreateMenuCategoryDto {
   order: number;
 }
 
-export interface RecipeIngredientAlternativeDto {
-  articleId: string;
-  articleName: string;
-}
-
-export interface VariableIngredientSlotDto {
-  recipeIngredientId: string;
-  quantity: number;
-  unitSymbol: string;
-  defaultArticleId: string;
-  defaultArticleName: string;
-  alternatives: RecipeIngredientAlternativeDto[];
-}
-
 export interface MenuItemDto {
   id: string;
   menuCategoryId: string;
@@ -981,8 +967,8 @@ export interface MenuItemDto {
   taxRateName?: string;
   taxRatePercentage?: number;
   taxRateSriCode?: string;
-  hasVariableIngredients: boolean;
-  variableIngredients: VariableIngredientSlotDto[];
+  hasModifiers: boolean;
+  modifierGroups: MenuItemModifierGroupDto[];
 }
 
 export interface MenuItemDetailDto extends MenuItemDto {
@@ -998,7 +984,6 @@ export interface MenuItemAvailabilityComponentDto {
   stockQuantity: number;
   stockUnitSymbol: string;
   availableServings: number;
-  isVariableOption: boolean;
 }
 
 export interface MenuItemAvailabilityDto {
@@ -1025,7 +1010,6 @@ export interface MenuItemProfitabilityIngredientDto {
   lastUnitCost?: number;
   totalCost: number;
   costSharePercentage: number;
-  isVariable: boolean;
   hasCost: boolean;
   warning?: string;
 }
@@ -1078,8 +1062,6 @@ export interface RecipeIngredientDto {
   unitSymbol: string;
   quantity: number;
   notes?: string;
-  isVariable: boolean;
-  alternatives: RecipeIngredientAlternativeDto[];
 }
 
 export interface UpsertRecipeIngredientDto {
@@ -1087,19 +1069,75 @@ export interface UpsertRecipeIngredientDto {
   unitId: string;
   quantity: number;
   notes?: string;
-  isVariable: boolean;
-  alternativeArticleIds: string[];
 }
 
-export interface IngredientChoiceDto {
-  recipeIngredientId: string;
-  chosenArticleId: string;
-  chosenArticleName: string;
+export interface MenuItemModifierOptionDto {
+  id: string;
+  modifierGroupId: string;
+  name: string;
+  articleId?: string;
+  articleName?: string;
+  unitId?: string;
+  unitName?: string;
+  unitSymbol?: string;
+  quantity: number;
+  priceDelta: number;
+  displayOrder: number;
+  isActive: boolean;
+  isTracked: boolean;
+  isAvailable: boolean;
+  availableQuantity?: number | null;
 }
 
-export interface CreateIngredientChoiceDto {
-  recipeIngredientId: string;
-  chosenArticleId: string;
+export interface MenuItemModifierGroupDto {
+  id: string;
+  menuItemId: string;
+  name: string;
+  minSelections: number;
+  maxSelections: number;
+  isRequired: boolean;
+  allowDuplicates: boolean;
+  displayOrder: number;
+  isActive: boolean;
+  options: MenuItemModifierOptionDto[];
+}
+
+export interface UpsertMenuItemModifierOptionDto {
+  id?: string;
+  name: string;
+  articleId?: string;
+  unitId?: string;
+  quantity: number;
+  priceDelta: number;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export interface UpsertMenuItemModifierGroupDto {
+  id?: string;
+  name: string;
+  minSelections: number;
+  maxSelections: number;
+  isRequired: boolean;
+  allowDuplicates: boolean;
+  displayOrder: number;
+  isActive: boolean;
+  options: UpsertMenuItemModifierOptionDto[];
+}
+
+export interface ModifierSelectionDto {
+  modifierGroupId: string;
+  modifierOptionId: string;
+  groupName: string;
+  optionName: string;
+  quantity: number;
+  unitPriceDelta: number;
+  totalPriceDelta: number;
+}
+
+export interface CreateModifierSelectionDto {
+  modifierOptionId: string;
+  quantity: number;
 }
 
 export interface DeductStockFromSaleDto {
@@ -1155,7 +1193,7 @@ export interface OrderItemDto {
   totalPrice: number;
   notes?: string;
   status: OrderItemStatus;
-  ingredientChoices: IngredientChoiceDto[];
+  modifierSelections: ModifierSelectionDto[];
 }
 
 export interface OrderDto {
@@ -1201,7 +1239,7 @@ export interface CreateOrderItemDto {
   menuItemId: string;
   quantity: number;
   notes?: string;
-  ingredientChoices?: CreateIngredientChoiceDto[];
+  modifierSelections?: CreateModifierSelectionDto[];
 }
 
 export interface CreateOrderDto {
