@@ -32,6 +32,12 @@ int _compareRequestsByTable(TableServiceRequest a, TableServiceRequest b) {
   return a.requestedAt.compareTo(b.requestedAt);
 }
 
+int _compareHistoryByResolvedAt(TableServiceRequest a, TableServiceRequest b) {
+  final aResolvedAt = a.completedAt ?? a.requestedAt;
+  final bResolvedAt = b.completedAt ?? b.requestedAt;
+  return bResolvedAt.compareTo(aResolvedAt);
+}
+
 class TableRequestsPage extends ConsumerStatefulWidget {
   const TableRequestsPage({super.key});
 
@@ -108,7 +114,7 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
                   r.status == TableServiceRequestStatus.cancelled,
             )
             .toList()
-          ..sort(_compareRequestsByTable);
+          ..sort(_compareHistoryByResolvedAt);
 
     return Scaffold(
       appBar: AppBar(
@@ -305,7 +311,7 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
             ),
             const SizedBox(height: 8),
             Text(
-              'Aquí aparecen las últimas 24 horas.',
+              'Aquí aparecen las solicitudes de las últimas 24 horas.',
               style: GoogleFonts.lato(color: kParchmentDim, fontSize: 13),
             ),
           ],
@@ -499,6 +505,14 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
                         icon: Icons.access_time_rounded,
                         text: _formatTime(resolvedAt),
                       ),
+                      _MetaText(
+                        icon: Icons.timer_outlined,
+                        text: _formatServiceDuration(
+                          request.requestedAt,
+                          resolvedAt,
+                          isCompleted: isCompleted,
+                        ),
+                      ),
                       if (request.takenByName != null)
                         _MetaText(
                           icon: Icons.person_outline_rounded,
@@ -610,6 +624,29 @@ class _TableRequestsPageState extends ConsumerState<TableRequestsPage>
     if (diff.inMinutes < 60) return 'Hace ${diff.inMinutes} min';
     if (diff.inHours < 24) return 'Hace ${diff.inHours} h';
     return 'Hace ${diff.inDays} días';
+  }
+
+  String _formatServiceDuration(
+    DateTime requestedAt,
+    DateTime resolvedAt, {
+    required bool isCompleted,
+  }) {
+    final duration = resolvedAt.difference(requestedAt);
+    final safeDuration = duration.isNegative ? Duration.zero : duration;
+    final prefix = isCompleted ? 'Atendida en' : 'Cancelada después de';
+
+    if (safeDuration.inHours > 0) {
+      final minutes = safeDuration.inMinutes.remainder(60);
+      return minutes == 0
+          ? '$prefix ${safeDuration.inHours} h'
+          : '$prefix ${safeDuration.inHours} h $minutes min';
+    }
+
+    if (safeDuration.inMinutes > 0) {
+      return '$prefix ${safeDuration.inMinutes} min';
+    }
+
+    return '$prefix ${safeDuration.inSeconds} s';
   }
 }
 

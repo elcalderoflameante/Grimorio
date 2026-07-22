@@ -157,7 +157,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
                             margin: const EdgeInsets.only(bottom: 6),
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
-                              vertical: 8,
+                              vertical: 12,
                             ),
                             decoration: BoxDecoration(
                               color: isSelected ? kGold.withAlpha(30) : kBgMid,
@@ -175,7 +175,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
                                   isSelected
                                       ? Icons.radio_button_checked_rounded
                                       : Icons.radio_button_off_rounded,
-                                  size: 16,
+                                  size: 22,
                                   color: isSelected
                                       ? kGold
                                       : kParchmentDim.withAlpha(120),
@@ -187,7 +187,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
                                     color: isSelected
                                         ? kParchment
                                         : kParchmentDim,
-                                    fontSize: 13,
+                                    fontSize: 15,
                                     fontWeight: isSelected
                                         ? FontWeight.w600
                                         : FontWeight.w400,
@@ -433,11 +433,11 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
 
   Widget _buildCategoryBar() {
     return Container(
-      height: 48,
+      height: 58,
       color: kBgMid,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         children: [
           _CategoryChip(
             label: 'Todos',
@@ -665,7 +665,7 @@ class _CategoryChip extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: selected ? c.withAlpha(40) : kBgCard,
           borderRadius: BorderRadius.circular(20),
@@ -678,7 +678,7 @@ class _CategoryChip extends StatelessWidget {
           label,
           style: GoogleFonts.lato(
             color: selected ? c : kParchmentDim,
-            fontSize: 12,
+            fontSize: 14,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
           ),
         ),
@@ -814,13 +814,13 @@ class _CartRow extends StatelessWidget {
         children: [
           _QtyButton(icon: Icons.remove_rounded, onTap: onDecrease),
           Container(
-            width: 28,
+            width: 36,
             alignment: Alignment.center,
             child: Text(
               '${item.quantity}',
               style: GoogleFonts.cinzel(
                 color: kGold,
-                fontSize: 14,
+                fontSize: 16,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -858,9 +858,10 @@ class _CartRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 GestureDetector(
+                  behavior: HitTestBehavior.opaque,
                   onTap: onToggleTakeout,
                   child: Padding(
-                    padding: const EdgeInsets.only(top: 3),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -868,7 +869,7 @@ class _CartRow extends StatelessWidget {
                           item.isTakeout
                               ? Icons.check_box_rounded
                               : Icons.check_box_outline_blank_rounded,
-                          size: 16,
+                          size: 24,
                           color: item.isTakeout
                               ? const Color(0xFFFFAB00)
                               : kParchmentDim,
@@ -880,7 +881,7 @@ class _CartRow extends StatelessWidget {
                             color: item.isTakeout
                                 ? const Color(0xFFFFAB00)
                                 : kParchmentDim,
-                            fontSize: 11,
+                            fontSize: 14,
                           ),
                         ),
                       ],
@@ -900,14 +901,21 @@ class _CartRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 4),
-          GestureDetector(
-            onTap: onNote,
-            child: Icon(
-              item.notes != null
-                  ? Icons.comment_rounded
-                  : Icons.comment_outlined,
-              size: 18,
-              color: item.notes != null ? kGold : kParchmentDim.withAlpha(120),
+          SizedBox(
+            width: 44,
+            height: 44,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              onPressed: onNote,
+              icon: Icon(
+                item.notes != null
+                    ? Icons.comment_rounded
+                    : Icons.comment_outlined,
+                size: 24,
+                color: item.notes != null
+                    ? kGold
+                    : kParchmentDim.withAlpha(120),
+              ),
             ),
           ),
         ],
@@ -924,17 +932,18 @@ class _QtyButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return InkResponse(
       onTap: onTap,
+      radius: 24,
       child: Container(
-        width: 26,
-        height: 26,
+        width: 38,
+        height: 38,
         decoration: BoxDecoration(
           color: kBgCard,
           shape: BoxShape.circle,
           border: Border.all(color: kGoldDark.withAlpha(80)),
         ),
-        child: Icon(icon, size: 14, color: kGoldLight),
+        child: Icon(icon, size: 20, color: kGoldLight),
       ),
     );
   }

@@ -151,6 +151,7 @@ class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: ButtonStyle(
+          minimumSize: WidgetStateProperty.all(const Size(48, 52)),
           backgroundColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.disabled)) return kBgCard;
             return kGold;
@@ -173,6 +174,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
+          minimumSize: const Size(48, 52),
           backgroundColor: kGold,
           foregroundColor: kBrown,
           textStyle: GoogleFonts.cinzel(
@@ -187,6 +189,7 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 52),
           foregroundColor: kGold,
           side: BorderSide(color: kGoldDark.withAlpha(150), width: 1),
           textStyle: GoogleFonts.cinzel(
@@ -198,6 +201,30 @@ class AppTheme {
             borderRadius: BorderRadius.circular(10),
           ),
         ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          textStyle: GoogleFonts.lato(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      iconButtonTheme: const IconButtonThemeData(
+        style: ButtonStyle(
+          minimumSize: WidgetStatePropertyAll(Size(48, 48)),
+          iconSize: WidgetStatePropertyAll(26),
+        ),
+      ),
+      radioTheme: const RadioThemeData(
+        materialTapTargetSize: MaterialTapTargetSize.padded,
+        visualDensity: VisualDensity.standard,
+      ),
+      checkboxTheme: const CheckboxThemeData(
+        materialTapTargetSize: MaterialTapTargetSize.padded,
+        visualDensity: VisualDensity.standard,
       ),
       dividerTheme: DividerThemeData(
         color: kGoldDark.withAlpha(60),

@@ -115,8 +115,7 @@ public class GetTableServiceRequestsQueryHandler : IRequestHandler<GetTableServi
         }
 
         return await query
-            .OrderByDescending(x => x.RequestedAt)
-            .Take(250)
+            .OrderByDescending(x => x.CompletedAt ?? x.RequestedAt)
             .Select(x => new TableServiceRequestDto
             {
                 Id = x.Id,
