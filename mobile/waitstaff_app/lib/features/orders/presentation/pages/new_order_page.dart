@@ -15,6 +15,7 @@ class NewOrderPage extends ConsumerStatefulWidget {
     this.deliveryAddress,
     this.orderId,
     this.orderIsDraft = false,
+    this.draftOrder,
   });
 
   final OrderType type;
@@ -23,6 +24,7 @@ class NewOrderPage extends ConsumerStatefulWidget {
   final String? deliveryAddress;
   final String? orderId;
   final bool orderIsDraft;
+  final OrderDto? draftOrder;
 
   @override
   ConsumerState<NewOrderPage> createState() => _NewOrderPageState();
@@ -49,7 +51,41 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
   @override
   void initState() {
     super.initState();
+    _loadDraftIntoCart();
     _loadCatalog();
+  }
+
+  void _loadDraftIntoCart() {
+    final draft = widget.draftOrder;
+    if (!widget.orderIsDraft || draft == null) return;
+
+    _notesCtrl.text = draft.notes ?? '';
+    _cart.addAll(
+      draft.items.map(
+        (item) => CartItem(
+          menuItemId: item.menuItemId,
+          name: item.itemName,
+          price: item.unitPrice,
+          quantity: item.quantity,
+          notes: item.notes,
+          isTakeout: item.isTakeout,
+          modifierSelections: item.modifierSelections
+              .where((selection) => selection.modifierOptionId.isNotEmpty)
+              .map(
+                (selection) => CartModifierSelection(
+                  modifierOptionId: selection.modifierOptionId,
+                  groupName: selection.groupName,
+                  optionName: selection.optionName,
+                  quantity: selection.quantity,
+                  unitPriceDelta: selection.unitPriceDelta,
+                  isTracked: false,
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
+    _cartExpanded = _cart.isNotEmpty;
   }
 
   @override

@@ -60,6 +60,7 @@ class _TableAccountPageState extends ConsumerState<TableAccountPage> {
           table: widget.table,
           orderId: order.id,
           orderIsDraft: order.status == OrderStatus.draft,
+          draftOrder: order.status == OrderStatus.draft ? order : null,
         ),
       ),
     );

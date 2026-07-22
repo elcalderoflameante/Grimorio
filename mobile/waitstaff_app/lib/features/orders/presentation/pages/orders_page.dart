@@ -54,15 +54,32 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
   }
 
   Future<void> _openTable(TableDto table) async {
-    if (table.isFree || table.currentOrderId == null) {
+    var currentTable = table;
+    try {
+      final refreshedTables = await ref
+          .read(orderApiServiceProvider)
+          .getTables();
+      currentTable = refreshedTables.firstWhere(
+        (candidate) => candidate.id == table.id,
+        orElse: () => table,
+      );
+    } catch (_) {
+      // Si la actualización falla, se conserva el estado visible del mapa.
+    }
+    if (!mounted) return;
+
+    if (currentTable.currentOrderId == null) {
       await Navigator.of(context).push<bool>(
         MaterialPageRoute(
-          builder: (_) => NewOrderPage(type: OrderType.dineIn, table: table),
+          builder: (_) =>
+              NewOrderPage(type: OrderType.dineIn, table: currentTable),
         ),
       );
     } else {
       await Navigator.of(context).push<bool>(
-        MaterialPageRoute(builder: (_) => TableAccountPage(table: table)),
+        MaterialPageRoute(
+          builder: (_) => TableAccountPage(table: currentTable),
+        ),
       );
     }
     await _loadTables();

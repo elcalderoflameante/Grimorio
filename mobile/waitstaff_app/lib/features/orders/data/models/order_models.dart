@@ -102,15 +102,21 @@ class OrderItemDto {
 }
 
 class ModifierSelectionDto {
+  final String modifierGroupId;
+  final String modifierOptionId;
   final String groupName;
   final String optionName;
   final int quantity;
+  final double unitPriceDelta;
   final double totalPriceDelta;
 
   const ModifierSelectionDto({
+    required this.modifierGroupId,
+    required this.modifierOptionId,
     required this.groupName,
     required this.optionName,
     required this.quantity,
+    required this.unitPriceDelta,
     required this.totalPriceDelta,
   });
 
@@ -118,9 +124,12 @@ class ModifierSelectionDto {
 
   factory ModifierSelectionDto.fromJson(Map<String, dynamic> j) =>
       ModifierSelectionDto(
+        modifierGroupId: j['modifierGroupId'] as String? ?? '',
+        modifierOptionId: j['modifierOptionId'] as String? ?? '',
         groupName: j['groupName'] as String? ?? '',
         optionName: j['optionName'] as String? ?? '',
         quantity: (j['quantity'] as num?)?.toInt() ?? 1,
+        unitPriceDelta: (j['unitPriceDelta'] as num?)?.toDouble() ?? 0,
         totalPriceDelta: (j['totalPriceDelta'] as num?)?.toDouble() ?? 0,
       );
 }

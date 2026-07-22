@@ -103,6 +103,20 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
         if (!Enum.TryParse<OrderType>(req.Type, out var orderType))
             throw new InvalidOperationException($"Type de orden no válido: {req.Type}");
 
+        if (orderType == OrderType.DineIn && req.TableId.HasValue)
+        {
+            var hasActiveOrder = await _db.Orders.AnyAsync(o =>
+                o.BranchId == req.BranchId &&
+                o.TableId == req.TableId &&
+                !o.IsDeleted &&
+                o.PaidAt == null &&
+                o.Status != OrderStatus.Cancelled &&
+                o.Status != OrderStatus.Delivered,
+                ct);
+            if (hasActiveOrder)
+                throw new InvalidOperationException("La mesa ya tiene un pedido activo. Actualiza el mapa y continúa ese pedido.");
+        }
+
         var number = await _db.Orders
             .Where(o => o.BranchId == req.BranchId)
             .MaxAsync(o => (int?)o.Number, ct) ?? 0;
