@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 
 class OverlayBubbleService {
-  static const MethodChannel _channel = MethodChannel('grimorio/overlay_bubble');
+  static const MethodChannel _channel = MethodChannel(
+    'grimorio/overlay_bubble',
+  );
 
   Future<bool> canDrawOverlays() async {
     if (!Platform.isAndroid) {

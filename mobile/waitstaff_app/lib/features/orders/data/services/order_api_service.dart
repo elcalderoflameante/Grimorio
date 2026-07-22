@@ -32,10 +32,7 @@ class OrderApiService {
     final queryParameters = <String, dynamic>{'activeOnly': true};
     if (categoryId != null) queryParameters['categoryId'] = categoryId;
 
-    final res = await dio.get(
-      '/menu/items',
-      queryParameters: queryParameters,
-    );
+    final res = await dio.get('/menu/items', queryParameters: queryParameters);
     final list = res.data as List<dynamic>;
     return list
         .map((e) => MenuItemDto.fromJson(e as Map<String, dynamic>))
@@ -67,18 +64,23 @@ class OrderApiService {
     final data = <String, dynamic>{
       'type': type.apiValue,
       'items': items
-          .map((i) => {
-                'menuItemId': i.menuItemId,
-                'quantity': i.quantity,
-                if (i.notes != null && i.notes!.isNotEmpty) 'notes': i.notes,
-                if (i.ingredientChoices.isNotEmpty)
-                  'ingredientChoices': i.ingredientChoices
-                      .map((c) => {
-                            'recipeIngredientId': c.recipeIngredientId,
-                            'chosenArticleId': c.chosenArticleId,
-                          })
-                      .toList(),
-              })
+          .map(
+            (i) => {
+              'menuItemId': i.menuItemId,
+              'quantity': i.quantity,
+              if (i.notes != null && i.notes!.isNotEmpty) 'notes': i.notes,
+              'isTakeout': i.isTakeout,
+              if (i.ingredientChoices.isNotEmpty)
+                'ingredientChoices': i.ingredientChoices
+                    .map(
+                      (c) => {
+                        'recipeIngredientId': c.recipeIngredientId,
+                        'chosenArticleId': c.chosenArticleId,
+                      },
+                    )
+                    .toList(),
+            },
+          )
           .toList(),
     };
     if (tableId != null) data['tableId'] = tableId;
@@ -97,6 +99,34 @@ class OrderApiService {
   Future<OrderDto> confirmOrder(String id) async {
     final dio = _ref.read(dioProvider);
     final res = await dio.post('/pos/ordenes/$id/confirmar');
+    return OrderDto.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<OrderDto> addOrderItems(String id, List<CartItem> items) async {
+    final dio = _ref.read(dioProvider);
+    final res = await dio.put(
+      '/pos/ordenes/$id/items',
+      data: {
+        'items': items
+            .map(
+              (i) => {
+                'menuItemId': i.menuItemId,
+                'quantity': i.quantity,
+                'notes': i.notes,
+                'isTakeout': i.isTakeout,
+                'ingredientChoices': i.ingredientChoices
+                    .map(
+                      (c) => {
+                        'recipeIngredientId': c.recipeIngredientId,
+                        'chosenArticleId': c.chosenArticleId,
+                      },
+                    )
+                    .toList(),
+              },
+            )
+            .toList(),
+      },
+    );
     return OrderDto.fromJson(res.data as Map<String, dynamic>);
   }
 

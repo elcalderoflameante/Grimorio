@@ -17,11 +17,7 @@ Future<void> main() async {
     debugPrint('[Firebase] Initialization failed: $e');
   }
 
-  runApp(
-    const ProviderScope(
-      child: MyApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: MyApp()));
 }
 
 class MyApp extends ConsumerWidget {

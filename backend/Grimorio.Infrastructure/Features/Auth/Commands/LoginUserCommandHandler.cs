@@ -187,8 +187,15 @@ public class KdsLoginCommandHandler : IRequestHandler<KdsLoginCommand, AuthRespo
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        if (!permissions.Contains(AppConstants.Permissions.PosKitchenView))
+        if (request.RequireWaitstaffRole)
+        {
+            if (!activeRoleNames.Contains(AppConstants.Roles.Waiter))
+                throw new UnauthorizedAccessException("Usuario no tiene rol de mesero.");
+        }
+        else if (!permissions.Contains(AppConstants.Permissions.PosKitchenView))
+        {
             throw new UnauthorizedAccessException("Usuario no tiene permiso para usar estaciones.");
+        }
 
         var jwtUser = new JwtUser
         {

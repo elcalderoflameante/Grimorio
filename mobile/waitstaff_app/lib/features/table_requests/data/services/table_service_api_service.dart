@@ -27,7 +27,7 @@ class TableServiceApiService {
     String id,
     TableServiceRequestStatus status,
   ) async {
-      final dio = _ref.read(dioProvider);
+    final dio = _ref.read(dioProvider);
     final response = await dio.post(
       '/TableService/requests/$id/status',
       data: {'status': status.value},

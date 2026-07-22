@@ -9,11 +9,10 @@ enum OrderType {
   final String label;
   const OrderType(this.apiValue, this.label);
 
-  static OrderType fromApi(dynamic raw) =>
-      OrderType.values.firstWhere(
-        (e) => e.apiValue == raw.toString(),
-        orElse: () => OrderType.dineIn,
-      );
+  static OrderType fromApi(dynamic raw) => OrderType.values.firstWhere(
+    (e) => e.apiValue == raw.toString(),
+    orElse: () => OrderType.dineIn,
+  );
 }
 
 enum OrderStatus {
@@ -28,11 +27,10 @@ enum OrderStatus {
   final String label;
   const OrderStatus(this.apiValue, this.label);
 
-  static OrderStatus fromApi(dynamic raw) =>
-      OrderStatus.values.firstWhere(
-        (e) => e.apiValue == raw.toString(),
-        orElse: () => OrderStatus.draft,
-      );
+  static OrderStatus fromApi(dynamic raw) => OrderStatus.values.firstWhere(
+    (e) => e.apiValue == raw.toString(),
+    orElse: () => OrderStatus.draft,
+  );
 }
 
 enum OrderItemStatus {
@@ -64,6 +62,7 @@ class OrderItemDto {
   final double unitPrice;
   final double totalPrice;
   final String? notes;
+  final bool isTakeout;
   final OrderItemStatus status;
 
   const OrderItemDto({
@@ -77,22 +76,24 @@ class OrderItemDto {
     required this.unitPrice,
     required this.totalPrice,
     this.notes,
+    required this.isTakeout,
     required this.status,
   });
 
   factory OrderItemDto.fromJson(Map<String, dynamic> j) => OrderItemDto(
-        id: j['id'] as String,
-        menuItemId: j['menuItemId'] as String,
-        itemName: j['itemName'] as String? ?? '',
-        itemCode: j['itemCode'] as String?,
-        stationId: j['stationId'] as String?,
-        stationName: j['stationName'] as String?,
-        quantity: (j['quantity'] as num).toInt(),
-        unitPrice: (j['unitPrice'] as num).toDouble(),
-        totalPrice: (j['totalPrice'] as num).toDouble(),
-        notes: j['notes'] as String?,
-        status: OrderItemStatus.fromApi(j['status']),
-      );
+    id: j['id'] as String,
+    menuItemId: j['menuItemId'] as String,
+    itemName: j['itemName'] as String? ?? '',
+    itemCode: j['itemCode'] as String?,
+    stationId: j['stationId'] as String?,
+    stationName: j['stationName'] as String?,
+    quantity: (j['quantity'] as num).toInt(),
+    unitPrice: (j['unitPrice'] as num).toDouble(),
+    totalPrice: (j['totalPrice'] as num).toDouble(),
+    notes: j['notes'] as String?,
+    isTakeout: j['isTakeout'] as bool? ?? false,
+    status: OrderItemStatus.fromApi(j['status']),
+  );
 }
 
 class OrderDto {
@@ -135,25 +136,25 @@ class OrderDto {
   }
 
   factory OrderDto.fromJson(Map<String, dynamic> j) => OrderDto(
-        id: j['id'] as String,
-        number: (j['number'] as num).toInt(),
-        type: OrderType.fromApi(j['type']),
-        status: OrderStatus.fromApi(j['status']),
-        tableId: j['tableId'] as String?,
-        tableCode: j['tableCode'] as String?,
-        tableName: j['tableName'] as String?,
-        customerName: j['customerName'] as String?,
-        deliveryAddress: j['deliveryAddress'] as String?,
-        notes: j['notes'] as String?,
-        subtotal: (j['subtotal'] as num).toDouble(),
-        total: (j['total'] as num).toDouble(),
-        confirmedAt: j['confirmedAt'] != null
-            ? DateTime.parse(j['confirmedAt'] as String)
-            : null,
-        items: (j['items'] as List<dynamic>? ?? [])
-            .map((e) => OrderItemDto.fromJson(e as Map<String, dynamic>))
-            .toList(),
-      );
+    id: j['id'] as String,
+    number: (j['number'] as num).toInt(),
+    type: OrderType.fromApi(j['type']),
+    status: OrderStatus.fromApi(j['status']),
+    tableId: j['tableId'] as String?,
+    tableCode: j['tableCode'] as String?,
+    tableName: j['tableName'] as String?,
+    customerName: j['customerName'] as String?,
+    deliveryAddress: j['deliveryAddress'] as String?,
+    notes: j['notes'] as String?,
+    subtotal: (j['subtotal'] as num).toDouble(),
+    total: (j['total'] as num).toDouble(),
+    confirmedAt: j['confirmedAt'] != null
+        ? DateTime.parse(j['confirmedAt'] as String)
+        : null,
+    items: (j['items'] as List<dynamic>? ?? [])
+        .map((e) => OrderItemDto.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
 }
 
 class MenuCategoryDto {
@@ -164,17 +165,20 @@ class MenuCategoryDto {
   const MenuCategoryDto({required this.id, required this.name, this.color});
 
   factory MenuCategoryDto.fromJson(Map<String, dynamic> j) => MenuCategoryDto(
-        id: j['id'] as String,
-        name: j['name'] as String,
-        color: j['color'] as String?,
-      );
+    id: j['id'] as String,
+    name: j['name'] as String,
+    color: j['color'] as String?,
+  );
 }
 
 class RecipeIngredientAlternativeDto {
   final String articleId;
   final String articleName;
 
-  const RecipeIngredientAlternativeDto({required this.articleId, required this.articleName});
+  const RecipeIngredientAlternativeDto({
+    required this.articleId,
+    required this.articleName,
+  });
 
   factory RecipeIngredientAlternativeDto.fromJson(Map<String, dynamic> j) =>
       RecipeIngredientAlternativeDto(
@@ -201,9 +205,11 @@ class VariableIngredientSlotDto {
   });
 
   List<Map<String, String>> get allOptions => [
-        {'articleId': defaultArticleId, 'articleName': defaultArticleName},
-        ...alternatives.map((a) => {'articleId': a.articleId, 'articleName': a.articleName}),
-      ];
+    {'articleId': defaultArticleId, 'articleName': defaultArticleName},
+    ...alternatives.map(
+      (a) => {'articleId': a.articleId, 'articleName': a.articleName},
+    ),
+  ];
 
   factory VariableIngredientSlotDto.fromJson(Map<String, dynamic> j) =>
       VariableIngredientSlotDto(
@@ -213,7 +219,11 @@ class VariableIngredientSlotDto {
         defaultArticleId: j['defaultArticleId'] as String,
         defaultArticleName: j['defaultArticleName'] as String? ?? '',
         alternatives: (j['alternatives'] as List<dynamic>? ?? [])
-            .map((e) => RecipeIngredientAlternativeDto.fromJson(e as Map<String, dynamic>))
+            .map(
+              (e) => RecipeIngredientAlternativeDto.fromJson(
+                e as Map<String, dynamic>,
+              ),
+            )
             .toList(),
       );
 }
@@ -244,18 +254,20 @@ class MenuItemDto {
   bool get hasVariableIngredients => variableIngredients.isNotEmpty;
 
   factory MenuItemDto.fromJson(Map<String, dynamic> j) => MenuItemDto(
-        id: j['id'] as String,
-        name: j['name'] as String,
-        description: j['description'] as String?,
-        price: (j['price'] as num).toDouble(),
-        menuCategoryId: j['menuCategoryId'] as String,
-        categoryName: j['categoryName'] as String? ?? '',
-        categoryColor: j['categoryColor'] as String?,
-        isActive: j['isActive'] as bool? ?? true,
-        variableIngredients: (j['variableIngredients'] as List<dynamic>? ?? [])
-            .map((e) => VariableIngredientSlotDto.fromJson(e as Map<String, dynamic>))
-            .toList(),
-      );
+    id: j['id'] as String,
+    name: j['name'] as String,
+    description: j['description'] as String?,
+    price: (j['price'] as num).toDouble(),
+    menuCategoryId: j['menuCategoryId'] as String,
+    categoryName: j['categoryName'] as String? ?? '',
+    categoryColor: j['categoryColor'] as String?,
+    isActive: j['isActive'] as bool? ?? true,
+    variableIngredients: (j['variableIngredients'] as List<dynamic>? ?? [])
+        .map(
+          (e) => VariableIngredientSlotDto.fromJson(e as Map<String, dynamic>),
+        )
+        .toList(),
+  );
 }
 
 class TableDto {
@@ -265,6 +277,10 @@ class TableDto {
   final String? area;
   final bool isActive;
   final String currentStatus;
+  final int capacity;
+  final String? currentOrderId;
+  final double currentOrderTotal;
+  final double pendingPaymentTotal;
 
   const TableDto({
     required this.id,
@@ -273,18 +289,26 @@ class TableDto {
     this.area,
     required this.isActive,
     required this.currentStatus,
+    this.capacity = 0,
+    this.currentOrderId,
+    this.currentOrderTotal = 0,
+    this.pendingPaymentTotal = 0,
   });
 
   bool get isFree => currentStatus == 'Free';
 
   factory TableDto.fromJson(Map<String, dynamic> j) => TableDto(
-        id: j['id'] as String,
-        code: j['code'] as String,
-        name: j['name'] as String,
-        area: j['area'] as String?,
-        isActive: j['isActive'] as bool? ?? true,
-        currentStatus: j['currentStatus'] as String? ?? 'Free',
-      );
+    id: j['id'] as String,
+    code: j['code'] as String,
+    name: j['name'] as String? ?? 'Mesa ${j['code'] ?? ''}',
+    area: j['area'] as String?,
+    isActive: j['isActive'] as bool? ?? true,
+    currentStatus: j['currentStatus'] as String? ?? 'Free',
+    capacity: (j['capacity'] as num?)?.toInt() ?? 0,
+    currentOrderId: j['currentOrderId'] as String?,
+    currentOrderTotal: (j['currentOrderTotal'] as num?)?.toDouble() ?? 0,
+    pendingPaymentTotal: (j['pendingPaymentTotal'] as num?)?.toDouble() ?? 0,
+  );
 }
 
 // ── Carrito local (no viene del servidor) ─────────────────────────────────
@@ -307,6 +331,7 @@ class CartItem {
   final double price;
   int quantity;
   String? notes;
+  bool isTakeout;
   final List<CartItemChoice> ingredientChoices;
 
   CartItem({
@@ -315,6 +340,7 @@ class CartItem {
     required this.price,
     this.quantity = 1,
     this.notes,
+    this.isTakeout = false,
     this.ingredientChoices = const [],
   });
 

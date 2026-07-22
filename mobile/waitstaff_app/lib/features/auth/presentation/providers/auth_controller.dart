@@ -5,10 +5,11 @@ import '../../../../core/services/push_notification_service.dart';
 import '../../data/models/auth_models.dart';
 import '../../data/repositories/auth_repository.dart';
 
-final authControllerProvider =
-    StateNotifierProvider<AuthController, AuthState>((ref) {
-  return AuthController(ref, ref.read(authRepositoryProvider));
-});
+final authControllerProvider = StateNotifierProvider<AuthController, AuthState>(
+  (ref) {
+    return AuthController(ref, ref.read(authRepositoryProvider));
+  },
+);
 
 class AuthState {
   const AuthState({
@@ -71,10 +72,7 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
-  Future<bool> login({
-    required String email,
-    required String password,
-  }) async {
+  Future<bool> login({required String email, required String password}) async {
     state = state.copyWith(isLoading: true, clearError: true);
 
     try {
@@ -88,15 +86,52 @@ class AuthController extends StateNotifier<AuthState> {
       return true;
     } on DioException catch (error) {
       final message = _extractErrorMessage(error);
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: message,
-      );
+      state = state.copyWith(isLoading: false, errorMessage: message);
       return false;
     } catch (_) {
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'No se pudo iniciar sesion. Intenta nuevamente.',
+      );
+      return false;
+    }
+  }
+
+  Future<List<PinBranch>> getWaitstaffBranches() =>
+      _repository.getWaitstaffBranches();
+
+  Future<List<PinUser>> getWaitstaffUsers(String branchId) =>
+      _repository.getWaitstaffUsers(branchId);
+
+  Future<bool> loginWithPin({
+    required String branchId,
+    required String userId,
+    required String pin,
+  }) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final session = await _repository.loginWithPin(
+        branchId: branchId,
+        userId: userId,
+        pin: pin,
+      );
+      state = state.copyWith(
+        isLoading: false,
+        session: session,
+        clearError: true,
+      );
+      await _syncPushToken();
+      return true;
+    } on DioException catch (error) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: _extractErrorMessage(error),
+      );
+      return false;
+    } catch (_) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'No se pudo iniciar sesión con PIN.',
       );
       return false;
     }

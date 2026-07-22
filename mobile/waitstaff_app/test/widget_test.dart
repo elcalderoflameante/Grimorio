@@ -1,30 +1,50 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:waitstaff_app/main.dart';
+import 'package:waitstaff_app/features/auth/data/models/auth_models.dart';
+import 'package:waitstaff_app/features/orders/data/models/order_models.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  group('Waitstaff authentication models', () {
+    test('parses a waiter with an access PIN', () {
+      final user = PinUser.fromJson({
+        'id': 'user-1',
+        'firstName': 'Ana',
+        'lastName': 'Pérez',
+        'hasKdsPin': true,
+      });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+      expect(user.displayName, 'Ana Pérez');
+      expect(user.hasPin, isTrue);
+    });
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  group('Restaurant table models', () {
+    test('parses the current order independently of its waiter', () {
+      final table = TableDto.fromJson({
+        'id': 'table-1',
+        'code': '4',
+        'area': 'Terraza',
+        'isActive': true,
+        'currentStatus': 'Occupied',
+        'currentOrderId': 'order-1',
+        'pendingPaymentTotal': 24.50,
+      });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+      expect(table.name, 'Mesa 4');
+      expect(table.currentOrderId, 'order-1');
+      expect(table.isFree, isFalse);
+      expect(table.pendingPaymentTotal, 24.50);
+    });
+
+    test('stores takeout at item level', () {
+      final item = CartItem(
+        menuItemId: 'item-1',
+        name: 'Hamburguesa',
+        price: 8.50,
+        isTakeout: true,
+      );
+
+      expect(item.isTakeout, isTrue);
+      expect(item.subtotal, 8.50);
+    });
   });
 }

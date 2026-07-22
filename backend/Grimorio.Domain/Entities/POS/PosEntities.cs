@@ -128,6 +128,7 @@ public class OrderItem : BaseEntity
     public decimal TaxAmount { get; set; }
     public decimal TotalPrice { get; set; }
     public string? Notes { get; set; }
+    public bool IsTakeout { get; set; }
     public OrderItemStatus Status { get; set; } = OrderItemStatus.Pending;
 
     public virtual Order? Order { get; set; }

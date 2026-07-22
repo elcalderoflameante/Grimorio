@@ -15,7 +15,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
 }
 
-final pushNotificationServiceProvider = Provider<PushNotificationService>((ref) {
+final pushNotificationServiceProvider = Provider<PushNotificationService>((
+  ref,
+) {
   return PushNotificationService(
     dio: ref.read(dioProvider),
     alertService: ref.read(alertServiceProvider),
@@ -26,8 +28,8 @@ class PushNotificationService {
   PushNotificationService({
     required Dio dio,
     required AlertService alertService,
-  })  : _dio = dio,
-        _alertService = alertService;
+  }) : _dio = dio,
+       _alertService = alertService;
 
   final Dio _dio;
   final AlertService _alertService;
@@ -97,10 +99,7 @@ class PushNotificationService {
   Future<void> _registerToken(String token) async {
     await _dio.post<void>(
       '/TableService/push-token',
-      data: {
-        'token': token,
-        'platform': 'android',
-      },
+      data: {'token': token, 'platform': 'android'},
     );
   }
 
@@ -109,6 +108,8 @@ class PushNotificationService {
     // completa (notificación + vibración + TTS con el texto correcto).
     // Ignoramos el mensaje FCM para evitar un TTS duplicado con datos crudos
     // del backend (p.ej. "callWaiter" como body).
-    debugPrint('[FCM] Foreground message ignored (SignalR handles it): ${message.messageId}');
+    debugPrint(
+      '[FCM] Foreground message ignored (SignalR handles it): ${message.messageId}',
+    );
   }
 }

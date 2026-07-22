@@ -9,3 +9,8 @@ public class GetKdsUsersQuery : IRequest<List<KdsUserDto>>
 {
     public Guid BranchId { get; set; }
 }
+
+public class GetWaitstaffUsersQuery : IRequest<List<KdsUserDto>>
+{
+    public Guid BranchId { get; set; }
+}

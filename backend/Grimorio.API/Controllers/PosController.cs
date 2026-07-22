@@ -129,6 +129,11 @@ public class PosController : ControllerBase
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderDto dto)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        if (User.IsInRole(AppConstants.Roles.Waiter) &&
+            (!string.Equals(dto.Type, "DineIn", StringComparison.OrdinalIgnoreCase) || !dto.TableId.HasValue))
+        {
+            return BadRequest(new { message = "Los meseros solo pueden iniciar pedidos asociados a una mesa." });
+        }
         TryGetUserId(out var userId);
 
         var result = await _mediator.Send(new CreateOrderCommand
@@ -179,6 +184,7 @@ public class PosController : ControllerBase
                 itemName = i.ItemName,
                 quantity = i.Quantity,
                 notes = i.Notes,
+                isTakeout = i.IsTakeout,
                 status = i.Status,
                 confirmedAt,
                 ingredientChoices = i.IngredientChoices.Select(c => new
@@ -225,6 +231,7 @@ public class PosController : ControllerBase
                 itemName = i.ItemName,
                 quantity = i.Quantity,
                 notes = i.Notes,
+                isTakeout = i.IsTakeout,
                 status = i.Status,
                 confirmedAt,
                 ingredientChoices = i.IngredientChoices.Select(c => new
@@ -266,6 +273,7 @@ public class PosController : ControllerBase
                 itemName = i.ItemName,
                 quantity = i.Quantity,
                 notes = i.Notes,
+                isTakeout = i.IsTakeout,
                 status = i.Status,
                 confirmedAt,
                 ingredientChoices = i.IngredientChoices.Select(c => new

@@ -45,9 +45,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     },
     errorBuilder: (context, state) => Scaffold(
       appBar: AppBar(title: const Text('Error')),
-      body: Center(
-        child: Text('Route not found: ${state.uri}'),
-      ),
+      body: Center(child: Text('Route not found: ${state.uri}')),
     ),
   );
 });

@@ -110,6 +110,45 @@ public class AuthController : ControllerBase
         }
     }
 
+    [HttpGet("waitstaff/branches")]
+    public async Task<IActionResult> GetWaitstaffBranches()
+    {
+        return Ok(await _mediator.Send(new GetKdsBranchesQuery()));
+    }
+
+    [HttpGet("waitstaff/users")]
+    public async Task<IActionResult> GetWaitstaffUsers([FromQuery] Guid branchId)
+    {
+        if (branchId == Guid.Empty)
+            return BadRequest(new { message = "Sucursal requerida." });
+
+        return Ok(await _mediator.Send(new GetWaitstaffUsersQuery { BranchId = branchId }));
+    }
+
+    [HttpPost("waitstaff/login")]
+    public async Task<IActionResult> WaitstaffLogin([FromBody] KdsLoginRequest request)
+    {
+        if (request.BranchId == Guid.Empty || request.UserId == Guid.Empty)
+            return BadRequest(new { message = "Sucursal y usuario son requeridos." });
+        if (string.IsNullOrWhiteSpace(request.Pin) || request.Pin.Length != 4 || !request.Pin.All(char.IsDigit))
+            return BadRequest(new { message = "PIN inválido." });
+
+        try
+        {
+            return Ok(await _mediator.Send(new KdsLoginCommand
+            {
+                BranchId = request.BranchId,
+                UserId = request.UserId,
+                Pin = request.Pin,
+                RequireWaitstaffRole = true
+            }));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+    }
+
     /// <summary>
     /// Refresca el JWT usando un refresh token.
     /// Nota: Por ahora no implementado completamente.

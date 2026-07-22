@@ -129,7 +129,7 @@ export default function UserList() {
 
     try {
       await userApi.setKdsPin(kdsPinUser.id, values.pin?.trim());
-      message.success(values.pin ? 'PIN KDS actualizado' : 'PIN KDS eliminado');
+      message.success(values.pin ? 'PIN de acceso actualizado' : 'PIN de acceso eliminado');
       setKdsPinModalVisible(false);
       setKdsPinUser(null);
       kdsPinForm.resetFields();
@@ -189,7 +189,7 @@ export default function UserList() {
       ),
     },
     {
-      title: 'PIN KDS',
+      title: 'PIN de acceso',
       dataIndex: 'hasKdsPin',
       key: 'hasKdsPin',
       render: (hasKdsPin: boolean) => (
@@ -209,7 +209,7 @@ export default function UserList() {
         <Space>
           {canUpdate && <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} />}
           {canUpdate && <Button icon={<LockOutlined />} onClick={() => handleOpenAssign(record)} title="Asignar roles" />}
-          {canUpdate && <Button icon={<KeyOutlined />} onClick={() => handleOpenKdsPin(record)} title="PIN KDS" />}
+          {canUpdate && <Button icon={<KeyOutlined />} onClick={() => handleOpenKdsPin(record)} title="PIN de acceso" />}
           {canDelete && <Popconfirm
             title="¿Eliminar usuario?"
             onConfirm={() => handleDelete(record.id)}
@@ -297,7 +297,7 @@ export default function UserList() {
       </Modal>
 
       <Modal
-        title={`PIN KDS${kdsPinUser ? ` - ${kdsPinUser.firstName} ${kdsPinUser.lastName}` : ''}`}
+        title={`PIN de acceso${kdsPinUser ? ` - ${kdsPinUser.firstName} ${kdsPinUser.lastName}` : ''}`}
         open={kdsPinModalVisible}
         onOk={() => kdsPinForm.submit()}
         onCancel={() => {

@@ -32,13 +32,16 @@ class AlertService {
       return;
     }
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     const settings = InitializationSettings(android: androidSettings);
     await _notifications.initialize(settings);
 
-    final androidNotifications =
-        _notifications.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+    final androidNotifications = _notifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
 
     await androidNotifications?.createNotificationChannel(
       const AndroidNotificationChannel(
@@ -87,8 +90,11 @@ class AlertService {
     );
 
     await _vibrate();
-    final ttsText = 'Nueva solicitud en ${_normalizeTableName(request)}, $detail';
-    debugPrint('[TTS] type=${request.type.name} | customMessage="${request.customMessage}" | ttsDescription="${request.ttsDescription}" | texto="$ttsText"');
+    final ttsText =
+        'Nueva solicitud en ${_normalizeTableName(request)}, $detail';
+    debugPrint(
+      '[TTS] type=${request.type.name} | customMessage="${request.customMessage}" | ttsDescription="${request.ttsDescription}" | texto="$ttsText"',
+    );
     await _speak(ttsText);
   }
 
@@ -168,23 +174,6 @@ class AlertService {
     }
 
     return 'mesa';
-  }
-
-  String _ttsTableLabel(TableServiceRequest request) {
-    final tableName = request.tableName.trim();
-    if (tableName.isNotEmpty) {
-      if (tableName.toLowerCase().startsWith('mesa')) {
-        return tableName[0].toUpperCase() + tableName.substring(1);
-      }
-      return 'Mesa $tableName';
-    }
-
-    final code = request.tableCode.trim();
-    if (code.isNotEmpty) {
-      return 'Mesa $code';
-    }
-
-    return 'Mesa';
   }
 
   bool _shouldThrottle(String signature) {

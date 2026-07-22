@@ -18,21 +18,22 @@ class OrdersState {
 
   // Órdenes que aún no han sido entregadas ni canceladas
   List<OrderDto> get active => orders
-      .where((o) =>
-          o.status != OrderStatus.delivered &&
-          o.status != OrderStatus.cancelled)
+      .where(
+        (o) =>
+            o.status != OrderStatus.delivered &&
+            o.status != OrderStatus.cancelled,
+      )
       .toList();
 
   OrdersState copyWith({
     List<OrderDto>? orders,
     bool? isLoading,
     String? errorMessage,
-  }) =>
-      OrdersState(
-        orders: orders ?? this.orders,
-        isLoading: isLoading ?? this.isLoading,
-        errorMessage: errorMessage,
-      );
+  }) => OrdersState(
+    orders: orders ?? this.orders,
+    isLoading: isLoading ?? this.isLoading,
+    errorMessage: errorMessage,
+  );
 }
 
 class OrdersController extends StateNotifier<OrdersState> {
@@ -49,7 +50,9 @@ class OrdersController extends StateNotifier<OrdersState> {
   }
 
   Future<void> load({bool showLoading = true}) async {
-    if (showLoading) state = state.copyWith(isLoading: true, errorMessage: null);
+    if (showLoading) {
+      state = state.copyWith(isLoading: true, errorMessage: null);
+    }
     try {
       final service = _ref.read(orderApiServiceProvider);
       final list = await service.getOrders(activeOnly: true);
@@ -83,5 +86,5 @@ class OrdersController extends StateNotifier<OrdersState> {
 
 final ordersControllerProvider =
     StateNotifierProvider<OrdersController, OrdersState>(
-  (ref) => OrdersController(ref),
-);
+      (ref) => OrdersController(ref),
+    );

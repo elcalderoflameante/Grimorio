@@ -459,6 +459,7 @@ public class GetItemsByStationQueryHandler : IRequestHandler<GetItemsByStationQu
         ItemName = i.MenuItem!.Name,
         Quantity = i.Quantity,
         Notes = i.Notes,
+        IsTakeout = i.IsTakeout,
         Status = i.Status.ToString(),
         ConfirmedAt = i.Order.ConfirmedAt ?? i.Order.CreatedAt,
         UpdatedAt = i.UpdatedAt,

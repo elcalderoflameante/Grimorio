@@ -13,12 +13,16 @@ class NewOrderPage extends ConsumerStatefulWidget {
     this.table,
     this.clientName,
     this.deliveryAddress,
+    this.orderId,
+    this.orderIsDraft = false,
   });
 
   final OrderType type;
   final TableDto? table;
   final String? clientName;
   final String? deliveryAddress;
+  final String? orderId;
+  final bool orderIsDraft;
 
   @override
   ConsumerState<NewOrderPage> createState() => _NewOrderPageState();
@@ -60,7 +64,10 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
     setState(() => _loadingCatalog = true);
     try {
       final api = ref.read(orderApiServiceProvider);
-      final (cats, items) = await (api.getCategories(), api.getMenuItems()).wait;
+      final (cats, items) = await (
+        api.getCategories(),
+        api.getMenuItems(),
+      ).wait;
       if (mounted) {
         setState(() {
           _categories = cats;
@@ -71,9 +78,9 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
     } catch (e) {
       if (mounted) {
         setState(() => _loadingCatalog = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar menú: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al cargar menú: $e')));
       }
     }
   }
@@ -90,11 +97,15 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
       return;
     }
     setState(() {
-      final idx = _cart.indexWhere((c) => c.menuItemId == item.id && c.ingredientChoices.isEmpty);
+      final idx = _cart.indexWhere(
+        (c) => c.menuItemId == item.id && c.ingredientChoices.isEmpty,
+      );
       if (idx >= 0) {
         _cart[idx].quantity++;
       } else {
-        _cart.add(CartItem(menuItemId: item.id, name: item.name, price: item.price));
+        _cart.add(
+          CartItem(menuItemId: item.id, name: item.name, price: item.price),
+        );
       }
     });
   }
@@ -102,7 +113,8 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
   Future<void> _showVariableChoiceDialog(MenuItemDto item) async {
     // Map: recipeIngredientId -> chosen articleId
     final Map<String, String> chosen = {
-      for (final slot in item.variableIngredients) slot.recipeIngredientId: slot.defaultArticleId,
+      for (final slot in item.variableIngredients)
+        slot.recipeIngredientId: slot.defaultArticleId,
     };
 
     final confirmed = await showDialog<bool>(
@@ -127,11 +139,15 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
                     children: [
                       Text(
                         '${slot.quantity} ${slot.unitSymbol} de:',
-                        style: GoogleFonts.lato(color: kParchmentDim, fontSize: 12),
+                        style: GoogleFonts.lato(
+                          color: kParchmentDim,
+                          fontSize: 12,
+                        ),
                       ),
                       const SizedBox(height: 6),
                       ...options.map((opt) {
-                        final isSelected = chosen[slot.recipeIngredientId] == opt['articleId'];
+                        final isSelected =
+                            chosen[slot.recipeIngredientId] == opt['articleId'];
                         return GestureDetector(
                           onTap: () => setDialogState(() {
                             chosen[slot.recipeIngredientId] = opt['articleId']!;
@@ -139,29 +155,42 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 120),
                             margin: const EdgeInsets.only(bottom: 6),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: isSelected ? kGold.withAlpha(30) : kBgMid,
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: isSelected ? kGold : kGoldDark.withAlpha(60),
+                                color: isSelected
+                                    ? kGold
+                                    : kGoldDark.withAlpha(60),
                                 width: isSelected ? 1.5 : 1,
                               ),
                             ),
                             child: Row(
                               children: [
                                 Icon(
-                                  isSelected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
+                                  isSelected
+                                      ? Icons.radio_button_checked_rounded
+                                      : Icons.radio_button_off_rounded,
                                   size: 16,
-                                  color: isSelected ? kGold : kParchmentDim.withAlpha(120),
+                                  color: isSelected
+                                      ? kGold
+                                      : kParchmentDim.withAlpha(120),
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
                                   opt['articleName']!,
                                   style: GoogleFonts.lato(
-                                    color: isSelected ? kParchment : kParchmentDim,
+                                    color: isSelected
+                                        ? kParchment
+                                        : kParchmentDim,
                                     fontSize: 13,
-                                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
                                   ),
                                 ),
                               ],
@@ -178,11 +207,20 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
-              child: Text('Cancelar', style: GoogleFonts.lato(color: kParchmentDim)),
+              child: Text(
+                'Cancelar',
+                style: GoogleFonts.lato(color: kParchmentDim),
+              ),
             ),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: Text('Agregar', style: GoogleFonts.lato(color: kGold, fontWeight: FontWeight.w700)),
+              child: Text(
+                'Agregar',
+                style: GoogleFonts.lato(
+                  color: kGold,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ],
         ),
@@ -191,7 +229,8 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
 
     if (confirmed == true && mounted) {
       final choices = item.variableIngredients.map((slot) {
-        final chosenId = chosen[slot.recipeIngredientId] ?? slot.defaultArticleId;
+        final chosenId =
+            chosen[slot.recipeIngredientId] ?? slot.defaultArticleId;
         final allOpts = slot.allOptions;
         final name = allOpts.firstWhere(
           (o) => o['articleId'] == chosenId,
@@ -205,12 +244,14 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
       }).toList();
 
       setState(() {
-        _cart.add(CartItem(
-          menuItemId: item.id,
-          name: item.name,
-          price: item.price,
-          ingredientChoices: choices,
-        ));
+        _cart.add(
+          CartItem(
+            menuItemId: item.id,
+            name: item.name,
+            price: item.price,
+            ingredientChoices: choices,
+          ),
+        );
       });
     }
   }
@@ -220,6 +261,10 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
       _cart[idx].quantity += delta;
       if (_cart[idx].quantity <= 0) _cart.removeAt(idx);
     });
+  }
+
+  void _toggleTakeout(int idx) {
+    setState(() => _cart[idx].isTakeout = !_cart[idx].isTakeout);
   }
 
   void _editNote(int idx) {
@@ -256,12 +301,17 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancelar', style: GoogleFonts.lato(color: kParchmentDim)),
+            child: Text(
+              'Cancelar',
+              style: GoogleFonts.lato(color: kParchmentDim),
+            ),
           ),
           TextButton(
             onPressed: () {
               setState(() {
-                _cart[idx].notes = ctrl.text.trim().isEmpty ? null : ctrl.text.trim();
+                _cart[idx].notes = ctrl.text.trim().isEmpty
+                    ? null
+                    : ctrl.text.trim();
               });
               Navigator.of(ctx).pop();
             },
@@ -284,15 +334,19 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
     setState(() => _saving = true);
     try {
       final api = ref.read(orderApiServiceProvider);
-      final order = await api.createOrder(
-        type: widget.type,
-        tableId: widget.table?.id,
-        clientName: widget.clientName,
-        deliveryAddress: widget.deliveryAddress,
-        notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-        items: _cart,
-      );
-      await api.confirmOrder(order.id);
+      final OrderDto order;
+      if (widget.orderId != null) {
+        order = await api.addOrderItems(widget.orderId!, _cart);
+        if (widget.orderIsDraft) await api.confirmOrder(order.id);
+      } else {
+        order = await api.createOrder(
+          type: OrderType.dineIn,
+          tableId: widget.table?.id,
+          notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+          items: _cart,
+        );
+        await api.confirmOrder(order.id);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -305,9 +359,9 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al enviar pedido: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al enviar pedido: $e')));
       }
     }
   }
@@ -317,13 +371,15 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
   @override
   Widget build(BuildContext context) {
     final title = switch (widget.type) {
-      OrderType.dineIn   => 'Mesa ${widget.table?.code ?? '?'}',
-      OrderType.takeout  => widget.clientName?.isNotEmpty == true
-          ? 'Llevar · ${widget.clientName}'
-          : 'Para llevar',
-      OrderType.delivery => widget.clientName?.isNotEmpty == true
-          ? 'Domicilio · ${widget.clientName}'
-          : 'Domicilio',
+      OrderType.dineIn => 'Mesa ${widget.table?.code ?? '?'}',
+      OrderType.takeout =>
+        widget.clientName?.isNotEmpty == true
+            ? 'Llevar · ${widget.clientName}'
+            : 'Para llevar',
+      OrderType.delivery =>
+        widget.clientName?.isNotEmpty == true
+            ? 'Domicilio · ${widget.clientName}'
+            : 'Domicilio',
     };
 
     return Scaffold(
@@ -362,12 +418,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
               if (_totalItems > 0) const SizedBox(height: 80),
             ],
           ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _buildCartPanel(),
-          ),
+          Positioned(left: 0, right: 0, bottom: 0, child: _buildCartPanel()),
         ],
       ),
     );
@@ -388,12 +439,14 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
             selected: _selectedCategory == null,
             onTap: () => setState(() => _selectedCategory = null),
           ),
-          ..._categories.map((c) => _CategoryChip(
-                label: c.name,
-                selected: _selectedCategory == c.id,
-                color: c.color,
-                onTap: () => setState(() => _selectedCategory = c.id),
-              )),
+          ..._categories.map(
+            (c) => _CategoryChip(
+              label: c.name,
+              selected: _selectedCategory == c.id,
+              color: c.color,
+              onTap: () => setState(() => _selectedCategory = c.id),
+            ),
+          ),
         ],
       ),
     );
@@ -439,7 +492,9 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
       decoration: BoxDecoration(
         color: kBgMid,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        border: Border(top: BorderSide(color: kGoldDark.withAlpha(100), width: 1)),
+        border: Border(
+          top: BorderSide(color: kGoldDark.withAlpha(100), width: 1),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withAlpha(80),
@@ -496,13 +551,17 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
               ),
               child: ListView.builder(
                 shrinkWrap: true,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 itemCount: _cart.length,
                 itemBuilder: (_, i) => _CartRow(
                   item: _cart[i],
                   onIncrease: () => _changeQuantity(i, 1),
                   onDecrease: () => _changeQuantity(i, -1),
                   onNote: () => _editNote(i),
+                  onToggleTakeout: () => _toggleTakeout(i),
                 ),
               ),
             ),
@@ -514,7 +573,9 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
                 decoration: InputDecoration(
                   hintText: 'Observación general del pedido (opcional)',
                   hintStyle: GoogleFonts.lato(
-                      color: kParchmentDim.withAlpha(100), fontSize: 12),
+                    color: kParchmentDim.withAlpha(100),
+                    fontSize: 12,
+                  ),
                   isDense: true,
                   filled: true,
                   fillColor: kBgCard,
@@ -530,8 +591,10 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
                     borderRadius: BorderRadius.circular(10),
                     borderSide: const BorderSide(color: kGold),
                   ),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                 ),
                 style: GoogleFonts.lato(color: kParchment, fontSize: 13),
               ),
@@ -550,7 +613,9 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: kBrown),
+                          strokeWidth: 2,
+                          color: kBrown,
+                        ),
                       )
                     : const Icon(Icons.send_rounded, size: 18),
                 label: Text(_saving ? 'Enviando...' : 'Enviar a cocina'),
@@ -707,7 +772,11 @@ class _ItemCard extends StatelessWidget {
                     shape: BoxShape.circle,
                     border: Border.all(color: kGoldDark.withAlpha(80)),
                   ),
-                  child: const Icon(Icons.add_rounded, size: 14, color: kGoldLight),
+                  child: const Icon(
+                    Icons.add_rounded,
+                    size: 14,
+                    color: kGoldLight,
+                  ),
                 ),
               ),
           ],
@@ -723,12 +792,14 @@ class _CartRow extends StatelessWidget {
     required this.onIncrease,
     required this.onDecrease,
     required this.onNote,
+    required this.onToggleTakeout,
   });
 
   final CartItem item;
   final VoidCallback onIncrease;
   final VoidCallback onDecrease;
   final VoidCallback onNote;
+  final VoidCallback onToggleTakeout;
 
   @override
   Widget build(BuildContext context) {
@@ -743,7 +814,10 @@ class _CartRow extends StatelessWidget {
             child: Text(
               '${item.quantity}',
               style: GoogleFonts.cinzel(
-                  color: kGold, fontSize: 14, fontWeight: FontWeight.w700),
+                color: kGold,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           _QtyButton(icon: Icons.add_rounded, onTap: onIncrease),
@@ -762,7 +836,9 @@ class _CartRow extends StatelessWidget {
                   Text(
                     item.choicesLabel!,
                     style: GoogleFonts.lato(
-                        color: const Color(0xFFFFAB00), fontSize: 11),
+                      color: const Color(0xFFFFAB00),
+                      fontSize: 11,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -770,10 +846,42 @@ class _CartRow extends StatelessWidget {
                   Text(
                     item.notes!,
                     style: GoogleFonts.lato(
-                        color: kParchmentDim.withAlpha(160), fontSize: 11),
+                      color: kParchmentDim.withAlpha(160),
+                      fontSize: 11,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                GestureDetector(
+                  onTap: onToggleTakeout,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          item.isTakeout
+                              ? Icons.check_box_rounded
+                              : Icons.check_box_outline_blank_rounded,
+                          size: 16,
+                          color: item.isTakeout
+                              ? const Color(0xFFFFAB00)
+                              : kParchmentDim,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Preparar para llevar',
+                          style: GoogleFonts.lato(
+                            color: item.isTakeout
+                                ? const Color(0xFFFFAB00)
+                                : kParchmentDim,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -781,7 +889,10 @@ class _CartRow extends StatelessWidget {
           Text(
             '\$${item.subtotal.toStringAsFixed(2)}',
             style: GoogleFonts.lato(
-                color: kGoldLight, fontSize: 13, fontWeight: FontWeight.w600),
+              color: kGoldLight,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(width: 4),
           GestureDetector(

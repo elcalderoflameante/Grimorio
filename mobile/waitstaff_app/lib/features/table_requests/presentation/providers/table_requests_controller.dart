@@ -8,11 +8,7 @@ import '../../data/models/table_service_models.dart';
 import '../../data/services/table_service_api_service.dart';
 import '../../data/services/table_service_signalr_service.dart';
 
-enum TableRequestsConnectionStatus {
-  connecting,
-  connected,
-  degraded,
-}
+enum TableRequestsConnectionStatus { connecting, connected, degraded }
 
 class TableRequestsState {
   const TableRequestsState({
@@ -222,5 +218,5 @@ class TableRequestsController extends StateNotifier<TableRequestsState> {
 
 final tableRequestsControllerProvider =
     StateNotifierProvider<TableRequestsController, TableRequestsState>(
-  (ref) => TableRequestsController(ref),
-);
+      (ref) => TableRequestsController(ref),
+    );

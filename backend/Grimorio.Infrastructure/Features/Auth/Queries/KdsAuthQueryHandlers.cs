@@ -74,3 +74,40 @@ public class GetKdsUsersQueryHandler : IRequestHandler<GetKdsUsersQuery, List<Kd
             .ToListAsync(cancellationToken);
     }
 }
+
+public class GetWaitstaffUsersQueryHandler : IRequestHandler<GetWaitstaffUsersQuery, List<KdsUserDto>>
+{
+    private readonly GrimorioDbContext _context;
+
+    public GetWaitstaffUsersQueryHandler(GrimorioDbContext context) => _context = context;
+
+    public async Task<List<KdsUserDto>> Handle(GetWaitstaffUsersQuery request, CancellationToken cancellationToken)
+    {
+        var userIds = await _context.UserRoles
+            .AsNoTracking()
+            .Where(ur =>
+                ur.BranchId == request.BranchId &&
+                !ur.IsDeleted &&
+                ur.Role != null &&
+                !ur.Role.IsDeleted &&
+                ur.Role.IsActive &&
+                ur.Role.Name == AppConstants.Roles.Waiter)
+            .Select(ur => ur.UserId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return await _context.Users
+            .AsNoTracking()
+            .Where(u => userIds.Contains(u.Id) && u.BranchId == request.BranchId && !u.IsDeleted && u.IsActive)
+            .OrderBy(u => u.FirstName)
+            .ThenBy(u => u.LastName)
+            .Select(u => new KdsUserDto
+            {
+                Id = u.Id,
+                FirstName = u.FirstName,
+                LastName = u.LastName,
+                HasKdsPin = !string.IsNullOrEmpty(u.KdsPinHash)
+            })
+            .ToListAsync(cancellationToken);
+    }
+}

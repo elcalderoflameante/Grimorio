@@ -81,6 +81,7 @@ public class OrdenItemConfiguration : IEntityTypeConfiguration<OrderItem>
             .IsRequired();
 
         builder.Property(x => x.Notes).HasMaxLength(300);
+        builder.Property(x => x.IsTakeout).HasDefaultValue(false);
         builder.Property(x => x.UnitPrice).HasColumnType("numeric(18,2)");
         builder.Property(x => x.DiscountPct).HasColumnType("numeric(5,2)");
         builder.Property(x => x.DiscountAmount).HasColumnType("numeric(18,2)");

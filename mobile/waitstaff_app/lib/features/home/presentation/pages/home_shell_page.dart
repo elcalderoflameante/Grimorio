@@ -15,27 +15,23 @@ class HomeShellPage extends ConsumerStatefulWidget {
 }
 
 class _HomeShellPageState extends ConsumerState<HomeShellPage> {
-  int _selectedIndex = 1;
+  int _selectedIndex = 0;
 
-  static const _pages = [
-    OrdersPage(),
-    TableRequestsPage(),
-  ];
+  static const _pages = [OrdersPage(), TableRequestsPage()];
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(tableRequestsControllerProvider);
     final activeCount = state.requests
-        .where((r) =>
-            r.status != TableServiceRequestStatus.completed &&
-            r.status != TableServiceRequestStatus.cancelled)
+        .where(
+          (r) =>
+              r.status != TableServiceRequestStatus.completed &&
+              r.status != TableServiceRequestStatus.cancelled,
+        )
         .length;
 
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _pages,
-      ),
+      body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           border: Border(
@@ -49,11 +45,17 @@ class _HomeShellPageState extends ConsumerState<HomeShellPage> {
             const NavigationDestination(
               icon: Icon(Icons.receipt_long_outlined),
               selectedIcon: Icon(Icons.receipt_long),
-              label: 'Pedidos',
+              label: 'Mesas',
             ),
             NavigationDestination(
-              icon: _RequestsBadge(count: activeCount, icon: Icons.notifications_outlined),
-              selectedIcon: _RequestsBadge(count: activeCount, icon: Icons.notifications),
+              icon: _RequestsBadge(
+                count: activeCount,
+                icon: Icons.notifications_outlined,
+              ),
+              selectedIcon: _RequestsBadge(
+                count: activeCount,
+                icon: Icons.notifications,
+              ),
               label: 'Solicitudes',
             ),
           ],

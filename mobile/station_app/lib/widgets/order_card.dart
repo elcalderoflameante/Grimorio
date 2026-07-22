@@ -283,6 +283,20 @@ class _ItemRow extends StatelessWidget {
                   ),
                 ],
 
+                if (item.isTakeout) ...[
+                  const SizedBox(height: 5),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 22),
+                    child: Row(
+                      children: [
+                        Icon(Icons.shopping_bag_rounded, color: Colors.orangeAccent, size: 14),
+                        SizedBox(width: 4),
+                        Text('PARA LLEVAR', style: TextStyle(color: Colors.orangeAccent, fontSize: 12, fontWeight: FontWeight.w800)),
+                      ],
+                    ),
+                  ),
+                ],
+
                 // Notas libres del mesero
                 if (item.notes != null && item.notes!.isNotEmpty) ...[
                   const SizedBox(height: 5),

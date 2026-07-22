@@ -133,7 +133,6 @@ class TableServiceSignalRService {
   }
 }
 
-final tableServiceSignalRServiceProvider =
-    Provider<TableServiceSignalRService>(
+final tableServiceSignalRServiceProvider = Provider<TableServiceSignalRService>(
   (ref) => TableServiceSignalRService(ref),
 );

@@ -99,6 +99,7 @@ public class OrderItemDto
     public decimal TaxAmount { get; set; }
     public decimal TotalPrice { get; set; }
     public string? Notes { get; set; }
+    public bool IsTakeout { get; set; }
     public string Status { get; set; } = string.Empty;
     public List<IngredientChoiceDto> IngredientChoices { get; set; } = [];
 }
@@ -119,6 +120,7 @@ public class CreateOrderItemDto
     public int Quantity { get; set; }
     public decimal DiscountPct { get; set; }
     public string? Notes { get; set; }
+    public bool IsTakeout { get; set; }
     public List<CreateIngredientChoiceDto> IngredientChoices { get; set; } = [];
 }
 
@@ -187,6 +189,7 @@ public class StationItemDto
     public string ItemName { get; set; } = string.Empty;
     public int Quantity { get; set; }
     public string? Notes { get; set; }
+    public bool IsTakeout { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime ConfirmedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }

@@ -17,6 +17,7 @@ class StationItem {
   final String itemName;
   final int quantity;
   String? notes;
+  final bool isTakeout;
   String status;
   final DateTime confirmedAt;
   final DateTime? updatedAt;
@@ -33,6 +34,7 @@ class StationItem {
     required this.itemName,
     required this.quantity,
     this.notes,
+    this.isTakeout = false,
     required this.status,
     required this.confirmedAt,
     this.updatedAt,
@@ -50,6 +52,7 @@ class StationItem {
         itemName: json['itemName'] as String,
         quantity: json['quantity'] as int,
         notes: json['notes'] as String?,
+        isTakeout: json['isTakeout'] as bool? ?? false,
         status: json['status'] as String,
         confirmedAt: DateTime.parse(json['confirmedAt'] as String),
         updatedAt: json['updatedAt'] != null

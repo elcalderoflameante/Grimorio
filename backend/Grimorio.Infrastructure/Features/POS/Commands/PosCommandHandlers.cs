@@ -155,6 +155,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
                 TaxAmount = taxAmt,
                 TotalPrice = totalPrice,
                 Notes = itemDto.Notes?.Trim(),
+                IsTakeout = itemDto.IsTakeout,
                 Status = OrderItemStatus.Pending,
             };
             foreach (var choice in itemDto.IngredientChoices)
@@ -260,6 +261,7 @@ public class CreateDirectSaleCommandHandler : IRequestHandler<CreateDirectSaleCo
                 TaxAmount = taxAmt,
                 TotalPrice = totalPrice,
                 Notes = itemDto.Notes?.Trim(),
+                IsTakeout = itemDto.IsTakeout,
                 Status = OrderItemStatus.Pending,
             };
 
@@ -365,6 +367,7 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
                 TaxAmount = taxAmt,
                 TotalPrice = totalPrice,
                 Notes = itemDto.Notes?.Trim(),
+                IsTakeout = itemDto.IsTakeout,
                 Status = OrderItemStatus.Pending,
             };
             foreach (var choice in itemDto.IngredientChoices)
@@ -1153,6 +1156,7 @@ internal static class PosMapper
         TaxAmount = i.TaxAmount,
         TotalPrice = i.TotalPrice,
         Notes = i.Notes,
+        IsTakeout = i.IsTakeout,
         Status = i.Status.ToString(),
         IngredientChoices = i.IngredientChoices
             .Where(c => !c.IsDeleted)

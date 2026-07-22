@@ -33,9 +33,15 @@ public class TableServiceController : ControllerBase
 
     [Authorize(Policy = "POS.Tables.View")]
     [HttpGet("tables")]
-    public async Task<IActionResult> GetTables([FromQuery] Guid branchId)
+    public async Task<IActionResult> GetTables([FromQuery] Guid? branchId)
     {
-        var result = await _mediator.Send(new GetRestaurantTablesQuery { BranchId = branchId });
+        var effectiveBranchId = branchId;
+        if (!effectiveBranchId.HasValue)
+        {
+            if (!TryGetBranchId(out var tokenBranchId)) return Unauthorized();
+            effectiveBranchId = tokenBranchId;
+        }
+        var result = await _mediator.Send(new GetRestaurantTablesQuery { BranchId = effectiveBranchId.Value });
         return Ok(result);
     }
 

@@ -15,8 +15,8 @@ class AuthRepository {
   AuthRepository({
     required AuthApiService apiService,
     required AuthStorageService storageService,
-  })  : _apiService = apiService,
-        _storageService = storageService;
+  }) : _apiService = apiService,
+       _storageService = storageService;
 
   final AuthApiService _apiService;
   final AuthStorageService _storageService;
@@ -33,6 +33,26 @@ class AuthRepository {
       LoginRequest(email: email.trim(), password: password),
     );
 
+    await _storageService.saveSession(session);
+    return session;
+  }
+
+  Future<List<PinBranch>> getWaitstaffBranches() =>
+      _apiService.getWaitstaffBranches();
+
+  Future<List<PinUser>> getWaitstaffUsers(String branchId) =>
+      _apiService.getWaitstaffUsers(branchId);
+
+  Future<AuthSession> loginWithPin({
+    required String branchId,
+    required String userId,
+    required String pin,
+  }) async {
+    final session = await _apiService.loginWithPin(
+      branchId: branchId,
+      userId: userId,
+      pin: pin,
+    );
     await _storageService.saveSession(session);
     return session;
   }
