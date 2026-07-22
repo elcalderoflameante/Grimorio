@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Alert, Button, Card, Checkbox, Col, Divider, Empty, Input, InputNumber, Popconfirm,
-  List, Modal, Row, Select, Space, Spin, Tabs, Tag, Tooltip, Typography, message,
+  Alert, App as AntApp, Button, Card, Checkbox, Col, Divider, Empty, Input, InputNumber, Popconfirm,
+  Modal, Row, Select, Space, Spin, Tabs, Tag, Tooltip, Typography,
 } from 'antd';
 import {
   ArrowLeftOutlined, CheckCircleOutlined, DeleteOutlined, DollarOutlined, EditOutlined,
@@ -79,6 +79,7 @@ interface Props {
 }
 
 export default function TableOrderView({ orderId, table, branchId, onClose, onTableUpdated }: Props) {
+  const { message } = AntApp.useApp();
   const { hasPermission } = useAuth();
   const [order, setOrder] = useState<OrderDto | null>(null);
   const [payments, setPayments] = useState<OrderPaymentDto[]>([]);
@@ -744,17 +745,15 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
               <Empty description="Sin ítems" image={Empty.PRESENTED_IMAGE_SIMPLE} />
             ) : (
               <>
-                <List
-                  dataSource={order.items}
-                  size="small"
-                  renderItem={item => {
+                <div>
+                  {order.items.map(item => {
                     const canCancelItem = canCancelOrders
                       && item.status === 'Pending'
                       && !isItemPaid(item.id)
                       && !hasAmbiguousPayments;
                     const canEditItemNotes = canUpdateOrders && item.status === 'Pending';
                     return (
-                    <List.Item style={{ padding: '4px 0' }}>
+                    <div key={item.id} style={{ padding: '4px 0' }}>
                       <div style={{ width: '100%', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                         <Text strong style={{ minWidth: 24, fontSize: 13 }}>{item.quantity}×</Text>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -808,10 +807,10 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                           ${item.totalPrice.toFixed(2)}
                         </Text>
                       </div>
-                    </List.Item>
+                    </div>
                     );
-                  }}
-                />
+                  })}
+                </div>
 
                 {cart.length > 0 && (
                   <>
@@ -928,7 +927,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
             )}
           </Card>
 
-          <Space direction="vertical" style={{ width: '100%' }}>
+          <Space orientation="vertical" style={{ width: '100%' }}>
             {canUpdateOrders && cart.length > 0 && (
               <Button block loading={saving} onClick={handleSave} icon={<PlusOutlined />}>
                 Guardar nuevos ítems
