@@ -32,33 +32,36 @@ class _HomeShellPageState extends ConsumerState<HomeShellPage> {
 
     return Scaffold(
       body: IndexedStack(index: _selectedIndex, children: _pages),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(color: kGoldDark.withAlpha(80), width: 1),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(color: kGoldDark.withAlpha(80), width: 1),
+            ),
           ),
-        ),
-        child: NavigationBar(
-          selectedIndex: _selectedIndex,
-          onDestinationSelected: (i) => setState(() => _selectedIndex = i),
-          destinations: [
-            const NavigationDestination(
-              icon: Icon(Icons.receipt_long_outlined),
-              selectedIcon: Icon(Icons.receipt_long),
-              label: 'Mesas',
-            ),
-            NavigationDestination(
-              icon: _RequestsBadge(
-                count: activeCount,
-                icon: Icons.notifications_outlined,
+          child: NavigationBar(
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: (i) => setState(() => _selectedIndex = i),
+            destinations: [
+              const NavigationDestination(
+                icon: Icon(Icons.receipt_long_outlined),
+                selectedIcon: Icon(Icons.receipt_long),
+                label: 'Mesas',
               ),
-              selectedIcon: _RequestsBadge(
-                count: activeCount,
-                icon: Icons.notifications,
+              NavigationDestination(
+                icon: _RequestsBadge(
+                  count: activeCount,
+                  icon: Icons.notifications_outlined,
+                ),
+                selectedIcon: _RequestsBadge(
+                  count: activeCount,
+                  icon: Icons.notifications,
+                ),
+                label: 'Solicitudes',
               ),
-              label: 'Solicitudes',
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

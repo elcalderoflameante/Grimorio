@@ -52,6 +52,12 @@ class OrderApiService {
         .toList();
   }
 
+  Future<OrderDto> getOrder(String id) async {
+    final dio = _ref.read(dioProvider);
+    final res = await dio.get('/pos/ordenes/$id');
+    return OrderDto.fromJson(res.data as Map<String, dynamic>);
+  }
+
   Future<OrderDto> createOrder({
     required OrderType type,
     String? tableId,

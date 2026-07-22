@@ -8,6 +8,7 @@ import '../../../auth/presentation/providers/auth_controller.dart';
 import '../../data/models/order_models.dart';
 import '../../data/services/order_api_service.dart';
 import 'new_order_page.dart';
+import 'table_account_page.dart';
 
 class OrdersPage extends ConsumerStatefulWidget {
   const OrdersPage({super.key});
@@ -53,16 +54,17 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
   }
 
   Future<void> _openTable(TableDto table) async {
-    await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => NewOrderPage(
-          type: OrderType.dineIn,
-          table: table,
-          orderId: table.currentOrderId,
-          orderIsDraft: table.currentStatus == 'Draft',
+    if (table.isFree || table.currentOrderId == null) {
+      await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => NewOrderPage(type: OrderType.dineIn, table: table),
         ),
-      ),
-    );
+      );
+    } else {
+      await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => TableAccountPage(table: table)),
+      );
+    }
     await _loadTables();
   }
 

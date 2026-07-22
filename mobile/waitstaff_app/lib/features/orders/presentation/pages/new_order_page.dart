@@ -418,7 +418,12 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
               if (_totalItems > 0) const SizedBox(height: 80),
             ],
           ),
-          Positioned(left: 0, right: 0, bottom: 0, child: _buildCartPanel()),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SafeArea(top: false, child: _buildCartPanel()),
+          ),
         ],
       ),
     );
