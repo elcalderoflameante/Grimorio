@@ -72,13 +72,21 @@ class TableServiceSignalRService {
       (args) => _handleEvent('request-updated', args, onRequestUpdated),
     );
 
-    await (connection.start() ?? Future.value()).timeout(
-      const Duration(seconds: 15),
-      onTimeout: () => throw TimeoutException('SignalR connect timeout'),
-    );
     _connection = connection;
-    onConnected?.call();
-    debugPrint('[SignalR] Connected to $hubUrl');
+    try {
+      await (connection.start() ?? Future.value()).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => throw TimeoutException('SignalR connect timeout'),
+      );
+      onConnected?.call();
+      debugPrint('[SignalR] Connected to $hubUrl');
+    } catch (_) {
+      if (identical(_connection, connection)) {
+        _connection = null;
+      }
+      await connection.stop();
+      rethrow;
+    }
   }
 
   Future<void> disconnect() async {

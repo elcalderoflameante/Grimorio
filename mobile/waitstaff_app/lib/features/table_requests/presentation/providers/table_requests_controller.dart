@@ -44,14 +44,26 @@ class TableRequestsController extends StateNotifier<TableRequestsState> {
   final Ref _ref;
   Timer? _refreshTimer;
   Timer? _reconnectTimer;
+  bool _isInitialized = false;
   bool _isRefreshing = false;
   bool _isConnectingSignalR = false;
 
   Future<void> initialize() async {
-    await _ref.read(alertServiceProvider).initialize();
-    await _refreshRequests(showLoading: true);
+    if (_isInitialized) return;
+
+    _isInitialized = true;
     _startAutoRefresh();
     _connectSignalR();
+    unawaited(_initializeAlerts());
+    await _refreshRequests(showLoading: true);
+  }
+
+  Future<void> _initializeAlerts() async {
+    try {
+      await _ref.read(alertServiceProvider).initialize();
+    } catch (e) {
+      debugPrint('[Alerts] Initialization failed: $e');
+    }
   }
 
   Future<void> loadRequests() async {
@@ -124,7 +136,10 @@ class TableRequestsController extends StateNotifier<TableRequestsState> {
     final signalR = _ref.read(tableServiceSignalRServiceProvider);
     signalR.onConnecting = () {
       state = state.copyWith(
-        connectionStatus: TableRequestsConnectionStatus.connecting,
+        connectionStatus:
+            state.connectionStatus == TableRequestsConnectionStatus.connecting
+            ? TableRequestsConnectionStatus.connecting
+            : TableRequestsConnectionStatus.degraded,
       );
     };
     signalR.onConnected = () {
