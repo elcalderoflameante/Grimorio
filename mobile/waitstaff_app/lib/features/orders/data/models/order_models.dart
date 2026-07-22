@@ -64,6 +64,7 @@ class OrderItemDto {
   final String? notes;
   final bool isTakeout;
   final OrderItemStatus status;
+  final List<ModifierSelectionDto> modifierSelections;
 
   const OrderItemDto({
     required this.id,
@@ -78,6 +79,7 @@ class OrderItemDto {
     this.notes,
     required this.isTakeout,
     required this.status,
+    this.modifierSelections = const [],
   });
 
   factory OrderItemDto.fromJson(Map<String, dynamic> j) => OrderItemDto(
@@ -93,7 +95,34 @@ class OrderItemDto {
     notes: j['notes'] as String?,
     isTakeout: j['isTakeout'] as bool? ?? false,
     status: OrderItemStatus.fromApi(j['status']),
+    modifierSelections: (j['modifierSelections'] as List<dynamic>? ?? [])
+        .map((e) => ModifierSelectionDto.fromJson(e as Map<String, dynamic>))
+        .toList(),
   );
+}
+
+class ModifierSelectionDto {
+  final String groupName;
+  final String optionName;
+  final int quantity;
+  final double totalPriceDelta;
+
+  const ModifierSelectionDto({
+    required this.groupName,
+    required this.optionName,
+    required this.quantity,
+    required this.totalPriceDelta,
+  });
+
+  String get label => quantity > 1 ? '$optionName ×$quantity' : optionName;
+
+  factory ModifierSelectionDto.fromJson(Map<String, dynamic> j) =>
+      ModifierSelectionDto(
+        groupName: j['groupName'] as String? ?? '',
+        optionName: j['optionName'] as String? ?? '',
+        quantity: (j['quantity'] as num?)?.toInt() ?? 1,
+        totalPriceDelta: (j['totalPriceDelta'] as num?)?.toDouble() ?? 0,
+      );
 }
 
 class OrderDto {
@@ -171,6 +200,73 @@ class MenuCategoryDto {
   );
 }
 
+class MenuItemModifierOptionDto {
+  final String id;
+  final String name;
+  final double priceDelta;
+  final bool isTracked;
+  final bool isAvailable;
+  final double? availableQuantity;
+
+  const MenuItemModifierOptionDto({
+    required this.id,
+    required this.name,
+    required this.priceDelta,
+    required this.isTracked,
+    required this.isAvailable,
+    this.availableQuantity,
+  });
+
+  factory MenuItemModifierOptionDto.fromJson(Map<String, dynamic> j) =>
+      MenuItemModifierOptionDto(
+        id: j['id'] as String,
+        name: j['name'] as String? ?? '',
+        priceDelta: (j['priceDelta'] as num?)?.toDouble() ?? 0,
+        isTracked: j['isTracked'] as bool? ?? false,
+        isAvailable: j['isAvailable'] as bool? ?? true,
+        availableQuantity: (j['availableQuantity'] as num?)?.toDouble(),
+      );
+}
+
+class MenuItemModifierGroupDto {
+  final String id;
+  final String name;
+  final int minSelections;
+  final int maxSelections;
+  final bool isRequired;
+  final bool allowDuplicates;
+  final List<MenuItemModifierOptionDto> options;
+
+  const MenuItemModifierGroupDto({
+    required this.id,
+    required this.name,
+    required this.minSelections,
+    required this.maxSelections,
+    required this.isRequired,
+    required this.allowDuplicates,
+    required this.options,
+  });
+
+  int get effectiveMinimum =>
+      isRequired && minSelections == 0 ? 1 : minSelections;
+
+  factory MenuItemModifierGroupDto.fromJson(Map<String, dynamic> j) =>
+      MenuItemModifierGroupDto(
+        id: j['id'] as String,
+        name: j['name'] as String? ?? '',
+        minSelections: (j['minSelections'] as num?)?.toInt() ?? 0,
+        maxSelections: (j['maxSelections'] as num?)?.toInt() ?? 1,
+        isRequired: j['isRequired'] as bool? ?? false,
+        allowDuplicates: j['allowDuplicates'] as bool? ?? false,
+        options: (j['options'] as List<dynamic>? ?? [])
+            .map(
+              (e) =>
+                  MenuItemModifierOptionDto.fromJson(e as Map<String, dynamic>),
+            )
+            .toList(),
+      );
+}
+
 class MenuItemDto {
   final String id;
   final String name;
@@ -180,6 +276,8 @@ class MenuItemDto {
   final String categoryName;
   final String? categoryColor;
   final bool isActive;
+  final bool hasModifiers;
+  final List<MenuItemModifierGroupDto> modifierGroups;
 
   const MenuItemDto({
     required this.id,
@@ -190,6 +288,8 @@ class MenuItemDto {
     required this.categoryName,
     this.categoryColor,
     required this.isActive,
+    this.hasModifiers = false,
+    this.modifierGroups = const [],
   });
 
   factory MenuItemDto.fromJson(Map<String, dynamic> j) => MenuItemDto(
@@ -201,6 +301,12 @@ class MenuItemDto {
     categoryName: j['categoryName'] as String? ?? '',
     categoryColor: j['categoryColor'] as String?,
     isActive: j['isActive'] as bool? ?? true,
+    hasModifiers: j['hasModifiers'] as bool? ?? false,
+    modifierGroups: (j['modifierGroups'] as List<dynamic>? ?? [])
+        .map(
+          (e) => MenuItemModifierGroupDto.fromJson(e as Map<String, dynamic>),
+        )
+        .toList(),
   );
 }
 
@@ -247,6 +353,28 @@ class TableDto {
 
 // ── Carrito local (no viene del servidor) ─────────────────────────────────
 
+class CartModifierSelection {
+  final String modifierOptionId;
+  final String groupName;
+  final String optionName;
+  final int quantity;
+  final double unitPriceDelta;
+  final bool isTracked;
+  final double? availableQuantity;
+
+  const CartModifierSelection({
+    required this.modifierOptionId,
+    required this.groupName,
+    required this.optionName,
+    required this.quantity,
+    required this.unitPriceDelta,
+    required this.isTracked,
+    this.availableQuantity,
+  });
+
+  String get label => quantity > 1 ? '$optionName ×$quantity' : optionName;
+}
+
 class CartItem {
   final String menuItemId;
   final String name;
@@ -254,6 +382,7 @@ class CartItem {
   int quantity;
   String? notes;
   bool isTakeout;
+  final List<CartModifierSelection> modifierSelections;
 
   CartItem({
     required this.menuItemId,
@@ -262,7 +391,27 @@ class CartItem {
     this.quantity = 1,
     this.notes,
     this.isTakeout = false,
+    this.modifierSelections = const [],
   });
 
   double get subtotal => price * quantity;
+
+  String? get modifiersLabel => modifierSelections.isEmpty
+      ? null
+      : modifierSelections.map((selection) => selection.label).join(', ');
+
+  int? get maximumQuantityFromModifiers {
+    final limits = modifierSelections
+        .where(
+          (selection) =>
+              selection.isTracked && selection.availableQuantity != null,
+        )
+        .map(
+          (selection) =>
+              (selection.availableQuantity! / selection.quantity).floor(),
+        )
+        .toList();
+    if (limits.isEmpty) return null;
+    return limits.reduce((current, next) => current < next ? current : next);
+  }
 }

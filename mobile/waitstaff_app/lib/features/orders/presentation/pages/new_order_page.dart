@@ -91,10 +91,28 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
 
   // ── Carrito ───────────────────────────────────────────────────────────────
 
-  void _addItem(MenuItemDto item) {
+  Future<void> _addItem(MenuItemDto item) async {
+    if (item.hasModifiers || item.modifierGroups.isNotEmpty) {
+      try {
+        final detail = await ref
+            .read(orderApiServiceProvider)
+            .getMenuItem(item.id);
+        if (!mounted) return;
+        await _showModifierDialog(detail);
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No se pudieron cargar los modificadores: $e'),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       final idx = _cart.indexWhere(
-        (c) => c.menuItemId == item.id,
+        (c) => c.menuItemId == item.id && c.modifierSelections.isEmpty,
       );
       if (idx >= 0) {
         _cart[idx].quantity++;
@@ -106,9 +124,298 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
     });
   }
 
-  void _changeQuantity(int idx, int delta) {
+  Future<void> _showModifierDialog(MenuItemDto item) async {
+    final selected = <String, int>{};
+    var showValidationError = false;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: kBgCard,
+          title: Text(
+            item.name,
+            style: GoogleFonts.cinzel(color: kGold, fontSize: 17),
+          ),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (showValidationError) ...[
+                    Text(
+                      'Revisa las opciones requeridas y sus cantidades.',
+                      style: GoogleFonts.lato(
+                        color: Theme.of(context).colorScheme.error,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  ...item.modifierGroups.map((group) {
+                    final selectedCount = group.options.fold<int>(
+                      0,
+                      (sum, option) => sum + (selected[option.id] ?? 0),
+                    );
+                    final invalid =
+                        showValidationError &&
+                        (selectedCount < group.effectiveMinimum ||
+                            selectedCount > group.maxSelections);
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  group.name,
+                                  style: GoogleFonts.cinzel(
+                                    color: invalid ? Colors.redAccent : kGold,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '$selectedCount/${group.maxSelections}',
+                                style: GoogleFonts.lato(
+                                  color: invalid
+                                      ? Colors.redAccent
+                                      : kParchmentDim,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          ...group.options.map((option) {
+                            final quantity = selected[option.id] ?? 0;
+                            final used = _usedModifierQuantity(option.id);
+                            final stockLimit = option.isTracked
+                                ? (option.availableQuantity ?? 0).floor()
+                                : null;
+                            final remainingStock = stockLimit == null
+                                ? null
+                                : (stockLimit - used)
+                                      .clamp(0, stockLimit)
+                                      .toInt();
+                            final outOfStock =
+                                !option.isAvailable || remainingStock == 0;
+                            final canAdd =
+                                !outOfStock &&
+                                selectedCount < group.maxSelections &&
+                                (group.allowDuplicates || quantity == 0) &&
+                                (remainingStock == null ||
+                                    quantity < remainingStock);
+
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: quantity > 0
+                                    ? kGold.withAlpha(25)
+                                    : kBgMid,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: outOfStock
+                                      ? Colors.redAccent.withAlpha(150)
+                                      : quantity > 0
+                                      ? kGold
+                                      : kGoldDark.withAlpha(70),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          option.name,
+                                          style: GoogleFonts.lato(
+                                            color: outOfStock
+                                                ? kParchmentDim
+                                                : kParchment,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        if (option.priceDelta != 0 ||
+                                            option.isTracked)
+                                          Text(
+                                            [
+                                              if (option.priceDelta != 0)
+                                                '${option.priceDelta > 0 ? '+' : ''}\$${option.priceDelta.toStringAsFixed(2)}',
+                                              if (option.isTracked)
+                                                outOfStock
+                                                    ? 'Sin stock'
+                                                    : 'Disponibles: $remainingStock',
+                                            ].join(' · '),
+                                            style: GoogleFonts.lato(
+                                              color: outOfStock
+                                                  ? Colors.redAccent
+                                                  : kParchmentDim,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  _QtyButton(
+                                    icon: Icons.remove_rounded,
+                                    onTap: quantity > 0
+                                        ? () => setDialogState(() {
+                                            selected[option.id] = quantity - 1;
+                                            showValidationError = false;
+                                          })
+                                        : null,
+                                  ),
+                                  SizedBox(
+                                    width: 36,
+                                    child: Text(
+                                      '$quantity',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.cinzel(
+                                        color: kGold,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  _QtyButton(
+                                    icon: Icons.add_rounded,
+                                    onTap: canAdd
+                                        ? () => setDialogState(() {
+                                            selected[option.id] = quantity + 1;
+                                            showValidationError = false;
+                                          })
+                                        : null,
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final invalid = item.modifierGroups.any((group) {
+                  final total = group.options.fold<int>(
+                    0,
+                    (sum, option) => sum + (selected[option.id] ?? 0),
+                  );
+                  return total < group.effectiveMinimum ||
+                      total > group.maxSelections;
+                });
+                if (invalid) {
+                  setDialogState(() => showValidationError = true);
+                  return;
+                }
+                Navigator.of(dialogContext).pop(true);
+              },
+              child: const Text('Agregar'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final selections = <CartModifierSelection>[];
+    for (final group in item.modifierGroups) {
+      for (final option in group.options) {
+        final quantity = selected[option.id] ?? 0;
+        if (quantity <= 0) continue;
+        selections.add(
+          CartModifierSelection(
+            modifierOptionId: option.id,
+            groupName: group.name,
+            optionName: option.name,
+            quantity: quantity,
+            unitPriceDelta: option.priceDelta,
+            isTracked: option.isTracked,
+            availableQuantity: option.availableQuantity,
+          ),
+        );
+      }
+    }
+    final modifierTotal = selections.fold<double>(
+      0,
+      (sum, selection) => sum + selection.unitPriceDelta * selection.quantity,
+    );
     setState(() {
-      _cart[idx].quantity += delta;
+      _cart.add(
+        CartItem(
+          menuItemId: item.id,
+          name: item.name,
+          price: item.price + modifierTotal,
+          modifierSelections: selections,
+        ),
+      );
+    });
+  }
+
+  int _usedModifierQuantity(String modifierOptionId, {int? excludingIndex}) {
+    var used = 0;
+    for (var index = 0; index < _cart.length; index++) {
+      if (index == excludingIndex) continue;
+      final item = _cart[index];
+      for (final selection in item.modifierSelections) {
+        if (selection.modifierOptionId == modifierOptionId) {
+          used += selection.quantity * item.quantity;
+        }
+      }
+    }
+    return used;
+  }
+
+  void _changeQuantity(int idx, int delta) {
+    final item = _cart[idx];
+    final nextQuantity = item.quantity + delta;
+    if (delta > 0) {
+      for (final selection in item.modifierSelections) {
+        if (!selection.isTracked || selection.availableQuantity == null) {
+          continue;
+        }
+        final usedByOthers = _usedModifierQuantity(
+          selection.modifierOptionId,
+          excludingIndex: idx,
+        );
+        final required = selection.quantity * nextQuantity;
+        if (usedByOthers + required > selection.availableQuantity!.floor()) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'No hay stock suficiente de ${selection.optionName}.',
+              ),
+            ),
+          );
+          return;
+        }
+      }
+    }
+    setState(() {
+      _cart[idx].quantity = nextQuantity;
       if (_cart[idx].quantity <= 0) _cart.removeAt(idx);
     });
   }
@@ -173,8 +480,9 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
   }
 
   int _quantityInCart(String menuItemId) {
-    final idx = _cart.indexWhere((c) => c.menuItemId == menuItemId);
-    return idx >= 0 ? _cart[idx].quantity : 0;
+    return _cart
+        .where((item) => item.menuItemId == menuItemId)
+        .fold(0, (sum, item) => sum + item.quantity);
   }
 
   // ── Enviar a cocina ───────────────────────────────────────────────────────
@@ -687,6 +995,19 @@ class _CartRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                if (item.modifiersLabel != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      item.modifiersLabel!,
+                      style: GoogleFonts.lato(
+                        color: kGoldLight.withAlpha(190),
+                        fontSize: 11,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 if (item.notes != null)
                   Text(
                     item.notes!,
@@ -768,7 +1089,7 @@ class _QtyButton extends StatelessWidget {
   const _QtyButton({required this.icon, required this.onTap});
 
   final IconData icon;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -779,11 +1100,15 @@ class _QtyButton extends StatelessWidget {
         width: 38,
         height: 38,
         decoration: BoxDecoration(
-          color: kBgCard,
+          color: onTap == null ? kBgMid : kBgCard,
           shape: BoxShape.circle,
           border: Border.all(color: kGoldDark.withAlpha(80)),
         ),
-        child: Icon(icon, size: 20, color: kGoldLight),
+        child: Icon(
+          icon,
+          size: 20,
+          color: onTap == null ? kParchmentDim.withAlpha(80) : kGoldLight,
+        ),
       ),
     );
   }

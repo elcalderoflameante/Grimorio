@@ -40,6 +40,12 @@ class OrderApiService {
         .toList();
   }
 
+  Future<MenuItemDto> getMenuItem(String id) async {
+    final dio = _ref.read(dioProvider);
+    final res = await dio.get('/menu/items/$id');
+    return MenuItemDto.fromJson(res.data as Map<String, dynamic>);
+  }
+
   Future<List<OrderDto>> getOrders({bool activeOnly = true}) async {
     final dio = _ref.read(dioProvider);
     final res = await dio.get(
@@ -76,6 +82,15 @@ class OrderApiService {
               'quantity': i.quantity,
               if (i.notes != null && i.notes!.isNotEmpty) 'notes': i.notes,
               'isTakeout': i.isTakeout,
+              if (i.modifierSelections.isNotEmpty)
+                'modifierSelections': i.modifierSelections
+                    .map(
+                      (selection) => {
+                        'modifierOptionId': selection.modifierOptionId,
+                        'quantity': selection.quantity,
+                      },
+                    )
+                    .toList(),
             },
           )
           .toList(),
@@ -111,6 +126,15 @@ class OrderApiService {
                 'quantity': i.quantity,
                 'notes': i.notes,
                 'isTakeout': i.isTakeout,
+                if (i.modifierSelections.isNotEmpty)
+                  'modifierSelections': i.modifierSelections
+                      .map(
+                        (selection) => {
+                          'modifierOptionId': selection.modifierOptionId,
+                          'quantity': selection.quantity,
+                        },
+                      )
+                      .toList(),
               },
             )
             .toList(),

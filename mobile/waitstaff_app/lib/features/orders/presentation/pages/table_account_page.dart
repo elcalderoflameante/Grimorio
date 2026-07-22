@@ -284,6 +284,16 @@ class _OrderItemCard extends StatelessWidget {
                         fontSize: 11,
                       ),
                     ),
+                  if (item.modifierSelections.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        item.modifierSelections
+                            .map((selection) => selection.label)
+                            .join(', '),
+                        style: const TextStyle(color: kGoldLight, fontSize: 12),
+                      ),
+                    ),
                   if (item.isTakeout)
                     const Padding(
                       padding: EdgeInsets.only(top: 4),
