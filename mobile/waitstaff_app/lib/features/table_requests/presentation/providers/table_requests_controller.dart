@@ -41,6 +41,9 @@ class TableRequestsState {
 class TableRequestsController extends StateNotifier<TableRequestsState> {
   TableRequestsController(this._ref) : super(const TableRequestsState());
 
+  static const _fallbackRefreshInterval = Duration(seconds: 8);
+  static const _connectedRefreshInterval = Duration(seconds: 60);
+
   final Ref _ref;
   Timer? _refreshTimer;
   Timer? _reconnectTimer;
@@ -52,7 +55,7 @@ class TableRequestsController extends StateNotifier<TableRequestsState> {
     if (_isInitialized) return;
 
     _isInitialized = true;
-    _startAutoRefresh();
+    _startAutoRefresh(_fallbackRefreshInterval);
     _connectSignalR();
     unawaited(_initializeAlerts());
     await _refreshRequests(showLoading: true);
@@ -135,6 +138,7 @@ class TableRequestsController extends StateNotifier<TableRequestsState> {
   void _connectSignalR() {
     final signalR = _ref.read(tableServiceSignalRServiceProvider);
     signalR.onConnecting = () {
+      _startAutoRefresh(_fallbackRefreshInterval);
       state = state.copyWith(
         connectionStatus:
             state.connectionStatus == TableRequestsConnectionStatus.connecting
@@ -144,11 +148,14 @@ class TableRequestsController extends StateNotifier<TableRequestsState> {
     };
     signalR.onConnected = () {
       _stopSignalRReconnect();
+      _startAutoRefresh(_connectedRefreshInterval);
       state = state.copyWith(
         connectionStatus: TableRequestsConnectionStatus.connected,
       );
+      unawaited(_refreshRequests(showLoading: false));
     };
     signalR.onDisconnected = () {
+      _startAutoRefresh(_fallbackRefreshInterval);
       state = state.copyWith(
         connectionStatus: TableRequestsConnectionStatus.degraded,
       );
@@ -173,6 +180,7 @@ class TableRequestsController extends StateNotifier<TableRequestsState> {
       await _ref.read(tableServiceSignalRServiceProvider).connect();
     } catch (e) {
       debugPrint('[SignalR] Connection failed: $e');
+      _startAutoRefresh(_fallbackRefreshInterval);
       state = state.copyWith(
         connectionStatus: TableRequestsConnectionStatus.degraded,
       );
@@ -203,9 +211,9 @@ class TableRequestsController extends StateNotifier<TableRequestsState> {
     }
   }
 
-  void _startAutoRefresh() {
+  void _startAutoRefresh(Duration interval) {
     _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+    _refreshTimer = Timer.periodic(interval, (_) {
       _refreshRequests(showLoading: false);
     });
   }
