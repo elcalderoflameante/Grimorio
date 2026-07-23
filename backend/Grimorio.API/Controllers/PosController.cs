@@ -214,38 +214,42 @@ public class PosController : ControllerBase
             Items = dto.Items,
         });
 
-        // Notificar a cada estación los ítems nuevos (Pending) del pedido actualizado
-        var confirmedAt = result.ConfirmedAt ?? result.CreatedAt;
-        var newItemsByStation = result.Items
-            .Where(i => i.StationId.HasValue && i.Status == "Pending")
-            .GroupBy(i => i.StationId!.Value);
-        foreach (var group in newItemsByStation)
+        // Los borradores solo se persisten. Cocina recibe los ítems al confirmar la orden.
+        if (!string.Equals(result.Status, "Draft", StringComparison.OrdinalIgnoreCase))
         {
-            var payload = group.Select(i => new
+            // Notificar a cada estación los ítems nuevos (Pending) del pedido actualizado
+            var confirmedAt = result.ConfirmedAt ?? result.CreatedAt;
+            var newItemsByStation = result.Items
+                .Where(i => i.StationId.HasValue && i.Status == "Pending")
+                .GroupBy(i => i.StationId!.Value);
+            foreach (var group in newItemsByStation)
             {
-                orderItemId = i.Id,
-                orderId = result.Id,
-                orderNumber = result.Number,
-                orderType = result.Type,
-                tableCode = result.TableCode,
-                customerName = result.CustomerName,
-                orderNotes = result.Notes,
-                itemName = i.ItemName,
-                quantity = i.Quantity,
-                notes = i.Notes,
-                isTakeout = i.IsTakeout,
-                status = i.Status,
-                confirmedAt,
-                modifierSelections = i.ModifierSelections.Select(s => new
+                var payload = group.Select(i => new
                 {
-                    groupName = s.GroupName,
-                    optionName = s.OptionName,
-                    quantity = s.Quantity,
-                }),
-            });
-            await _kitchenHub.Clients
-                .Group(KitchenHub.GetStationGroup(group.Key))
-                .SendAsync(KitchenHub.NewItemsEvent, payload);
+                    orderItemId = i.Id,
+                    orderId = result.Id,
+                    orderNumber = result.Number,
+                    orderType = result.Type,
+                    tableCode = result.TableCode,
+                    customerName = result.CustomerName,
+                    orderNotes = result.Notes,
+                    itemName = i.ItemName,
+                    quantity = i.Quantity,
+                    notes = i.Notes,
+                    isTakeout = i.IsTakeout,
+                    status = i.Status,
+                    confirmedAt,
+                    modifierSelections = i.ModifierSelections.Select(s => new
+                    {
+                        groupName = s.GroupName,
+                        optionName = s.OptionName,
+                        quantity = s.Quantity,
+                    }),
+                });
+                await _kitchenHub.Clients
+                    .Group(KitchenHub.GetStationGroup(group.Key))
+                    .SendAsync(KitchenHub.NewItemsEvent, payload);
+            }
         }
 
         return Ok(result);
