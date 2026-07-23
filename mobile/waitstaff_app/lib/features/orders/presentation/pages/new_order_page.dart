@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../core/network/api_error.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/models/order_models.dart';
 import '../../data/services/order_api_service.dart';
@@ -34,6 +35,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
   // ── Catálogo ──────────────────────────────────────────────────────────────
   List<MenuCategoryDto> _categories = [];
   List<MenuItemDto> _items = [];
+  Map<String, MenuItemAvailabilityDto> _availabilityByItemId = {};
   bool _loadingCatalog = true;
   String? _selectedCategory; // null = todas las categorías
 
@@ -100,23 +102,31 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
     setState(() => _loadingCatalog = true);
     try {
       final api = ref.read(orderApiServiceProvider);
-      final (cats, items) = await (
+      final (cats, items, availability) = await (
         api.getCategories(),
         api.getMenuItems(),
+        api.getMenuAvailability(),
       ).wait;
       if (mounted) {
         setState(() {
           _categories = cats;
           _items = items;
+          _availabilityByItemId = {
+            for (final entry in availability) entry.menuItemId: entry,
+          };
           _loadingCatalog = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() => _loadingCatalog = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error al cargar menú: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              readableApiError(e, fallback: 'No se pudo cargar el menú.'),
+            ),
+          ),
+        );
       }
     }
   }
@@ -128,6 +138,20 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
   // ── Carrito ───────────────────────────────────────────────────────────────
 
   Future<void> _addItem(MenuItemDto item) async {
+    final availability = _availabilityByItemId[item.id];
+    if (availability?.isTracked == true && !availability!.isAvailable) {
+      final reason = availability.limitingArticleName;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            reason == null
+                ? '${item.name} está agotado.'
+                : '${item.name} está agotado: falta $reason.',
+          ),
+        ),
+      );
+      return;
+    }
     if (item.hasModifiers || item.modifierGroups.isNotEmpty) {
       try {
         final detail = await ref
@@ -139,7 +163,12 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('No se pudieron cargar los modificadores: $e'),
+            content: Text(
+              readableApiError(
+                e,
+                fallback: 'No se pudieron cargar los modificadores.',
+              ),
+            ),
           ),
         );
       }
@@ -434,6 +463,28 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
     final item = _cart[idx];
     final nextQuantity = item.quantity + delta;
     if (delta > 0) {
+      final availability = _availabilityByItemId[item.menuItemId];
+      final reportedLimit = availability?.isTracked == true
+          ? (availability?.availableQuantity ?? 0).floor()
+          : null;
+      final baseLimit = reportedLimit == null
+          ? null
+          : reportedLimit < 0
+          ? 0
+          : reportedLimit;
+      final totalForItem =
+          _cart
+              .where((line) => line.menuItemId == item.menuItemId)
+              .fold<int>(0, (sum, line) => sum + line.quantity) +
+          1;
+      if (baseLimit != null && totalForItem > baseLimit) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Solo hay $baseLimit disponible(s) de ${item.name}.'),
+          ),
+        );
+        return;
+      }
       for (final selection in item.modifierSelections) {
         if (!selection.isTracked || selection.availableQuantity == null) {
           continue;
@@ -528,7 +579,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
 
   // ── Enviar a cocina ───────────────────────────────────────────────────────
 
-  Future<void> _sendToKitchen() async {
+  Future<void> _saveOrder({required bool confirm}) async {
     if (_cart.isEmpty) return;
     setState(() => _saving = true);
     try {
@@ -536,7 +587,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
       final OrderDto order;
       if (widget.orderId != null) {
         order = await api.addOrderItems(widget.orderId!, _cart);
-        if (widget.orderIsDraft) await api.confirmOrder(order.id);
+        if (confirm && widget.orderIsDraft) await api.confirmOrder(order.id);
       } else {
         order = await api.createOrder(
           type: OrderType.dineIn,
@@ -544,12 +595,16 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
           notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
           items: _cart,
         );
-        await api.confirmOrder(order.id);
+        if (confirm) await api.confirmOrder(order.id);
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Pedido #${order.number} enviado a cocina'),
+            content: Text(
+              confirm
+                  ? 'Pedido #${order.number} enviado a cocina'
+                  : 'Pedido #${order.number} guardado como borrador',
+            ),
             backgroundColor: const Color(0xFF69F0AE).withAlpha(200),
           ),
         );
@@ -558,9 +613,13 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error al enviar pedido: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              readableApiError(e, fallback: 'No se pudo guardar el pedido.'),
+            ),
+          ),
+        );
       }
     }
   }
@@ -679,8 +738,13 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
       itemCount: items.length,
       itemBuilder: (_, i) => _ItemCard(
         item: items[i],
+        availability: _availabilityByItemId[items[i].id],
         quantity: _quantityInCart(items[i].id),
-        onTap: () => _addItem(items[i]),
+        onTap:
+            _availabilityByItemId[items[i].id]?.isTracked == true &&
+                _availabilityByItemId[items[i].id]?.isAvailable == false
+            ? null
+            : () => _addItem(items[i]),
       ),
     );
   }
@@ -805,25 +869,40 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
             ),
           ],
 
-          // Botón enviar a cocina
+          // Acciones del pedido
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: _saving ? null : _sendToKitchen,
-                icon: _saving
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: kBrown,
-                        ),
-                      )
-                    : const Icon(Icons.send_rounded, size: 18),
-                label: Text(_saving ? 'Enviando...' : 'Enviar a cocina'),
-              ),
+            child: Row(
+              children: [
+                if (widget.orderId == null || widget.orderIsDraft) ...[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _saving
+                          ? null
+                          : () => _saveOrder(confirm: false),
+                      icon: const Icon(Icons.save_outlined),
+                      label: const Text('Guardar borrador'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _saving ? null : () => _saveOrder(confirm: true),
+                    icon: _saving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: kBrown,
+                            ),
+                          )
+                        : const Icon(Icons.send_rounded, size: 18),
+                    label: Text(_saving ? 'Enviando...' : 'Enviar a cocina'),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -889,26 +968,38 @@ class _CategoryChip extends StatelessWidget {
 class _ItemCard extends StatelessWidget {
   const _ItemCard({
     required this.item,
+    required this.availability,
     required this.quantity,
     required this.onTap,
   });
 
   final MenuItemDto item;
+  final MenuItemAvailabilityDto? availability;
   final int quantity;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final inCart = quantity > 0;
+    final soldOut =
+        availability?.isTracked == true && availability?.isAvailable == false;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(
-          color: inCart ? kGold.withAlpha(18) : kBgCard,
+          color: soldOut
+              ? kBgMid
+              : inCart
+              ? kGold.withAlpha(18)
+              : kBgCard,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: inCart ? kGold.withAlpha(120) : kGoldDark.withAlpha(60),
+            color: soldOut
+                ? Colors.redAccent.withAlpha(120)
+                : inCart
+                ? kGold.withAlpha(120)
+                : kGoldDark.withAlpha(60),
             width: inCart ? 1.5 : 1,
           ),
         ),
@@ -930,6 +1021,19 @@ class _ItemCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (availability?.isTracked == true)
+                    Text(
+                      soldOut
+                          ? 'AGOTADO'
+                          : 'Disponible: ${availability!.availableQuantity?.floor() ?? 0}',
+                      style: GoogleFonts.lato(
+                        color: soldOut
+                            ? Colors.redAccent
+                            : const Color(0xFF69F0AE),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   const Spacer(),
                   Text(
                     '\$${item.price.toStringAsFixed(2)}',
@@ -964,7 +1068,7 @@ class _ItemCard extends StatelessWidget {
                   ),
                 ),
               ),
-            if (!inCart)
+            if (!inCart && !soldOut)
               Positioned(
                 top: 8,
                 right: 8,

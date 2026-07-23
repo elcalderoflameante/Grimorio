@@ -29,7 +29,10 @@ class OrderApiService {
 
   Future<List<MenuItemDto>> getMenuItems({String? categoryId}) async {
     final dio = _ref.read(dioProvider);
-    final queryParameters = <String, dynamic>{'activeOnly': true};
+    final queryParameters = <String, dynamic>{
+      'activeOnly': true,
+      'availableOnly': true,
+    };
     if (categoryId != null) queryParameters['categoryId'] = categoryId;
 
     final res = await dio.get('/menu/items', queryParameters: queryParameters);
@@ -44,6 +47,17 @@ class OrderApiService {
     final dio = _ref.read(dioProvider);
     final res = await dio.get('/menu/items/$id');
     return MenuItemDto.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<List<MenuItemAvailabilityDto>> getMenuAvailability() async {
+    final dio = _ref.read(dioProvider);
+    final res = await dio.get(
+      '/menu/items/disponibilidad',
+      queryParameters: {'activeOnly': true, 'availableOnly': true},
+    );
+    return (res.data as List<dynamic>)
+        .map((e) => MenuItemAvailabilityDto.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<List<OrderDto>> getOrders({bool activeOnly = true}) async {
@@ -147,6 +161,15 @@ class OrderApiService {
     final dio = _ref.read(dioProvider);
     final res = await dio.post('/pos/ordenes/$id/cancelar');
     return OrderDto.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<OrderItemDto> updateOrderItemNotes(String id, String? notes) async {
+    final dio = _ref.read(dioProvider);
+    final res = await dio.patch(
+      '/pos/ordenes/items/$id/observacion',
+      data: {'notes': notes},
+    );
+    return OrderItemDto.fromJson(res.data as Map<String, dynamic>);
   }
 }
 

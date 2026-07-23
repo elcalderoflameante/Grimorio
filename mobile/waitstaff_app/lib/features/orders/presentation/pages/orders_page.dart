@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/network/api_error.dart';
 import '../../../auth/presentation/providers/auth_controller.dart';
 import '../../data/models/order_models.dart';
 import '../../data/services/order_api_service.dart';
@@ -21,15 +24,30 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
   List<TableDto> _tables = const [];
   bool _isLoading = true;
   String? _errorMessage;
+  Timer? _refreshTimer;
+  DateTime _now = DateTime.now();
+  bool _refreshing = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadTables());
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _now = DateTime.now();
+      _loadTables(showLoading: false);
+    });
   }
 
-  Future<void> _loadTables() async {
-    if (mounted) {
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadTables({bool showLoading = true}) async {
+    if (_refreshing) return;
+    _refreshing = true;
+    if (mounted && showLoading) {
       setState(() {
         _isLoading = true;
         _errorMessage = null;
@@ -43,13 +61,21 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
       setState(() {
         _tables = tables;
         _isLoading = false;
+        _now = DateTime.now();
       });
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _errorMessage = 'No se pudieron cargar las mesas: $error';
+        if (showLoading) {
+          _errorMessage = readableApiError(
+            error,
+            fallback: 'No se pudieron cargar las mesas.',
+          );
+        }
       });
+    } finally {
+      _refreshing = false;
     }
   }
 
@@ -177,7 +203,11 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
               itemCount: entry.value.length,
               itemBuilder: (_, index) {
                 final table = entry.value[index];
-                return _TableCard(table: table, onTap: () => _openTable(table));
+                return _TableCard(
+                  table: table,
+                  now: _now,
+                  onTap: () => _openTable(table),
+                );
               },
             ),
             const SizedBox(height: 16),
@@ -189,9 +219,14 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
 }
 
 class _TableCard extends StatelessWidget {
-  const _TableCard({required this.table, required this.onTap});
+  const _TableCard({
+    required this.table,
+    required this.now,
+    required this.onTap,
+  });
 
   final TableDto table;
+  final DateTime now;
   final VoidCallback onTap;
 
   @override
@@ -233,6 +268,13 @@ class _TableCard extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
+              if (!table.isFree && table.currentOrderStartedAt != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Tiempo: ${_formatElapsed(table.currentOrderStartedAt!, now)}',
+                  style: GoogleFonts.lato(color: kParchmentDim, fontSize: 11),
+                ),
+              ],
               const SizedBox(height: 5),
               Text(
                 statusLabel,
@@ -255,6 +297,16 @@ class _TableCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatElapsed(DateTime startedAt, DateTime now) {
+  final elapsed = now.toUtc().difference(startedAt.toUtc());
+  final minutes = elapsed.isNegative ? 0 : elapsed.inMinutes;
+  final hours = minutes ~/ 60;
+  final remainder = minutes % 60;
+  return hours == 0
+      ? '$remainder min'
+      : '${hours}h ${remainder.toString().padLeft(2, '0')}m';
 }
 
 int _tableNumber(String code) => int.tryParse(code.trim()) ?? 0x3fffffff;

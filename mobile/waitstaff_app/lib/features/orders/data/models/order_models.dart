@@ -146,6 +146,13 @@ class OrderDto {
   final String? deliveryAddress;
   final String? notes;
   final double subtotal;
+  final double discountTotal;
+  final double taxableBase15;
+  final double taxableBase0;
+  final double taxableBaseExempt;
+  final double iva15;
+  final double ice;
+  final double taxAmount;
   final double total;
   final DateTime? confirmedAt;
   final List<OrderItemDto> items;
@@ -162,6 +169,13 @@ class OrderDto {
     this.deliveryAddress,
     this.notes,
     required this.subtotal,
+    this.discountTotal = 0,
+    this.taxableBase15 = 0,
+    this.taxableBase0 = 0,
+    this.taxableBaseExempt = 0,
+    this.iva15 = 0,
+    this.ice = 0,
+    this.taxAmount = 0,
     required this.total,
     this.confirmedAt,
     required this.items,
@@ -185,6 +199,13 @@ class OrderDto {
     deliveryAddress: j['deliveryAddress'] as String?,
     notes: j['notes'] as String?,
     subtotal: (j['subtotal'] as num).toDouble(),
+    discountTotal: (j['discountTotal'] as num?)?.toDouble() ?? 0,
+    taxableBase15: (j['taxableBase15'] as num?)?.toDouble() ?? 0,
+    taxableBase0: (j['taxableBase0'] as num?)?.toDouble() ?? 0,
+    taxableBaseExempt: (j['taxableBaseExempt'] as num?)?.toDouble() ?? 0,
+    iva15: (j['iva15'] as num?)?.toDouble() ?? 0,
+    ice: (j['ice'] as num?)?.toDouble() ?? 0,
+    taxAmount: (j['taxAmount'] as num?)?.toDouble() ?? 0,
     total: (j['total'] as num).toDouble(),
     confirmedAt: j['confirmedAt'] != null
         ? DateTime.parse(j['confirmedAt'] as String)
@@ -319,6 +340,31 @@ class MenuItemDto {
   );
 }
 
+class MenuItemAvailabilityDto {
+  final String menuItemId;
+  final bool isTracked;
+  final bool isAvailable;
+  final double? availableQuantity;
+  final String? limitingArticleName;
+
+  const MenuItemAvailabilityDto({
+    required this.menuItemId,
+    required this.isTracked,
+    required this.isAvailable,
+    this.availableQuantity,
+    this.limitingArticleName,
+  });
+
+  factory MenuItemAvailabilityDto.fromJson(Map<String, dynamic> j) =>
+      MenuItemAvailabilityDto(
+        menuItemId: j['menuItemId'] as String,
+        isTracked: j['isTracked'] as bool? ?? false,
+        isAvailable: j['isAvailable'] as bool? ?? true,
+        availableQuantity: (j['availableQuantity'] as num?)?.toDouble(),
+        limitingArticleName: j['limitingArticleName'] as String?,
+      );
+}
+
 class TableDto {
   final String id;
   final String code;
@@ -330,6 +376,7 @@ class TableDto {
   final String? currentOrderId;
   final double currentOrderTotal;
   final double pendingPaymentTotal;
+  final DateTime? currentOrderStartedAt;
 
   const TableDto({
     required this.id,
@@ -342,6 +389,7 @@ class TableDto {
     this.currentOrderId,
     this.currentOrderTotal = 0,
     this.pendingPaymentTotal = 0,
+    this.currentOrderStartedAt,
   });
 
   bool get isFree => currentStatus == 'Free';
@@ -357,6 +405,9 @@ class TableDto {
     currentOrderId: j['currentOrderId'] as String?,
     currentOrderTotal: (j['currentOrderTotal'] as num?)?.toDouble() ?? 0,
     pendingPaymentTotal: (j['pendingPaymentTotal'] as num?)?.toDouble() ?? 0,
+    currentOrderStartedAt: j['currentOrderStartedAt'] != null
+        ? DateTime.tryParse(j['currentOrderStartedAt'] as String)
+        : null,
   );
 }
 

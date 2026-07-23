@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../core/network/api_error.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/models/order_models.dart';
 import '../../data/services/order_api_service.dart';
@@ -45,7 +46,10 @@ class _TableAccountPageState extends ConsumerState<TableAccountPage> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _errorMessage = 'No se pudo cargar la cuenta: $error';
+        _errorMessage = readableApiError(
+          error,
+          fallback: 'No se pudo cargar la cuenta.',
+        );
       });
     }
   }
@@ -65,6 +69,56 @@ class _TableAccountPageState extends ConsumerState<TableAccountPage> {
       ),
     );
     await _loadOrder();
+  }
+
+  Future<void> _editItemNotes(OrderItemDto item) async {
+    if (item.status != OrderItemStatus.pending) return;
+    final controller = TextEditingController(text: item.notes ?? '');
+    final notes = await showDialog<String?>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Observación · ${item.itemName}'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: 'Ej. sin cebolla, bien cocido…',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (notes == null || !mounted) return;
+    try {
+      await ref
+          .read(orderApiServiceProvider)
+          .updateOrderItemNotes(item.id, notes.isEmpty ? null : notes);
+      await _loadOrder();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            readableApiError(
+              error,
+              fallback: 'No se pudo actualizar la observación.',
+            ),
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -143,7 +197,14 @@ class _TableAccountPageState extends ConsumerState<TableAccountPage> {
             ),
           ),
           const SizedBox(height: 8),
-          ...order.items.map((item) => _OrderItemCard(item: item)),
+          ...order.items.map(
+            (item) => _OrderItemCard(
+              item: item,
+              onEditNotes: item.status == OrderItemStatus.pending
+                  ? () => _editItemNotes(item)
+                  : null,
+            ),
+          ),
           if (order.notes?.isNotEmpty == true) ...[
             const SizedBox(height: 12),
             _NotesCard(notes: order.notes!),
@@ -187,6 +248,26 @@ class _AccountSummary extends StatelessWidget {
             ),
             const Divider(height: 24),
             _AmountRow(label: 'Subtotal', value: order.subtotal),
+            if (order.discountTotal > 0) ...[
+              const SizedBox(height: 8),
+              _AmountRow(label: 'Descuentos', value: -order.discountTotal),
+            ],
+            if (order.taxableBase15 > 0) ...[
+              const SizedBox(height: 8),
+              _AmountRow(label: 'Base gravada', value: order.taxableBase15),
+            ],
+            if (order.taxableBase0 > 0) ...[
+              const SizedBox(height: 8),
+              _AmountRow(label: 'Base 0%', value: order.taxableBase0),
+            ],
+            if (order.taxableBaseExempt > 0) ...[
+              const SizedBox(height: 8),
+              _AmountRow(label: 'Base exenta', value: order.taxableBaseExempt),
+            ],
+            if (order.taxAmount > 0) ...[
+              const SizedBox(height: 8),
+              _AmountRow(label: 'Impuestos incluidos', value: order.taxAmount),
+            ],
             const SizedBox(height: 8),
             _AmountRow(label: 'Total', value: order.total, emphasized: true),
             const SizedBox(height: 8),
@@ -236,9 +317,10 @@ class _AmountRow extends StatelessWidget {
 }
 
 class _OrderItemCard extends StatelessWidget {
-  const _OrderItemCard({required this.item});
+  const _OrderItemCard({required this.item, this.onEditNotes});
 
   final OrderItemDto item;
+  final VoidCallback? onEditNotes;
 
   @override
   Widget build(BuildContext context) {
@@ -329,6 +411,41 @@ class _OrderItemCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(
+                      children: [
+                        _ItemStatusBadge(status: item.status),
+                        if (onEditNotes != null) ...[
+                          const SizedBox(width: 8),
+                          InkWell(
+                            onTap: onEditNotes,
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 6),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.edit_note_rounded,
+                                    size: 18,
+                                    color: kGoldLight,
+                                  ),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    'Observación',
+                                    style: TextStyle(
+                                      color: kGoldLight,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -341,6 +458,41 @@ class _OrderItemCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ItemStatusBadge extends StatelessWidget {
+  const _ItemStatusBadge({required this.status});
+
+  final OrderItemStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (status) {
+      OrderItemStatus.pending => ('Pendiente', const Color(0xFF9E9E9E)),
+      OrderItemStatus.inPreparation => (
+        'En preparación',
+        const Color(0xFFFFAB00),
+      ),
+      OrderItemStatus.ready => ('Listo', const Color(0xFF69F0AE)),
+      OrderItemStatus.cancelled => ('Cancelado', const Color(0xFFFF6B6B)),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withAlpha(25),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withAlpha(140)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
