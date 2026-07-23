@@ -238,7 +238,7 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
             var unitId = option.UnitId!.Value;
             var articleId = option.ArticleId!.Value;
             var requiredBase = article is null ? 0m : ConvertQuantity(option.Quantity, unitId, article.BaseUnitId, conversions);
-            var stock = stockByArticle.GetValueOrDefault(articleId);
+            var stock = Math.Max(0, stockByArticle.GetValueOrDefault(articleId));
             var availableQuantity = requiredBase > 0 ? Math.Floor(stock / requiredBase) : 0m;
             result[option.Id] = new ModifierOptionAvailabilityInfo(true, availableQuantity > 0, availableQuantity);
         }

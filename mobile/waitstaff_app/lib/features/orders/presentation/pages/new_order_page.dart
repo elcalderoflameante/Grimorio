@@ -232,9 +232,14 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
                           ...group.options.map((option) {
                             final quantity = selected[option.id] ?? 0;
                             final used = _usedModifierQuantity(option.id);
-                            final stockLimit = option.isTracked
+                            final reportedStock = option.isTracked
                                 ? (option.availableQuantity ?? 0).floor()
                                 : null;
+                            final stockLimit = reportedStock == null
+                                ? null
+                                : reportedStock < 0
+                                ? 0
+                                : reportedStock;
                             final remainingStock = stockLimit == null
                                 ? null
                                 : (stockLimit - used)
