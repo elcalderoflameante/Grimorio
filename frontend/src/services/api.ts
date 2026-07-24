@@ -48,6 +48,9 @@ import type {
   PublicCreateTableServiceRequestDto,
   SetTableServiceRequestStatusDto,
   TableServiceRequestStatus,
+  PublicTableMenuDto,
+  PublicCreateDraftOrderDto,
+  PublicDraftOrderResultDto,
   PublicRequestStatusDto,
   PublicActiveTableRequestDto,
   PayrollConfigurationDto,
@@ -445,8 +448,14 @@ export const tableServiceApi = {
     apiClient.get<PublicTableInfoDto>(`/tableservice/public/table/${token}`),
   getPublicActiveRequest: (token: string): Promise<AxiosResponse<PublicActiveTableRequestDto | null>> =>
     apiClient.get<PublicActiveTableRequestDto | null>(`/tableservice/public/table/${token}/active-request`),
+  getPublicTableMenu: (token: string): Promise<AxiosResponse<PublicTableMenuDto>> =>
+    apiClient.get<PublicTableMenuDto>(`/tableservice/public/table/${token}/menu`),
+  getActivePublicTableOrder: (token: string): Promise<AxiosResponse<OrderDto | null>> =>
+    apiClient.get<OrderDto | null>(`/tableservice/public/table/${token}/order`),
   createPublicRequest: (data: PublicCreateTableServiceRequestDto): Promise<AxiosResponse<TableServiceRequestDto>> =>
     apiClient.post<TableServiceRequestDto>('/tableservice/public/request', data),
+  createPublicDraftOrder: (data: PublicCreateDraftOrderDto): Promise<AxiosResponse<PublicDraftOrderResultDto>> =>
+    apiClient.post<PublicDraftOrderResultDto>('/tableservice/public/order-draft', data),
   getPublicRequestStatus: (id: string): Promise<AxiosResponse<PublicRequestStatusDto>> =>
     apiClient.get<PublicRequestStatusDto>(`/tableservice/public/request/${id}`),
 };

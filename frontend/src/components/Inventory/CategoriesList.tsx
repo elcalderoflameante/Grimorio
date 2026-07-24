@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  Table, Button, Modal, Form, Input, ColorPicker, Popconfirm, Space, Typography, message, Tag
-} from 'antd';
+import { App as AntApp, Table, Button, Modal, Form, Input, ColorPicker, Popconfirm, Space, Typography, Tag } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { inventoryApi } from '../../services/api';
 import type { InventoryCategoryDto } from '../../types';
@@ -12,6 +10,8 @@ import { PERMISSIONS } from '../../constants/permissions';
 const { Title } = Typography;
 
 export default function CategoriesList() {
+  const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const [categories, setCategories] = useState<InventoryCategoryDto[]>([]);
   const [loading, setLoading] = useState(false);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Switch, message, Popconfirm } from 'antd';
+import { App as AntApp, Table, Button, Space, Modal, Form, Input, Switch, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { positionApi } from '../../services/api';
@@ -28,6 +28,8 @@ const extractPositionItems = (value: unknown): PositionDto[] => {
 };
 
 export default function PositionList() {
+  const { message } = AntApp.useApp();
+
   const [positions, setPositions] = useState<PositionDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);

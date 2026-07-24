@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Tag, Typography, message } from 'antd';
+import { App as AntApp, Button, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Tag, Typography } from 'antd';
 import { DeleteOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
 import { inventoryApi, menuApi } from '../../services/api';
 import type {
@@ -40,6 +40,8 @@ const emptyGroup = (displayOrder: number): UpsertMenuItemModifierGroupDto => ({
 });
 
 export default function ModifierEditor({ itemId, itemName, open, onClose }: Props) {
+  const { message } = AntApp.useApp();
+
   const [groups, setGroups] = useState<UpsertMenuItemModifierGroupDto[]>([]);
   const [articles, setArticles] = useState<InventoryArticleDto[]>([]);
   const [units, setUnits] = useState<MeasurementUnitDto[]>([]);
@@ -150,7 +152,7 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
         Define grupos como Salsas, Cerveza o Toppings, con mínimos, máximos y precios adicionales.
       </Text>
 
-      <Space direction="vertical" style={{ width: '100%' }} size={12}>
+      <Space orientation="vertical" style={{ width: '100%' }} size={12}>
         {groups.map((group, groupIdx) => (
           <div key={groupIdx} style={{ border: '1px solid #f0f0f0', borderRadius: 8, padding: 12 }}>
             <div
@@ -177,7 +179,7 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
               </Popconfirm>
             </div>
 
-            <Space direction="vertical" style={{ width: '100%' }} size={8}>
+            <Space orientation="vertical" style={{ width: '100%' }} size={8}>
               {group.options.map((option, optionIdx) => {
                 const compatibleUnitIds = getCompatibleUnitIds(option.articleId);
                 const unitOptions = units

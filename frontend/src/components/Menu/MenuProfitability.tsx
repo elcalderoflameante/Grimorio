@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
+import { App as AntApp, Alert,
   Button,
   Card,
   Col,
@@ -12,9 +11,7 @@ import {
   Table,
   Tag,
   Tooltip,
-  Typography,
-  message,
-} from 'antd';
+  Typography } from 'antd';
 import { BarChartOutlined, ReloadOutlined, WarningOutlined } from '@ant-design/icons';
 import { menuApi } from '../../services/api';
 import type {
@@ -47,6 +44,8 @@ const gaugeColor = (value: number) => {
 };
 
 export default function MenuProfitability() {
+  const { message } = AntApp.useApp();
+
   const [items, setItems] = useState<MenuItemProfitabilityDto[]>([]);
   const [categories, setCategories] = useState<MenuCategoryDto[]>([]);
   const [categoryId, setCategoryId] = useState<string | undefined>();
@@ -90,7 +89,7 @@ export default function MenuProfitability() {
       title: 'Ingrediente',
       key: 'article',
       render: (_: unknown, row: MenuItemProfitabilityIngredientDto) => (
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Text>{row.articleName || 'Sin nombre'}</Text>
           {row.internalCode && <Text type="secondary" style={{ fontSize: 12 }}>{row.internalCode}</Text>}
         </Space>
@@ -154,7 +153,7 @@ export default function MenuProfitability() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Title level={5} style={{ margin: 0 }}>Rentabilidad de platos</Title>
           <Text type="secondary">Precio neto sin IVA vs costo promedio neto de ingredientes.</Text>
         </Space>

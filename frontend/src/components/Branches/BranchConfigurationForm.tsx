@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Card, Form, Input, Button, Switch, Row, Col, message, Divider } from 'antd';
+import { App as AntApp, Card, Form, Input, Button, Switch, Row, Col, Divider } from 'antd';
 import { branchApi } from '../../services/api';
 import { LocationMap } from './LocationMap';
 import type { BranchDto, UpdateBranchDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 
 export const BranchConfigurationForm = () => {
+  const { message } = AntApp.useApp();
+
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);

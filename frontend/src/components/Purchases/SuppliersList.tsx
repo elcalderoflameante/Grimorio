@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, Modal, Form, Input, Switch, Space, Tag, Popconfirm, message } from 'antd';
+import { App as AntApp, Table, Button, Modal, Form, Input, Switch, Space, Tag, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { SupplierDto, CreateSupplierDto, UpdateSupplierDto } from '../../types';
 import { purchasesApi } from '../../services/api';
@@ -7,6 +7,8 @@ import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
 
 export default function SuppliersList() {
+  const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const [suppliers, setSuppliers] = useState<SupplierDto[]>([]);
   const [loading, setLoading] = useState(false);

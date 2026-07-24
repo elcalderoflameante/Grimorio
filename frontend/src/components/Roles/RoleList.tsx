@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Switch, Select, message, Popconfirm, Tag } from 'antd';
+import { App as AntApp, Table, Button, Space, Modal, Form, Input, Switch, Select, Popconfirm, Tag } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, LockOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { roleApi, permissionApi } from '../../services/api';
@@ -19,6 +19,8 @@ interface AssignFormValues {
 }
 
 export default function RoleList() {
+  const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const [roles, setRoles] = useState<RoleDto[]>([]);
   const [permissions, setPermissions] = useState<PermissionDto[]>([]);

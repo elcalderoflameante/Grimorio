@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, DatePicker, Input, message, Popconfirm, Divider, Radio } from 'antd';
+import { App as AntApp, Table, Button, Modal, Form, DatePicker, Input, Popconfirm, Divider, Radio } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { employeeAvailabilityApi } from '../../services/api';
 import type { EmployeeAvailabilityDto, EmployeeDto, CreateEmployeeAvailabilityDto } from '../../types';
@@ -12,6 +12,8 @@ interface EmployeeAvailabilityFormProps {
 }
 
 export const EmployeeAvailabilityForm = ({ employee, onClose }: EmployeeAvailabilityFormProps) => {
+  const { message } = AntApp.useApp();
+
   const [availability, setAvailability] = useState<EmployeeAvailabilityDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);

@@ -40,6 +40,15 @@ public class PublicCreateTableServiceRequestCommand : IRequest<TableServiceReque
     public string? SourceIp { get; set; }
 }
 
+public class PublicCreateDraftOrderCommand : IRequest<PublicDraftOrderResultDto>
+{
+    public string TableToken { get; set; } = string.Empty;
+    public string? Notes { get; set; }
+    public List<CreateOrderItemDto> Items { get; set; } = [];
+    public string? ClientFingerprint { get; set; }
+    public string? SourceIp { get; set; }
+}
+
 public class TakeTableServiceRequestCommand : IRequest<TableServiceRequestDto>
 {
     public Guid RequestId { get; set; }

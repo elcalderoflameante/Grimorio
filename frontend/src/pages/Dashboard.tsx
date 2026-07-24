@@ -1,7 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
-import { Layout, Menu, Dropdown, Avatar, Space, Drawer, Button, Breadcrumb, message, Grid, Badge, Alert } from 'antd';
-import {
-  UserOutlined,
+import { App as AntApp, Layout, Menu, Dropdown, Avatar, Space, Drawer, Button, Breadcrumb, Grid, Badge, Alert } from 'antd';
+import { UserOutlined,
   LogoutOutlined,
   HomeOutlined,
   SettingOutlined,
@@ -29,8 +28,7 @@ import {
   FileTextOutlined,
   PercentageOutlined,
   FileImageOutlined,
-  BarChartOutlined,
-} from '@ant-design/icons';
+  BarChartOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { PERMISSIONS } from '../constants/permissions';
@@ -150,6 +148,8 @@ const getFirstMenuKey = (items: MenuItem[]): string | null => {
 };
 
 export default function Dashboard() {
+  const { message } = AntApp.useApp();
+
   const [selectedMenu, setSelectedMenu] = useState('welcome');
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [collapsed, setCollapsed] = useState(false);

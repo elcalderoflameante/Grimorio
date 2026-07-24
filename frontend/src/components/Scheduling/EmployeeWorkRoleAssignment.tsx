@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Select, message, Popconfirm, Divider } from 'antd';
+import { App as AntApp, Table, Button, Modal, Form, Select, Popconfirm, Divider } from 'antd';
 import { DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { employeeWorkRoleApi, workRoleApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
@@ -11,6 +11,8 @@ interface EmployeeWorkRoleAssignmentProps {
 }
 
 export const EmployeeWorkRoleAssignment = ({ employee, onClose }: EmployeeWorkRoleAssignmentProps) => {
+  const { message } = AntApp.useApp();
+
   const [workRoles, setWorkRoles] = useState<WorkRoleDto[]>([]);
   const [employeeRoles, setEmployeeRoles] = useState<EmployeeWorkRoleDto[]>([]);
   const [loading, setLoading] = useState(false);

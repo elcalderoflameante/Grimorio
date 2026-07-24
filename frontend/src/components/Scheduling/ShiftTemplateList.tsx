@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, TimePicker, message, Popconfirm, Row, Col, Collapse, Empty } from 'antd';
+import { App as AntApp, Button, Form, Input, InputNumber, Modal, Select, Space, Table, TimePicker, Popconfirm, Row, Col, Collapse, Empty } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
@@ -61,6 +61,8 @@ const parseTime = (value: string) => dayjs(`1970-01-01T${value}`);
 const formatDate = (value?: string) => value ? dayjs(value).format('DD/MM/YYYY') : undefined;
 
 export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
+  const { message, modal } = AntApp.useApp();
+
   const [templates, setTemplates] = useState<ShiftTemplateDto[]>([]);
   const [workAreas, setWorkAreas] = useState<WorkAreaDto[]>([]);
   const [workRoles, setWorkRoles] = useState<WorkRoleDto[]>([]);
@@ -165,7 +167,7 @@ export const ShiftTemplateList = ({ branchId }: ShiftTemplateListProps) => {
       : '';
 
     return new Promise<boolean>((resolve) => {
-      Modal.confirm({
+      modal.confirm({
         title: action === 'editar' ? 'Editar plantilla con turnos futuros' : 'Eliminar plantilla con turnos futuros',
         content: `Hay ${impact.futureAssignmentsCount} turno(s) futuro(s) asignado(s)${dateRange}. Si continúas, esos turnos se eliminarán y deberás volver a planificarlos. Los turnos anteriores no se modificarán.`,
         okText: 'Continuar',

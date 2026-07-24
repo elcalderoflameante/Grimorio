@@ -208,6 +208,29 @@ public class TableServiceController : ControllerBase
     }
 
     [AllowAnonymous]
+    [HttpGet("public/table/{token}/menu")]
+    public async Task<IActionResult> GetPublicTableMenu(string token)
+    {
+        try
+        {
+            var result = await _mediator.Send(new GetPublicTableMenuQuery { TableToken = token });
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [AllowAnonymous]
+    [HttpGet("public/table/{token}/order")]
+    public async Task<IActionResult> GetActivePublicTableOrder(string token)
+    {
+        var result = await _mediator.Send(new GetActivePublicTableOrderQuery { TableToken = token });
+        return Ok(result);
+    }
+
+    [AllowAnonymous]
     [HttpGet("public/request/{id:guid}")]
     public async Task<IActionResult> GetPublicRequestStatus(Guid id)
     {
@@ -240,6 +263,37 @@ public class TableServiceController : ControllerBase
             .SendAsync(TableServiceHub.RequestUpdatedEvent, result);
 
         await _fcmPushNotificationService.SendNewTableRequestAsync(result);
+
+        return Ok(result);
+    }
+
+    [AllowAnonymous]
+    [HttpPost("public/order-draft")]
+    public async Task<IActionResult> CreatePublicDraftOrder([FromBody] PublicCreateDraftOrderDto body)
+    {
+        var sourceIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+
+        PublicDraftOrderResultDto result;
+        try
+        {
+            result = await _mediator.Send(new PublicCreateDraftOrderCommand
+            {
+                TableToken = body.TableToken,
+                Notes = body.Notes,
+                Items = body.Items,
+                SourceIp = sourceIp,
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+
+        await _hubContext.Clients
+            .Group(TableServiceHub.GetBranchGroup(result.Notification.BranchId))
+            .SendAsync(TableServiceHub.NewRequestEvent, result.Notification);
+
+        await _fcmPushNotificationService.SendNewTableRequestAsync(result.Notification);
 
         return Ok(result);
     }

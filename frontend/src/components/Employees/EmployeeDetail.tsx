@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
-import { Button, Form, Input, Select, DatePicker, Row, Col, InputNumber, Switch, Tabs, Space, Typography, message, Spin, Upload, Card, Divider, Table, Tag } from 'antd';
+import { App as AntApp, Button, Form, Input, Select, DatePicker, Row, Col, InputNumber, Switch, Tabs, Space, Typography, Spin, Upload, Card, Divider, Table, Tag } from 'antd';
 import { ArrowLeftOutlined, CameraOutlined, DeleteOutlined, InboxOutlined, PictureOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import type { UploadChangeParam, UploadFile } from 'antd/es/upload';
@@ -94,6 +94,8 @@ const extractPositionItems = (value: unknown): PositionDto[] => {
 };
 
 export default function EmployeeDetail({ employeeId, onSaved, onCancel }: EmployeeDetailProps) {
+  const { message } = AntApp.useApp();
+
   const [form] = Form.useForm<EmployeeFormValues>();
   const [positions, setPositions] = useState<PositionDto[]>([]);
   const [loading, setLoading] = useState(false);

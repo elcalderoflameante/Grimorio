@@ -1,16 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import {
-  Table, Button, Modal, Form, Input, Switch, InputNumber,
-  Space, Tag, Popconfirm, Typography, message, Card, Divider,
-  Select, Row, Col, Alert, Upload, Spin, Tooltip,
-} from 'antd';
-import {
-  PlusOutlined, EditOutlined, DeleteOutlined, PercentageOutlined,
+import { App as AntApp, Table, Button, Modal, Form, Input, Switch, InputNumber,
+  Space, Tag, Popconfirm, Typography, Card, Divider,
+  Select, Row, Col, Alert, Upload, Spin, Tooltip } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, PercentageOutlined,
   BankOutlined, SafetyCertificateOutlined, CloudUploadOutlined,
   WifiOutlined, CheckCircleOutlined, CloseCircleOutlined, WarningOutlined,
-  MailOutlined, SendOutlined,
-} from '@ant-design/icons';
+  MailOutlined, SendOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd';
 import type { TaxRateDto, UpsertTaxRateDto, BranchTaxConfigDto, SriCertificateStatusDto, SmtpConfigDto } from '../../types';
 import { taxApi, sriApi } from '../../services/api';
@@ -32,6 +28,8 @@ const SRI_CODES = [
 ];
 
 export default function TaxConfig() {
+  const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const canManageTax = hasPermission(PERMISSIONS.billing.taxManage);
   const canManageSri = hasPermission(PERMISSIONS.billing.sriManage);
@@ -294,7 +292,7 @@ export default function TaxConfig() {
   return (
     <div style={{ padding: 24, maxWidth: 960 }}>
       <Spin spinning={loadingConfig}>
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        <Space orientation="vertical" size="large" style={{ width: '100%' }}>
 
           {/* ── Datos del emisor ── */}
           <Card title={<Space><BankOutlined /><Text strong>Datos fiscales (SRI Ecuador)</Text></Space>}>
@@ -406,7 +404,7 @@ export default function TaxConfig() {
             extra={certTag()}
           >
             {certStatus?.hasCertificate ? (
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                   <div>
                     <Text type="secondary" style={{ fontSize: 12 }}>Archivo</Text>
@@ -440,7 +438,7 @@ export default function TaxConfig() {
                 </Space>}
               </Space>
             ) : (
-              <Space direction="vertical">
+              <Space orientation="vertical">
                 <Text type="secondary">
                   No hay certificado cargado. Para emitir facturas electrónicas debes cargar
                   el archivo .p12 entregado por el BCE (Banco Central del Ecuador).
@@ -562,7 +560,7 @@ export default function TaxConfig() {
         okText="Cargar y validar"
         confirmLoading={uploading}
       >
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+        <Space orientation="vertical" style={{ width: '100%' }} size="middle">
           <Alert
             type="info"
             showIcon

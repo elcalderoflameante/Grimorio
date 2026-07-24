@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Card, Col, DatePicker, Progress, Row, Select, Space, Statistic, Table, Tag, Tooltip, Typography, message } from 'antd';
+import { App as AntApp, Alert, Card, Col, DatePicker, Progress, Row, Select, Space, Statistic, Table, Tag, Tooltip, Typography } from 'antd';
 import { BarChartOutlined, WarningOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { cashApi } from '../../services/api';
@@ -20,6 +20,8 @@ const gaugeColor = (value: number) => {
 };
 
 export default function SalesProfitability() {
+  const { message } = AntApp.useApp();
+
   const [report, setReport] = useState<SalesProfitabilityReportDto | null>(null);
   const [registers, setRegisters] = useState<CashRegisterDto[]>([]);
   const [range, setRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf('day'), dayjs().endOf('day')]);
@@ -59,7 +61,7 @@ export default function SalesProfitability() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Title level={5} style={{ margin: 0 }}>Rentabilidad de ventas</Title>
           <Text type="secondary">Venta neta sin IVA menos costo promedio de ingredientes vendidos.</Text>
         </Space>
@@ -88,7 +90,7 @@ export default function SalesProfitability() {
         type="info"
         showIcon
         style={{ marginBottom: 16 }}
-        message="Este reporte muestra utilidad bruta de comida. No incluye arriendo, sueldos, luz, agua, gas, comisiones ni otros gastos operativos."
+        title="Este reporte muestra utilidad bruta de comida. No incluye arriendo, sueldos, luz, agua, gas, comisiones ni otros gastos operativos."
       />
 
       <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
@@ -116,7 +118,7 @@ export default function SalesProfitability() {
                 strokeColor={gaugeColor(report?.foodCostPercentage ?? 0)}
                 format={() => pct(report?.foodCostPercentage)}
               />
-              <Space direction="vertical" size={2}>
+              <Space orientation="vertical" size={2}>
                 <Text strong>Food cost del periodo</Text>
                 <Text type="secondary">Objetivo saludable: 25% a 35%</Text>
                 <Text>Margen bruto: <strong>{pct(report?.grossMarginPercentage)}</strong></Text>
@@ -165,7 +167,7 @@ export default function SalesProfitability() {
             title: 'Plato',
             width: 260,
             render: (_: unknown, item: SalesProfitabilityItemDto) => (
-              <Space direction="vertical" size={0} style={{ maxWidth: 240 }}>
+              <Space orientation="vertical" size={0} style={{ maxWidth: 240 }}>
                 <Text strong ellipsis={{ tooltip: item.menuItemName }}>{item.menuItemName}</Text>
                 <Text type="secondary" style={{ fontSize: 12 }} ellipsis={{ tooltip: item.categoryName }}>{item.categoryName}</Text>
               </Space>

@@ -1,14 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
-import {
-  Card, Button, InputNumber, Form, Modal, Table, Tag, Space, Typography,
-  Row, Col, Descriptions, Alert, message, Divider, Badge, Tooltip, Select, Input,
-  Popconfirm, Switch,
-} from 'antd';
-import {
-  UnlockOutlined, LockOutlined, ReloadOutlined,
+import { App as AntApp, Card, Button, InputNumber, Form, Modal, Table, Tag, Space, Typography,
+  Row, Col, Descriptions, Alert, Divider, Badge, Tooltip, Select, Input,
+  Popconfirm, Switch } from 'antd';
+import { UnlockOutlined, LockOutlined, ReloadOutlined,
   ShoppingCartOutlined, CheckCircleOutlined, DollarOutlined,
-  BankOutlined, ClockCircleOutlined, SyncOutlined, FireOutlined,
-} from '@ant-design/icons';
+  BankOutlined, ClockCircleOutlined, SyncOutlined, FireOutlined } from '@ant-design/icons';
 import type { CashRegisterDto, CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, ActiveOrderSummaryDto } from '../../types';
 import { cashApi, posApi } from '../../services/api';
 import dayjs from 'dayjs';
@@ -38,6 +34,8 @@ const ORDER_TYPE_LABEL: Record<string, string> = {
 };
 
 export default function CashRegister() {
+  const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const [activeSession, setActiveSession] = useState<CashSessionDto | null | undefined>(undefined);
   const [history, setHistory] = useState<CashSessionDto[]>([]);

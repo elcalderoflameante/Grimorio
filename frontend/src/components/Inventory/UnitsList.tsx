@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
-import {
-  Table, Button, Modal, Form, Input, InputNumber, Select,
-  Popconfirm, Space, Typography, message, Tag, Alert,
-} from 'antd';
+import { App as AntApp, Table, Button, Modal, Form, Input, InputNumber, Select,
+  Popconfirm, Space, Typography, Tag, Alert } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, SwapOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import { inventoryApi } from '../../services/api';
 import type { MeasurementUnitDto, UnitConversionDto } from '../../types';
@@ -13,6 +11,8 @@ import { PERMISSIONS } from '../../constants/permissions';
 const { Title, Text } = Typography;
 
 export default function UnitsList() {
+  const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const [units, setUnits] = useState<MeasurementUnitDto[]>([]);
   const [conversions, setConversions] = useState<UnitConversionDto[]>([]);

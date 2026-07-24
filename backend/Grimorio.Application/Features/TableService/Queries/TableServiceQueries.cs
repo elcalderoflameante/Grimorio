@@ -31,3 +31,13 @@ public class GetActivePublicTableRequestQuery : IRequest<PublicActiveTableReques
 {
     public string TableToken { get; set; } = string.Empty;
 }
+
+public class GetPublicTableMenuQuery : IRequest<PublicTableMenuDto>
+{
+    public string TableToken { get; set; } = string.Empty;
+}
+
+public class GetActivePublicTableOrderQuery : IRequest<OrderDto?>
+{
+    public string TableToken { get; set; } = string.Empty;
+}

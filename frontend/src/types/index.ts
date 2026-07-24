@@ -759,6 +759,64 @@ export interface PublicActiveTableRequestDto {
   status: TableServiceRequestStatus;
 }
 
+export interface PublicMenuCategoryDto {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  order: number;
+}
+
+export interface PublicMenuItemModifierOptionDto {
+  id: string;
+  modifierGroupId: string;
+  name: string;
+  priceDelta: number;
+  displayOrder: number;
+  isAvailable: boolean;
+}
+
+export interface PublicMenuItemModifierGroupDto {
+  id: string;
+  menuItemId: string;
+  name: string;
+  minSelections: number;
+  maxSelections: number;
+  isRequired: boolean;
+  allowDuplicates: boolean;
+  displayOrder: number;
+  options: PublicMenuItemModifierOptionDto[];
+}
+
+export interface PublicMenuItemDto {
+  id: string;
+  menuCategoryId: string;
+  categoryName: string;
+  categoryColor?: string;
+  name: string;
+  description?: string;
+  price: number;
+  isAvailable: boolean;
+  hasModifiers: boolean;
+  modifierGroups: PublicMenuItemModifierGroupDto[];
+}
+
+export interface PublicTableMenuDto {
+  categories: PublicMenuCategoryDto[];
+  items: PublicMenuItemDto[];
+}
+
+export interface PublicCreateDraftOrderDto {
+  tableToken: string;
+  notes?: string;
+  items: CreateOrderItemDto[];
+}
+
+export interface PublicDraftOrderResultDto {
+  order: OrderDto;
+  notification: TableServiceRequestDto;
+}
+
 // ======================== Inventory ========================
 
 export type ArticleType = 'Ingredient' | 'FinishedProduct' | 'Supply';

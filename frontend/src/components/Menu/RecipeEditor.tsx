@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Select, InputNumber, Input, Popconfirm, Typography, message, Tag } from 'antd';
+import { App as AntApp, Table, Button, Modal, Form, Select, InputNumber, Input, Popconfirm, Typography, Tag } from 'antd';
 import { PlusOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons';
 import { menuApi, inventoryApi } from '../../services/api';
 import type { InventoryArticleDto, MeasurementUnitDto, UnitConversionDto, UpsertRecipeIngredientDto } from '../../types';
@@ -15,6 +15,8 @@ interface Props {
 }
 
 export default function RecipeEditor({ itemId, itemName, open, onClose }: Props) {
+  const { message } = AntApp.useApp();
+
   const [receta, setReceta] = useState<UpsertRecipeIngredientDto[]>([]);
   const [articulos, setArticulos] = useState<InventoryArticleDto[]>([]);
   const [unidades, setUnidades] = useState<MeasurementUnitDto[]>([]);

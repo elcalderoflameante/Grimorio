@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  Table, Button, Modal, Form, Select, InputNumber, Input,
-  Space, Typography, message, Tag, DatePicker
-} from 'antd';
+import { App as AntApp, Table, Button, Modal, Form, Select, InputNumber, Input,
+  Space, Typography, Tag, DatePicker } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { inventoryApi } from '../../services/api';
@@ -38,6 +36,8 @@ const tipoColor = (tipo: MovementType) =>
   SALIDAS.has(tipo) ? 'red' : 'green';
 
 export default function StockMovements() {
+  const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const [movimientos, setMovimientos] = useState<StockMovementDto[]>([]);
   const [articulos, setArticulos] = useState<InventoryArticleDto[]>([]);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, Calendar, Card, DatePicker, message, Modal, Space, Spin, Table, Tabs, Typography, Select, Tag, Form, Input, InputNumber, TimePicker, Row, Col, List } from 'antd';
+import { App as AntApp, Button, Calendar, Card, DatePicker, Modal, Space, Spin, Table, Tabs, Typography, Select, Tag, Form, Input, InputNumber, TimePicker, Row, Col, List } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { CalendarOutlined, BarChartOutlined, InfoCircleOutlined, DragOutlined } from '@ant-design/icons';
 import html2canvas from 'html2canvas';
@@ -70,6 +70,8 @@ const getColorVariants = (baseColor: string) => {
 };
 
 export const MonthlySchedule = () => {
+  const { message, modal } = AntApp.useApp();
+
   const { branchId, user } = useAuth();
   const hasInitializedWeek = useRef(false);
   const weekPrintRef = useRef<HTMLDivElement | null>(null);
@@ -175,7 +177,7 @@ export const MonthlySchedule = () => {
       }
     ];
 
-    Modal.warning({
+    modal.warning({
       title: `Generación completada con observaciones`,
       width: 900,
       content: (
@@ -555,7 +557,7 @@ export const MonthlySchedule = () => {
   const handleDeleteShift = useCallback(() => {
     if (!editShift) return;
 
-    Modal.confirm({
+    modal.confirm({
       title: 'Eliminar turno',
       content: 'Este turno se eliminara permanentemente. Esta accion no se puede deshacer.',
       okText: 'Eliminar',
@@ -713,7 +715,7 @@ export const MonthlySchedule = () => {
     }
 
     if (hasExistingShifts) {
-      Modal.confirm({
+      modal.confirm({
         title: '⚠️ Advertencia: Regenerar Turnos',
         content: (
           <div>

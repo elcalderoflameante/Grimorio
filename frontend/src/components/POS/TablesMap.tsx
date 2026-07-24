@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Badge, Button, Card, Empty, Spin, Tag, Tooltip, message } from 'antd';
+import { App as AntApp, Badge, Button, Card, Empty, Spin, Tag, Tooltip } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { tableServiceApi } from '../../services/api';
 import type { RestaurantTableDto } from '../../types';
@@ -20,6 +20,8 @@ interface AreaGroup {
 const getAreaLabel = (area?: string | null) => area?.trim() || 'General';
 
 export default function TablesMap({ branchId, onSelectTable, refreshKey }: Props) {
+  const { message } = AntApp.useApp();
+
   const [tables, setTables] = useState<RestaurantTableDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [now, setNow] = useState(() => new Date());

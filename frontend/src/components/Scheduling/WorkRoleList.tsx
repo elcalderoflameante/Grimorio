@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, Select, Space, message, Popconfirm } from 'antd';
+import { App as AntApp, Table, Button, Modal, Form, Input, Select, Space, Popconfirm } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { workRoleApi, workAreaApi } from '../../services/api';
 import type { WorkRoleDto, WorkAreaDto, CreateWorkRoleDto, UpdateWorkRoleDto } from '../../types';
@@ -10,6 +10,8 @@ interface WorkRoleListProps {
 }
 
 export const WorkRoleList = ({ branchId }: WorkRoleListProps) => {
+  const { message } = AntApp.useApp();
+
   const [roles, setRoles] = useState<WorkRoleDto[]>([]);
   const [areas, setAreas] = useState<WorkAreaDto[]>([]);
   const [loading, setLoading] = useState(false);

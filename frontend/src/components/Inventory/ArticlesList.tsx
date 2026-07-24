@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  Table, Button, Modal, Form, Input, InputNumber, Select, Switch,
-  Popconfirm, Space, Typography, message, Tag, Badge, Row, Col
-} from 'antd';
+import { App as AntApp, Table, Button, Modal, Form, Input, InputNumber, Select, Switch,
+  Popconfirm, Space, Typography, Tag, Badge, Row, Col } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, WarningOutlined } from '@ant-design/icons';
 import { inventoryApi } from '../../services/api';
 import type {
@@ -28,6 +26,8 @@ const TIPO_COLOR: Record<string, string> = {
 };
 
 export default function ArticlesList() {
+  const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const [articulos, setArticulos] = useState<InventoryArticleDto[]>([]);
   const [categorias, setCategorias] = useState<InventoryCategoryDto[]>([]);

@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import jsPDF from 'jspdf';
-import {
-  Button,
+import { App as AntApp, Button,
   Card,
   Col,
   Form,
@@ -17,10 +16,7 @@ import {
   Table,
   Tabs,
   Tag,
-  Typography,
-  notification,
-  message,
-} from 'antd';
+  Typography } from 'antd';
 import { DownloadOutlined, EditOutlined, PlusOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
 import * as signalR from '@microsoft/signalr';
 import { useAuth } from '../../context/useAuth';
@@ -132,6 +128,8 @@ const loadImageAsDataUrl = async (src: string) => {
 };
 
 export default function TableServiceModule() {
+  const { message, notification } = AntApp.useApp();
+
   const { branchId, token, hasPermission } = useAuth();
   const screens = useBreakpoint();
   const [loading, setLoading] = useState(false);
@@ -369,6 +367,11 @@ export default function TableServiceModule() {
     const response = await tableServiceApi.getRequests(statusFilter);
     setRequests(Array.isArray(response.data) ? response.data : []);
   }, [statusFilter]);
+  const loadRequestsRef = useRef(loadRequests);
+
+  useEffect(() => {
+    loadRequestsRef.current = loadRequests;
+  }, [loadRequests]);
 
   const loadData = useCallback(async () => {
     try {
@@ -394,6 +397,7 @@ export default function TableServiceModule() {
 
   useEffect(() => {
     if (!token || !branchId) return;
+    let disposed = false;
 
     const apiUrlFromEnv = import.meta.env.VITE_API_URL as string | undefined;
     const hubUrl = apiUrlFromEnv
@@ -415,7 +419,7 @@ export default function TableServiceModule() {
           : typeText,
         placement: 'topRight',
       });
-      loadRequests().catch(() => {});
+      loadRequestsRef.current().catch(() => {});
     };
 
     const onRequestUpdated = (payload: TableServiceRequestDto) => {
@@ -424,22 +428,28 @@ export default function TableServiceModule() {
         description: `Estado: ${REQUEST_STATUS_LABELS[payload.status] ?? payload.status}`,
         placement: 'topRight',
       });
-      loadRequests().catch(() => {});
+      loadRequestsRef.current().catch(() => {});
     };
 
     connection.on('tableService:new-request', onNewRequest);
     connection.on('tableService:request-updated', onRequestUpdated);
 
     connection.start().catch((error) => {
+      if (disposed) return;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('stopped during negotiation')) return;
       console.error('SignalR connection error', error);
     });
 
     return () => {
+      disposed = true;
       connection.off('tableService:new-request', onNewRequest);
       connection.off('tableService:request-updated', onRequestUpdated);
-      connection.stop().catch(() => {});
+      if (connection.state !== signalR.HubConnectionState.Disconnected) {
+        connection.stop().catch(() => {});
+      }
     };
-  }, [token, branchId, loadRequests]);
+  }, [token, branchId, notification]);
 
   const handleOpenCreate = () => {
     setEditingTable(null);
@@ -708,7 +718,7 @@ export default function TableServiceModule() {
             key: 'tables',
             label: 'Mesas y QR',
             children: (
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <Row justify="space-between" align="middle">
                   <Col flex="auto"><Text type="secondary">Administra mesas y sus QR de atención.</Text></Col>
                   {canManageTables && <Col>
@@ -732,7 +742,7 @@ export default function TableServiceModule() {
             key: 'requests',
             label: 'Solicitudes',
             children: (
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space orientation="vertical" style={{ width: '100%' }}>
                 <Row justify="space-between" align="middle">
                   <Col flex="auto">
                     <Text type="secondary">Solicitudes recibidas desde QR.</Text>
@@ -823,7 +833,7 @@ export default function TableServiceModule() {
         }
       >
         {qrPreview.table && (
-          <Space direction="vertical" style={{ width: '100%', alignItems: 'center' }}>
+          <Space orientation="vertical" style={{ width: '100%', alignItems: 'center' }}>
             <div
               style={{
                 width: '100%',

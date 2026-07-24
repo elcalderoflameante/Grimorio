@@ -8,14 +8,12 @@
  *               Confirmar la semana (guarda en servidor)
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Alert,
+import { App as AntApp, Alert,
   Badge,
   Button,
   Card,
   Col,
   Divider,
-  message,
   Popover,
   Popconfirm,
   Row,
@@ -23,10 +21,8 @@ import {
   Spin,
   Tag,
   Tooltip,
-  Typography,
-} from 'antd';
-import {
-  CheckOutlined,
+  Typography } from 'antd';
+import { CheckOutlined,
   CloseOutlined,
   DeleteOutlined,
   InfoCircleOutlined,
@@ -34,8 +30,7 @@ import {
   RobotOutlined,
   LeftOutlined,
   RightOutlined,
-  UserOutlined,
-} from '@ant-design/icons';
+  UserOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/es';
 import {
@@ -143,6 +138,8 @@ export const WeeklyScheduleBoard = ({
   onConfirmed,
   onPreviewAssignmentsChange,
 }: WeeklyScheduleBoardProps) => {
+  const { message } = AntApp.useApp();
+
   const { branchId } = useAuth();
 
   // -------------------------------------------------------------------------
@@ -723,7 +720,7 @@ export const WeeklyScheduleBoard = ({
   // -------------------------------------------------------------------------
   return (
     <Spin spinning={loadingTemplates} tip="Cargando plantillas...">
-      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+      <Space orientation="vertical" style={{ width: '100%' }} size="middle">
         {/* ── Cabecera ─────────────────────────────────────────────────── */}
         <Row justify="space-between" align="middle" wrap>
           <Col>
@@ -847,7 +844,7 @@ export const WeeklyScheduleBoard = ({
                       placement="right"
                       title={`${emp.firstName} ${emp.lastName}`}
                       content={
-                        <Space direction="vertical" size={2}>
+                        <Space orientation="vertical" size={2}>
                           <Text style={{ fontSize: 12 }}>
                             Horas de la semana: <Text strong>{weeklyHours.toFixed(1)} h</Text>
                           </Text>

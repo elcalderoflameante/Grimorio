@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Switch, Select, message, Popconfirm, Tag } from 'antd';
+import { App as AntApp, Table, Button, Space, Modal, Form, Input, Switch, Select, Popconfirm, Tag } from 'antd';
 import { KeyOutlined, PlusOutlined, EditOutlined, DeleteOutlined, LockOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { userApi, roleApi } from '../../services/api';
@@ -24,6 +24,8 @@ interface KdsPinFormValues {
 }
 
 export default function UserList() {
+  const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const [users, setUsers] = useState<UserDto[]>([]);
   const [roles, setRoles] = useState<RoleDto[]>([]);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Button, Form, Input, Modal, Table, Space, Popconfirm, message, DatePicker, Card, Empty } from 'antd';
+import { App as AntApp, Button, Form, Input, Modal, Table, Space, Popconfirm, DatePicker, Card, Empty } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
@@ -17,6 +17,8 @@ interface SpecialDateFormValues {
 }
 
 export const SpecialDateList: React.FC<SpecialDateListProps> = ({ branchId }) => {
+  const { message } = AntApp.useApp();
+
   const [form] = Form.useForm<SpecialDateFormValues>();
   const [loading, setLoading] = useState(false);
   const [specialDates, setSpecialDates] = useState<SpecialDateDto[]>([]);

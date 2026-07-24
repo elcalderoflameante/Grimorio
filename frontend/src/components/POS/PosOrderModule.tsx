@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Button, Modal, Space, Typography, message, Alert } from 'antd';
+import { App as AntApp, Button, Modal, Space, Typography, Alert } from 'antd';
 import { ShoppingCartOutlined, CarOutlined } from '@ant-design/icons';
 import { useAuth } from '../../context/useAuth';
 import type { OrderDto, RestaurantTableDto, OrderType } from '../../types';
@@ -14,6 +14,8 @@ const { Title, Text } = Typography;
 type View = 'map' | 'order' | 'table-detail';
 
 export default function PosOrderModule() {
+  const { message } = AntApp.useApp();
+
   const { branchId, hasPermission } = useAuth();
   const [view, setView] = useState<View>('map');
   const [selectedTable, setSelectedTable] = useState<RestaurantTableDto | null>(null);
@@ -193,7 +195,7 @@ export default function PosOrderModule() {
         footer={null}
         width={320}
       >
-        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+        <Space orientation="vertical" style={{ width: '100%' }} size={12}>
           <Button block size="large" icon={<ShoppingCartOutlined />} onClick={() => handleNewOrder('Takeout')}>
             Para llevar
           </Button>

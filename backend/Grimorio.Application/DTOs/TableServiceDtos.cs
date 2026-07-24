@@ -65,3 +65,68 @@ public class PublicActiveTableRequestDto
     public Guid Id { get; set; }
     public TableServiceRequestStatus Status { get; set; }
 }
+
+public class PublicMenuCategoryDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? Color { get; set; }
+    public int Order { get; set; }
+}
+
+public class PublicMenuItemDto
+{
+    public Guid Id { get; set; }
+    public Guid MenuCategoryId { get; set; }
+    public string CategoryName { get; set; } = string.Empty;
+    public string? CategoryColor { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public decimal Price { get; set; }
+    public bool IsAvailable { get; set; }
+    public bool HasModifiers { get; set; }
+    public List<PublicMenuItemModifierGroupDto> ModifierGroups { get; set; } = [];
+}
+
+public class PublicMenuItemModifierGroupDto
+{
+    public Guid Id { get; set; }
+    public Guid MenuItemId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int MinSelections { get; set; }
+    public int MaxSelections { get; set; }
+    public bool IsRequired { get; set; }
+    public bool AllowDuplicates { get; set; }
+    public int DisplayOrder { get; set; }
+    public List<PublicMenuItemModifierOptionDto> Options { get; set; } = [];
+}
+
+public class PublicMenuItemModifierOptionDto
+{
+    public Guid Id { get; set; }
+    public Guid ModifierGroupId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal PriceDelta { get; set; }
+    public int DisplayOrder { get; set; }
+    public bool IsAvailable { get; set; } = true;
+}
+
+public class PublicTableMenuDto
+{
+    public List<PublicMenuCategoryDto> Categories { get; set; } = [];
+    public List<PublicMenuItemDto> Items { get; set; } = [];
+}
+
+public class PublicCreateDraftOrderDto
+{
+    public string TableToken { get; set; } = string.Empty;
+    public string? Notes { get; set; }
+    public List<CreateOrderItemDto> Items { get; set; } = [];
+}
+
+public class PublicDraftOrderResultDto
+{
+    public OrderDto Order { get; set; } = new();
+    public TableServiceRequestDto Notification { get; set; } = new();
+}

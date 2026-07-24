@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Form, Button, Input, InputNumber, Row, Col, message, Spin } from 'antd';
+import { App as AntApp, Form, Button, Input, InputNumber, Row, Col, Spin } from 'antd';
 import { scheduleConfigurationApi } from '../../services/api';
 import type { ScheduleConfigurationDto, CreateScheduleConfigurationDto, UpdateScheduleConfigurationDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
@@ -13,6 +13,8 @@ export const ScheduleConfigurationForm = ({
   branchId, 
   onConfigurationSaved 
 }: ScheduleConfigurationFormProps) => {
+  const { message } = AntApp.useApp();
+
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);

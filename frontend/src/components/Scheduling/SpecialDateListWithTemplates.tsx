@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Button, Form, Input, Modal, Table, Space, Popconfirm, message, DatePicker, Card, Empty, Row, Col, TimePicker, InputNumber, Select } from 'antd';
+import { App as AntApp, Button, Form, Input, Modal, Table, Space, Popconfirm, DatePicker, Card, Empty, Row, Col, TimePicker, InputNumber, Select } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
@@ -48,6 +48,8 @@ const minutesToTimeSpan = (minutes?: number): string | undefined => {
 const dayOfWeekNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
 export const SpecialDateListWithTemplates: React.FC<SpecialDateListProps> = ({ branchId }) => {
+  const { message, modal } = AntApp.useApp();
+
   const [dateForm] = Form.useForm<SpecialDateFormValues>();
   const [templateForm] = Form.useForm<TemplateFormValues>();
   
@@ -253,7 +255,7 @@ export const SpecialDateListWithTemplates: React.FC<SpecialDateListProps> = ({ b
       if (assignedShifts.length === 0) return true;
 
       return await new Promise<boolean>(resolve => {
-        Modal.confirm({
+        modal.confirm({
           title: 'Reasignar turnos del día especial',
           content: 'Hay ' + assignedShifts.length + ' turno(s) asignado(s) para el '
             + dayjs(specialDate.date).format('DD/MM/YYYY')

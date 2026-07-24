@@ -1,6 +1,9 @@
 using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.TableService.Queries;
+using Grimorio.Domain.Entities.Inventory;
+using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.POS;
+using Grimorio.Infrastructure.Features.POS.Commands;
 using Grimorio.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -83,6 +86,154 @@ public class GetRestaurantTableByTokenQueryHandler : IRequestHandler<GetRestaura
                 IsActive = x.IsActive,
             })
             .FirstOrDefaultAsync(cancellationToken);
+    }
+}
+
+public class GetPublicTableMenuQueryHandler : IRequestHandler<GetPublicTableMenuQuery, PublicTableMenuDto>
+{
+    private readonly GrimorioDbContext _context;
+
+    public GetPublicTableMenuQueryHandler(GrimorioDbContext context) => _context = context;
+
+    public async Task<PublicTableMenuDto> Handle(GetPublicTableMenuQuery request, CancellationToken cancellationToken)
+    {
+        var table = await _context.RestaurantTables
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.PublicToken == request.TableToken && !x.IsDeleted, cancellationToken)
+            ?? throw new InvalidOperationException("Mesa no válida.");
+
+        if (!table.IsActive)
+            throw new InvalidOperationException("La mesa no está habilitada.");
+
+        var categories = await _context.MenuCategories
+            .AsNoTracking()
+            .Where(x => x.BranchId == table.BranchId && x.IsActive && !x.IsDeleted)
+            .OrderBy(x => x.Order)
+            .ThenBy(x => x.Name)
+            .Select(x => new PublicMenuCategoryDto
+            {
+                Id = x.Id,
+                Name = x.Name,
+                Description = x.Description,
+                Color = x.Color,
+                Order = x.Order,
+            })
+            .ToListAsync(cancellationToken);
+
+        var items = await _context.MenuItems
+            .AsNoTracking()
+            .Include(x => x.Category)
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.Article)
+                    .ThenInclude(a => a!.BaseUnit)
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.Unit)
+            .Include(x => x.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
+                .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
+                    .ThenInclude(o => o.Article)
+            .Include(x => x.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
+                .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
+                    .ThenInclude(o => o.Unit)
+            .Where(x =>
+                x.BranchId == table.BranchId &&
+                x.IsActive &&
+                x.AvailableForSale &&
+                !x.IsDeleted &&
+                x.Category != null &&
+                x.Category.IsActive &&
+                !x.Category.IsDeleted)
+            .AsSplitQuery()
+            .OrderBy(x => x.Category!.Order)
+            .ThenBy(x => x.Name)
+            .ToListAsync(cancellationToken);
+
+        var availability = await PublicMenuAvailability.BuildAsync(_context, table.BranchId, items, cancellationToken);
+
+        return new PublicTableMenuDto
+        {
+            Categories = categories
+                .Where(category => items.Any(item => item.MenuCategoryId == category.Id))
+                .ToList(),
+            Items = items.Select(item => new PublicMenuItemDto
+            {
+                Id = item.Id,
+                MenuCategoryId = item.MenuCategoryId,
+                CategoryName = item.Category?.Name ?? string.Empty,
+                CategoryColor = item.Category?.Color,
+                Name = item.Name,
+                Description = item.Description,
+                Price = item.Price,
+                IsAvailable = availability.MenuItems.GetValueOrDefault(item.Id, true),
+                HasModifiers = item.ModifierGroups.Any(g => !g.IsDeleted && g.IsActive),
+                ModifierGroups = item.ModifierGroups
+                    .Where(g => !g.IsDeleted && g.IsActive)
+                    .OrderBy(g => g.DisplayOrder)
+                    .ThenBy(g => g.Name)
+                    .Select(group => new PublicMenuItemModifierGroupDto
+                    {
+                        Id = group.Id,
+                        MenuItemId = group.MenuItemId,
+                        Name = group.Name,
+                        MinSelections = group.MinSelections,
+                        MaxSelections = group.MaxSelections,
+                        IsRequired = group.IsRequired,
+                        AllowDuplicates = group.AllowDuplicates,
+                        DisplayOrder = group.DisplayOrder,
+                        Options = group.Options
+                            .Where(o => !o.IsDeleted && o.IsActive)
+                            .OrderBy(o => o.DisplayOrder)
+                            .ThenBy(o => o.Name)
+                            .Select(option => new PublicMenuItemModifierOptionDto
+                            {
+                                Id = option.Id,
+                                ModifierGroupId = option.ModifierGroupId,
+                                Name = option.Name,
+                                PriceDelta = option.PriceDelta,
+                                DisplayOrder = option.DisplayOrder,
+                                IsAvailable = availability.ModifierOptions.GetValueOrDefault(option.Id, true),
+                            })
+                            .ToList(),
+                    })
+                    .ToList(),
+            }).ToList(),
+        };
+    }
+}
+
+public class GetActivePublicTableOrderQueryHandler : IRequestHandler<GetActivePublicTableOrderQuery, OrderDto?>
+{
+    private readonly GrimorioDbContext _context;
+
+    public GetActivePublicTableOrderQueryHandler(GrimorioDbContext context) => _context = context;
+
+    public async Task<OrderDto?> Handle(GetActivePublicTableOrderQuery request, CancellationToken cancellationToken)
+    {
+        var order = await _context.Orders
+            .AsNoTracking()
+            .Where(x =>
+                !x.IsDeleted &&
+                x.Table != null &&
+                x.Table.PublicToken == request.TableToken &&
+                x.Table.IsActive &&
+                !x.Table.IsDeleted &&
+                x.Status != OrderStatus.Cancelled &&
+                x.Status != OrderStatus.Delivered &&
+                x.PaidAt == null)
+            .Include(x => x.Table)
+            .Include(x => x.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.MenuItem)
+            .Include(x => x.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.Station)
+            .Include(x => x.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.TaxRate)
+            .Include(x => x.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.ModifierSelections.Where(s => !s.IsDeleted))
+            .AsSplitQuery()
+            .OrderBy(x => x.Status == OrderStatus.Draft ? 0 : 1)
+            .ThenByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return order is null ? null : PosMapper.MapOrder(order);
     }
 }
 
@@ -180,3 +331,176 @@ public class GetTableServiceRequestsQueryHandler : IRequestHandler<GetTableServi
                 .FirstOrDefaultAsync(cancellationToken);
         }
     }
+
+internal sealed class PublicMenuAvailabilityResult
+{
+    public Dictionary<Guid, bool> MenuItems { get; init; } = [];
+    public Dictionary<Guid, bool> ModifierOptions { get; init; } = [];
+}
+
+internal static class PublicMenuAvailability
+{
+    public static async Task<PublicMenuAvailabilityResult> BuildAsync(
+        GrimorioDbContext context,
+        Guid branchId,
+        IReadOnlyCollection<MenuItem> menuItems,
+        CancellationToken cancellationToken)
+    {
+        var articleIds = menuItems
+            .SelectMany(item => item.Recipe.Where(r => !r.IsDeleted).Select(r => r.ArticleId))
+            .Concat(menuItems.SelectMany(item => item.ModifierGroups
+                .Where(g => !g.IsDeleted && g.IsActive)
+                .SelectMany(g => g.Options
+                    .Where(o => !o.IsDeleted && o.IsActive && o.ArticleId.HasValue)
+                    .Select(o => o.ArticleId!.Value))))
+            .Distinct()
+            .ToList();
+
+        var stockByArticle = articleIds.Count == 0
+            ? new Dictionary<Guid, decimal>()
+            : await context.WarehouseStock
+                .AsNoTracking()
+                .Where(x => x.BranchId == branchId && !x.IsDeleted && articleIds.Contains(x.ArticleId))
+                .GroupBy(x => x.ArticleId)
+                .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.Quantity) })
+                .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, cancellationToken);
+
+        var reservedByArticle = articleIds.Count == 0
+            ? new Dictionary<Guid, decimal>()
+            : await context.StockReservations
+                .AsNoTracking()
+                .Where(x =>
+                    x.BranchId == branchId &&
+                    !x.IsDeleted &&
+                    articleIds.Contains(x.ArticleId) &&
+                    x.Status == StockReservationStatus.Active)
+                .GroupBy(x => x.ArticleId)
+                .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.BaseQuantity) })
+                .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, cancellationToken);
+
+        foreach (var (articleId, reservedQuantity) in reservedByArticle)
+            stockByArticle[articleId] = Math.Max(0, stockByArticle.GetValueOrDefault(articleId) - reservedQuantity);
+
+        var conversions = await context.UnitConversions
+            .AsNoTracking()
+            .Where(x => x.BranchId == branchId && !x.IsDeleted)
+            .Select(x => new UnitConversionInfo(x.OriginUnitId, x.DestinationUnitId, x.Factor))
+            .ToListAsync(cancellationToken);
+
+        var result = new PublicMenuAvailabilityResult();
+        foreach (var item in menuItems)
+        {
+            result.MenuItems[item.Id] = IsMenuItemAvailable(item, stockByArticle, conversions);
+
+            foreach (var option in item.ModifierGroups
+                .Where(g => !g.IsDeleted && g.IsActive)
+                .SelectMany(g => g.Options.Where(o => !o.IsDeleted && o.IsActive)))
+            {
+                result.ModifierOptions[option.Id] = IsModifierOptionAvailable(option, stockByArticle, conversions);
+            }
+        }
+
+        return result;
+    }
+
+    public static bool IsMenuItemAvailable(
+        MenuItem item,
+        IReadOnlyDictionary<Guid, decimal> stockByArticle,
+        IReadOnlyCollection<UnitConversionInfo> conversions,
+        int quantity = 1)
+    {
+        if (!item.IsActive || !item.AvailableForSale || item.IsDeleted) return false;
+
+        var recipe = item.Recipe.Where(r => !r.IsDeleted).ToList();
+        if (recipe.Count == 0) return true;
+
+        foreach (var ingredient in recipe)
+        {
+            var article = ingredient.Article;
+            if (article is null) return false;
+
+            var requiredBase = ConvertQuantity(ingredient.Quantity * quantity, ingredient.UnitId, article.BaseUnitId, conversions);
+            if (requiredBase <= 0) return false;
+
+            var stock = stockByArticle.GetValueOrDefault(ingredient.ArticleId);
+            if (stock < requiredBase) return false;
+        }
+
+        return true;
+    }
+
+    public static bool IsModifierOptionAvailable(
+        MenuItemModifierOption option,
+        IReadOnlyDictionary<Guid, decimal> stockByArticle,
+        IReadOnlyCollection<UnitConversionInfo> conversions,
+        int quantity = 1)
+    {
+        if (!option.IsActive || option.IsDeleted) return false;
+        if (!option.ArticleId.HasValue) return true;
+        if (!option.UnitId.HasValue || option.Quantity <= 0 || option.Article is null) return false;
+
+        var requiredBase = ConvertQuantity(option.Quantity * quantity, option.UnitId.Value, option.Article.BaseUnitId, conversions);
+        if (requiredBase <= 0) return false;
+
+        return stockByArticle.GetValueOrDefault(option.ArticleId.Value) >= requiredBase;
+    }
+
+    public static async Task<(Dictionary<Guid, decimal> StockByArticle, List<UnitConversionInfo> Conversions)> LoadStockInputsAsync(
+        GrimorioDbContext context,
+        Guid branchId,
+        IReadOnlyCollection<Guid> articleIds,
+        CancellationToken cancellationToken)
+    {
+        var stockByArticle = articleIds.Count == 0
+            ? new Dictionary<Guid, decimal>()
+            : await context.WarehouseStock
+                .AsNoTracking()
+                .Where(x => x.BranchId == branchId && !x.IsDeleted && articleIds.Contains(x.ArticleId))
+                .GroupBy(x => x.ArticleId)
+                .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.Quantity) })
+                .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, cancellationToken);
+
+        var reservedByArticle = articleIds.Count == 0
+            ? new Dictionary<Guid, decimal>()
+            : await context.StockReservations
+                .AsNoTracking()
+                .Where(x =>
+                    x.BranchId == branchId &&
+                    !x.IsDeleted &&
+                    articleIds.Contains(x.ArticleId) &&
+                    x.Status == StockReservationStatus.Active)
+                .GroupBy(x => x.ArticleId)
+                .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.BaseQuantity) })
+                .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, cancellationToken);
+
+        foreach (var (articleId, reservedQuantity) in reservedByArticle)
+            stockByArticle[articleId] = Math.Max(0, stockByArticle.GetValueOrDefault(articleId) - reservedQuantity);
+
+        var conversions = await context.UnitConversions
+            .AsNoTracking()
+            .Where(x => x.BranchId == branchId && !x.IsDeleted)
+            .Select(x => new UnitConversionInfo(x.OriginUnitId, x.DestinationUnitId, x.Factor))
+            .ToListAsync(cancellationToken);
+
+        return (stockByArticle, conversions);
+    }
+
+    public sealed record UnitConversionInfo(Guid OriginUnitId, Guid DestinationUnitId, decimal Factor);
+
+    private static decimal ConvertQuantity(
+        decimal quantity,
+        Guid originUnitId,
+        Guid destinationUnitId,
+        IEnumerable<UnitConversionInfo> conversions)
+    {
+        if (originUnitId == destinationUnitId) return quantity;
+
+        var direct = conversions.FirstOrDefault(x => x.OriginUnitId == originUnitId && x.DestinationUnitId == destinationUnitId);
+        if (direct is not null) return quantity * direct.Factor;
+
+        var reverse = conversions.FirstOrDefault(x => x.OriginUnitId == destinationUnitId && x.DestinationUnitId == originUnitId);
+        if (reverse is not null && reverse.Factor != 0) return quantity / reverse.Factor;
+
+        return 0m;
+    }
+}

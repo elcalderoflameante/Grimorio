@@ -1,8 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import {
-  Modal, Form, Select, DatePicker, Input, Button, Table, InputNumber,
-  Space, Divider, Descriptions, Tag, message, Typography,
-} from 'antd';
+import { App as AntApp, Modal, Form, Select, DatePicker, Input, Button, Table, InputNumber,
+  Space, Divider, Descriptions, Tag, Typography } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type {
@@ -88,6 +86,8 @@ function computeFiscal(items: ItemRow[], taxMap: Map<string, TaxRateDto>): Fisca
 }
 
 export default function PurchaseForm({ open, compra, proveedores, readOnly = false, onClose, onSaved }: Props) {
+  const { message } = AntApp.useApp();
+
   const [form] = Form.useForm();
   const [articulos, setArticulos] = useState<InventoryArticleDto[]>([]);
   const [bodegas, setBodegas] = useState<WarehouseDto[]>([]);

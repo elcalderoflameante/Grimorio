@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Form, Button, InputNumber, Row, Col, message, Spin } from 'antd';
+import { App as AntApp, Form, Button, InputNumber, Row, Col, Spin } from 'antd';
 import { payrollApi } from '../../services/api';
 import type { PayrollConfigurationDto, CreatePayrollConfigurationDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 
 export const PayrollConfigurationForm = () => {
+  const { message } = AntApp.useApp();
+
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);

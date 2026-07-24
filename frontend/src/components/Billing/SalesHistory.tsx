@@ -165,7 +165,7 @@ export default function SalesHistory() {
               value={m.total}
               prefix="$"
               precision={2}
-              valueStyle={{ color: m.color }}
+              styles={{ content: { color: m.color } }}
             />
           </Col>
         ))}

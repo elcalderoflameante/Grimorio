@@ -1,12 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  App as AntApp, Button, Card, Col, Divider, Empty, InputNumber, Modal,
-  Row, Space, Spin, Tag, Typography, Input, Badge, Alert, Tooltip
-} from 'antd';
-import {
-  ArrowLeftOutlined, CheckOutlined,
-  DeleteOutlined, MinusOutlined, PlusOutlined, SendOutlined, QuestionCircleOutlined
-} from '@ant-design/icons';
+import { App as AntApp, Button, Card, Col, Divider, Empty, InputNumber, Modal,
+  Row, Space, Spin, Tag, Typography, Input, Badge, Alert, Tooltip } from 'antd';
+import { ArrowLeftOutlined, CheckOutlined,
+  DeleteOutlined, MinusOutlined, PlusOutlined, SendOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { menuApi, posApi } from '../../services/api';
 import type {
   MenuCategoryDto, CreateOrderItemDto, MenuItemDto,
@@ -48,6 +44,7 @@ function modifiersLabel(selections: CreateModifierSelectionDto[] | undefined, it
 
 export default function TakeOrder({ table, orderType, existingOrder, directSale = false, onClose, onConfirm }: Props) {
   const { message } = AntApp.useApp();
+
   const [categories, setCategories] = useState<MenuCategoryDto[]>([]);
   const [items, setItems] = useState<MenuItemDto[]>([]);
   const [availability, setAvailability] = useState<MenuItemAvailabilityDto[]>([]);

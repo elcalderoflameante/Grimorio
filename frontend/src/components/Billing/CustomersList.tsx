@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Table, Button, Space, Tag, Modal, Form, Input, Select, Popconfirm, message, Typography } from 'antd';
+import { App as AntApp, Table, Button, Space, Tag, Modal, Form, Input, Select, Popconfirm, Typography } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto } from '../../types';
 import { customersApi } from '../../services/api';
@@ -20,6 +20,8 @@ const TAX_LABELS: Record<string, string> = {
 };
 
 export default function CustomersList() {
+  const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const [customers, setCustomers] = useState<CustomerDto[]>([]);
   const [loading, setLoading] = useState(false);

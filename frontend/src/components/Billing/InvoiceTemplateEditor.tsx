@@ -1,13 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  Card, Tabs, Button, Switch, Input, ColorPicker, Upload, Spin,
-  message, Tooltip, Typography, Divider, Space, Tag, Alert,
-} from 'antd';
-import {
-  DragOutlined, EyeOutlined, EyeInvisibleOutlined,
+import { App as AntApp, Card, Tabs, Button, Switch, Input, ColorPicker, Upload, Spin, Tooltip, Typography, Divider, Space, Tag, Alert } from 'antd';
+import { DragOutlined, EyeOutlined, EyeInvisibleOutlined,
   SaveOutlined, FileImageOutlined, MailOutlined,
-  FilePdfOutlined, ReloadOutlined, DeleteOutlined,
-} from '@ant-design/icons';
+  FilePdfOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent,
 } from '@dnd-kit/core';
@@ -174,6 +169,8 @@ const DEFAULT_TEMPLATE: InvoiceTemplateDto = {
 };
 
 export default function InvoiceTemplateEditor() {
+  const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const [template, setTemplate] = useState<InvoiceTemplateDto>(DEFAULT_TEMPLATE);
   const [loading, setLoading] = useState(true);
@@ -275,7 +272,7 @@ export default function InvoiceTemplateEditor() {
     switch (block.type) {
       case 'header':
         return (
-          <Space direction="vertical" style={{ width: '100%' }}>
+          <Space orientation="vertical" style={{ width: '100%' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Text type="secondary" style={{ minWidth: 90, fontSize: 12 }}>Color principal</Text>
               <ColorPicker
@@ -293,7 +290,7 @@ export default function InvoiceTemplateEditor() {
         );
       case 'customer':
         return (
-          <Space direction="vertical">
+          <Space orientation="vertical">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Switch size="small" checked={block.showEmail} onChange={v => updatePdfBlock(block.id, { showEmail: v })} />
               <Text style={{ fontSize: 12 }}>Mostrar email</Text>
@@ -306,7 +303,7 @@ export default function InvoiceTemplateEditor() {
         );
       case 'items':
         return (
-          <Space direction="vertical">
+          <Space orientation="vertical">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Switch size="small" checked={block.showAuxCode} onChange={v => updatePdfBlock(block.id, { showAuxCode: v })} />
               <Text style={{ fontSize: 12 }}>Mostrar código auxiliar</Text>
@@ -349,7 +346,7 @@ export default function InvoiceTemplateEditor() {
     switch (block.type) {
       case 'header':
         return (
-          <Space direction="vertical" style={{ width: '100%' }}>
+          <Space orientation="vertical" style={{ width: '100%' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Text type="secondary" style={{ minWidth: 70, fontSize: 12 }}>Color fondo</Text>
               <ColorPicker
@@ -379,7 +376,7 @@ export default function InvoiceTemplateEditor() {
       case 'legal_note':
       case 'footer':
         return (
-          <Space direction="vertical" style={{ width: '100%' }}>
+          <Space orientation="vertical" style={{ width: '100%' }}>
             <TextArea
               placeholder="Texto del bloque"
               value={block.text ?? ''}
@@ -447,7 +444,7 @@ export default function InvoiceTemplateEditor() {
 
         {/* Logo y colores globales */}
         <Card size="small" title="Configuración global">
-          <Space direction="vertical" style={{ width: '100%' }}>
+          <Space orientation="vertical" style={{ width: '100%' }}>
             <div>
               <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>Logo de la empresa</Text>
               {template.logoBase64 ? (

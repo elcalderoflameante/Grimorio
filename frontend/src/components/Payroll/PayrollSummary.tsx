@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, message, Card, Row, Col, List, Divider, Empty, Popconfirm, Upload } from 'antd';
+import { App as AntApp, Button, DatePicker, Form, Input, InputNumber, Modal, Select, Space, Table, Card, Row, Col, List, Divider, Empty, Popconfirm, Upload } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -98,6 +98,8 @@ interface PdfLineItem {
 }
 
 export const PayrollSummary = () => {
+  const { message } = AntApp.useApp();
+
   const payrollPdfRef = useRef<HTMLDivElement | null>(null);
   const selectedEmployeeIdRef = useRef<string | null>(null);
   const [month, setMonth] = useState<Dayjs>(dayjs());
@@ -800,7 +802,7 @@ export const PayrollSummary = () => {
 
   return (
     <Card size="small">
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <Space orientation="vertical" size="large" style={{ width: '100%' }}>
         {/* Header */}
         <Space wrap>
           <DatePicker
@@ -852,7 +854,7 @@ export const PayrollSummary = () => {
           <Col xs={24} sm={24} md={16}>
             {selectedEmployee ? (
               <Card size="small" title={`Detalles - ${selectedEmployee.employeeName}`}>
-                <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                <Space orientation="vertical" size="large" style={{ width: '100%' }}>
                   {/* Employee Info */}
                   <div>
                     <h4>Información Salarial - {formatPeriod(month)}</h4>

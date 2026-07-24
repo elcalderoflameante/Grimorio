@@ -1,12 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  Alert, App as AntApp, Button, Card, Checkbox, Col, Divider, Empty, Input, InputNumber, Popconfirm,
-  Modal, Row, Select, Space, Spin, Tabs, Tag, Tooltip, Typography,
-} from 'antd';
-import {
-  ArrowLeftOutlined, CheckCircleOutlined, DeleteOutlined, DollarOutlined, EditOutlined,
-  MinusOutlined, PlusOutlined, QuestionCircleOutlined, ReloadOutlined, SplitCellsOutlined,
-} from '@ant-design/icons';
+import { App as AntApp, Alert, Button, Card, Checkbox, Col, Divider, Empty, Input, InputNumber, Popconfirm,
+  Modal, Row, Select, Space, Spin, Tabs, Tag, Tooltip, Typography } from 'antd';
+import { ArrowLeftOutlined, CheckCircleOutlined, DeleteOutlined, DollarOutlined, EditOutlined,
+  MinusOutlined, PlusOutlined, QuestionCircleOutlined, ReloadOutlined, SplitCellsOutlined } from '@ant-design/icons';
 import type {
   OrderDto, RestaurantTableDto, PaymentMethodConfigDto,
   OrderPaymentDto, AddOrderPaymentDto, CustomerDto, MenuCategoryDto,
@@ -80,6 +76,7 @@ interface Props {
 
 export default function TableOrderView({ orderId, table, branchId, onClose, onTableUpdated }: Props) {
   const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const [order, setOrder] = useState<OrderDto | null>(null);
   const [payments, setPayments] = useState<OrderPaymentDto[]>([]);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Card, Form, Input, Button, message, Spin, Row, Col, Tag, Alert } from 'antd';
+import { App as AntApp, Card, Form, Input, Button, Spin, Row, Col, Tag, Alert } from 'antd';
 import { SaveOutlined, LockOutlined } from '@ant-design/icons';
 import { useAuth } from '../../context/useAuth';
 import { userApi } from '../../services/api';
@@ -18,6 +18,8 @@ interface ChangePasswordValues {
 }
 
 export default function Profile() {
+  const { message } = AntApp.useApp();
+
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [userData, setUserData] = useState<UserDto | null>(null);

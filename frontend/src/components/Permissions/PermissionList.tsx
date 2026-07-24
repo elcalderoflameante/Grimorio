@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Switch, message, Popconfirm } from 'antd';
+import { App as AntApp, Table, Button, Space, Modal, Form, Input, Switch, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { permissionApi } from '../../services/api';
@@ -15,6 +15,8 @@ interface PermissionFormValues {
 }
 
 export default function PermissionList() {
+  const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const [permissions, setPermissions] = useState<PermissionDto[]>([]);
   const [loading, setLoading] = useState(false);

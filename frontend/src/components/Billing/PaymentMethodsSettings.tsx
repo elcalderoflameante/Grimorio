@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
-import {
-  Table, Button, Modal, Form, Input, Switch, InputNumber,
-  Space, Tag, Popconfirm, Typography, message, ColorPicker, Divider,
-} from 'antd';
+import { App as AntApp, Table, Button, Modal, Form, Input, Switch, InputNumber,
+  Space, Tag, Popconfirm, Typography, ColorPicker, Divider } from 'antd';
 import type { AggregationColor } from 'antd/es/color-picker/color';
 import { PlusOutlined, EditOutlined, DeleteOutlined, BankOutlined } from '@ant-design/icons';
 import type {
@@ -18,6 +16,8 @@ const { Title, Text } = Typography;
 const DEFAULT_COLORS = ['#52c41a', '#1677ff', '#722ed1', '#13c2c2', '#fa8c16', '#eb2f96', '#f5222d', '#faad14'];
 
 export default function PaymentMethodsSettings() {
+  const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const [methods, setMethods] = useState<PaymentMethodConfigDto[]>([]);
   const [banks, setBanks] = useState<CardBankDto[]>([]);

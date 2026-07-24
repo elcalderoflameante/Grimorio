@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Table, Select, Space, Typography, message, Tag, Badge, Button } from 'antd';
+import { App as AntApp, Table, Select, Space, Typography, Tag, Badge, Button } from 'antd';
 import dayjs from 'dayjs';
 import { ReloadOutlined, WarningOutlined } from '@ant-design/icons';
 import { inventoryApi } from '../../services/api';
@@ -17,6 +17,8 @@ const TIPO_COLOR: Record<string, string> = {
 const formatQuantity = (value: number, unit: string) => `${Number(value).toFixed(2)} ${unit}`;
 
 export default function CurrentStock() {
+  const { message } = AntApp.useApp();
+
   const [stock, setStock] = useState<WarehouseStockDto[]>([]);
   const [bodegas, setBodegas] = useState<WarehouseDto[]>([]);
   const [categorias, setCategorias] = useState<InventoryCategoryDto[]>([]);

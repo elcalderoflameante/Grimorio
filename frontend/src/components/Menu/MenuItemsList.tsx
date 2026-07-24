@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Table, Button, Modal, Form, Input, InputNumber, Select, Switch,
-  Popconfirm, Space, Typography, message, Tag, Badge, Tooltip, Alert
-} from 'antd';
+import { App as AntApp, Table, Button, Modal, Form, Input, InputNumber, Select, Switch,
+  Popconfirm, Space, Typography, Tag, Badge, Tooltip, Alert } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, UnorderedListOutlined, ControlOutlined } from '@ant-design/icons';
 import { menuApi, posApi, taxApi } from '../../services/api';
 import type { MenuItemDto, MenuCategoryDto, CreateMenuItemDto, UpdateMenuItemDto, WorkStationDto, TaxRateDto } from '../../types';
@@ -15,6 +13,8 @@ import { PERMISSIONS } from '../../constants/permissions';
 const { Title } = Typography;
 
 export default function MenuItemsList() {
+  const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const [items, setItems] = useState<MenuItemDto[]>([]);
   const [categorias, setCategorias] = useState<MenuCategoryDto[]>([]);

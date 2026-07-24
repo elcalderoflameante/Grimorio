@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Select, Button, Modal, Form, Input, Space, message } from 'antd';
+import { App as AntApp, Select, Button, Modal, Form, Input, Space } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import type { CustomerDto, CreateCustomerDto } from '../../types';
 import { customersApi } from '../../services/api';
@@ -20,6 +20,8 @@ interface Props {
 }
 
 export default function CustomerSelector({ value, onChange }: Props) {
+  const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const [customers, setCustomers] = useState<CustomerDto[]>([]);
   const [search, setSearch] = useState('');

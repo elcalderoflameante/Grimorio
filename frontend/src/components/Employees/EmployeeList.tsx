@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Table, Button, Space, message, Popconfirm, Drawer, Switch } from 'antd';
+import { App as AntApp, Table, Button, Space, Popconfirm, Drawer, Switch } from 'antd';
 import { PlusOutlined, DeleteOutlined, TeamOutlined, CalendarOutlined, EyeOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { employeeApi } from '../../services/api';
@@ -13,6 +13,8 @@ interface EmployeeListProps {
 }
 
 export default function EmployeeList({ onViewEmployee, onCreateEmployee }: EmployeeListProps) {
+  const { message } = AntApp.useApp();
+
   const [employees, setEmployees] = useState<EmployeeDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({ pageNumber: 1, pageSize: 10, total: 0 });

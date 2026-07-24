@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, Select, Switch, Popconfirm, Space, Typography, message, Tag } from 'antd';
+import { App as AntApp, Table, Button, Modal, Form, Input, Select, Switch, Popconfirm, Space, Typography, Tag } from 'antd';
 import { DownloadOutlined, PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { posApi } from '../../services/api';
 import type { WorkStationDto, StationType } from '../../types';
@@ -21,6 +21,8 @@ const STATION_APP_APK_URL = (import.meta.env.VITE_STATION_APP_APK_URL as string 
   || '/downloads/grimorio-estaciones.apk';
 
 export default function StationsConfig() {
+  const { message } = AntApp.useApp();
+
   const [estaciones, setEstaciones] = useState<WorkStationDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState(false);

@@ -1,12 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import {
-  Table, Tag, Space, Typography, Button, DatePicker, Select,
-  message, Tooltip, Modal, Descriptions, Alert, Spin,
-} from 'antd';
-import {
-  ReloadOutlined, FilePdfOutlined, FileTextOutlined,
-  RedoOutlined, ThunderboltOutlined, CodeOutlined,
-} from '@ant-design/icons';
+import { App as AntApp, Table, Tag, Space, Typography, Button, DatePicker, Select, Tooltip, Modal, Descriptions, Alert, Spin } from 'antd';
+import { ReloadOutlined, FilePdfOutlined, FileTextOutlined,
+  RedoOutlined, ThunderboltOutlined, CodeOutlined } from '@ant-design/icons';
 import type { ElectronicDocumentDto } from '../../types';
 import { sriApi } from '../../services/api';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -79,7 +74,7 @@ function DocDetail({ doc }: { doc: ElectronicDocumentDto }) {
       <Descriptions.Item label="Reintentos">{doc.retryCount}</Descriptions.Item>
       {doc.errorMessage && (
         <Descriptions.Item label="Error" span={2}>
-          <Alert type="error" message={doc.errorMessage} style={{ padding: '2px 8px' }} />
+          <Alert type="error" title={doc.errorMessage} style={{ padding: '2px 8px' }} />
         </Descriptions.Item>
       )}
     </Descriptions>
@@ -87,6 +82,8 @@ function DocDetail({ doc }: { doc: ElectronicDocumentDto }) {
 }
 
 export default function ElectronicInvoices() {
+  const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const [docs, setDocs] = useState<ElectronicDocumentDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -362,6 +359,7 @@ export function GenerateInvoiceButton({
   electronicDocumentStatus,
   onSuccess,
 }: GenerateInvoiceButtonProps) {
+  const { message } = AntApp.useApp();
   const { hasPermission } = useAuth();
   const [loading, setLoading] = useState(false);
   const canGenerateSri = hasPermission(PERMISSIONS.billing.sriGenerate);

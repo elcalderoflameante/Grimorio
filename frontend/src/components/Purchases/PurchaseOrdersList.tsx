@@ -1,11 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import {
-  Table, Button, Tag, Space, Popconfirm, message, Select, DatePicker,
-  Tooltip,
-} from 'antd';
-import {
-  PlusOutlined, EyeOutlined, EditOutlined, StopOutlined, DeleteOutlined,
-} from '@ant-design/icons';
+import { App as AntApp, Table, Button, Tag, Space, Popconfirm, Select, DatePicker,
+  Tooltip } from 'antd';
+import { PlusOutlined, EyeOutlined, EditOutlined, StopOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { PurchaseDto, SupplierDto } from '../../types';
 import { purchasesApi } from '../../services/api';
@@ -23,6 +19,8 @@ const DOC_TYPE_LABEL: Record<string, string> = {
 const STATUS_COLOR: Record<string, string> = { Registrada: 'green', Anulada: 'red' };
 
 export default function PurchasesList() {
+  const { message } = AntApp.useApp();
+
   const { hasPermission } = useAuth();
   const [compras, setCompras] = useState<PurchaseDto[]>([]);
   const [proveedores, setProveedores] = useState<SupplierDto[]>([]);

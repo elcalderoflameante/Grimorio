@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, Space, message, Popconfirm } from 'antd';
+import { App as AntApp, Table, Button, Modal, Form, Input, InputNumber, Space, Popconfirm } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { workAreaApi } from '../../services/api';
 import type { WorkAreaDto, CreateWorkAreaDto, UpdateWorkAreaDto } from '../../types';
@@ -10,6 +10,8 @@ interface WorkAreaListProps {
 }
 
 export const WorkAreaList = ({ branchId }: WorkAreaListProps) => {
+  const { message } = AntApp.useApp();
+
   const [areas, setAreas] = useState<WorkAreaDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
