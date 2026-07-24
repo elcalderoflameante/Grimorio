@@ -141,6 +141,8 @@ public class MovimientoStockConfiguration : BaseEntityConfiguration<StockMovemen
         builder.Property(x => x.Type).HasConversion<string>().HasMaxLength(40).IsRequired();
         builder.Property(x => x.Quantity).HasColumnType("numeric(18,4)").IsRequired();
         builder.Property(x => x.BaseQuantity).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.UnitCost).HasColumnType("numeric(18,4)");
+        builder.Property(x => x.TotalCost).HasColumnType("numeric(18,4)");
         builder.Property(x => x.Reference).HasMaxLength(120);
         builder.Property(x => x.Notes).HasMaxLength(500);
 

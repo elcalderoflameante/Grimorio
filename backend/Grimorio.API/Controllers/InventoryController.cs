@@ -287,7 +287,7 @@ public class InventoryController : ControllerBase
         {
             BranchId = branchId, ArticleId = dto.ArticleId, WarehouseId = dto.WarehouseId,
             Type = movementType, Quantity = dto.Quantity, UnitId = dto.UnitId,
-            Reference = dto.Reference, Notes = dto.Notes,
+            UnitCost = dto.UnitCost, Reference = dto.Reference, Notes = dto.Notes,
         });
         return Ok(result);
     }

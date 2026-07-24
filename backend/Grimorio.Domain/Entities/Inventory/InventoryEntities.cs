@@ -113,6 +113,8 @@ public class StockMovement : BaseEntity
     public decimal Quantity { get; set; }
     public Guid UnitId { get; set; }
     public decimal BaseQuantity { get; set; }
+    public decimal? UnitCost { get; set; }
+    public decimal? TotalCost { get; set; }
     public string? Reference { get; set; }
     public string? Notes { get; set; }
     public Guid? OrderItemId { get; set; }

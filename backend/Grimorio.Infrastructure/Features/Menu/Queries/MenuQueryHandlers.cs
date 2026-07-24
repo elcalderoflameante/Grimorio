@@ -1,5 +1,6 @@
-﻿using Grimorio.Application.DTOs;
+using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Menu.Queries;
+using Grimorio.Domain.Entities.Inventory;
 using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.Purchases;
 using Grimorio.Infrastructure.Features.Menu.Commands;
@@ -489,7 +490,7 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
                     x.CreatedAt))
                 .ToListAsync(ct);
 
-        var unitCosts = purchaseItems
+        var purchaseCostSamples = purchaseItems
             .Select(x =>
             {
                 var baseQty = ConvertQuantity(x.Quantity, x.UnitId, x.ArticleBaseUnitId, conversions);
@@ -497,6 +498,33 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
                 var unitCost = baseQty > 0 ? netCost / baseQty : 0m;
                 return new ArticleCostSample(x.ArticleId, baseQty, netCost, unitCost, x.PurchaseDate, x.CreatedAt);
             })
+            .Where(x => x.BaseQuantity > 0 && x.NetCost >= 0)
+            .ToList();
+
+        var movementCostSamples = articleIds.Count == 0
+            ? []
+            : await _db.StockMovements
+                .AsNoTracking()
+                .Where(x => x.BranchId == req.BranchId
+                    && !x.IsDeleted
+                    && articleIds.Contains(x.ArticleId)
+                    && x.BaseQuantity > 0
+                    && x.TotalCost.HasValue
+                    && x.UnitCost.HasValue
+                    && (x.Type == MovementType.InitialInventory
+                        || x.Type == MovementType.ManualEntry
+                        || x.Type == MovementType.PositiveAdjustment))
+                .Select(x => new ArticleCostSample(
+                    x.ArticleId,
+                    x.BaseQuantity,
+                    x.TotalCost!.Value,
+                    x.UnitCost!.Value,
+                    x.CreatedAt,
+                    x.CreatedAt))
+                .ToListAsync(ct);
+
+        var unitCosts = purchaseCostSamples
+            .Concat(movementCostSamples)
             .Where(x => x.BaseQuantity > 0 && x.NetCost >= 0)
             .GroupBy(x => x.ArticleId)
             .ToDictionary(

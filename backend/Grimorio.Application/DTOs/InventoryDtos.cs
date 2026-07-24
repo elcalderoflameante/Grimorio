@@ -156,6 +156,8 @@ public class StockMovementDto
     public string UnitSymbol { get; set; } = string.Empty;
     public decimal BaseQuantity { get; set; }
     public string BaseUnitSymbol { get; set; } = string.Empty;
+    public decimal? UnitCost { get; set; }
+    public decimal? TotalCost { get; set; }
     public string? Reference { get; set; }
     public string? Notes { get; set; }
     public DateTime MovedAt { get; set; }
@@ -168,6 +170,7 @@ public class RegisterMovementDto
     public string Type { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     public Guid UnitId { get; set; }
+    public decimal? UnitCost { get; set; }
     public string? Reference { get; set; }
     public string? Notes { get; set; }
 }
@@ -183,6 +186,7 @@ public class InitialInventoryItemDto
     public Guid WarehouseId { get; set; }
     public decimal Quantity { get; set; }
     public Guid UnitId { get; set; }
+    public decimal? UnitCost { get; set; }
     public string? Notes { get; set; }
 }
 

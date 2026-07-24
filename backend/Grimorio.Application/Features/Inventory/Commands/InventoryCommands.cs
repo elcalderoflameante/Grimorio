@@ -140,6 +140,7 @@ public class RegisterMovementCommand : IRequest<StockMovementDto>
     public MovementType Type { get; set; }
     public decimal Quantity { get; set; }
     public Guid UnitId { get; set; }
+    public decimal? UnitCost { get; set; }
     public string? Reference { get; set; }
     public string? Notes { get; set; }
 }

@@ -352,13 +352,19 @@ public class RegisterMovementHandler : IRequestHandler<RegisterMovementCommand, 
             or MovementType.NegativeAdjustment;
 
         var effectiveQuantity = isExit ? -Math.Abs(baseQuantity) : Math.Abs(baseQuantity);
+        var allowsManualCost = req.Type is MovementType.InitialInventory
+            or MovementType.ManualEntry
+            or MovementType.PositiveAdjustment;
+        decimal? unitCost = allowsManualCost ? req.UnitCost : null;
+        decimal? totalCost = unitCost.HasValue ? Math.Abs(effectiveQuantity) * unitCost.Value : null;
 
         var movement = new StockMovement
         {
             Id = Guid.NewGuid(), BranchId = req.BranchId,
             ArticleId = req.ArticleId, WarehouseId = req.WarehouseId,
             Type = req.Type, Quantity = req.Quantity, UnitId = req.UnitId,
-            BaseQuantity = effectiveQuantity, Reference = req.Reference?.Trim(), Notes = req.Notes?.Trim(),
+            BaseQuantity = effectiveQuantity, UnitCost = unitCost, TotalCost = totalCost,
+            Reference = req.Reference?.Trim(), Notes = req.Notes?.Trim(),
         };
         _db.StockMovements.Add(movement);
         await _db.SaveChangesAsync(ct);
@@ -395,6 +401,8 @@ public class RegisterMovementHandler : IRequestHandler<RegisterMovementCommand, 
             Type = movement.Type.ToString(), Quantity = movement.Quantity,
             UnitSymbol = movementUnit.Symbol, BaseQuantity = effectiveQuantity,
             BaseUnitSymbol = article.BaseUnit!.Symbol,
+            UnitCost = movement.UnitCost,
+            TotalCost = movement.TotalCost,
             Reference = movement.Reference, Notes = movement.Notes,
             MovedAt = movement.CreatedAt,
         };
@@ -415,7 +423,7 @@ public class RegisterInitialInventoryHandler : IRequestHandler<RegisterInitialIn
             {
                 BranchId = req.BranchId, ArticleId = item.ArticleId, WarehouseId = item.WarehouseId,
                 Type = MovementType.InitialInventory, Quantity = item.Quantity,
-                UnitId = item.UnitId, Notes = item.Notes,
+                UnitId = item.UnitId, UnitCost = item.UnitCost, Notes = item.Notes,
             }, ct);
             resultados.Add(resultado);
         }

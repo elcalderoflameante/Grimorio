@@ -952,6 +952,8 @@ export interface StockMovementDto {
   unitSymbol: string;
   baseQuantity: number;
   baseUnitSymbol: string;
+  unitCost?: number;
+  totalCost?: number;
   reference?: string;
   notes?: string;
   movedAt: string;
@@ -963,6 +965,7 @@ export interface RegisterMovementDto {
   type: MovementType;
   quantity: number;
   unitId: string;
+  unitCost?: number;
   reference?: string;
   notes?: string;
 }
@@ -972,6 +975,7 @@ export interface InitialInventoryItemDto {
   warehouseId: string;
   quantity: number;
   unitId: string;
+  unitCost?: number;
   notes?: string;
 }
 
