@@ -80,6 +80,7 @@ interface ItemDraft {
 
 type PublicTab = 'requests' | 'menu' | 'order';
 
+const PUBLIC_MENU_ENABLED = false;
 const money = (value: number) => `$${value.toFixed(2)}`;
 const createLocalId = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -177,6 +178,12 @@ export default function PublicTableRequest() {
   }, [token]);
 
   useEffect(() => {
+    if (!PUBLIC_MENU_ENABLED) {
+      setCategories([]);
+      setMenuItems([]);
+      setSelectedCategoryId(null);
+      return;
+    }
     if (!token) return;
 
     const loadMenu = async () => {
@@ -198,7 +205,7 @@ export default function PublicTableRequest() {
   }, [token]);
 
   const loadActiveOrder = useCallback(async (showLoading = false) => {
-    if (!token) {
+    if (!PUBLIC_MENU_ENABLED || !token) {
       setActiveOrder(null);
       return;
     }
@@ -216,11 +223,12 @@ export default function PublicTableRequest() {
   }, [token]);
 
   useEffect(() => {
+    if (!PUBLIC_MENU_ENABLED) return;
     loadActiveOrder(true).catch(() => {});
   }, [loadActiveOrder]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!PUBLIC_MENU_ENABLED || !token) return;
 
     const intervalId = window.setInterval(() => {
       loadActiveOrder().catch(() => {});
@@ -228,6 +236,13 @@ export default function PublicTableRequest() {
 
     return () => window.clearInterval(intervalId);
   }, [loadActiveOrder, token]);
+
+  useEffect(() => {
+    if (PUBLIC_MENU_ENABLED || tab === 'requests') return;
+    setTab('requests');
+    setCart([]);
+    setItemDraft(null);
+  }, [tab]);
 
   useEffect(() => {
     if (!tableId) return;
@@ -341,6 +356,7 @@ export default function PublicTableRequest() {
   };
 
   const openItemDraft = (item: PublicMenuItemDto) => {
+    if (!PUBLIC_MENU_ENABLED) return;
     if (!item.isAvailable) return;
     setItemDraft({
       item,
@@ -374,6 +390,7 @@ export default function PublicTableRequest() {
   };
 
   const addDraftToCart = () => {
+    if (!PUBLIC_MENU_ENABLED) return;
     if (!itemDraft) return;
     const { item, selectedOptions } = itemDraft;
 
@@ -426,6 +443,7 @@ export default function PublicTableRequest() {
   };
 
   const submitDraftOrder = async () => {
+    if (!PUBLIC_MENU_ENABLED) return;
     if (!token || cart.length === 0 || isSubmitting) return;
 
     try {
@@ -515,17 +533,20 @@ export default function PublicTableRequest() {
               Solicitudes
             </button>
             <button
-              onClick={() => setTab('menu')}
-              className={`rounded-md py-1.5 text-[11px] font-bold [font-family:'Eagle_Lake',serif] ${tab === 'menu' ? 'bg-[#8B5E3C] text-[#f5ead8]' : 'text-[#3e2723]'}`}
+              onClick={() => PUBLIC_MENU_ENABLED && setTab('menu')}
+              disabled={!PUBLIC_MENU_ENABLED}
+              className={`rounded-md py-1.5 text-[11px] font-bold [font-family:'Eagle_Lake',serif] disabled:cursor-not-allowed disabled:opacity-45 ${tab === 'menu' ? 'bg-[#8B5E3C] text-[#f5ead8]' : 'text-[#3e2723]'}`}
             >
               Menu
             </button>
             <button
               onClick={() => {
+                if (!PUBLIC_MENU_ENABLED) return;
                 setTab('order');
                 loadActiveOrder(true).catch(() => {});
               }}
-              className={`rounded-md py-1.5 text-[11px] font-bold [font-family:'Eagle_Lake',serif] ${tab === 'order' ? 'bg-[#8B5E3C] text-[#f5ead8]' : 'text-[#3e2723]'}`}
+              disabled={!PUBLIC_MENU_ENABLED}
+              className={`rounded-md py-1.5 text-[11px] font-bold [font-family:'Eagle_Lake',serif] disabled:cursor-not-allowed disabled:opacity-45 ${tab === 'order' ? 'bg-[#8B5E3C] text-[#f5ead8]' : 'text-[#3e2723]'}`}
             >
               Pedido
             </button>
