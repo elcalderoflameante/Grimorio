@@ -111,6 +111,15 @@ import type {
   PurchaseDto,
   CreatePurchaseDto,
   UpdatePurchaseDto,
+  CostCenterDto,
+  UpsertCostCenterDto,
+  ExpenseCategoryDto,
+  UpsertExpenseCategoryDto,
+  ExpenseDto,
+  CreateExpenseDto,
+  ExpenseReportDto,
+  IncomeStatementDto,
+  CostCenterProfitabilityReportDto,
 } from '../types';
 import { getDetailedError } from '../utils/errorHandler';
 
@@ -649,6 +658,52 @@ export const purchasesApi = {
     apiClient.post<PurchaseDto>(`/purchases/compras/${id}/anular`),
   deletePurchase: (id: string): Promise<AxiosResponse<void>> =>
     apiClient.delete<void>(`/purchases/compras/${id}`),
+};
+
+export const financeApi = {
+  getCostCenters: (activeOnly?: boolean): Promise<AxiosResponse<CostCenterDto[]>> =>
+    apiClient.get<CostCenterDto[]>('/finance/cost-centers', { params: activeOnly !== undefined ? { activeOnly } : undefined }),
+  createCostCenter: (data: UpsertCostCenterDto): Promise<AxiosResponse<CostCenterDto>> =>
+    apiClient.post<CostCenterDto>('/finance/cost-centers', data),
+  updateCostCenter: (id: string, data: UpsertCostCenterDto): Promise<AxiosResponse<CostCenterDto>> =>
+    apiClient.put<CostCenterDto>(`/finance/cost-centers/${id}`, data),
+  deleteCostCenter: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/finance/cost-centers/${id}`),
+
+  getExpenseCategories: (params?: { activeOnly?: boolean; type?: string }): Promise<AxiosResponse<ExpenseCategoryDto[]>> =>
+    apiClient.get<ExpenseCategoryDto[]>('/finance/expense-categories', { params }),
+  createExpenseCategory: (data: UpsertExpenseCategoryDto): Promise<AxiosResponse<ExpenseCategoryDto>> =>
+    apiClient.post<ExpenseCategoryDto>('/finance/expense-categories', data),
+  updateExpenseCategory: (id: string, data: UpsertExpenseCategoryDto): Promise<AxiosResponse<ExpenseCategoryDto>> =>
+    apiClient.put<ExpenseCategoryDto>(`/finance/expense-categories/${id}`, data),
+  deleteExpenseCategory: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/finance/expense-categories/${id}`),
+
+  getExpenses: (params?: {
+    status?: string;
+    costCenterId?: string;
+    expenseCategoryId?: string;
+    cashSessionId?: string;
+    from?: string;
+    to?: string;
+    pageSize?: number;
+  }): Promise<AxiosResponse<ExpenseDto[]>> =>
+    apiClient.get<ExpenseDto[]>('/finance/expenses', { params }),
+  getExpenseReport: (params?: {
+    costCenterId?: string;
+    expenseCategoryId?: string;
+    from?: string;
+    to?: string;
+  }): Promise<AxiosResponse<ExpenseReportDto>> =>
+    apiClient.get<ExpenseReportDto>('/finance/expenses/report', { params }),
+  getIncomeStatement: (params?: { from?: string; to?: string }): Promise<AxiosResponse<IncomeStatementDto>> =>
+    apiClient.get<IncomeStatementDto>('/finance/income-statement', { params }),
+  getCostCenterProfitability: (params?: { from?: string; to?: string }): Promise<AxiosResponse<CostCenterProfitabilityReportDto>> =>
+    apiClient.get<CostCenterProfitabilityReportDto>('/finance/cost-center-profitability', { params }),
+  createExpense: (data: CreateExpenseDto): Promise<AxiosResponse<ExpenseDto>> =>
+    apiClient.post<ExpenseDto>('/finance/expenses', data),
+  cancelExpense: (id: string, reason?: string): Promise<AxiosResponse<ExpenseDto>> =>
+    apiClient.post<ExpenseDto>(`/finance/expenses/${id}/cancel`, { reason }),
 };
 
 import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto, CashRegisterDto, CreateCashRegisterDto, UpdateCashRegisterDto, CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, OrderPaymentDto, AddOrderPaymentDto, SalesProfitabilityReportDto, PaymentMethodConfigDto, CreatePaymentMethodConfigDto, UpdatePaymentMethodConfigDto, CardBankDto, CreateCardBankDto, UpdateCardBankDto, TaxRateDto, UpsertTaxRateDto, BranchTaxConfigDto, SriCertificateStatusDto, ElectronicDocumentDto, SmtpConfigDto, UpsertSmtpConfigDto, InvoiceTemplateDto } from '../types';

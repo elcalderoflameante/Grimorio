@@ -618,6 +618,13 @@ public class CloseCashSessionHandler : IRequestHandler<CloseCashSessionCommand, 
             .Include(p => p.Lines).ThenInclude(l => l.Config)
             .LoadAsync(ct);
 
+        var expenses = await _db.Expenses
+            .Include(e => e.PaymentMethodConfig)
+            .Where(e => e.BranchId == req.BranchId
+                && e.CashSessionId == session.Id
+                && e.Status == Domain.Entities.Finance.ExpenseStatus.Registered)
+            .ToListAsync(ct);
+
         if (session.Status != CashSessionStatus.Open)
             throw new InvalidOperationException("La sesión ya está cerrada.");
 
@@ -633,7 +640,7 @@ public class CloseCashSessionHandler : IRequestHandler<CloseCashSessionCommand, 
         await _db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
-        return BillingMapper.MapSession(session);
+        return BillingMapper.MapSession(session, null, expenses);
     }
 }
 
@@ -1501,10 +1508,14 @@ internal static class BillingMapper
         Phone = c.Phone, Email = c.Email, IsActive = c.IsActive,
     };
 
-    internal static CashSessionDto MapSession(CashSession s, List<OrderPayment>? payments = null)
+    internal static CashSessionDto MapSession(
+        CashSession s,
+        List<OrderPayment>? payments = null,
+        List<Domain.Entities.Finance.Expense>? expenses = null)
     {
         var effectivePayments = payments ?? s.Payments.Where(p => !p.IsDeleted).ToList();
         var allLines = effectivePayments.SelectMany(p => p.Lines).ToList();
+        var effectiveExpenses = expenses ?? [];
 
         var totals = allLines
             .Where(l => l.Config != null)
@@ -1522,7 +1533,11 @@ internal static class BillingMapper
 
         var totalCash = totals.Where(t => t.IsCash).Sum(t => t.Total);
         var totalSales = totals.Sum(t => t.Total);
-        var expectedCash = s.OpeningBalance + totalCash;
+        var totalExpenses = effectiveExpenses.Sum(e => e.Amount);
+        var totalCashExpenses = effectiveExpenses
+            .Where(e => e.PaymentMethodConfig?.IsCash == true)
+            .Sum(e => e.Amount);
+        var expectedCash = s.OpeningBalance + totalCash - totalCashExpenses;
         var totalOrders = effectivePayments.Select(p => p.OrderId).Distinct().Count();
 
         return new CashSessionDto
@@ -1538,6 +1553,8 @@ internal static class BillingMapper
             Status = s.Status.ToString(),
             Totals = totals,
             TotalSales = totalSales, TotalOrders = totalOrders,
+            TotalExpenses = totalExpenses,
+            TotalCashExpenses = totalCashExpenses,
             ExpectedCash = expectedCash,
             CashDifference = s.ActualCash.HasValue ? s.ActualCash.Value - expectedCash : null,
         };

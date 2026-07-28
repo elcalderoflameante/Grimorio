@@ -19,6 +19,12 @@ public class CategoriaMenuConfiguration : BaseEntityConfiguration<MenuCategory>
         builder.HasIndex(x => new { x.BranchId, x.Name })
             .IsUnique().HasFilter("\"IsDeleted\" = false");
         builder.HasIndex(x => new { x.BranchId, x.Order });
+        builder.HasIndex(x => new { x.BranchId, x.CostCenterId });
+
+        builder.HasOne(x => x.CostCenter)
+            .WithMany()
+            .HasForeignKey(x => x.CostCenterId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }
 

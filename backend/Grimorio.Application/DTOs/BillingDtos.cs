@@ -257,6 +257,8 @@ public class CashSessionDto
     public List<PaymentMethodTotalDto> Totals { get; set; } = [];
     public decimal TotalSales { get; set; }
     public int TotalOrders { get; set; }
+    public decimal TotalExpenses { get; set; }
+    public decimal TotalCashExpenses { get; set; }
     public decimal TotalCash => Totals.Where(t => t.IsCash).Sum(t => t.Total);
     public decimal ExpectedCash { get; set; }
     public decimal? CashDifference { get; set; }
@@ -355,6 +357,8 @@ public class SalesProfitabilityItemDto
     public string MenuItemName { get; set; } = string.Empty;
     public string? InternalCode { get; set; }
     public string CategoryName { get; set; } = string.Empty;
+    public Guid? CostCenterId { get; set; }
+    public string? CostCenterName { get; set; }
     public decimal Quantity { get; set; }
     public decimal GrossSales { get; set; }
     public decimal NetSales { get; set; }

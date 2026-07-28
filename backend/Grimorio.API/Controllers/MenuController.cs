@@ -34,7 +34,7 @@ public class MenuController : ControllerBase
         var result = await _mediator.Send(new CreateMenuCategoryCommand
         {
             BranchId = branchId, Name = dto.Name, Description = dto.Description,
-            Color = dto.Color, Order = dto.Order,
+            Color = dto.Color, Order = dto.Order, CostCenterId = dto.CostCenterId,
         });
         return Ok(result);
     }
@@ -48,6 +48,7 @@ public class MenuController : ControllerBase
         {
             Id = id, BranchId = branchId, Name = dto.Name, Description = dto.Description,
             Color = dto.Color, Order = dto.Order, IsActive = dto.IsActive,
+            CostCenterId = dto.CostCenterId,
         });
         return Ok(result);
     }

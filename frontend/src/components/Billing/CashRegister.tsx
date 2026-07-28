@@ -291,7 +291,7 @@ export default function CashRegister() {
                   {fmt(activeSession.expectedCash)}
                 </div>
                 <div style={{ color: '#8c8c8c', fontSize: 10, marginTop: 4 }}>
-                  fondo + cobros efectivo
+                  fondo + efectivo - gastos
                 </div>
               </Card>
             </Col>
@@ -308,8 +308,22 @@ export default function CashRegister() {
               </Card>
             </Col>
 
+            {/* Gastos */}
+            <Col xs={12} sm={6} lg={3}>
+              <Card style={{ borderRadius: 12, borderColor: '#ffccc7', height: '100%' }} styles={{ body: { padding: 16 } }}>
+                <DollarOutlined style={{ fontSize: 20, color: '#cf1322', marginBottom: 6 }} />
+                <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 3 }}>Gastos</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#cf1322' }}>
+                  {fmt(activeSession.totalExpenses)}
+                </div>
+                <div style={{ color: '#8c8c8c', fontSize: 10, marginTop: 4 }}>
+                  efectivo: {fmt(activeSession.totalCashExpenses)}
+                </div>
+              </Card>
+            </Col>
+
             {/* Pedidos activos */}
-            <Col xs={24} sm={12} lg={10}>
+            <Col xs={24} sm={12} lg={7}>
               <Card style={{ borderRadius: 12, borderColor: '#ffd591', height: '100%' }} styles={{ body: { padding: 16 } }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <Space size={6}>
@@ -666,6 +680,12 @@ export default function CashRegister() {
                 {fmt(activeSession.expectedCash)}
               </Text>
             </div>
+            {activeSession.totalCashExpenses > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <Text type="secondary">Gastos en efectivo:</Text>
+                <Text strong type="danger">{fmt(activeSession.totalCashExpenses)}</Text>
+              </div>
+            )}
             <Divider style={{ margin: '8px 0' }} />
             <Row gutter={12}>
               {activeSession.totals.map(t => (
@@ -714,6 +734,12 @@ function SessionDetail({ session }: { session: CashSessionDto }) {
         </Descriptions.Item>
       ))}
       <Descriptions.Item label="Esperado en caja">{fmt(session.expectedCash)}</Descriptions.Item>
+      {session.totalExpenses > 0 && (
+        <Descriptions.Item label="Gastos registrados">{fmt(session.totalExpenses)}</Descriptions.Item>
+      )}
+      {session.totalCashExpenses > 0 && (
+        <Descriptions.Item label="Gastos en efectivo">{fmt(session.totalCashExpenses)}</Descriptions.Item>
+      )}
       {session.actualCash != null && (
         <Descriptions.Item label="Contado al cierre">{fmt(session.actualCash)}</Descriptions.Item>
       )}

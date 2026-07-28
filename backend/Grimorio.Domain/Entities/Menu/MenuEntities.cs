@@ -1,3 +1,4 @@
+using Grimorio.Domain.Entities.Finance;
 using Grimorio.SharedKernel;
 
 namespace Grimorio.Domain.Entities.Menu;
@@ -9,7 +10,9 @@ public class MenuCategory : BaseEntity
     public string? Color { get; set; }
     public int Order { get; set; }
     public bool IsActive { get; set; } = true;
+    public Guid? CostCenterId { get; set; }
 
+    public virtual CostCenter? CostCenter { get; set; }
     public virtual ICollection<MenuItem> Items { get; set; } = [];
 }
 

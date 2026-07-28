@@ -173,7 +173,10 @@ public static class AuthSeeder
                 AppConstants.Permissions.BillingCashRegistersView,
                 AppConstants.Permissions.BillingPaymentMethodsView,
                 AppConstants.Permissions.BillingSriView,
-                AppConstants.Permissions.BillingSriGenerate
+                AppConstants.Permissions.BillingSriGenerate,
+                AppConstants.Permissions.FinanceExpensesView,
+                AppConstants.Permissions.FinanceExpensesCreate,
+                AppConstants.Permissions.FinanceExpensesCancel
             ],
             [AppConstants.Roles.Waiter] =
             [
@@ -223,6 +226,7 @@ public static class AuthSeeder
             ],
             [AppConstants.Roles.Accounting] = permissions.Keys
                 .Where(code => code.StartsWith("Billing.", StringComparison.Ordinal)
+                    || code.StartsWith("Finance.", StringComparison.Ordinal)
                     || code == AppConstants.Permissions.AdminBranchView
                     || code == AppConstants.Permissions.PurchasesSuppliersView
                     || code == AppConstants.Permissions.PurchasesOrdersView

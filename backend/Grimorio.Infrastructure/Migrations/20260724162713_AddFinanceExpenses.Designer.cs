@@ -3,6 +3,7 @@ using System;
 using Grimorio.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Grimorio.Infrastructure.Migrations
 {
     [DbContext(typeof(GrimorioDbContext))]
-    partial class GrimorioDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260724162713_AddFinanceExpenses")]
+    partial class AddFinanceExpenses
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2377,9 +2380,6 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
-                    b.Property<Guid?>("CostCenterId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -2424,11 +2424,7 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.HasIndex("BranchId");
 
-                    b.HasIndex("CostCenterId");
-
                     b.HasIndex("IsDeleted");
-
-                    b.HasIndex("BranchId", "CostCenterId");
 
                     b.HasIndex("BranchId", "IsDeleted");
 
@@ -5218,16 +5214,6 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("Article");
 
                     b.Navigation("Warehouse");
-                });
-
-            modelBuilder.Entity("Grimorio.Domain.Entities.Menu.MenuCategory", b =>
-                {
-                    b.HasOne("Grimorio.Domain.Entities.Finance.CostCenter", "CostCenter")
-                        .WithMany()
-                        .HasForeignKey("CostCenterId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("CostCenter");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Menu.MenuItem", b =>

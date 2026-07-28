@@ -28,6 +28,8 @@ public class GetMenuCategoriesHandler : IRequestHandler<GetMenuCategoriesQuery, 
                 Order = x.Order,
                 IsActive = x.IsActive,
                 TotalItems = x.Items.Count(i => !i.IsDeleted),
+                CostCenterId = x.CostCenterId,
+                CostCenterName = x.CostCenter != null ? x.CostCenter.Name : null,
             })
             .ToListAsync(ct);
 }

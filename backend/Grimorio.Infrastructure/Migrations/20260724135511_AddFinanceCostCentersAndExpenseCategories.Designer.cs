@@ -3,6 +3,7 @@ using System;
 using Grimorio.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Grimorio.Infrastructure.Migrations
 {
     [DbContext(typeof(GrimorioDbContext))]
-    partial class GrimorioDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260724135511_AddFinanceCostCentersAndExpenseCategories")]
+    partial class AddFinanceCostCentersAndExpenseCategories
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1570,128 +1573,6 @@ namespace Grimorio.Infrastructure.Migrations
                     b.ToTable("CostCenters", "finance");
                 });
 
-            modelBuilder.Entity("Grimorio.Domain.Entities.Finance.Expense", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CancellationReason")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<DateTime?>("CancelledAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("CancelledBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CancelledByName")
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<Guid?>("CashSessionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CostCenterId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<Guid>("CreatedBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("DeletedBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("DocumentNumber")
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<Guid>("ExpenseCategoryId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("ExpenseDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<Guid?>("PaymentMethodConfigId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("RegisteredAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("RegisteredBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("RegisteredByName")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("SupplierName")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BranchId");
-
-                    b.HasIndex("CashSessionId");
-
-                    b.HasIndex("CostCenterId");
-
-                    b.HasIndex("ExpenseCategoryId");
-
-                    b.HasIndex("IsDeleted");
-
-                    b.HasIndex("PaymentMethodConfigId");
-
-                    b.HasIndex("BranchId", "CostCenterId");
-
-                    b.HasIndex("BranchId", "ExpenseCategoryId");
-
-                    b.HasIndex("BranchId", "ExpenseDate");
-
-                    b.HasIndex("BranchId", "IsDeleted");
-
-                    b.HasIndex("BranchId", "Status");
-
-                    b.ToTable("Expenses", "finance");
-                });
-
             modelBuilder.Entity("Grimorio.Domain.Entities.Finance.ExpenseCategory", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2377,9 +2258,6 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
-                    b.Property<Guid?>("CostCenterId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -2424,11 +2302,7 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.HasIndex("BranchId");
 
-                    b.HasIndex("CostCenterId");
-
                     b.HasIndex("IsDeleted");
-
-                    b.HasIndex("BranchId", "CostCenterId");
 
                     b.HasIndex("BranchId", "IsDeleted");
 
@@ -5076,39 +4950,6 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("Payment");
                 });
 
-            modelBuilder.Entity("Grimorio.Domain.Entities.Finance.Expense", b =>
-                {
-                    b.HasOne("Grimorio.Domain.Entities.Billing.CashSession", "CashSession")
-                        .WithMany()
-                        .HasForeignKey("CashSessionId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("Grimorio.Domain.Entities.Finance.CostCenter", "CostCenter")
-                        .WithMany()
-                        .HasForeignKey("CostCenterId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Grimorio.Domain.Entities.Finance.ExpenseCategory", "ExpenseCategory")
-                        .WithMany()
-                        .HasForeignKey("ExpenseCategoryId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Grimorio.Domain.Entities.Billing.PaymentMethodConfig", "PaymentMethodConfig")
-                        .WithMany()
-                        .HasForeignKey("PaymentMethodConfigId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("CashSession");
-
-                    b.Navigation("CostCenter");
-
-                    b.Navigation("ExpenseCategory");
-
-                    b.Navigation("PaymentMethodConfig");
-                });
-
             modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.InventoryArticle", b =>
                 {
                     b.HasOne("Grimorio.Domain.Entities.Inventory.MeasurementUnit", "BaseUnit")
@@ -5218,16 +5059,6 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("Article");
 
                     b.Navigation("Warehouse");
-                });
-
-            modelBuilder.Entity("Grimorio.Domain.Entities.Menu.MenuCategory", b =>
-                {
-                    b.HasOne("Grimorio.Domain.Entities.Finance.CostCenter", "CostCenter")
-                        .WithMany()
-                        .HasForeignKey("CostCenterId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("CostCenter");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Menu.MenuItem", b =>

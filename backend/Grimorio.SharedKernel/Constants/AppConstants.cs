@@ -116,6 +116,12 @@ public static class AppConstants
         public const string BillingSriManage = "Billing.Sri.Manage";
         public const string BillingSriGenerate = "Billing.Sri.Generate";
 
+        public const string FinanceConfigView = "Finance.Config.View";
+        public const string FinanceConfigManage = "Finance.Config.Manage";
+        public const string FinanceExpensesView = "Finance.Expenses.View";
+        public const string FinanceExpensesCreate = "Finance.Expenses.Create";
+        public const string FinanceExpensesCancel = "Finance.Expenses.Cancel";
+
         public static readonly IReadOnlyList<PermissionDefinition> All =
         [
             new(AdminUsersView, "Ver usuarios", "Admin"),
@@ -193,6 +199,12 @@ public static class AppConstants
             new(BillingSriView, "Ver configuracion y documentos SRI", "Billing"),
             new(BillingSriManage, "Configurar SRI, certificado, SMTP y plantilla", "Billing"),
             new(BillingSriGenerate, "Generar o reintentar documentos electronicos", "Billing"),
+
+            new(FinanceConfigView, "Ver configuracion financiera", "Finance"),
+            new(FinanceConfigManage, "Administrar centros de costo y categorias de gasto", "Finance"),
+            new(FinanceExpensesView, "Ver gastos", "Finance"),
+            new(FinanceExpensesCreate, "Registrar gastos", "Finance"),
+            new(FinanceExpensesCancel, "Anular gastos", "Finance"),
         ];
     }
 }

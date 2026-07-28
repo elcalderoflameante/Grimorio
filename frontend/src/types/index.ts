@@ -1002,6 +1002,8 @@ export interface MenuCategoryDto {
   order: number;
   isActive: boolean;
   totalItems: number;
+  costCenterId?: string;
+  costCenterName?: string;
 }
 
 export interface CreateMenuCategoryDto {
@@ -1009,6 +1011,7 @@ export interface CreateMenuCategoryDto {
   description?: string;
   color?: string;
   order: number;
+  costCenterId?: string;
 }
 
 export interface MenuItemDto {
@@ -1406,6 +1409,137 @@ export interface CreatePurchaseDto {
 
 export type UpdatePurchaseDto = CreatePurchaseDto;
 
+// -- Finance -----------------------------------------------------------------
+
+export type ExpenseCategoryType = 'Fixed' | 'Variable' | 'Mixed';
+
+export interface CostCenterDto {
+  id: string;
+  name: string;
+  code?: string;
+  description?: string;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export interface UpsertCostCenterDto {
+  name: string;
+  code?: string;
+  description?: string;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export interface ExpenseCategoryDto {
+  id: string;
+  name: string;
+  description?: string;
+  type: ExpenseCategoryType;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export interface UpsertExpenseCategoryDto {
+  name: string;
+  description?: string;
+  type: ExpenseCategoryType;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export type ExpenseStatus = 'Registered' | 'Cancelled';
+
+export interface ExpenseDto {
+  id: string;
+  expenseDate: string;
+  costCenterId: string;
+  costCenterName: string;
+  expenseCategoryId: string;
+  expenseCategoryName: string;
+  expenseCategoryType: ExpenseCategoryType;
+  paymentMethodConfigId?: string;
+  paymentMethodName?: string;
+  paymentMethodColor?: string;
+  isCashPayment: boolean;
+  cashSessionId?: string;
+  cashRegisterName?: string;
+  cashRegisterCode?: string;
+  supplierName?: string;
+  documentNumber?: string;
+  amount: number;
+  notes?: string;
+  status: ExpenseStatus;
+  registeredAt: string;
+  registeredByName: string;
+  cancelledAt?: string;
+  cancelledByName?: string;
+  cancellationReason?: string;
+}
+
+export interface CreateExpenseDto {
+  expenseDate: string;
+  costCenterId: string;
+  expenseCategoryId: string;
+  paymentMethodConfigId?: string;
+  cashSessionId?: string;
+  supplierName?: string;
+  documentNumber?: string;
+  amount: number;
+  notes?: string;
+}
+
+export interface ExpenseReportGroupDto {
+  id?: string;
+  name: string;
+  type?: ExpenseCategoryType;
+  total: number;
+  count: number;
+  percentage: number;
+}
+
+export interface ExpenseReportDto {
+  fromUtc?: string;
+  toUtc?: string;
+  totalExpenses: number;
+  totalCount: number;
+  fixedTotal: number;
+  variableTotal: number;
+  mixedTotal: number;
+  byCostCenter: ExpenseReportGroupDto[];
+  byCategory: ExpenseReportGroupDto[];
+  byType: ExpenseReportGroupDto[];
+}
+
+export interface IncomeStatementLineDto {
+  key: string;
+  label: string;
+  amount: number;
+  percentageOfNetSales: number;
+  isSubtotal: boolean;
+}
+
+export interface IncomeStatementDto {
+  fromUtc?: string;
+  toUtc?: string;
+  grossSales: number;
+  netSales: number;
+  taxAmount: number;
+  foodCost: number;
+  grossProfit: number;
+  grossMarginPercentage: number;
+  operatingExpenses: number;
+  operatingProfit: number;
+  operatingMarginPercentage: number;
+  foodCostPercentage: number;
+  totalOrders: number;
+  expenseCount: number;
+  missingCostLines: number;
+  conversionWarningLines: number;
+  lines: IncomeStatementLineDto[];
+  expensesByCostCenter: ExpenseReportGroupDto[];
+  expensesByCategory: ExpenseReportGroupDto[];
+}
+
 
 // ── Billing: Clientes ─────────────────────────────────────────────────────────
 
@@ -1529,6 +1663,8 @@ export interface CashSessionDto {
   totalCash: number;   // computed by backend: sum of isCash totals
   totalSales: number;
   totalOrders: number;
+  totalExpenses: number;
+  totalCashExpenses: number;
   expectedCash: number;
   cashDifference?: number;
 }
@@ -1599,6 +1735,8 @@ export interface SalesProfitabilityItemDto {
   menuItemName: string;
   internalCode?: string;
   categoryName: string;
+  costCenterId?: string;
+  costCenterName?: string;
   quantity: number;
   grossSales: number;
   netSales: number;
@@ -1641,6 +1779,43 @@ export interface SalesProfitabilityReportDto {
   conversionWarningLines: number;
   items: SalesProfitabilityItemDto[];
   cashRegisters: SalesProfitabilityCashRegisterDto[];
+}
+
+export interface CostCenterProfitabilityDto {
+  costCenterId?: string;
+  costCenterName: string;
+  grossSales: number;
+  netSales: number;
+  foodCost: number;
+  grossProfit: number;
+  operatingExpenses: number;
+  operatingProfit: number;
+  foodCostPercentage: number;
+  grossMarginPercentage: number;
+  operatingMarginPercentage: number;
+  totalOrders: number;
+  totalItems: number;
+  missingCostLines: number;
+  conversionWarningLines: number;
+}
+
+export interface CostCenterProfitabilityReportDto {
+  fromUtc?: string;
+  toUtc?: string;
+  grossSales: number;
+  netSales: number;
+  foodCost: number;
+  grossProfit: number;
+  operatingExpenses: number;
+  operatingProfit: number;
+  foodCostPercentage: number;
+  grossMarginPercentage: number;
+  operatingMarginPercentage: number;
+  totalOrders: number;
+  totalItems: number;
+  missingCostLines: number;
+  conversionWarningLines: number;
+  centers: CostCenterProfitabilityDto[];
 }
 
 export interface AddPaymentLineDto {

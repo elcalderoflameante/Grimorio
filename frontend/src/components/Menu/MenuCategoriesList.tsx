@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { App as AntApp, Table, Button, Modal, Form, Input, InputNumber, ColorPicker, Switch, Popconfirm, Space, Typography, Tag } from 'antd';
+import { App as AntApp, Table, Button, Modal, Form, Input, InputNumber, ColorPicker, Switch, Popconfirm, Space, Typography, Tag, Select } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
-import { menuApi } from '../../services/api';
-import type { MenuCategoryDto } from '../../types';
+import { financeApi, menuApi } from '../../services/api';
+import type { CostCenterDto, MenuCategoryDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
@@ -15,14 +15,23 @@ export default function MenuCategoriesList() {
   const { hasPermission } = useAuth();
   const [categories, setCategories] = useState<MenuCategoryDto[]>([]);
   const [loading, setLoading] = useState(false);
+  const [costCenters, setCostCenters] = useState<CostCenterDto[]>([]);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<MenuCategoryDto | null>(null);
   const [form] = Form.useForm();
   const canManage = hasPermission(PERMISSIONS.menu.categoriesManage);
+  const canViewFinanceConfig = hasPermission(PERMISSIONS.finance.configView);
 
   const load = async () => {
     setLoading(true);
-    try { setCategories((await menuApi.getCategories()).data); }
+    try {
+      const [categoriesRes, costCentersRes] = await Promise.all([
+        menuApi.getCategories(),
+        canViewFinanceConfig ? financeApi.getCostCenters(true) : Promise.resolve({ data: [] as CostCenterDto[] }),
+      ]);
+      setCategories(categoriesRes.data);
+      setCostCenters(costCentersRes.data);
+    }
     catch (e) { message.error(formatError(e)); }
     finally { setLoading(false); }
   };
@@ -31,7 +40,7 @@ export default function MenuCategoriesList() {
 
   const openModal = (c?: MenuCategoryDto) => {
     setEditing(c ?? null);
-    form.setFieldsValue(c ?? { name: '', description: '', color: '#1677ff', order: 0, isActive: true });
+    form.setFieldsValue(c ?? { name: '', description: '', color: '#1677ff', order: 0, isActive: true, costCenterId: undefined });
     setModal(true);
   };
 
@@ -78,6 +87,12 @@ export default function MenuCategoriesList() {
             ),
           },
           { title: 'Descripcion', dataIndex: 'description', key: 'description' },
+          {
+            title: 'Centro de costo',
+            dataIndex: 'costCenterName',
+            key: 'costCenterName',
+            render: (value?: string) => value ? <Tag color="purple">{value}</Tag> : <Tag>Sin asignar</Tag>,
+          },
           { title: 'Orden', dataIndex: 'order', key: 'order', width: 80 },
           {
             title: 'Items', dataIndex: 'totalItems', key: 'totalItems', width: 80,
@@ -109,6 +124,15 @@ export default function MenuCategoriesList() {
             <Form.Item name="color" label="Color"><ColorPicker format="hex" /></Form.Item>
             <Form.Item name="order" label="Orden de visualizacion"><InputNumber min={0} /></Form.Item>
           </Space>
+          {canViewFinanceConfig && (
+            <Form.Item name="costCenterId" label="Centro de costo">
+              <Select
+                allowClear
+                placeholder="Sin asignar"
+                options={costCenters.map(c => ({ value: c.id, label: c.name }))}
+              />
+            </Form.Item>
+          )}
           {editing && (
             <Form.Item name="isActive" label="Activa" valuePropName="checked"><Switch /></Form.Item>
           )}

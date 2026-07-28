@@ -11,6 +11,8 @@ public class MenuCategoryDto
     public int Order { get; set; }
     public bool IsActive { get; set; }
     public int TotalItems { get; set; }
+    public Guid? CostCenterId { get; set; }
+    public string? CostCenterName { get; set; }
 }
 
 public class CreateMenuCategoryDto
@@ -19,6 +21,7 @@ public class CreateMenuCategoryDto
     public string? Description { get; set; }
     public string? Color { get; set; }
     public int Order { get; set; }
+    public Guid? CostCenterId { get; set; }
 }
 
 // ── Items del menú ────────────────────────────────────────────────────────

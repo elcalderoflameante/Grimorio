@@ -9,6 +9,7 @@ using Grimorio.Domain.Entities.Inventory;
 using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.POS;
 using Grimorio.Domain.Entities.Purchases;
+using Grimorio.Domain.Entities.Finance;
 
 namespace Grimorio.Infrastructure.Persistence;
 
@@ -105,6 +106,11 @@ public class GrimorioDbContext : DbContext
     public DbSet<WarehouseStock> WarehouseStock { get; set; } = null!;
     public DbSet<StockMovement> StockMovements { get; set; } = null!;
     public DbSet<StockReservation> StockReservations { get; set; } = null!;
+
+    // === Finance ===
+    public DbSet<CostCenter> CostCenters { get; set; } = null!;
+    public DbSet<ExpenseCategory> ExpenseCategories { get; set; } = null!;
+    public DbSet<Expense> Expenses { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

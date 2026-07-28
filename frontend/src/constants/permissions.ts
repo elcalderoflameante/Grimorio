@@ -78,4 +78,11 @@ export const PERMISSIONS = {
     sriManage: 'Billing.Sri.Manage',
     sriGenerate: 'Billing.Sri.Generate',
   },
+  finance: {
+    configView: 'Finance.Config.View',
+    configManage: 'Finance.Config.Manage',
+    expensesView: 'Finance.Expenses.View',
+    expensesCreate: 'Finance.Expenses.Create',
+    expensesCancel: 'Finance.Expenses.Cancel',
+  },
 } as const;

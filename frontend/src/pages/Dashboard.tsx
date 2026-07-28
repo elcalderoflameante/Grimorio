@@ -69,6 +69,10 @@ import PaymentMethodsSettings from '../components/Billing/PaymentMethodsSettings
 import TaxConfig from '../components/Billing/TaxConfig';
 import ElectronicInvoices from '../components/Billing/ElectronicInvoices';
 import InvoiceTemplateEditor from '../components/Billing/InvoiceTemplateEditor';
+import FinanceConfig from '../components/Finance/FinanceConfig';
+import ExpensesList from '../components/Finance/ExpensesList';
+import IncomeStatement from '../components/Finance/IncomeStatement';
+import CostCenterProfitability from '../components/Finance/CostCenterProfitability';
 import { inventoryApi } from '../services/api';
 import type { StockAlertDto } from '../types';
 import type { MenuProps } from 'antd';
@@ -319,6 +323,17 @@ export default function Dashboard() {
           { key: 'billing-invoice-template', label: 'Plantilla de factura', icon: <FileImageOutlined />, permission: PERMISSIONS.billing.sriView },
         ],
       },
+      {
+        key: 'finance',
+        label: 'Finanzas',
+        icon: <BarChartOutlined />,
+        children: [
+          { key: 'finance-income-statement', label: 'Resultados', icon: <BarChartOutlined />, permission: PERMISSIONS.finance.expensesView },
+          { key: 'finance-cost-center-profitability', label: 'Centros', icon: <BarChartOutlined />, permission: PERMISSIONS.finance.expensesView },
+          { key: 'finance-expenses', label: 'Gastos', icon: <DollarOutlined />, permission: PERMISSIONS.finance.expensesView },
+          { key: 'finance-config', label: 'Configuración', icon: <SettingOutlined />, permission: PERMISSIONS.finance.configView },
+        ],
+      },
     ];
 
     return filterMenuItems(allItems, hasPermission);
@@ -442,6 +457,14 @@ case 'pos-estaciones':
         return <ElectronicInvoices />;
       case 'billing-invoice-template':
         return <InvoiceTemplateEditor />;
+      case 'finance-config':
+        return <FinanceConfig />;
+      case 'finance-expenses':
+        return <ExpensesList />;
+      case 'finance-income-statement':
+        return <IncomeStatement />;
+      case 'finance-cost-center-profitability':
+        return <CostCenterProfitability />;
       default:
         return <Welcome />;
     }

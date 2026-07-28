@@ -12,6 +12,7 @@ public class CreateMenuCategoryCommand : IRequest<MenuCategoryDto>
     public string? Description { get; set; }
     public string? Color { get; set; }
     public int Order { get; set; }
+    public Guid? CostCenterId { get; set; }
 }
 
 public class UpdateMenuCategoryCommand : IRequest<MenuCategoryDto>
@@ -23,6 +24,7 @@ public class UpdateMenuCategoryCommand : IRequest<MenuCategoryDto>
     public string? Color { get; set; }
     public int Order { get; set; }
     public bool IsActive { get; set; }
+    public Guid? CostCenterId { get; set; }
 }
 
 public class DeleteMenuCategoryCommand : IRequest<bool>

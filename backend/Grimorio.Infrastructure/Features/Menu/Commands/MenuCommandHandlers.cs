@@ -15,14 +15,20 @@ public class CreateMenuCategoryHandler : IRequestHandler<CreateMenuCategoryComma
 
     public async Task<MenuCategoryDto> Handle(CreateMenuCategoryCommand req, CancellationToken ct)
     {
+        if (req.CostCenterId.HasValue)
+        {
+            var exists = await _db.CostCenters.AnyAsync(x => x.Id == req.CostCenterId.Value && x.BranchId == req.BranchId, ct);
+            if (!exists) throw new InvalidOperationException("Centro de costo no válido.");
+        }
+
         var cat = new MenuCategory
         {
             BranchId = req.BranchId, Name = req.Name, Description = req.Description,
-            Color = req.Color, Order = req.Order,
+            Color = req.Color, Order = req.Order, CostCenterId = req.CostCenterId,
         };
         _db.MenuCategories.Add(cat);
         await _db.SaveChangesAsync(ct);
-        return new MenuCategoryDto { Id = cat.Id, Name = cat.Name, Description = cat.Description, Color = cat.Color, Order = cat.Order, IsActive = cat.IsActive };
+        return new MenuCategoryDto { Id = cat.Id, Name = cat.Name, Description = cat.Description, Color = cat.Color, Order = cat.Order, IsActive = cat.IsActive, CostCenterId = cat.CostCenterId };
     }
 }
 
@@ -35,10 +41,20 @@ public class UpdateMenuCategoryHandler : IRequestHandler<UpdateMenuCategoryComma
     {
         var cat = await _db.MenuCategories.FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId, ct)
             ?? throw new KeyNotFoundException("Categoría no encontrada");
+        if (req.CostCenterId.HasValue)
+        {
+            var exists = await _db.CostCenters.AnyAsync(x => x.Id == req.CostCenterId.Value && x.BranchId == req.BranchId, ct);
+            if (!exists) throw new InvalidOperationException("Centro de costo no válido.");
+        }
+
         cat.Name = req.Name; cat.Description = req.Description;
         cat.Color = req.Color; cat.Order = req.Order; cat.IsActive = req.IsActive;
+        cat.CostCenterId = req.CostCenterId;
         await _db.SaveChangesAsync(ct);
-        return new MenuCategoryDto { Id = cat.Id, Name = cat.Name, Description = cat.Description, Color = cat.Color, Order = cat.Order, IsActive = cat.IsActive };
+        var costCenterName = cat.CostCenterId.HasValue
+            ? (await _db.CostCenters.FindAsync([cat.CostCenterId.Value], ct))?.Name
+            : null;
+        return new MenuCategoryDto { Id = cat.Id, Name = cat.Name, Description = cat.Description, Color = cat.Color, Order = cat.Order, IsActive = cat.IsActive, CostCenterId = cat.CostCenterId, CostCenterName = costCenterName };
     }
 }
 

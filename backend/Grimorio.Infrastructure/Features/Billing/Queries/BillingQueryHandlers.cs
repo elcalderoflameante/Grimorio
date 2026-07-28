@@ -153,7 +153,14 @@ public class GetActiveCashSessionHandler : IRequestHandler<GetActiveCashSessionQ
                 && p.CashSessionId == session.Id)
             .ToListAsync(ct);
 
-        return BillingMapper.MapSession(session, payments);
+        var expenses = await _db.Expenses
+            .Include(e => e.PaymentMethodConfig)
+            .Where(e => e.BranchId == req.BranchId
+                && e.CashSessionId == session.Id
+                && e.Status == Domain.Entities.Finance.ExpenseStatus.Registered)
+            .ToListAsync(ct);
+
+        return BillingMapper.MapSession(session, payments, expenses);
     }
 }
 
@@ -179,7 +186,19 @@ public class GetCashSessionsHandler : IRequestHandler<GetCashSessionsQuery, List
             .Take(req.PageSize)
             .ToListAsync(ct);
 
-        return sessions.Select(s => BillingMapper.MapSession(s)).ToList();
+        var sessionIds = sessions.Select(s => s.Id).ToList();
+        var expenses = await _db.Expenses
+            .Include(e => e.PaymentMethodConfig)
+            .Where(e => e.CashSessionId.HasValue
+                && sessionIds.Contains(e.CashSessionId.Value)
+                && e.Status == Domain.Entities.Finance.ExpenseStatus.Registered)
+            .ToListAsync(ct);
+        var expensesBySession = expenses
+            .Where(e => e.CashSessionId.HasValue)
+            .GroupBy(e => e.CashSessionId!.Value)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        return sessions.Select(s => BillingMapper.MapSession(s, null, expensesBySession.GetValueOrDefault(s.Id))).ToList();
     }
 }
 
@@ -202,7 +221,14 @@ public class GetCashSessionDetailHandler : IRequestHandler<GetCashSessionDetailQ
                 && p.CashSessionId == session.Id)
             .ToListAsync(ct);
 
-        return BillingMapper.MapSession(session, payments);
+        var expenses = await _db.Expenses
+            .Include(e => e.PaymentMethodConfig)
+            .Where(e => e.BranchId == req.BranchId
+                && e.CashSessionId == session.Id
+                && e.Status == Domain.Entities.Finance.ExpenseStatus.Registered)
+            .ToListAsync(ct);
+
+        return BillingMapper.MapSession(session, payments, expenses);
     }
 }
 
@@ -287,7 +313,7 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
             .Include(p => p.Order)!.ThenInclude(o => o!.Items.Where(i => !i.IsDeleted))
                 .ThenInclude(i => i.TaxRate)
             .Include(p => p.Order)!.ThenInclude(o => o!.Items.Where(i => !i.IsDeleted))
-                .ThenInclude(i => i.MenuItem)!.ThenInclude(m => m!.Category)
+                .ThenInclude(i => i.MenuItem)!.ThenInclude(m => m!.Category)!.ThenInclude(c => c!.CostCenter)
             .Include(p => p.Order)!.ThenInclude(o => o!.Items.Where(i => !i.IsDeleted))
                 .ThenInclude(i => i.MenuItem)!.ThenInclude(m => m!.TaxRate)
             .Include(p => p.Order)!.ThenInclude(o => o!.Items.Where(i => !i.IsDeleted))
@@ -350,6 +376,8 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
                     item.MenuItem?.Name ?? item.MenuItemId.ToString(),
                     item.MenuItem?.InternalCode,
                     item.MenuItem?.Category?.Name ?? string.Empty,
+                    item.MenuItem?.Category?.CostCenterId,
+                    item.MenuItem?.Category?.CostCenter?.Name,
                     item.Quantity * ratio,
                     gross,
                     net,
@@ -395,7 +423,7 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
         report.GrossMarginPercentage = report.NetSales > 0 ? Round2(report.GrossProfit / report.NetSales * 100m) : 0m;
 
         report.Items = rows
-            .GroupBy(r => new { r.MenuItemId, r.MenuItemName, r.InternalCode, r.CategoryName })
+            .GroupBy(r => new { r.MenuItemId, r.MenuItemName, r.InternalCode, r.CategoryName, r.CostCenterId, r.CostCenterName })
             .Select(g =>
             {
                 var net = g.Sum(r => r.NetSales);
@@ -407,6 +435,8 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
                     MenuItemName = g.Key.MenuItemName,
                     InternalCode = g.Key.InternalCode,
                     CategoryName = g.Key.CategoryName,
+                    CostCenterId = g.Key.CostCenterId,
+                    CostCenterName = g.Key.CostCenterName,
                     Quantity = Round2(g.Sum(r => r.Quantity)),
                     GrossSales = Round2(g.Sum(r => r.GrossSales)),
                     NetSales = Round2(net),
@@ -553,6 +583,8 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
         string MenuItemName,
         string? InternalCode,
         string CategoryName,
+        Guid? CostCenterId,
+        string? CostCenterName,
         decimal Quantity,
         decimal GrossSales,
         decimal NetSales,
