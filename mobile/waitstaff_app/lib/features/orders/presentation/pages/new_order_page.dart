@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../core/constants/api_config.dart';
 import '../../../../core/network/api_error.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/models/order_models.dart';
@@ -733,7 +734,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
         crossAxisCount: 2,
         mainAxisSpacing: 10,
         crossAxisSpacing: 10,
-        childAspectRatio: 1.1,
+        childAspectRatio: 0.82,
       ),
       itemCount: items.length,
       itemBuilder: (_, i) => _ItemCard(
@@ -978,11 +979,21 @@ class _ItemCard extends StatelessWidget {
   final int quantity;
   final VoidCallback? onTap;
 
+  String? get _resolvedImageUrl {
+    final value = item.imageUrl?.trim();
+    if (value == null || value.isEmpty) return null;
+    final uri = Uri.tryParse(value);
+    if (uri != null && uri.hasScheme) return value;
+    if (value.startsWith('/')) return '${ApiConfig.hubBaseUrl}$value';
+    return value;
+  }
+
   @override
   Widget build(BuildContext context) {
     final inCart = quantity > 0;
     final soldOut =
         availability?.isTracked == true && availability?.isAvailable == false;
+    final imageUrl = _resolvedImageUrl;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -1010,6 +1021,28 @@ class _ItemCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 76,
+                      child: imageUrl == null
+                          ? _ItemImagePlaceholder(dimmed: soldOut)
+                          : Image.network(
+                              imageUrl,
+                              fit: BoxFit.cover,
+                              color: soldOut
+                                  ? Colors.black.withAlpha(100)
+                                  : null,
+                              colorBlendMode: soldOut
+                                  ? BlendMode.darken
+                                  : null,
+                              errorBuilder: (_, _, _) =>
+                                  _ItemImagePlaceholder(dimmed: soldOut),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   Text(
                     item.name,
                     style: GoogleFonts.lato(
@@ -1088,6 +1121,26 @@ class _ItemCard extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ItemImagePlaceholder extends StatelessWidget {
+  const _ItemImagePlaceholder({required this.dimmed});
+
+  final bool dimmed;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: kBgMid,
+      child: Center(
+        child: Icon(
+          Icons.restaurant_menu_rounded,
+          size: 30,
+          color: kGoldDark.withAlpha(dimmed ? 45 : 90),
         ),
       ),
     );

@@ -301,6 +301,7 @@ class MenuItemDto {
   final String id;
   final String name;
   final String? description;
+  final String? imageUrl;
   final double price;
   final String menuCategoryId;
   final String categoryName;
@@ -313,6 +314,7 @@ class MenuItemDto {
     required this.id,
     required this.name,
     this.description,
+    this.imageUrl,
     required this.price,
     required this.menuCategoryId,
     required this.categoryName,
@@ -326,6 +328,7 @@ class MenuItemDto {
     id: j['id'] as String,
     name: j['name'] as String,
     description: j['description'] as String?,
+    imageUrl: j['imageUrl'] as String?,
     price: (j['price'] as num).toDouble(),
     menuCategoryId: j['menuCategoryId'] as String,
     categoryName: j['categoryName'] as String? ?? '',
