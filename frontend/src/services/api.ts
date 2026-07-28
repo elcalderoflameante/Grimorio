@@ -126,6 +126,16 @@ import { getDetailedError } from '../utils/errorHandler';
 const defaultApiBaseUrl = '/api';
 const API_BASE_URL = import.meta.env.VITE_API_URL || defaultApiBaseUrl;
 
+export const resolveMediaUrl = (url?: string | null): string | undefined => {
+  if (!url) return undefined;
+  if (/^(https?:|data:|blob:)/i.test(url)) return url;
+  if (!url.startsWith('/')) return url;
+  if (API_BASE_URL === defaultApiBaseUrl) return url;
+
+  const apiUrl = new URL(API_BASE_URL, window.location.origin);
+  return `${apiUrl.origin}${url}`;
+};
+
 export interface AxiosRequestConfigWithSkipLog extends AxiosRequestConfig {
   skipErrorLog?: boolean;
 }
@@ -573,6 +583,15 @@ export const menuApi = {
     apiClient.post<MenuItemDto>('/menu/items', data),
   updateItem: (id: string, data: UpdateMenuItemDto): Promise<AxiosResponse<MenuItemDto>> =>
     apiClient.put<MenuItemDto>(`/menu/items/${id}`, data),
+  uploadItemImage: (id: string, image: File): Promise<AxiosResponse<MenuItemDto>> => {
+    const formData = new FormData();
+    formData.append('image', image);
+    return apiClient.post<MenuItemDto>(`/menu/items/${id}/image`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  deleteItemImage: (id: string): Promise<AxiosResponse<MenuItemDto>> =>
+    apiClient.delete<MenuItemDto>(`/menu/items/${id}/image`),
   deleteItem: (id: string): Promise<AxiosResponse<void>> =>
     apiClient.delete<void>(`/menu/items/${id}`),
 

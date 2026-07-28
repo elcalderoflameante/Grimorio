@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { App as AntApp, Table, Button, Modal, Form, Input, InputNumber, Select, Switch,
-  Popconfirm, Space, Typography, Tag, Badge, Tooltip, Alert } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, UnorderedListOutlined, ControlOutlined } from '@ant-design/icons';
-import { menuApi, posApi, taxApi } from '../../services/api';
+  Popconfirm, Space, Typography, Tag, Badge, Tooltip, Alert, Upload, Image } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, UnorderedListOutlined, ControlOutlined, UploadOutlined } from '@ant-design/icons';
+import { menuApi, posApi, resolveMediaUrl, taxApi } from '../../services/api';
 import type { MenuItemDto, MenuCategoryDto, CreateMenuItemDto, UpdateMenuItemDto, WorkStationDto, TaxRateDto } from '../../types';
+import type { UploadFile } from 'antd/es/upload/interface';
 import { formatError } from '../../utils/errorHandler';
 import RecipeEditor from './RecipeEditor';
 import ModifierEditor from './ModifierEditor';
@@ -25,6 +26,9 @@ export default function MenuItemsList() {
   const [editing, setEditing] = useState<MenuItemDto | null>(null);
   const [recetaItem, setRecetaItem] = useState<MenuItemDto | null>(null);
   const [modifierItem, setModifierItem] = useState<MenuItemDto | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | undefined>();
+  const [removeImage, setRemoveImage] = useState(false);
   const [form] = Form.useForm();
   const canManage = hasPermission(PERMISSIONS.menu.itemsManage);
 
@@ -65,8 +69,15 @@ export default function MenuItemsList() {
 
   useEffect(() => { load(); }, []);
 
+  useEffect(() => () => {
+    if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+  }, [imagePreview]);
+
   const openModal = async (item?: MenuItemDto) => {
     setEditing(item ?? null);
+    setImageFile(null);
+    setImagePreview(resolveMediaUrl(item?.imageUrl));
+    setRemoveImage(false);
     if (item) {
       form.setFieldsValue(item);
     } else {
@@ -80,10 +91,19 @@ export default function MenuItemsList() {
   const save = async () => {
     const values = await form.validateFields();
     try {
+      if (editing && removeImage && !imageFile && editing.imageUrl) {
+        await menuApi.deleteItemImage(editing.id);
+      }
+
+      let saved: MenuItemDto;
       if (editing) {
-        await menuApi.updateItem(editing.id, values as UpdateMenuItemDto);
+        saved = (await menuApi.updateItem(editing.id, values as UpdateMenuItemDto)).data;
       } else {
-        await menuApi.createItem(values as CreateMenuItemDto);
+        saved = (await menuApi.createItem(values as CreateMenuItemDto)).data;
+      }
+
+      if (imageFile) {
+        await menuApi.uploadItemImage(saved.id, imageFile);
       }
       message.success('Guardado');
       setModal(false);
@@ -100,6 +120,31 @@ export default function MenuItemsList() {
   const estacionOptions = estaciones.map(e => ({ label: e.name, value: e.id }));
   const taxRateOptions = taxRates.map(t => ({ label: `${t.name} (${t.percentage}%)`, value: t.id }));
 
+  const selectImage = (file: File) => {
+    if (file.size > 3 * 1024 * 1024) {
+      message.error('La imagen no puede superar 3 MB');
+      return Upload.LIST_IGNORE;
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      message.error('Usa una imagen JPG, PNG o WEBP');
+      return Upload.LIST_IGNORE;
+    }
+
+    if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    setRemoveImage(false);
+    return false;
+  };
+
+  const clearImage = () => {
+    if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    setImageFile(null);
+    setImagePreview(undefined);
+    setRemoveImage(true);
+    form.setFieldValue('imageUrl', undefined);
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -114,6 +159,18 @@ export default function MenuItemsList() {
         size="small"
         pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         columns={[
+          {
+            title: 'Foto', key: 'image', width: 72,
+            render: (_: unknown, item: MenuItemDto) => item.imageUrl ? (
+              <Image
+                src={resolveMediaUrl(item.imageUrl)}
+                width={44}
+                height={44}
+                style={{ objectFit: 'cover', borderRadius: 6 }}
+                preview={false}
+              />
+            ) : <span style={{ color: '#999' }}>-</span>,
+          },
           {
             title: 'Nombre', key: 'nombre',
             render: (_: unknown, item: MenuItemDto) => (
@@ -198,13 +255,52 @@ export default function MenuItemsList() {
         onOk={save}
         onCancel={() => setModal(false)}
         okText="Guardar"
-        width={560}
+        width={760}
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="name" label="Nombre" rules={[{ required: true }]}><Input /></Form.Item>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(160px, 0.6fr)', gap: 12 }}>
+            <Form.Item name="name" label="Nombre" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="internalCode" label="Código interno"><Input /></Form.Item>
-          <Form.Item name="description" label="Descripción"><Input.TextArea rows={2} /></Form.Item>
-          <Space style={{ width: '100%' }} size="middle">
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 280px', gap: 12, alignItems: 'start' }}>
+          <Form.Item name="description" label="Descripción"><Input.TextArea rows={4} /></Form.Item>
+          <Form.Item name="imageUrl" hidden><Input /></Form.Item>
+          <Form.Item label="Imagen del plato">
+            <Space align="start">
+              {imagePreview ? (
+                <Image
+                  src={imagePreview}
+                  width={96}
+                  height={72}
+                  style={{ objectFit: 'cover', borderRadius: 6 }}
+                  preview
+                />
+              ) : (
+                <div style={{
+                  width: 96, height: 72, border: '1px dashed #d9d9d9', borderRadius: 6,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999',
+                }}>
+                  Sin imagen
+                </div>
+              )}
+              <Space direction="vertical" size={8}>
+                <Upload
+                  accept="image/jpeg,image/png,image/webp"
+                  maxCount={1}
+                  fileList={imageFile ? [{ uid: 'new-image', name: imageFile.name, status: 'done' } as UploadFile] : []}
+                  beforeUpload={(file) => selectImage(file)}
+                  onRemove={() => { clearImage(); return true; }}
+                  showUploadList={false}
+                >
+                  <Button icon={<UploadOutlined />}>Seleccionar imagen</Button>
+                </Upload>
+                {imagePreview && <Button danger size="small" onClick={clearImage}>Quitar imagen</Button>}
+                <span style={{ color: '#8c8c8c', fontSize: 12 }}>JPG, PNG o WEBP. Maximo 3 MB.</span>
+              </Space>
+            </Space>
+          </Form.Item>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) 130px minmax(170px, 1fr) minmax(170px, 1fr)', gap: 12 }}>
             <Form.Item name="menuCategoryId" label="Categoría" rules={[{ required: true }]} style={{ flex: 1 }}>
               <Select options={categoriaOptions} placeholder="Seleccionar" />
             </Form.Item>
@@ -217,14 +313,21 @@ export default function MenuItemsList() {
             >
               <InputNumber style={{ width: '100%' }} min={0} step={0.01} prefix="$" />
             </Form.Item>
-          </Space>
-          <Form.Item name="taxRateId" label="Tarifa de IVA">
+            <Form.Item name="taxRateId" label="Tarifa de IVA">
             <Select
               options={taxRateOptions}
               placeholder="Sin IVA / Hereda del sistema"
               allowClear
             />
-          </Form.Item>
+            </Form.Item>
+            <Form.Item name="stationId" label="Estación destino">
+              <Select
+                options={estacionOptions}
+                placeholder="Sin estación asignada"
+                allowClear
+              />
+            </Form.Item>
+          </div>
           {priceBreakdown && (
             <div style={{
               background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 6,

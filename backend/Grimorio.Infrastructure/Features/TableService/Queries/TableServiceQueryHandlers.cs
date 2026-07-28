@@ -162,6 +162,7 @@ public class GetPublicTableMenuQueryHandler : IRequestHandler<GetPublicTableMenu
                 CategoryColor = item.Category?.Color,
                 Name = item.Name,
                 Description = item.Description,
+                ImageUrl = item.ImageUrl,
                 Price = item.Price,
                 IsAvailable = availability.MenuItems.GetValueOrDefault(item.Id, true),
                 HasModifiers = item.ModifierGroups.Any(g => !g.IsDeleted && g.IsActive),

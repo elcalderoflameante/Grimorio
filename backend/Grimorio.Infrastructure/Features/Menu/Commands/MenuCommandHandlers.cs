@@ -84,7 +84,7 @@ public class CreateItemMenuHandler : IRequestHandler<CreateMenuItemCommand, Menu
         {
             BranchId = req.BranchId, MenuCategoryId = req.MenuCategoryId,
             Name = req.Name, Description = req.Description,
-            InternalCode = req.InternalCode, Price = req.Price,
+            InternalCode = req.InternalCode, ImageUrl = req.ImageUrl, Price = req.Price,
             StationId = req.StationId, TaxRateId = req.TaxRateId,
         };
         _db.MenuItems.Add(item);
@@ -112,7 +112,7 @@ public class UpdateItemMenuHandler : IRequestHandler<UpdateMenuItemCommand, Menu
 
         item.MenuCategoryId = req.MenuCategoryId; item.Name = req.Name;
         item.Description = req.Description; item.InternalCode = req.InternalCode;
-        item.Price = req.Price; item.IsActive = req.IsActive;
+        item.ImageUrl = req.ImageUrl; item.Price = req.Price; item.IsActive = req.IsActive;
         item.AvailableForSale = req.AvailableForSale;
         item.StationId = req.StationId;
         item.TaxRateId = req.TaxRateId;
@@ -123,6 +123,33 @@ public class UpdateItemMenuHandler : IRequestHandler<UpdateMenuItemCommand, Menu
             : null;
         var taxRate = item.TaxRateId.HasValue ? await _db.TaxRates.FindAsync([item.TaxRateId.Value], ct) : null;
         return MenuMapper.MapItem(item, item.Category?.Name ?? string.Empty, item.Category?.Color, 0, stationName, taxRate);
+    }
+}
+
+public class UpdateMenuItemImageHandler : IRequestHandler<UpdateMenuItemImageCommand, MenuItemDto>
+{
+    private readonly GrimorioDbContext _db;
+    public UpdateMenuItemImageHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<MenuItemDto> Handle(UpdateMenuItemImageCommand req, CancellationToken ct)
+    {
+        var item = await _db.MenuItems
+            .Include(x => x.Category)
+            .Include(x => x.Station)
+            .Include(x => x.TaxRate)
+            .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId, ct)
+            ?? throw new KeyNotFoundException("Item no encontrado");
+
+        item.ImageUrl = req.ImageUrl;
+        await _db.SaveChangesAsync(ct);
+
+        return MenuMapper.MapItem(
+            item,
+            item.Category?.Name ?? string.Empty,
+            item.Category?.Color,
+            item.Recipe.Count(r => !r.IsDeleted),
+            item.Station?.Name,
+            item.TaxRate);
     }
 }
 
@@ -331,7 +358,7 @@ internal static class MenuMapper
             Id = item.Id, MenuCategoryId = item.MenuCategoryId,
             CategoryName = categoryName, CategoryColor = categoriaColor,
             Name = item.Name, Description = item.Description,
-            InternalCode = item.InternalCode, Price = item.Price,
+            InternalCode = item.InternalCode, ImageUrl = item.ImageUrl, Price = item.Price,
             IsActive = item.IsActive, AvailableForSale = item.AvailableForSale,
             TotalIngredients = totalIngredients,
             StationId = item.StationId, StationName = stationName,

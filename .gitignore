@@ -9,6 +9,9 @@
 # Firebase Admin SDK secrets
 backend/secrets/*.json
 
+# Runtime uploads
+backend/Grimorio.API/wwwroot/uploads/
+
 # User-specific files
 *.rsuser
 *.suo

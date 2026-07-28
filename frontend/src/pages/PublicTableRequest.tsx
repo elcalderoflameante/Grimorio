@@ -14,7 +14,7 @@ import salsaMayonesa from '../assets/salsa-mayonesa.png';
 import salsaTomateImg from '../assets/salsa-tomate.png';
 import servilletasImg from '../assets/servilletas.png';
 import RusticButton from '../components/Public/RusticButton';
-import { tableServiceApi } from '../services/api';
+import { resolveMediaUrl, tableServiceApi } from '../services/api';
 import type {
   CreateModifierSelectionDto,
   OrderDto,
@@ -605,7 +605,15 @@ export default function PublicTableRequest() {
                         className="w-full rounded-lg border-2 border-[#8B5E3C] bg-[#f5f1ed]/95 p-2.5 text-left shadow-md disabled:opacity-55"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div>
+                          {item.imageUrl && (
+                            <img
+                              src={resolveMediaUrl(item.imageUrl)}
+                              alt=""
+                              loading="lazy"
+                              className="h-16 w-20 shrink-0 rounded-md object-cover"
+                            />
+                          )}
+                          <div className="min-w-0 flex-1">
                             <h3 className="text-xs font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif]">{item.name}</h3>
                             {item.description && <p className="mt-0.5 text-[11px] text-[#6d4c3d]">{item.description}</p>}
                             {!item.isAvailable && <p className="mt-1 text-xs font-bold text-[#8B2E2E]">No disponible</p>}

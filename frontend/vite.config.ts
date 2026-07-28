@@ -27,6 +27,11 @@ export default defineConfig(({ command, mode }) => {
           secure: false,
           ws: true,
         },
+        '/uploads': {
+          target: devApiTarget ?? 'http://localhost:5186',
+          changeOrigin: true,
+          secure: false,
+        },
       },
     },
     build: {

@@ -38,6 +38,7 @@ public class ItemMenuConfiguration : BaseEntityConfiguration<MenuItem>
         builder.Property(x => x.Name).IsRequired().HasMaxLength(150);
         builder.Property(x => x.Description).HasMaxLength(500);
         builder.Property(x => x.InternalCode).HasMaxLength(50);
+        builder.Property(x => x.ImageUrl).HasMaxLength(500);
         builder.Property(x => x.Price).HasColumnType("numeric(18,4)").IsRequired();
 
         builder.HasOne(x => x.Category)

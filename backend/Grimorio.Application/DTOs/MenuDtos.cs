@@ -35,6 +35,7 @@ public class MenuItemDto
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? InternalCode { get; set; }
+    public string? ImageUrl { get; set; }
     public decimal Price { get; set; }
     public bool IsActive { get; set; }
     public bool AvailableForSale { get; set; }
@@ -83,6 +84,7 @@ public class CreateMenuItemDto
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? InternalCode { get; set; }
+    public string? ImageUrl { get; set; }
     public decimal Price { get; set; }
     public Guid? StationId { get; set; }
     public Guid? TaxRateId { get; set; }
@@ -94,6 +96,7 @@ public class UpdateMenuItemDto
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? InternalCode { get; set; }
+    public string? ImageUrl { get; set; }
     public decimal Price { get; set; }
     public bool IsActive { get; set; }
     public bool AvailableForSale { get; set; }

@@ -795,6 +795,7 @@ export interface PublicMenuItemDto {
   categoryColor?: string;
   name: string;
   description?: string;
+  imageUrl?: string;
   price: number;
   isAvailable: boolean;
   hasModifiers: boolean;
@@ -1022,6 +1023,7 @@ export interface MenuItemDto {
   name: string;
   description?: string;
   internalCode?: string;
+  imageUrl?: string;
   price: number;
   isActive: boolean;
   availableForSale: boolean;
@@ -1107,6 +1109,7 @@ export interface CreateMenuItemDto {
   name: string;
   description?: string;
   internalCode?: string;
+  imageUrl?: string;
   price: number;
   stationId?: string;
   taxRateId?: string;

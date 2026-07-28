@@ -14,7 +14,13 @@ namespace Grimorio.API.Controllers;
 public class MenuController : ControllerBase
 {
     private readonly IMediator _mediator;
-    public MenuController(IMediator mediator) => _mediator = mediator;
+    private readonly IWebHostEnvironment _environment;
+
+    public MenuController(IMediator mediator, IWebHostEnvironment environment)
+    {
+        _mediator = mediator;
+        _environment = environment;
+    }
 
     // â”€â”€ CategorÃ­as â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -133,7 +139,7 @@ public class MenuController : ControllerBase
         {
             BranchId = branchId, MenuCategoryId = dto.MenuCategoryId,
             Name = dto.Name, Description = dto.Description,
-            InternalCode = dto.InternalCode, Price = dto.Price,
+            InternalCode = dto.InternalCode, ImageUrl = dto.ImageUrl, Price = dto.Price,
             StationId = dto.StationId, TaxRateId = dto.TaxRateId,
         });
         return Ok(result);
@@ -148,10 +154,70 @@ public class MenuController : ControllerBase
         {
             Id = id, BranchId = branchId, MenuCategoryId = dto.MenuCategoryId,
             Name = dto.Name, Description = dto.Description,
-            InternalCode = dto.InternalCode, Price = dto.Price,
+            InternalCode = dto.InternalCode, ImageUrl = dto.ImageUrl, Price = dto.Price,
             IsActive = dto.IsActive, AvailableForSale = dto.AvailableForSale,
             StationId = dto.StationId, TaxRateId = dto.TaxRateId,
         });
+        return Ok(result);
+    }
+
+    [Authorize(Policy = "Menu.Items.Manage")]
+    [HttpPost("items/{id:guid}/image")]
+    [RequestSizeLimit(4 * 1024 * 1024)]
+    public async Task<IActionResult> UploadItemImage(Guid id, [FromForm] IFormFile image, CancellationToken ct)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        if (image.Length == 0) return BadRequest("Imagen no válida.");
+        if (image.Length > 3 * 1024 * 1024) return BadRequest("La imagen no puede superar 3 MB.");
+
+        var oldItem = await _mediator.Send(new GetMenuItemDetailQuery { Id = id, BranchId = branchId }, ct);
+        if (oldItem is null) return NotFound();
+
+        var extension = Path.GetExtension(image.FileName).ToLowerInvariant();
+        var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".webp" };
+        if (!allowedExtensions.Contains(extension)) return BadRequest("Formato no permitido. Usa JPG, PNG o WEBP.");
+
+        var webRoot = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
+        var relativeFolder = Path.Combine("uploads", "menu-items", branchId.ToString("N"));
+        var targetFolder = Path.Combine(webRoot, relativeFolder);
+        Directory.CreateDirectory(targetFolder);
+
+        var fileName = $"{id:N}-{Guid.NewGuid():N}{extension}";
+        var fullPath = Path.Combine(targetFolder, fileName);
+        await using (var stream = System.IO.File.Create(fullPath))
+        {
+            await image.CopyToAsync(stream, ct);
+        }
+
+        var imageUrl = "/" + Path.Combine(relativeFolder, fileName).Replace('\\', '/');
+        var result = await _mediator.Send(new UpdateMenuItemImageCommand
+        {
+            Id = id,
+            BranchId = branchId,
+            ImageUrl = imageUrl,
+        }, ct);
+
+        DeleteLocalUpload(oldItem.ImageUrl);
+        return Ok(result);
+    }
+
+    [Authorize(Policy = "Menu.Items.Manage")]
+    [HttpDelete("items/{id:guid}/image")]
+    public async Task<IActionResult> DeleteItemImage(Guid id, CancellationToken ct)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+
+        var oldItem = await _mediator.Send(new GetMenuItemDetailQuery { Id = id, BranchId = branchId }, ct);
+        if (oldItem is null) return NotFound();
+
+        var result = await _mediator.Send(new UpdateMenuItemImageCommand
+        {
+            Id = id,
+            BranchId = branchId,
+            ImageUrl = null,
+        }, ct);
+
+        DeleteLocalUpload(oldItem.ImageUrl);
         return Ok(result);
     }
 
@@ -221,5 +287,19 @@ public class MenuController : ControllerBase
     {
         var claim = User.FindFirst(AppConstants.Claims.BranchId)?.Value;
         return Guid.TryParse(claim, out branchId);
+    }
+
+    private void DeleteLocalUpload(string? imageUrl)
+    {
+        if (string.IsNullOrWhiteSpace(imageUrl) || !imageUrl.StartsWith("/uploads/menu-items/", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var webRoot = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
+        var relativePath = imageUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+        var fullPath = Path.GetFullPath(Path.Combine(webRoot, relativePath));
+        var uploadsRoot = Path.GetFullPath(Path.Combine(webRoot, "uploads", "menu-items"));
+
+        if (!fullPath.StartsWith(uploadsRoot, StringComparison.OrdinalIgnoreCase)) return;
+        if (System.IO.File.Exists(fullPath)) System.IO.File.Delete(fullPath);
     }
 }
