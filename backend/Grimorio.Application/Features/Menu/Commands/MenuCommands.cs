@@ -101,6 +101,13 @@ public class UpsertMenuItemModifiersCommand : IRequest<List<MenuItemModifierGrou
 
 // ── Descuento por venta ───────────────────────────────────────────────────
 
+public class UpsertMenuItemPreparationCommand : IRequest<MenuItemPreparationDto>
+{
+    public Guid MenuItemId { get; set; }
+    public Guid BranchId { get; set; }
+    public UpsertMenuItemPreparationDto Preparation { get; set; } = new();
+}
+
 public class DeductStockFromSaleCommand : IRequest<bool>
 {
     public Guid BranchId { get; set; }

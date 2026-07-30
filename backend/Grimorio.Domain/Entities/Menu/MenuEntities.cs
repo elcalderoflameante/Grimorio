@@ -32,8 +32,35 @@ public class MenuItem : BaseEntity
     public virtual MenuCategory? Category { get; set; }
     public virtual ICollection<RecipeIngredient> Recipe { get; set; } = [];
     public virtual ICollection<MenuItemModifierGroup> ModifierGroups { get; set; } = [];
+    public virtual MenuItemPreparation? Preparation { get; set; }
     public virtual POS.WorkStation? Station { get; set; }
     public virtual Billing.TaxRate? TaxRate { get; set; }
+}
+
+public class MenuItemPreparation : BaseEntity
+{
+    public Guid MenuItemId { get; set; }
+    public int? EstimatedMinutes { get; set; }
+    public string? Yield { get; set; }
+    public string? Temperature { get; set; }
+    public string? Presentation { get; set; }
+    public string? Notes { get; set; }
+
+    public virtual MenuItem? MenuItem { get; set; }
+    public virtual ICollection<MenuItemPreparationStep> Steps { get; set; } = [];
+}
+
+public class MenuItemPreparationStep : BaseEntity
+{
+    public Guid MenuItemPreparationId { get; set; }
+    public int StepNumber { get; set; }
+    public string? Title { get; set; }
+    public string Instructions { get; set; } = string.Empty;
+    public int? EstimatedMinutes { get; set; }
+    public string? Temperature { get; set; }
+    public bool IsCritical { get; set; }
+
+    public virtual MenuItemPreparation? Preparation { get; set; }
 }
 
 public class MenuItemModifierGroup : BaseEntity

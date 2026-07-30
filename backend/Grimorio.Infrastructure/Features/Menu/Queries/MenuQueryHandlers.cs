@@ -148,6 +148,8 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
             .Include(x => x.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
                 .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
                     .ThenInclude(o => o.Unit)
+            .Include(x => x.Preparation)
+                .ThenInclude(p => p!.Steps.Where(s => !s.IsDeleted))
             .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId, ct);
 
         if (item is null) return null;
@@ -191,6 +193,9 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
                 Quantity = r.Quantity,
                 Notes = r.Notes,
             }).ToList(),
+            Preparation = item.Preparation is null || item.Preparation.IsDeleted
+                ? null
+                : MenuMapper.MapPreparation(item.Preparation),
         };
 
         ApplyModifierAvailability(dto.ModifierGroups, modifierAvailability);

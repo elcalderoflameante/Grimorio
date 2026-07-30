@@ -1,4 +1,4 @@
-ï»¿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Grimorio.Application.Abstractions;
 using Grimorio.Domain.Entities.Auth;
 using Grimorio.Domain.Entities.Billing;
@@ -85,11 +85,13 @@ public class GrimorioDbContext : DbContext
     public DbSet<OrderPaymentItem> OrderPaymentItems { get; set; } = null!;
     public DbSet<PaymentLine> PaymentLines { get; set; } = null!;
 
-    // === MenÃº ===
+    // === Menú ===
     public DbSet<MenuCategory> MenuCategories { get; set; } = null!;
     public DbSet<MenuItem> MenuItems { get; set; } = null!;
     public DbSet<MenuItemModifierGroup> MenuItemModifierGroups { get; set; } = null!;
     public DbSet<MenuItemModifierOption> MenuItemModifierOptions { get; set; } = null!;
+        public DbSet<MenuItemPreparation> MenuItemPreparations { get; set; } = null!;
+        public DbSet<MenuItemPreparationStep> MenuItemPreparationSteps { get; set; } = null!;
     public DbSet<RecipeIngredient> RecipeIngredients { get; set; } = null!;
 
     // === Purchases ===
@@ -116,7 +118,7 @@ public class GrimorioDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Establece la codificaciÃ³n por defecto y otras configuraciones PostgreSQL
+        // Establece la codificación por defecto y otras configuraciones PostgreSQL
         modelBuilder.HasPostgresExtension("uuid-ossp");
 
         // Aplica todas las configuraciones de entidades
@@ -124,7 +126,7 @@ public class GrimorioDbContext : DbContext
     }
 
     /// <summary>
-    /// Sobrescribe SaveChanges para auditorÃ­a automÃ¡tica.
+    /// Sobrescribe SaveChanges para auditoría automática.
     /// Registra CreatedBy, UpdatedBy, UpdatedAt en todas las entidades.
     /// </summary>
     public override int SaveChanges()
@@ -134,7 +136,7 @@ public class GrimorioDbContext : DbContext
     }
 
     /// <summary>
-    /// VersiÃ³n asincrÃ³nica de SaveChanges con auditorÃ­a.
+    /// Versión asincrónica de SaveChanges con auditoría.
     /// </summary>
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {

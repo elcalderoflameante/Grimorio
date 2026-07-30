@@ -267,6 +267,20 @@ public class MenuController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Menu.Items.Manage")]
+    [HttpPut("items/{id:guid}/preparacion")]
+    public async Task<IActionResult> UpsertPreparation(Guid id, [FromBody] UpsertMenuItemPreparationDto dto)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new UpsertMenuItemPreparationCommand
+        {
+            MenuItemId = id,
+            BranchId = branchId,
+            Preparation = dto,
+        });
+        return Ok(result);
+    }
+
     // â”€â”€ Descuento por venta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Authorize(Policy = "Menu.StockConsume")]

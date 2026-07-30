@@ -91,6 +91,51 @@ public class RecipeIngredientConfiguration : BaseEntityConfiguration<RecipeIngre
     }
 }
 
+public class MenuItemPreparationConfiguration : BaseEntityConfiguration<MenuItemPreparation>
+{
+    public override void Configure(EntityTypeBuilder<MenuItemPreparation> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("MenuItemPreparations", "menu");
+
+        builder.Property(x => x.Yield).HasMaxLength(120);
+        builder.Property(x => x.Temperature).HasMaxLength(80);
+        builder.Property(x => x.Presentation).HasMaxLength(1000);
+        builder.Property(x => x.Notes).HasMaxLength(1000);
+
+        builder.HasOne(x => x.MenuItem)
+            .WithOne(x => x.Preparation)
+            .HasForeignKey<MenuItemPreparation>(x => x.MenuItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(x => new { x.BranchId, x.MenuItemId })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = false");
+    }
+}
+
+public class MenuItemPreparationStepConfiguration : BaseEntityConfiguration<MenuItemPreparationStep>
+{
+    public override void Configure(EntityTypeBuilder<MenuItemPreparationStep> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("MenuItemPreparationSteps", "menu");
+
+        builder.Property(x => x.Title).HasMaxLength(150);
+        builder.Property(x => x.Instructions).IsRequired().HasMaxLength(2000);
+        builder.Property(x => x.Temperature).HasMaxLength(80);
+        builder.Property(x => x.IsCritical).HasDefaultValue(false);
+
+        builder.HasOne(x => x.Preparation)
+            .WithMany(x => x.Steps)
+            .HasForeignKey(x => x.MenuItemPreparationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(x => new { x.BranchId, x.MenuItemPreparationId, x.StepNumber })
+            .HasFilter("\"IsDeleted\" = false");
+    }
+}
+
 public class MenuItemModifierGroupConfiguration : BaseEntityConfiguration<MenuItemModifierGroup>
 {
     public override void Configure(EntityTypeBuilder<MenuItemModifierGroup> builder)

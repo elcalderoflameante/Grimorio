@@ -53,6 +53,7 @@ public class MenuItemDto
 public class MenuItemDetailDto : MenuItemDto
 {
     public List<RecipeIngredientDto> Recipe { get; set; } = [];
+    public MenuItemPreparationDto? Preparation { get; set; }
 }
 
 public class MenuItemAvailabilityDto
@@ -231,6 +232,50 @@ public class UpsertRecipeIngredientDto
 }
 
 // ── Descuento por venta ───────────────────────────────────────────────────
+
+public class MenuItemPreparationDto
+{
+    public Guid? Id { get; set; }
+    public Guid MenuItemId { get; set; }
+    public int? EstimatedMinutes { get; set; }
+    public string? Yield { get; set; }
+    public string? Temperature { get; set; }
+    public string? Presentation { get; set; }
+    public string? Notes { get; set; }
+    public List<MenuItemPreparationStepDto> Steps { get; set; } = [];
+}
+
+public class MenuItemPreparationStepDto
+{
+    public Guid? Id { get; set; }
+    public int StepNumber { get; set; }
+    public string? Title { get; set; }
+    public string Instructions { get; set; } = string.Empty;
+    public int? EstimatedMinutes { get; set; }
+    public string? Temperature { get; set; }
+    public bool IsCritical { get; set; }
+}
+
+public class UpsertMenuItemPreparationDto
+{
+    public int? EstimatedMinutes { get; set; }
+    public string? Yield { get; set; }
+    public string? Temperature { get; set; }
+    public string? Presentation { get; set; }
+    public string? Notes { get; set; }
+    public List<UpsertMenuItemPreparationStepDto> Steps { get; set; } = [];
+}
+
+public class UpsertMenuItemPreparationStepDto
+{
+    public Guid? Id { get; set; }
+    public int StepNumber { get; set; }
+    public string? Title { get; set; }
+    public string Instructions { get; set; } = string.Empty;
+    public int? EstimatedMinutes { get; set; }
+    public string? Temperature { get; set; }
+    public bool IsCritical { get; set; }
+}
 
 public class DeductStockFromSaleDto
 {

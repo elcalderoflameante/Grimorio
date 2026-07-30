@@ -1040,6 +1040,7 @@ export interface MenuItemDto {
 
 export interface MenuItemDetailDto extends MenuItemDto {
   recipe: RecipeIngredientDto[];
+  preparation?: MenuItemPreparationDto;
 }
 
 export interface MenuItemAvailabilityComponentDto {
@@ -1137,6 +1138,46 @@ export interface UpsertRecipeIngredientDto {
   unitId: string;
   quantity: number;
   notes?: string;
+}
+
+export interface MenuItemPreparationDto {
+  id?: string;
+  menuItemId: string;
+  estimatedMinutes?: number;
+  yield?: string;
+  temperature?: string;
+  presentation?: string;
+  notes?: string;
+  steps: MenuItemPreparationStepDto[];
+}
+
+export interface MenuItemPreparationStepDto {
+  id?: string;
+  stepNumber: number;
+  title?: string;
+  instructions: string;
+  estimatedMinutes?: number;
+  temperature?: string;
+  isCritical: boolean;
+}
+
+export interface UpsertMenuItemPreparationDto {
+  estimatedMinutes?: number;
+  yield?: string;
+  temperature?: string;
+  presentation?: string;
+  notes?: string;
+  steps: UpsertMenuItemPreparationStepDto[];
+}
+
+export interface UpsertMenuItemPreparationStepDto {
+  id?: string;
+  stepNumber: number;
+  title?: string;
+  instructions: string;
+  estimatedMinutes?: number;
+  temperature?: string;
+  isCritical: boolean;
 }
 
 export interface MenuItemModifierOptionDto {

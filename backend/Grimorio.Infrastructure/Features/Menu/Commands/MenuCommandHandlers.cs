@@ -315,6 +315,76 @@ public class UpsertMenuItemModifiersHandler : IRequestHandler<UpsertMenuItemModi
     }
 }
 
+public class UpsertMenuItemPreparationHandler : IRequestHandler<UpsertMenuItemPreparationCommand, MenuItemPreparationDto>
+{
+    private readonly GrimorioDbContext _db;
+    public UpsertMenuItemPreparationHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<MenuItemPreparationDto> Handle(UpsertMenuItemPreparationCommand req, CancellationToken ct)
+    {
+        var itemExists = await _db.MenuItems
+            .AnyAsync(x => x.Id == req.MenuItemId && x.BranchId == req.BranchId && !x.IsDeleted, ct);
+        if (!itemExists)
+            throw new KeyNotFoundException("Item no encontrado");
+
+        var validSteps = req.Preparation.Steps
+            .Where(x => !string.IsNullOrWhiteSpace(x.Instructions))
+            .OrderBy(x => x.StepNumber)
+            .ToList();
+
+        for (var i = 0; i < validSteps.Count; i++)
+            validSteps[i].StepNumber = i + 1;
+
+        var preparation = await _db.MenuItemPreparations
+            .Include(x => x.Steps)
+            .FirstOrDefaultAsync(x => x.MenuItemId == req.MenuItemId && x.BranchId == req.BranchId, ct);
+
+        if (preparation is null)
+        {
+            preparation = new MenuItemPreparation
+            {
+                BranchId = req.BranchId,
+                MenuItemId = req.MenuItemId,
+            };
+            _db.MenuItemPreparations.Add(preparation);
+        }
+
+        preparation.IsDeleted = false;
+        preparation.EstimatedMinutes = req.Preparation.EstimatedMinutes;
+        preparation.Yield = req.Preparation.Yield?.Trim();
+        preparation.Temperature = req.Preparation.Temperature?.Trim();
+        preparation.Presentation = req.Preparation.Presentation?.Trim();
+        preparation.Notes = req.Preparation.Notes?.Trim();
+
+        foreach (var existingStep in preparation.Steps.Where(x => !x.IsDeleted))
+            existingStep.IsDeleted = true;
+
+        foreach (var stepDto in validSteps)
+        {
+            _db.MenuItemPreparationSteps.Add(new MenuItemPreparationStep
+            {
+                BranchId = req.BranchId,
+                MenuItemPreparationId = preparation.Id,
+                StepNumber = stepDto.StepNumber,
+                Title = stepDto.Title?.Trim(),
+                Instructions = stepDto.Instructions.Trim(),
+                EstimatedMinutes = stepDto.EstimatedMinutes,
+                Temperature = stepDto.Temperature?.Trim(),
+                IsCritical = stepDto.IsCritical,
+            });
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        var result = await _db.MenuItemPreparations
+            .AsNoTracking()
+            .Include(x => x.Steps.Where(s => !s.IsDeleted))
+            .FirstAsync(x => x.Id == preparation.Id, ct);
+
+        return MenuMapper.MapPreparation(result);
+    }
+}
+
 public class DescontarStockVentaHandler : IRequestHandler<DeductStockFromSaleCommand, bool>
 {
     private readonly GrimorioDbContext _db;
@@ -406,4 +476,30 @@ internal static class MenuMapper
                     IsActive = o.IsActive,
                 }).ToList(),
         }).ToList();
+
+    internal static MenuItemPreparationDto MapPreparation(MenuItemPreparation preparation) =>
+        new()
+        {
+            Id = preparation.Id,
+            MenuItemId = preparation.MenuItemId,
+            EstimatedMinutes = preparation.EstimatedMinutes,
+            Yield = preparation.Yield,
+            Temperature = preparation.Temperature,
+            Presentation = preparation.Presentation,
+            Notes = preparation.Notes,
+            Steps = preparation.Steps
+                .Where(s => !s.IsDeleted)
+                .OrderBy(s => s.StepNumber)
+                .Select(s => new MenuItemPreparationStepDto
+                {
+                    Id = s.Id,
+                    StepNumber = s.StepNumber,
+                    Title = s.Title,
+                    Instructions = s.Instructions,
+                    EstimatedMinutes = s.EstimatedMinutes,
+                    Temperature = s.Temperature,
+                    IsCritical = s.IsCritical,
+                })
+                .ToList(),
+        };
 }

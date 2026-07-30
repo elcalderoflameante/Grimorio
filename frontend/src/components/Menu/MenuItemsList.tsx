@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { App as AntApp, Table, Button, Modal, Form, Input, InputNumber, Select, Switch,
   Popconfirm, Space, Typography, Tag, Badge, Tooltip, Alert, Upload, Image } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, UnorderedListOutlined, ControlOutlined, UploadOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, UnorderedListOutlined, ControlOutlined, UploadOutlined, FileTextOutlined } from '@ant-design/icons';
 import { menuApi, posApi, resolveMediaUrl, taxApi } from '../../services/api';
 import type { MenuItemDto, MenuCategoryDto, CreateMenuItemDto, UpdateMenuItemDto, WorkStationDto, TaxRateDto } from '../../types';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { formatError } from '../../utils/errorHandler';
 import RecipeEditor from './RecipeEditor';
 import ModifierEditor from './ModifierEditor';
+import PreparationEditor from './PreparationEditor';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
 
@@ -26,6 +27,7 @@ export default function MenuItemsList() {
   const [editing, setEditing] = useState<MenuItemDto | null>(null);
   const [recetaItem, setRecetaItem] = useState<MenuItemDto | null>(null);
   const [modifierItem, setModifierItem] = useState<MenuItemDto | null>(null);
+  const [preparationItem, setPreparationItem] = useState<MenuItemDto | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | undefined>();
   const [removeImage, setRemoveImage] = useState(false);
@@ -236,6 +238,18 @@ export default function MenuItemsList() {
             ),
           }] : []),
           ...(canManage ? [{
+            title: 'Preparación', key: 'preparation', width: 105,
+            render: (_: unknown, item: MenuItemDto) => (
+              <Tooltip title="Ver/editar preparación">
+                <Button
+                  size="small"
+                  icon={<FileTextOutlined />}
+                  onClick={() => setPreparationItem(item)}
+                />
+              </Tooltip>
+            ),
+          }] : []),
+          ...(canManage ? [{
             title: 'Acciones', key: 'acc', width: 100,
             render: (_: unknown, item: MenuItemDto) => (
               <Space>
@@ -392,6 +406,14 @@ export default function MenuItemsList() {
           itemName={modifierItem.name}
           open={!!modifierItem}
           onClose={() => { setModifierItem(null); load(); }}
+        />
+      )}
+      {preparationItem && (
+        <PreparationEditor
+          itemId={preparationItem.id}
+          itemName={preparationItem.name}
+          open={!!preparationItem}
+          onClose={() => { setPreparationItem(null); load(); }}
         />
       )}
     </div>
