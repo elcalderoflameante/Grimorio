@@ -1,5 +1,6 @@
 using Grimorio.Infrastructure;
 using Grimorio.Infrastructure.Persistence;
+using Grimorio.Infrastructure.Features.Attendance;
 using Grimorio.Infrastructure.Security;
 using Grimorio.Infrastructure.Seeding;
 using Grimorio.API.Notifications;
@@ -249,6 +250,8 @@ builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddScoped<IFcmPushNotificationService, FcmPushNotificationService>();
+builder.Services.AddScoped<AttendanceKioskAuthenticator>();
+builder.Services.AddSingleton<SFaceBiometricService>();
 
 // === Registrar MediatR ===
 builder.Services.AddMediatR(config =>
@@ -258,6 +261,10 @@ builder.Services.AddMediatR(config =>
 });
 
 var app = builder.Build();
+
+// La asistencia facial es una capacidad requerida: fallar al arrancar evita
+// aceptar kioscos cuando los pesos o el runtime nativo no son utilizables.
+app.Services.GetRequiredService<SFaceBiometricService>().ValidateModels();
 
 // === Migraciones y seeding (todos los entornos) ===
 using (var scope = app.Services.CreateScope())

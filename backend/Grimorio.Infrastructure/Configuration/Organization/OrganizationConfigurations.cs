@@ -286,20 +286,100 @@ public class EmployeeClockingConfiguration : BaseEntityConfiguration<EmployeeClo
         builder.Property(ec => ec.EmployeeId)
             .IsRequired();
 
-        builder.Property(ec => ec.ClockInTime)
+        builder.Property(ec => ec.WorkDate)
+            .HasColumnType("date")
             .IsRequired();
 
-        builder.Property(ec => ec.Notes)
-            .HasMaxLength(500);
+        builder.Property(ec => ec.ClockInTimeUtc)
+            .IsRequired();
 
-        // Índices
-        builder.HasIndex(ec => new { ec.EmployeeId, ec.ClockInTime });
-        builder.HasIndex(ec => new { ec.BranchId, ec.ClockInTime });
+        builder.Property(ec => ec.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(ec => ec.ClockInMethod).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(ec => ec.ClockOutMethod).HasConversion<string>().HasMaxLength(20);
+        builder.Property(ec => ec.ClockInEvidencePath).HasMaxLength(500);
+        builder.Property(ec => ec.ClockOutEvidencePath).HasMaxLength(500);
+        builder.Property(ec => ec.AdministrativeNotes).HasMaxLength(1000);
+
+        builder.HasIndex(ec => new { ec.EmployeeId, ec.WorkDate })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
+        builder.HasIndex(ec => new { ec.BranchId, ec.WorkDate });
 
         // Relaciones
         builder.HasOne(ec => ec.Employee)
             .WithMany(e => e.EmployeeClockings)
             .HasForeignKey(ec => ec.EmployeeId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(ec => ec.Break)
+            .WithOne(b => b.EmployeeClocking)
+            .HasForeignKey<EmployeeClockingBreak>(b => b.EmployeeClockingId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class EmployeeClockingBreakConfiguration : BaseEntityConfiguration<EmployeeClockingBreak>
+{
+    public override void Configure(EntityTypeBuilder<EmployeeClockingBreak> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("EmployeeClockingBreaks", "organization");
+        builder.Property(x => x.StartedAtUtc).IsRequired();
+        builder.Property(x => x.StartMethod).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(x => x.EndMethod).HasConversion<string>().HasMaxLength(20);
+        builder.Property(x => x.StartEvidencePath).HasMaxLength(500);
+        builder.Property(x => x.EndEvidencePath).HasMaxLength(500);
+        builder.HasIndex(x => x.EmployeeClockingId).IsUnique();
+    }
+}
+
+public class AttendanceKioskDeviceConfiguration : BaseEntityConfiguration<AttendanceKioskDevice>
+{
+    public override void Configure(EntityTypeBuilder<AttendanceKioskDevice> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("AttendanceKioskDevices", "organization");
+        builder.Property(x => x.Name).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.DeviceIdentifier).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.ApiKeyHash).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(x => x.AppVersion).HasMaxLength(50);
+        builder.HasIndex(x => x.DeviceIdentifier).IsUnique();
+        builder.HasIndex(x => new { x.BranchId, x.Status });
+    }
+}
+
+public class EmployeeFacialTemplateConfiguration : BaseEntityConfiguration<EmployeeFacialTemplate>
+{
+    public override void Configure(EntityTypeBuilder<EmployeeFacialTemplate> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("EmployeeFacialTemplates", "organization");
+        builder.Property(x => x.EncryptedEmbedding).HasColumnType("text").IsRequired();
+        builder.Property(x => x.ModelVersion).HasMaxLength(100).IsRequired();
+        builder.HasIndex(x => new { x.EmployeeId, x.ModelVersion })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
+        builder.HasOne(x => x.Employee)
+            .WithMany(x => x.FacialTemplates)
+            .HasForeignKey(x => x.EmployeeId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class AttendanceCorrectionConfiguration : BaseEntityConfiguration<AttendanceCorrection>
+{
+    public override void Configure(EntityTypeBuilder<AttendanceCorrection> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("AttendanceCorrections", "organization");
+        builder.Property(x => x.Reason).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.BeforeJson).HasColumnType("jsonb").IsRequired();
+        builder.Property(x => x.AfterJson).HasColumnType("jsonb").IsRequired();
+        builder.HasIndex(x => new { x.EmployeeClockingId, x.CorrectedAtUtc });
+        builder.HasOne(x => x.EmployeeClocking)
+            .WithMany()
+            .HasForeignKey(x => x.EmployeeClockingId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

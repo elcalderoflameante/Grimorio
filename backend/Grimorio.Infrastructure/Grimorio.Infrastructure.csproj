@@ -21,9 +21,25 @@
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
     <PackageReference Include="Npgsql" Version="10.0.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <PackageReference Include="OpenCvSharp4" Version="4.13.0.20260627" />
+    <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.13.0.20260627" />
+    <PackageReference Include="OpenCvSharp4.official.runtime.linux-x64" Version="4.13.0.20260627" />
     <PackageReference Include="QuestPDF" Version="2026.5.0" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
     <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Features\Attendance\Models\*.onnx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <TargetPath>Biometrics\%(Filename)%(Extension)</TargetPath>
+    </Content>
+    <Content Include="Features\Attendance\Models\LICENSE">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <TargetPath>Biometrics\LICENSE</TargetPath>
+    </Content>
   </ItemGroup>
 
   <PropertyGroup>

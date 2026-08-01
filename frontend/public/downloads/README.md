@@ -25,3 +25,15 @@ El boton del ERP apunta por defecto a:
 ```text
 /downloads/grimorio-estaciones.apk
 ```
+
+La app de asistencia debe publicarse como:
+
+```text
+grimorio-asistencia.apk
+```
+
+El boton del ERP apunta por defecto a:
+
+```text
+/downloads/grimorio-asistencia.apk
+```

@@ -7,4 +7,7 @@ public static class EcuadorTime
 
     public static DateTime FromUtc(DateTime utcDateTime) =>
         DateTime.SpecifyKind(utcDateTime.ToUniversalTime() + Offset, DateTimeKind.Unspecified);
+
+    public static DateOnly DateFromUtc(DateTime utcDateTime) =>
+        DateOnly.FromDateTime(FromUtc(utcDateTime));
 }

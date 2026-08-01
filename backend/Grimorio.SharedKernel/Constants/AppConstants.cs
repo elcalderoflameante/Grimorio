@@ -63,6 +63,9 @@ public static class AppConstants
         public const string RrhhSchedulingManage = "RRHH.Scheduling.Manage";
         public const string RrhhPayrollView = "RRHH.Payroll.View";
         public const string RrhhPayrollManage = "RRHH.Payroll.Manage";
+        public const string RrhhAttendanceView = "RRHH.Attendance.View";
+        public const string RrhhAttendanceManage = "RRHH.Attendance.Manage";
+        public const string RrhhAttendanceEnroll = "RRHH.Attendance.Enroll";
 
         public const string PosOrdersView = "POS.Orders.View";
         public const string PosOrdersCreate = "POS.Orders.Create";
@@ -147,6 +150,9 @@ public static class AppConstants
             new(RrhhSchedulingManage, "Administrar horarios y turnos", "RRHH"),
             new(RrhhPayrollView, "Ver nomina", "RRHH"),
             new(RrhhPayrollManage, "Administrar nomina", "RRHH"),
+            new(RrhhAttendanceView, "Ver asistencia y marcaciones", "RRHH"),
+            new(RrhhAttendanceManage, "Corregir marcaciones y administrar kioscos", "RRHH"),
+            new(RrhhAttendanceEnroll, "Enrolar o revocar biometría facial", "RRHH"),
 
             new(PosOrdersView, "Ver pedidos", "POS"),
             new(PosOrdersCreate, "Crear pedidos", "POS"),

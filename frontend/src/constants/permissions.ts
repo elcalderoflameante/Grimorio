@@ -21,6 +21,9 @@ export const PERMISSIONS = {
     positionsView: 'RRHH.Positions.View',
     schedulingView: 'RRHH.Scheduling.View',
     payrollView: 'RRHH.Payroll.View',
+    attendanceView: 'RRHH.Attendance.View',
+    attendanceManage: 'RRHH.Attendance.Manage',
+    attendanceEnroll: 'RRHH.Attendance.Enroll',
   },
   pos: {
     ordersView: 'POS.Orders.View',

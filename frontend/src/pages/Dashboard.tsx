@@ -28,7 +28,10 @@ import { UserOutlined,
   FileTextOutlined,
   PercentageOutlined,
   FileImageOutlined,
-  BarChartOutlined } from '@ant-design/icons';
+  BarChartOutlined,
+  TabletOutlined,
+  CameraOutlined,
+  ClockCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { PERMISSIONS } from '../constants/permissions';
@@ -44,6 +47,7 @@ import RoleList from '../components/Roles/RoleList.tsx';
 import PermissionList from '../components/Permissions/PermissionList.tsx';
 import Profile from '../components/Profile/Profile';
 import { PayrollSummary, PayrollConfigurationForm } from '../components/Payroll';
+import { AttendanceDashboard, BiometricEnrollment, KioskManagement } from '../components/Attendance';
 import {
   MonthlySchedule,
   SchedulingSettings,
@@ -259,6 +263,9 @@ export default function Dashboard() {
               { key: 'payroll-config', label: 'Configuracion', icon: <SettingOutlined /> },
             ],
           },
+          { key: 'attendance-kiosks', label: 'Kioscos de asistencia', icon: <TabletOutlined />, permission: PERMISSIONS.rrhh.attendanceView },
+          { key: 'attendance-clockings', label: 'Control de asistencia', icon: <ClockCircleOutlined />, permission: PERMISSIONS.rrhh.attendanceView },
+          { key: 'attendance-enrollment', label: 'Enrolamiento facial', icon: <CameraOutlined />, permission: PERMISSIONS.rrhh.attendanceEnroll },
         ],
       },
       {
@@ -417,6 +424,12 @@ export default function Dashboard() {
         return <PayrollSummary />;
       case 'payroll-config':
         return <PayrollConfigurationForm />;
+      case 'attendance-kiosks':
+        return <KioskManagement />;
+      case 'attendance-clockings':
+        return <AttendanceDashboard />;
+      case 'attendance-enrollment':
+        return <BiometricEnrollment />;
       case 'pos-ordenes':
         return <PosOrderModule />;
 case 'pos-estaciones':

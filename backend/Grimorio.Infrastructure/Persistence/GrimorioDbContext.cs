@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+ï»¿using Microsoft.EntityFrameworkCore;
 using Grimorio.Application.Abstractions;
 using Grimorio.Domain.Entities.Auth;
 using Grimorio.Domain.Entities.Billing;
@@ -41,6 +41,10 @@ public class GrimorioDbContext : DbContext
     public DbSet<Employee> Employees { get; set; } = null!;
     public DbSet<EmployeeShift> EmployeeShifts { get; set; } = null!;
     public DbSet<EmployeeClocking> EmployeeClockings { get; set; } = null!;
+    public DbSet<EmployeeClockingBreak> EmployeeClockingBreaks { get; set; } = null!;
+    public DbSet<AttendanceKioskDevice> AttendanceKioskDevices { get; set; } = null!;
+    public DbSet<EmployeeFacialTemplate> EmployeeFacialTemplates { get; set; } = null!;
+    public DbSet<AttendanceCorrection> AttendanceCorrections { get; set; } = null!;
 
     // === Scheduling ===
     public DbSet<WorkArea> WorkAreas { get; set; } = null!;
@@ -85,13 +89,13 @@ public class GrimorioDbContext : DbContext
     public DbSet<OrderPaymentItem> OrderPaymentItems { get; set; } = null!;
     public DbSet<PaymentLine> PaymentLines { get; set; } = null!;
 
-    // === Menú ===
+    // === MenÃº ===
     public DbSet<MenuCategory> MenuCategories { get; set; } = null!;
     public DbSet<MenuItem> MenuItems { get; set; } = null!;
     public DbSet<MenuItemModifierGroup> MenuItemModifierGroups { get; set; } = null!;
     public DbSet<MenuItemModifierOption> MenuItemModifierOptions { get; set; } = null!;
-        public DbSet<MenuItemPreparation> MenuItemPreparations { get; set; } = null!;
-        public DbSet<MenuItemPreparationStep> MenuItemPreparationSteps { get; set; } = null!;
+    public DbSet<MenuItemPreparation> MenuItemPreparations { get; set; } = null!;
+    public DbSet<MenuItemPreparationStep> MenuItemPreparationSteps { get; set; } = null!;
     public DbSet<RecipeIngredient> RecipeIngredients { get; set; } = null!;
 
     // === Purchases ===
@@ -118,7 +122,7 @@ public class GrimorioDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Establece la codificación por defecto y otras configuraciones PostgreSQL
+        // Establece la codificaciÃ³n por defecto y otras configuraciones PostgreSQL
         modelBuilder.HasPostgresExtension("uuid-ossp");
 
         // Aplica todas las configuraciones de entidades
@@ -126,7 +130,7 @@ public class GrimorioDbContext : DbContext
     }
 
     /// <summary>
-    /// Sobrescribe SaveChanges para auditoría automática.
+    /// Sobrescribe SaveChanges para auditorÃ­a automÃ¡tica.
     /// Registra CreatedBy, UpdatedBy, UpdatedAt en todas las entidades.
     /// </summary>
     public override int SaveChanges()
@@ -136,7 +140,7 @@ public class GrimorioDbContext : DbContext
     }
 
     /// <summary>
-    /// Versión asincrónica de SaveChanges con auditoría.
+    /// VersiÃ³n asincrÃ³nica de SaveChanges con auditorÃ­a.
     /// </summary>
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {

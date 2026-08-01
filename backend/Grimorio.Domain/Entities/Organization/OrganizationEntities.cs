@@ -93,6 +93,7 @@ public class Employee : BaseEntity
     // Relación inversa
     public ICollection<EmployeeShift> EmployeeShifts { get; set; } = new List<EmployeeShift>();
     public ICollection<EmployeeClocking> EmployeeClockings { get; set; } = new List<EmployeeClocking>();
+    public ICollection<EmployeeFacialTemplate> FacialTemplates { get; set; } = new List<EmployeeFacialTemplate>();
 }
 
 /// <summary>
@@ -108,23 +109,6 @@ public class EmployeeShift : BaseEntity
     public DateTime EffectiveFrom { get; set; }
     public DateTime? EffectiveTo { get; set; }
     public bool IsActive { get; set; } = true;
-
-    // Relación
-    public Employee? Employee { get; set; }
-}
-
-/// <summary>
-/// Entidad de marcaje (clock-in/clock-out).
-/// Registra entrada y salida de empleados.
-/// </summary>
-public class EmployeeClocking : BaseEntity
-{
-    public Guid EmployeeId { get; set; }
-    public DateTime ClockInTime { get; set; }
-    public DateTime? ClockOutTime { get; set; }
-    public string? Notes { get; set; }
-    public bool IsLate { get; set; } = false;
-    public TimeSpan? LateMinutes { get; set; }
 
     // Relación
     public Employee? Employee { get; set; }

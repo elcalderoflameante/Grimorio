@@ -2927,6 +2927,160 @@ namespace Grimorio.Infrastructure.Migrations
                     b.ToTable("RecipeIngredients", "menu");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Organization.AttendanceCorrection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CorrectedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CorrectedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("EmployeeClockingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("EmployeeClockingId", "CorrectedAtUtc");
+
+                    b.ToTable("AttendanceCorrections", "organization");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Organization.AttendanceKioskDevice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTime?>("ActivatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ApiKeyHash")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("AppVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DeviceIdentifier")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime?>("LastSeenAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("DeviceIdentifier")
+                        .IsUnique();
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("BranchId", "Status");
+
+                    b.ToTable("AttendanceKioskDevices", "organization");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Organization.Branch", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3218,13 +3372,43 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<string>("AdministrativeNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<Guid>("BranchId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("ClockInTime")
+                    b.Property<int>("BreakMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ClockInEvidencePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("ClockInKioskDeviceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ClockInMethod")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("ClockInTimeUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTime?>("ClockOutTime")
+                    b.Property<string>("ClockOutEvidencePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("ClockOutKioskDeviceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ClockOutMethod")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("ClockOutTimeUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("CreatedAt")
@@ -3241,6 +3425,9 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid?>("DeletedBy")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("EarlyArrivalMinutes")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("EmployeeId")
                         .HasColumnType("uuid");
 
@@ -3249,15 +3436,194 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
-                    b.Property<bool>("IsLate")
-                        .HasColumnType("boolean");
+                    b.Property<int>("LateMinutes")
+                        .HasColumnType("integer");
 
-                    b.Property<TimeSpan?>("LateMinutes")
+                    b.Property<int>("OvertimeMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeSpan?>("ScheduledEndTime")
                         .HasColumnType("interval");
 
-                    b.Property<string>("Notes")
+                    b.Property<TimeSpan?>("ScheduledStartTime")
+                        .HasColumnType("interval");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("WorkDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("WorkedMinutes")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("BranchId", "WorkDate");
+
+                    b.HasIndex("EmployeeId", "WorkDate")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
+
+                    b.ToTable("EmployeeClockings", "organization");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Organization.EmployeeClockingBreak", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("ClosedAutomaticallyOnClockOut")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("DurationMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("EmployeeClockingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EndEvidencePath")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("EndKioskDeviceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EndMethod")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("EndedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("StartEvidencePath")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("StartKioskDeviceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("StartMethod")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("EmployeeClockingId")
+                        .IsUnique();
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.ToTable("EmployeeClockingBreaks", "organization");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Organization.EmployeeFacialTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("EmbeddingDimensions")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EncryptedEmbedding")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("EnrolledAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EnrolledByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("ModelVersion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SampleCount")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -3271,13 +3637,13 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.HasIndex("IsDeleted");
 
-                    b.HasIndex("BranchId", "ClockInTime");
-
                     b.HasIndex("BranchId", "IsDeleted");
 
-                    b.HasIndex("EmployeeId", "ClockInTime");
+                    b.HasIndex("EmployeeId", "ModelVersion")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
-                    b.ToTable("EmployeeClockings", "organization");
+                    b.ToTable("EmployeeFacialTemplates", "organization");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Organization.EmployeeShift", b =>
@@ -5497,6 +5863,17 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("Unit");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Organization.AttendanceCorrection", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Organization.EmployeeClocking", "EmployeeClocking")
+                        .WithMany()
+                        .HasForeignKey("EmployeeClockingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("EmployeeClocking");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Organization.Employee", b =>
                 {
                     b.HasOne("Grimorio.Domain.Entities.Organization.Branch", "Branch")
@@ -5520,6 +5897,28 @@ namespace Grimorio.Infrastructure.Migrations
                 {
                     b.HasOne("Grimorio.Domain.Entities.Organization.Employee", "Employee")
                         .WithMany("EmployeeClockings")
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Organization.EmployeeClockingBreak", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Organization.EmployeeClocking", "EmployeeClocking")
+                        .WithOne("Break")
+                        .HasForeignKey("Grimorio.Domain.Entities.Organization.EmployeeClockingBreak", "EmployeeClockingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("EmployeeClocking");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Organization.EmployeeFacialTemplate", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Organization.Employee", "Employee")
+                        .WithMany("FacialTemplates")
                         .HasForeignKey("EmployeeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -5969,6 +6368,13 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("EmployeeClockings");
 
                     b.Navigation("EmployeeShifts");
+
+                    b.Navigation("FacialTemplates");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Organization.EmployeeClocking", b =>
+                {
+                    b.Navigation("Break");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Organization.Position", b =>
