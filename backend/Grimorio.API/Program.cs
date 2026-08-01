@@ -262,9 +262,18 @@ builder.Services.AddMediatR(config =>
 
 var app = builder.Build();
 
-// La asistencia facial es una capacidad requerida: fallar al arrancar evita
-// aceptar kioscos cuando los pesos o el runtime nativo no son utilizables.
-app.Services.GetRequiredService<SFaceBiometricService>().ValidateModels();
+// La biometria es una capacidad aislada: si el runtime nativo o los modelos no
+// estan disponibles, el ERP debe seguir atendiendo autenticacion y operaciones.
+// El endpoint de estado biometrico devolvera 503 hasta corregir el componente.
+try
+{
+    app.Services.GetRequiredService<SFaceBiometricService>().ValidateModels();
+}
+catch (Exception ex)
+{
+    app.Logger.LogError(ex,
+        "No se pudo inicializar SFace/YuNet. La asistencia facial permanecera temporalmente deshabilitada.");
+}
 
 // === Migraciones y seeding (todos los entornos) ===
 using (var scope = app.Services.CreateScope())
