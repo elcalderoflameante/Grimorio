@@ -122,6 +122,11 @@ public sealed class AttendanceController : ControllerBase
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
         catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
         catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
+        catch (TypeInitializationException)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new { message = "El servicio biométrico no está disponible. Contacta al administrador." });
+        }
     }
 
     [Authorize(Policy = AppConstants.Permissions.RrhhAttendanceEnroll)]
