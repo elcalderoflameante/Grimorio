@@ -34,6 +34,7 @@ public sealed class AttendanceHandlers :
     public const int BreakLimitMinutes = 30;
     public const double FaceSimilarityThreshold = 0.45;
     public const double FaceAmbiguityMargin = 0.08;
+    public const double EnrollmentSampleSimilarityThreshold = 0.45;
     private readonly GrimorioDbContext _context;
     private readonly IPasswordHashingService _passwordHashing;
     private readonly SFaceBiometricService _biometricService;
@@ -232,6 +233,13 @@ public sealed class AttendanceHandlers :
         var embeddings = new List<float[]>(request.Samples.Count);
         foreach (var sample in request.Samples)
             embeddings.Add((await _biometricService.ExtractEmbeddingAsync(sample, cancellationToken)).Embedding);
+
+        for (var first = 0; first < embeddings.Count; first++)
+        for (var second = first + 1; second < embeddings.Count; second++)
+            if (SFaceBiometricService.CosineSimilarity(embeddings[first], embeddings[second]) <
+                EnrollmentSampleSimilarityThreshold)
+                throw new InvalidOperationException(
+                    "Las tres muestras deben corresponder al mismo rostro. Repite el enrolamiento.");
 
         var averaged = AverageAndNormalize(embeddings);
         var encrypted = _facialTemplateProtector.Protect(SerializeEmbedding(averaged));

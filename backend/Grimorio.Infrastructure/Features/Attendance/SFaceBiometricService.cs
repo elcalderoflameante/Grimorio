@@ -11,7 +11,7 @@ public sealed record FaceEmbeddingResult(float[] Embedding, double DetectionConf
 /// </summary>
 public sealed class SFaceBiometricService : IDisposable
 {
-    public const string ModelVersion = "opencv-sface-2021dec";
+    public const string ModelVersion = "opencv-sface-2021dec-v2";
     public const int EmbeddingDimensions = 128;
     public const int MaximumImageBytes = 5 * 1024 * 1024;
 
@@ -62,8 +62,10 @@ public sealed class SFaceBiometricService : IDisposable
 
             using var face = faces.Row(0);
             using var aligned = AlignFace(image, face);
-            using var blob = CvDnn.BlobFromImage(aligned, 1.0 / 128.0, new Size(112, 112),
-                new Scalar(127.5, 127.5, 127.5), swapRB: true, crop: false);
+            // Match OpenCV FaceRecognizerSF::feature exactly. SFace expects raw
+            // 0..255 pixels with BGR-to-RGB conversion, without mean subtraction.
+            using var blob = CvDnn.BlobFromImage(aligned, 1.0, new Size(112, 112),
+                Scalar.All(0), swapRB: true, crop: false);
             _recognizer!.SetInput(blob);
             using var features = _recognizer.Forward();
 
