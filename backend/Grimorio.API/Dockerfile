@@ -17,7 +17,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libdrm2 libgtk-3-0 \
+    && apt-get install -y --no-install-recommends libatomic1 libdrm2 libgtk-3-0 \
     && rm -rf /var/lib/apt/lists/*
 
 ENV ASPNETCORE_URLS=http://+:8080
