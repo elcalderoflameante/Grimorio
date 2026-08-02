@@ -8,6 +8,11 @@ import type { EmployeeDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 
 const requiredSamples = 3;
+const sampleInstructions = [
+  'Mira de frente a la cámara',
+  'Gira muy levemente el rostro hacia un lado',
+  'Gira muy levemente el rostro hacia el otro lado',
+];
 
 export const BiometricEnrollment = () => {
   const { message } = App.useApp();
@@ -179,8 +184,29 @@ export const BiometricEnrollment = () => {
             label: `${employee.firstName} ${employee.lastName} · ${employee.identificationNumber}`,
           }))}
         />
-        <div style={{ background: '#111', borderRadius: 8, overflow: 'hidden', minHeight: 320, display: 'grid', placeItems: 'center' }}>
+        <Typography.Text strong style={{ textAlign: 'center' }}>
+          {samples.length < requiredSamples ? sampleInstructions[samples.length] : 'Las tres muestras están listas'}
+        </Typography.Text>
+        <div style={{ position: 'relative', background: '#111', borderRadius: 8, overflow: 'hidden', minHeight: 320, display: 'grid', placeItems: 'center' }}>
           <video ref={videoRef} muted playsInline style={{ width: '100%', maxHeight: 420, objectFit: 'contain', transform: 'scaleX(-1)' }} />
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              width: 'clamp(190px, 36%, 270px)',
+              aspectRatio: '3 / 4',
+              transform: 'translate(-50%, -50%)',
+              border: '4px solid rgba(255, 255, 255, 0.92)',
+              borderRadius: '50%',
+              boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.28), 0 0 18px rgba(255, 255, 255, 0.35)',
+              pointerEvents: 'none',
+            }}
+          />
+          <div style={{ position: 'absolute', bottom: 12, left: 12, right: 12, color: '#fff', textAlign: 'center', textShadow: '0 1px 3px #000', pointerEvents: 'none' }}>
+            Acércate y mantén todo el rostro dentro del óvalo
+          </div>
         </div>
         <Space>
           <Button disabled={cameraReady} onClick={() => void startCamera()}>{cameraReady ? 'Cámara activa' : 'Iniciar cámara'}</Button>

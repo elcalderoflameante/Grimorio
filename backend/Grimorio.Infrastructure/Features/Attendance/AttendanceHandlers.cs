@@ -35,6 +35,10 @@ public sealed class AttendanceHandlers :
     public const double FaceSimilarityThreshold = 0.45;
     public const double FaceAmbiguityMargin = 0.08;
     public const double EnrollmentSampleSimilarityThreshold = 0.45;
+    public const double EnrollmentMinimumFaceWidthRatio = 0.18;
+    public const double EnrollmentMinimumFaceHeightRatio = 0.30;
+    public const double EnrollmentMaximumHorizontalOffset = 0.18;
+    public const double EnrollmentMaximumVerticalOffset = 0.20;
     private readonly GrimorioDbContext _context;
     private readonly IPasswordHashingService _passwordHashing;
     private readonly SFaceBiometricService _biometricService;
@@ -232,7 +236,18 @@ public sealed class AttendanceHandlers :
 
         var embeddings = new List<float[]>(request.Samples.Count);
         foreach (var sample in request.Samples)
-            embeddings.Add((await _biometricService.ExtractEmbeddingAsync(sample, cancellationToken)).Embedding);
+        {
+            var result = await _biometricService.ExtractEmbeddingAsync(sample, cancellationToken);
+            if (result.FaceWidthRatio < EnrollmentMinimumFaceWidthRatio ||
+                result.FaceHeightRatio < EnrollmentMinimumFaceHeightRatio)
+                throw new InvalidOperationException(
+                    "El rostro está demasiado lejos. Acércate hasta ocupar el óvalo.");
+            if (result.HorizontalCenterOffset > EnrollmentMaximumHorizontalOffset ||
+                result.VerticalCenterOffset > EnrollmentMaximumVerticalOffset)
+                throw new InvalidOperationException(
+                    "El rostro debe estar centrado dentro del óvalo.");
+            embeddings.Add(result.Embedding);
+        }
 
         for (var first = 0; first < embeddings.Count; first++)
         for (var second = first + 1; second < embeddings.Count; second++)

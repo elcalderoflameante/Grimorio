@@ -3,7 +3,13 @@ using OpenCvSharp.Dnn;
 
 namespace Grimorio.Infrastructure.Features.Attendance;
 
-public sealed record FaceEmbeddingResult(float[] Embedding, double DetectionConfidence);
+public sealed record FaceEmbeddingResult(
+    float[] Embedding,
+    double DetectionConfidence,
+    double FaceWidthRatio,
+    double FaceHeightRatio,
+    double HorizontalCenterOffset,
+    double VerticalCenterOffset);
 
 /// <summary>
 /// Extracts normalized SFace embeddings. YuNet is used only to detect the face
@@ -72,7 +78,17 @@ public sealed class SFaceBiometricService : IDisposable
             var embedding = new float[checked((int)features.Total())];
             features.GetArray(out embedding);
             Normalize(embedding);
-            return new FaceEmbeddingResult(embedding, face.Get<float>(0, 14));
+            var faceWidth = face.Get<float>(0, 2);
+            var faceHeight = face.Get<float>(0, 3);
+            var faceCenterX = face.Get<float>(0, 0) + faceWidth / 2.0;
+            var faceCenterY = face.Get<float>(0, 1) + faceHeight / 2.0;
+            return new FaceEmbeddingResult(
+                embedding,
+                face.Get<float>(0, 14),
+                faceWidth / image.Width,
+                faceHeight / image.Height,
+                Math.Abs(faceCenterX / image.Width - 0.5),
+                Math.Abs(faceCenterY / image.Height - 0.5));
         }
         finally
         {
