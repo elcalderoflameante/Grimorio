@@ -9,9 +9,9 @@ import { formatError } from '../../utils/errorHandler';
 
 const requiredSamples = 3;
 const sampleInstructions = [
-  'Mira de frente a la cámara',
-  'Gira muy levemente el rostro hacia un lado',
-  'Gira muy levemente el rostro hacia el otro lado',
+  'Mira de frente con expresión neutral',
+  'Mantente de frente y haz una sonrisa leve',
+  'Mantente de frente con expresión natural',
 ];
 
 export const BiometricEnrollment = () => {

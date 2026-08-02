@@ -60,7 +60,7 @@ public sealed class SFaceBiometricService : IDisposable
             using var image = Cv2.ImDecode(encodedImage, ImreadModes.Color);
             if (image.Empty()) throw new ArgumentException("La imagen facial no tiene un formato válido.", nameof(encodedImage));
 
-            using var detector = FaceDetectorYN.Create(_faceDetectorPath, string.Empty, image.Size(), 0.9f, 0.3f, 5000);
+            using var detector = FaceDetectorYN.Create(_faceDetectorPath, string.Empty, image.Size(), 0.8f, 0.3f, 5000);
             using var faces = new Mat();
             detector.Detect(image, faces);
             if (faces.Rows == 0) throw new InvalidOperationException("No se detectó un rostro.");

@@ -235,17 +235,25 @@ public sealed class AttendanceHandlers :
             cancellationToken) ?? throw new KeyNotFoundException("Empleado activo no encontrado.");
 
         var embeddings = new List<float[]>(request.Samples.Count);
-        foreach (var sample in request.Samples)
+        for (var sampleIndex = 0; sampleIndex < request.Samples.Count; sampleIndex++)
         {
-            var result = await _biometricService.ExtractEmbeddingAsync(sample, cancellationToken);
+            FaceEmbeddingResult result;
+            try
+            {
+                result = await _biometricService.ExtractEmbeddingAsync(request.Samples[sampleIndex], cancellationToken);
+            }
+            catch (InvalidOperationException ex)
+            {
+                throw new InvalidOperationException($"Muestra {sampleIndex + 1}: {ex.Message}", ex);
+            }
             if (result.FaceWidthRatio < EnrollmentMinimumFaceWidthRatio ||
                 result.FaceHeightRatio < EnrollmentMinimumFaceHeightRatio)
                 throw new InvalidOperationException(
-                    "El rostro está demasiado lejos. Acércate hasta ocupar el óvalo.");
+                    $"Muestra {sampleIndex + 1}: el rostro está demasiado lejos. Acércate hasta ocupar el óvalo.");
             if (result.HorizontalCenterOffset > EnrollmentMaximumHorizontalOffset ||
                 result.VerticalCenterOffset > EnrollmentMaximumVerticalOffset)
                 throw new InvalidOperationException(
-                    "El rostro debe estar centrado dentro del óvalo.");
+                    $"Muestra {sampleIndex + 1}: el rostro debe estar centrado dentro del óvalo.");
             embeddings.Add(result.Embedding);
         }
 
