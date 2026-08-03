@@ -113,14 +113,17 @@ public sealed class AttendanceHandlers :
         if (clocking.Break is not null)
             throw new InvalidOperationException("El descanso permitido para hoy ya fue utilizado.");
 
-        clocking.Break = new EmployeeClockingBreak
+        var attendanceBreak = new EmployeeClockingBreak
         {
             BranchId = kiosk.BranchId,
+            EmployeeClockingId = clocking.Id,
             StartedAtUtc = DateTime.UtcNow,
             StartMethod = request.Method,
             StartKioskDeviceId = kiosk.Id,
             StartEvidencePath = NormalizePath(request.EvidencePath)
         };
+        _context.EmployeeClockingBreaks.Add(attendanceBreak);
+        clocking.Break = attendanceBreak;
         clocking.Status = AttendanceStatus.OnBreak;
         await _context.SaveChangesAsync(cancellationToken);
         return Map(employee, clocking);
@@ -450,11 +453,15 @@ public sealed class AttendanceHandlers :
         }
         else if (breakStart.HasValue)
         {
-            clocking.Break ??= new EmployeeClockingBreak
+            if (clocking.Break is null)
             {
-                BranchId = request.BranchId,
-                EmployeeClockingId = clocking.Id
-            };
+                clocking.Break = new EmployeeClockingBreak
+                {
+                    BranchId = request.BranchId,
+                    EmployeeClockingId = clocking.Id
+                };
+                _context.EmployeeClockingBreaks.Add(clocking.Break);
+            }
             clocking.Break.StartedAtUtc = breakStart.Value;
             clocking.Break.EndedAtUtc = breakEnd;
             clocking.Break.StartMethod = AttendanceMethod.Manual;
