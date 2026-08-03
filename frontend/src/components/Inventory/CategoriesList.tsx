@@ -15,6 +15,7 @@ export default function CategoriesList() {
   const { hasPermission } = useAuth();
   const [categories, setCategories] = useState<InventoryCategoryDto[]>([]);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<InventoryCategoryDto | null>(null);
   const [form] = Form.useForm();
@@ -43,6 +44,7 @@ export default function CategoriesList() {
   const save = async () => {
     const values = await form.validateFields();
     const color = typeof values.color === 'string' ? values.color : values.color?.toHexString?.() ?? values.color;
+    setSaving(true);
     try {
       if (editing) {
         await inventoryApi.updateCategory(editing.id, { ...values, color });
@@ -54,6 +56,8 @@ export default function CategoriesList() {
       load();
     } catch (e) {
       message.error(formatError(e));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -115,7 +119,10 @@ export default function CategoriesList() {
         title={editing ? 'Editar categoría' : 'Nueva categoría'}
         open={modal}
         onOk={save}
-        onCancel={() => setModal(false)}
+        onCancel={saving ? undefined : () => setModal(false)}
+        confirmLoading={saving}
+        maskClosable={!saving}
+        closable={!saving}
         okText="Guardar"
       >
         <Form form={form} layout="vertical">

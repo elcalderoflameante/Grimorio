@@ -15,6 +15,7 @@ export default function WarehousesList() {
   const { hasPermission } = useAuth();
   const [warehouses, setWarehouses] = useState<WarehouseDto[]>([]);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<WarehouseDto | null>(null);
   const [form] = Form.useForm();
@@ -42,6 +43,7 @@ export default function WarehousesList() {
 
   const save = async () => {
     const values = await form.validateFields();
+    setSaving(true);
     try {
       if (editing) {
         await inventoryApi.updateWarehouse(editing.id, { ...editing, ...values });
@@ -53,6 +55,8 @@ export default function WarehousesList() {
       load();
     } catch (e) {
       message.error(formatError(e));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -107,7 +111,10 @@ export default function WarehousesList() {
         title={editing ? 'Editar bodega' : 'Nueva bodega'}
         open={modal}
         onOk={save}
-        onCancel={() => setModal(false)}
+        onCancel={saving ? undefined : () => setModal(false)}
+        confirmLoading={saving}
+        maskClosable={!saving}
+        closable={!saving}
         okText="Guardar"
       >
         <Form form={form} layout="vertical">

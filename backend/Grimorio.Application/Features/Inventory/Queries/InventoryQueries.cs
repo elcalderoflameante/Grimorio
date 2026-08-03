@@ -61,3 +61,25 @@ public class GetStockAlertsQuery : IRequest<List<StockAlertDto>>
 {
     public Guid BranchId { get; set; }
 }
+
+public class GetProductionRecipesQuery : IRequest<List<ProductionRecipeDto>>
+{
+    public Guid BranchId { get; set; }
+    public bool? ActiveOnly { get; set; }
+}
+
+public class GetProductionRecipeByArticleQuery : IRequest<ProductionRecipeDto?>
+{
+    public Guid BranchId { get; set; }
+    public Guid OutputArticleId { get; set; }
+}
+
+public class GetProductionOrdersQuery : IRequest<List<ProductionOrderDto>>
+{
+    public Guid BranchId { get; set; }
+    public Guid? OutputArticleId { get; set; }
+    public Guid? WarehouseId { get; set; }
+    public DateTime? FromUtc { get; set; }
+    public DateTime? ToUtc { get; set; }
+    public int PageSize { get; set; } = 50;
+}

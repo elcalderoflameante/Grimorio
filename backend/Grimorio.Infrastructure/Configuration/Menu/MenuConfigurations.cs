@@ -70,10 +70,71 @@ public class RecipeIngredientConfiguration : BaseEntityConfiguration<RecipeIngre
 
         builder.Property(x => x.Quantity).HasColumnType("numeric(18,4)").IsRequired();
         builder.Property(x => x.Notes).HasMaxLength(200);
+        builder.Property(x => x.Type).HasConversion<string>().HasMaxLength(30).IsRequired();
 
         builder.HasOne(x => x.MenuItem)
             .WithMany(x => x.Recipe)
             .HasForeignKey(x => x.MenuItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.Article)
+            .WithMany()
+            .HasForeignKey(x => x.ArticleId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.SubRecipe)
+            .WithMany(x => x.MenuRecipeItems)
+            .HasForeignKey(x => x.SubRecipeId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.Unit)
+            .WithMany()
+            .HasForeignKey(x => x.UnitId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => new { x.MenuItemId, x.ArticleId })
+            .IsUnique().HasFilter("\"IsDeleted\" = false AND \"ArticleId\" IS NOT NULL");
+        builder.HasIndex(x => new { x.MenuItemId, x.SubRecipeId })
+            .IsUnique().HasFilter("\"IsDeleted\" = false AND \"SubRecipeId\" IS NOT NULL");
+    }
+}
+
+public class SubRecipeConfiguration : BaseEntityConfiguration<SubRecipe>
+{
+    public override void Configure(EntityTypeBuilder<SubRecipe> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("SubRecipes", "menu");
+
+        builder.Property(x => x.Name).IsRequired().HasMaxLength(150);
+        builder.Property(x => x.Description).HasMaxLength(500);
+        builder.Property(x => x.OutputQuantity).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.IsActive).HasDefaultValue(true);
+
+        builder.HasOne(x => x.OutputUnit)
+            .WithMany()
+            .HasForeignKey(x => x.OutputUnitId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => new { x.BranchId, x.Name })
+            .IsUnique().HasFilter("\"IsDeleted\" = false");
+        builder.HasIndex(x => new { x.BranchId, x.IsActive });
+    }
+}
+
+public class SubRecipeIngredientConfiguration : BaseEntityConfiguration<SubRecipeIngredient>
+{
+    public override void Configure(EntityTypeBuilder<SubRecipeIngredient> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("SubRecipeIngredients", "menu");
+
+        builder.Property(x => x.Quantity).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.Notes).HasMaxLength(200);
+
+        builder.HasOne(x => x.SubRecipe)
+            .WithMany(x => x.Ingredients)
+            .HasForeignKey(x => x.SubRecipeId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(x => x.Article)
@@ -86,7 +147,7 @@ public class RecipeIngredientConfiguration : BaseEntityConfiguration<RecipeIngre
             .HasForeignKey(x => x.UnitId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(x => new { x.MenuItemId, x.ArticleId })
+        builder.HasIndex(x => new { x.BranchId, x.SubRecipeId, x.ArticleId })
             .IsUnique().HasFilter("\"IsDeleted\" = false");
     }
 }

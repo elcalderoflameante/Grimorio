@@ -1,6 +1,7 @@
 using Grimorio.Domain.Entities.Inventory;
 using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.POS;
+using Grimorio.Infrastructure.Features.Menu;
 using Grimorio.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,16 +28,24 @@ internal static class StockReservationService
         if (alreadyReserved) return;
 
         var menuItemIds = items.Select(i => i.MenuItemId).Distinct().ToList();
-        var recipes = await db.RecipeIngredients
+        var menuItems = await MenuRecipeExpansion.LoadMenuItemsWithRecipeAsync(db, branchId, menuItemIds, ct);
+        var menuItemsById = menuItems.ToDictionary(x => x.Id);
+
+        var conversions = await db.UnitConversions
             .AsNoTracking()
-            .Include(r => r.Article)
-            .Where(r => r.BranchId == branchId && menuItemIds.Contains(r.MenuItemId) && !r.IsDeleted)
+            .Where(c => c.BranchId == branchId && !c.IsDeleted)
+            .Select(c => new UnitConversionInfo(c.OriginUnitId, c.DestinationUnitId, c.Factor))
             .ToListAsync(ct);
 
         var modifierArticleIds = items
             .SelectMany(i => i.ModifierSelections.Where(s => !s.IsDeleted && s.ArticleId.HasValue).Select(s => s.ArticleId!.Value))
             .ToList();
-        var articleIdsForRequirements = recipes.Select(r => r.ArticleId)
+        var recipeArticleIds = items
+            .Where(i => menuItemsById.ContainsKey(i.MenuItemId))
+            .SelectMany(i => MenuRecipeExpansion.Expand(menuItemsById[i.MenuItemId], i.Quantity, conversions).Select(r => r.ArticleId))
+            .ToList();
+
+        var articleIdsForRequirements = recipeArticleIds
             .Concat(modifierArticleIds)
             .Distinct()
             .ToList();
@@ -45,12 +54,7 @@ internal static class StockReservationService
             .Where(a => a.BranchId == branchId && articleIdsForRequirements.Contains(a.Id) && !a.IsDeleted)
             .ToDictionaryAsync(a => a.Id, ct);
 
-        var conversions = await db.UnitConversions
-            .AsNoTracking()
-            .Where(c => c.BranchId == branchId && !c.IsDeleted)
-            .ToListAsync(ct);
-
-        var requirements = BuildRequirements(items, recipes, articlesById, conversions)
+        var requirements = BuildRequirements(items, menuItemsById, articlesById, conversions)
             .GroupBy(r => new { r.OrderItemId, r.ArticleId, r.BaseUnitId, r.ArticleName })
             .Select(g => new StockRequirement(
                 g.Key.OrderItemId,
@@ -62,11 +66,23 @@ internal static class StockReservationService
         if (requirements.Count == 0) return;
 
         var articleIds = requirements.Select(r => r.ArticleId).Distinct().ToList();
-        var stockRows = await db.WarehouseStock
-            .AsNoTracking()
-            .Where(s => s.BranchId == branchId && articleIds.Contains(s.ArticleId) && !s.IsDeleted)
-            .Select(s => new AvailableStock(s.ArticleId, s.WarehouseId, s.Quantity))
+        if (db.Database.CurrentTransaction is null)
+            throw new InvalidOperationException("La reserva de inventario debe ejecutarse dentro de una transacción.");
+
+        var articleIdsArray = articleIds.ToArray();
+        var lockedStockRows = await db.WarehouseStock
+            .FromSqlInterpolated($"""
+                SELECT * FROM inv."WarehouseStock"
+                WHERE "BranchId" = {branchId}
+                    AND "IsDeleted" = false
+                    AND "ArticleId" = ANY({articleIdsArray})
+                FOR UPDATE
+                """)
             .ToListAsync(ct);
+
+        var stockRows = lockedStockRows
+            .Select(s => new AvailableStock(s.ArticleId, s.WarehouseId, s.Quantity))
+            .ToList();
 
         var activeReservations = await db.StockReservations
             .AsNoTracking()
@@ -168,18 +184,16 @@ internal static class StockReservationService
 
     private static List<StockRequirement> BuildRequirements(
         IReadOnlyCollection<OrderItem> items,
-        IReadOnlyCollection<RecipeIngredient> recipes,
+        IReadOnlyDictionary<Guid, MenuItem> menuItemsById,
         IReadOnlyDictionary<Guid, InventoryArticle> articlesById,
-        IReadOnlyCollection<UnitConversion> conversions)
+        IReadOnlyCollection<UnitConversionInfo> conversions)
     {
         var result = new List<StockRequirement>();
-        var recipesByMenuItem = recipes.GroupBy(r => r.MenuItemId).ToDictionary(g => g.Key, g => g.ToList());
-
         foreach (var item in items)
         {
-            if (!recipesByMenuItem.TryGetValue(item.MenuItemId, out var recipe)) recipe = [];
+            if (!menuItemsById.TryGetValue(item.MenuItemId, out var menuItem)) continue;
 
-            foreach (var ingredient in recipe)
+            foreach (var ingredient in MenuRecipeExpansion.Expand(menuItem, item.Quantity, conversions))
             {
                 var articleId = ingredient.ArticleId;
 
@@ -187,19 +201,13 @@ internal static class StockReservationService
                 var baseUnitId = article?.BaseUnitId ?? Guid.Empty;
                 if (baseUnitId == Guid.Empty) continue;
 
-                var baseQuantity = ConvertQuantity(
-                    ingredient.Quantity * item.Quantity,
-                    ingredient.UnitId,
-                    baseUnitId,
-                    conversions,
-                    article?.Name ?? "artículo");
 
                 result.Add(new StockRequirement(
                     item.Id,
                     articleId,
                     baseUnitId,
-                    baseQuantity,
-                    article?.Name ?? "artículo"));
+                    ingredient.BaseQuantity,
+                    article?.Name ?? "articulo"));
             }
         }
 
@@ -237,7 +245,7 @@ internal static class StockReservationService
         decimal quantity,
         Guid originUnitId,
         Guid destinationUnitId,
-        IReadOnlyCollection<UnitConversion> conversions,
+        IReadOnlyCollection<UnitConversionInfo> conversions,
         string articleName)
     {
         if (originUnitId == destinationUnitId) return quantity;

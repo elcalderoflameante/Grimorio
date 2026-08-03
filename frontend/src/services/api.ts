@@ -82,6 +82,10 @@ import type {
   RegisterMovementDto,
   RegisterInitialInventoryDto,
   StockAlertDto,
+  ProductionRecipeDto,
+  UpsertProductionRecipeDto,
+  ProductionOrderDto,
+  RegisterProductionDto,
   ArticleType,
   MovementType,
   MenuCategoryDto,
@@ -90,6 +94,8 @@ import type {
   MenuItemDetailDto,
   MenuItemAvailabilityDto,
   MenuItemProfitabilityDto,
+  SubRecipeDto,
+  UpsertSubRecipeDto,
   CreateMenuItemDto,
   UpdateMenuItemDto,
   RecipeIngredientDto,
@@ -98,7 +104,6 @@ import type {
   UpsertMenuItemModifierGroupDto,
   MenuItemPreparationDto,
   UpsertMenuItemPreparationDto,
-  DeductStockFromSaleDto,
   WorkStationDto,
   CreateWorkStationDto,
   UpdateWorkStationDto,
@@ -557,6 +562,24 @@ export const inventoryApi = {
     apiClient.post<StockMovementDto>('/inventory/movimientos', data),
   registerInitialInventory: (data: RegisterInitialInventoryDto): Promise<AxiosResponse<StockMovementDto[]>> =>
     apiClient.post<StockMovementDto[]>('/inventory/movimientos/inventario-inicial', data),
+
+  // Producción
+  getProductionRecipes: (activeOnly?: boolean): Promise<AxiosResponse<ProductionRecipeDto[]>> =>
+    apiClient.get<ProductionRecipeDto[]>('/inventory/produccion/recetas', { params: { activeOnly } }),
+  getProductionRecipeByArticle: (articleId: string): Promise<AxiosResponse<ProductionRecipeDto>> =>
+    apiClient.get<ProductionRecipeDto>(`/inventory/produccion/recetas/articulo/${articleId}`),
+  upsertProductionRecipe: (data: UpsertProductionRecipeDto): Promise<AxiosResponse<ProductionRecipeDto>> =>
+    apiClient.put<ProductionRecipeDto>('/inventory/produccion/recetas', data),
+  getProductionOrders: (params?: {
+    outputArticleId?: string;
+    warehouseId?: string;
+    from?: string;
+    to?: string;
+    pageSize?: number;
+  }): Promise<AxiosResponse<ProductionOrderDto[]>> =>
+    apiClient.get<ProductionOrderDto[]>('/inventory/produccion/ordenes', { params }),
+  registerProduction: (data: RegisterProductionDto): Promise<AxiosResponse<ProductionOrderDto>> =>
+    apiClient.post<ProductionOrderDto>('/inventory/produccion/ordenes', data),
 };
 
 // ======================== Menú API ========================
@@ -602,14 +625,19 @@ export const menuApi = {
     apiClient.put<RecipeIngredientDto[]>(`/menu/items/${itemId}/receta`, ingredientes),
   deleteIngredient: (id: string): Promise<AxiosResponse<void>> =>
     apiClient.delete<void>(`/menu/receta/${id}`),
+  getSubRecipes: (activeOnly?: boolean): Promise<AxiosResponse<SubRecipeDto[]>> =>
+    apiClient.get<SubRecipeDto[]>('/menu/subrecetas', { params: activeOnly !== undefined ? { activeOnly } : undefined }),
+  createSubRecipe: (data: UpsertSubRecipeDto): Promise<AxiosResponse<SubRecipeDto>> =>
+    apiClient.post<SubRecipeDto>('/menu/subrecetas', data),
+  updateSubRecipe: (id: string, data: UpsertSubRecipeDto): Promise<AxiosResponse<SubRecipeDto>> =>
+    apiClient.put<SubRecipeDto>(`/menu/subrecetas/${id}`, data),
+  deleteSubRecipe: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/menu/subrecetas/${id}`),
   upsertModifiers: (itemId: string, groups: UpsertMenuItemModifierGroupDto[]): Promise<AxiosResponse<MenuItemModifierGroupDto[]>> =>
     apiClient.put<MenuItemModifierGroupDto[]>(`/menu/items/${itemId}/modifiers`, groups),
   upsertPreparation: (itemId: string, preparation: UpsertMenuItemPreparationDto): Promise<AxiosResponse<MenuItemPreparationDto>> =>
     apiClient.put<MenuItemPreparationDto>(`/menu/items/${itemId}/preparacion`, preparation),
 
-  // Descuento por venta
-  deductStock: (data: DeductStockFromSaleDto): Promise<AxiosResponse<void>> =>
-    apiClient.post<void>('/menu/venta/descontar-stock', data),
 };
 
 // ======================== POS API ========================

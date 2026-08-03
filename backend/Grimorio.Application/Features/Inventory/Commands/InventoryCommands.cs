@@ -150,3 +150,25 @@ public class RegisterInitialInventoryCommand : IRequest<List<StockMovementDto>>
     public Guid BranchId { get; set; }
     public List<InitialInventoryItemDto> Items { get; set; } = [];
 }
+
+public class UpsertProductionRecipeCommand : IRequest<ProductionRecipeDto>
+{
+    public Guid BranchId { get; set; }
+    public Guid OutputArticleId { get; set; }
+    public decimal OutputQuantity { get; set; }
+    public Guid OutputUnitId { get; set; }
+    public string? Notes { get; set; }
+    public bool IsActive { get; set; } = true;
+    public List<UpsertProductionRecipeIngredientDto> Ingredients { get; set; } = [];
+}
+
+public class RegisterProductionCommand : IRequest<ProductionOrderDto>
+{
+    public Guid BranchId { get; set; }
+    public Guid ProductionRecipeId { get; set; }
+    public Guid SourceWarehouseId { get; set; }
+    public Guid DestinationWarehouseId { get; set; }
+    public decimal OutputQuantity { get; set; }
+    public Guid OutputUnitId { get; set; }
+    public string? Notes { get; set; }
+}

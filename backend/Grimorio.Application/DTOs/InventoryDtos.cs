@@ -201,3 +201,95 @@ public class StockAlertDto
     public decimal CurrentStock { get; set; }
     public decimal MinStock { get; set; }
 }
+
+// ── Producción ────────────────────────────────────────────────────────────
+
+public class ProductionRecipeDto
+{
+    public Guid Id { get; set; }
+    public Guid OutputArticleId { get; set; }
+    public string OutputArticleName { get; set; } = string.Empty;
+    public decimal OutputQuantity { get; set; }
+    public Guid OutputUnitId { get; set; }
+    public string OutputUnitSymbol { get; set; } = string.Empty;
+    public string? Notes { get; set; }
+    public bool IsActive { get; set; }
+    public List<ProductionRecipeIngredientDto> Ingredients { get; set; } = [];
+}
+
+public class ProductionRecipeIngredientDto
+{
+    public Guid Id { get; set; }
+    public Guid ArticleId { get; set; }
+    public string ArticleName { get; set; } = string.Empty;
+    public string? InternalCode { get; set; }
+    public decimal Quantity { get; set; }
+    public Guid UnitId { get; set; }
+    public string UnitSymbol { get; set; } = string.Empty;
+    public string BaseUnitSymbol { get; set; } = string.Empty;
+    public string? Notes { get; set; }
+}
+
+public class UpsertProductionRecipeDto
+{
+    public Guid OutputArticleId { get; set; }
+    public decimal OutputQuantity { get; set; }
+    public Guid OutputUnitId { get; set; }
+    public string? Notes { get; set; }
+    public bool IsActive { get; set; } = true;
+    public List<UpsertProductionRecipeIngredientDto> Ingredients { get; set; } = [];
+}
+
+public class UpsertProductionRecipeIngredientDto
+{
+    public Guid ArticleId { get; set; }
+    public decimal Quantity { get; set; }
+    public Guid UnitId { get; set; }
+    public string? Notes { get; set; }
+}
+
+public class ProductionOrderDto
+{
+    public Guid Id { get; set; }
+    public string Number { get; set; } = string.Empty;
+    public Guid ProductionRecipeId { get; set; }
+    public Guid OutputArticleId { get; set; }
+    public string OutputArticleName { get; set; } = string.Empty;
+    public Guid SourceWarehouseId { get; set; }
+    public string SourceWarehouseName { get; set; } = string.Empty;
+    public Guid DestinationWarehouseId { get; set; }
+    public string DestinationWarehouseName { get; set; } = string.Empty;
+    public decimal OutputQuantity { get; set; }
+    public Guid OutputUnitId { get; set; }
+    public string OutputUnitSymbol { get; set; } = string.Empty;
+    public decimal OutputBaseQuantity { get; set; }
+    public string OutputBaseUnitSymbol { get; set; } = string.Empty;
+    public decimal TotalCost { get; set; }
+    public decimal UnitCost { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public string? Notes { get; set; }
+    public DateTime ProducedAt { get; set; }
+    public List<ProductionOrderIngredientDto> Ingredients { get; set; } = [];
+}
+
+public class ProductionOrderIngredientDto
+{
+    public Guid ArticleId { get; set; }
+    public string ArticleName { get; set; } = string.Empty;
+    public decimal Quantity { get; set; }
+    public string UnitSymbol { get; set; } = string.Empty;
+    public decimal BaseQuantity { get; set; }
+    public string BaseUnitSymbol { get; set; } = string.Empty;
+    public decimal UnitCost { get; set; }
+    public decimal TotalCost { get; set; }
+}
+
+public class RegisterProductionDto
+{
+    public Guid ProductionRecipeId { get; set; }
+    public Guid SourceWarehouseId { get; set; }
+    public Guid DestinationWarehouseId { get; set; }
+    public decimal OutputQuantity { get; set; }
+    public Guid OutputUnitId { get; set; }
+    public string? Notes { get; set; }
+}

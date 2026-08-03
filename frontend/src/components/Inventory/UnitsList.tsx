@@ -17,6 +17,8 @@ export default function UnitsList() {
   const [units, setUnits] = useState<MeasurementUnitDto[]>([]);
   const [conversions, setConversions] = useState<UnitConversionDto[]>([]);
   const [loading, setLoading] = useState(false);
+  const [savingUnit, setSavingUnit] = useState(false);
+  const [savingConversion, setSavingConversion] = useState(false);
   const [modalUnit, setModalUnit] = useState(false);
   const [modalConversion, setModalConversion] = useState(false);
   const [editingUnit, setEditingUnit] = useState<MeasurementUnitDto | null>(null);
@@ -55,6 +57,7 @@ export default function UnitsList() {
 
   const saveUnit = async () => {
     const values = await formUnit.validateFields();
+    setSavingUnit(true);
     try {
       if (editingUnit) {
         await inventoryApi.updateUnit(editingUnit.id, values);
@@ -66,6 +69,8 @@ export default function UnitsList() {
       load();
     } catch (e) {
       message.error(formatError(e));
+    } finally {
+      setSavingUnit(false);
     }
   };
 
@@ -89,6 +94,7 @@ export default function UnitsList() {
 
   const saveConversion = async () => {
     const values = await formConversion.validateFields();
+    setSavingConversion(true);
     try {
       await inventoryApi.createConversion(values);
       message.success('Conversión creada');
@@ -96,6 +102,8 @@ export default function UnitsList() {
       load();
     } catch (e) {
       message.error(formatError(e));
+    } finally {
+      setSavingConversion(false);
     }
   };
 
@@ -228,7 +236,10 @@ export default function UnitsList() {
         title={editingUnit ? 'Editar unidad' : 'Nueva unidad de medida'}
         open={modalUnit}
         onOk={saveUnit}
-        onCancel={() => setModalUnit(false)}
+        onCancel={savingUnit ? undefined : () => setModalUnit(false)}
+        confirmLoading={savingUnit}
+        maskClosable={!savingUnit}
+        closable={!savingUnit}
         okText="Guardar"
         cancelText="Cancelar"
       >
@@ -247,7 +258,10 @@ export default function UnitsList() {
         title="Nueva conversión de unidad"
         open={modalConversion}
         onOk={saveConversion}
-        onCancel={() => setModalConversion(false)}
+        onCancel={savingConversion ? undefined : () => setModalConversion(false)}
+        confirmLoading={savingConversion}
+        maskClosable={!savingConversion}
+        closable={!savingConversion}
         okText="Guardar"
         cancelText="Cancelar"
       >

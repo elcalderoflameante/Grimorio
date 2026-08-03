@@ -352,3 +352,142 @@ public class GetStockAlertsHandler : IRequestHandler<GetStockAlertsQuery, List<S
         return stocks.OrderBy(x => x.ArticleName).ToList();
     }
 }
+
+public class GetProductionRecipesHandler : IRequestHandler<GetProductionRecipesQuery, List<ProductionRecipeDto>>
+{
+    private readonly GrimorioDbContext _db;
+    public GetProductionRecipesHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<List<ProductionRecipeDto>> Handle(GetProductionRecipesQuery req, CancellationToken ct)
+    {
+        var query = _db.ProductionRecipes
+            .Include(x => x.OutputArticle).ThenInclude(x => x!.BaseUnit)
+            .Include(x => x.OutputUnit)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Article).ThenInclude(x => x!.BaseUnit)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Unit)
+            .Where(x => x.BranchId == req.BranchId);
+
+        if (req.ActiveOnly == true) query = query.Where(x => x.IsActive);
+
+        var recipes = await query.OrderBy(x => x.OutputArticle!.Name).ToListAsync(ct);
+        return recipes.Select(InventoryProductionMapper.MapRecipe).ToList();
+    }
+}
+
+public class GetProductionRecipeByArticleHandler : IRequestHandler<GetProductionRecipeByArticleQuery, ProductionRecipeDto?>
+{
+    private readonly GrimorioDbContext _db;
+    public GetProductionRecipeByArticleHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<ProductionRecipeDto?> Handle(GetProductionRecipeByArticleQuery req, CancellationToken ct)
+    {
+        var recipe = await _db.ProductionRecipes
+            .Include(x => x.OutputArticle).ThenInclude(x => x!.BaseUnit)
+            .Include(x => x.OutputUnit)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Article).ThenInclude(x => x!.BaseUnit)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Unit)
+            .FirstOrDefaultAsync(x => x.BranchId == req.BranchId && x.OutputArticleId == req.OutputArticleId, ct);
+
+        return recipe is null ? null : InventoryProductionMapper.MapRecipe(recipe);
+    }
+}
+
+public class GetProductionOrdersHandler : IRequestHandler<GetProductionOrdersQuery, List<ProductionOrderDto>>
+{
+    private readonly GrimorioDbContext _db;
+    public GetProductionOrdersHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<List<ProductionOrderDto>> Handle(GetProductionOrdersQuery req, CancellationToken ct)
+    {
+        var query = _db.ProductionOrders
+            .Include(x => x.OutputArticle).ThenInclude(x => x!.BaseUnit)
+            .Include(x => x.OutputUnit)
+            .Include(x => x.SourceWarehouse)
+            .Include(x => x.DestinationWarehouse)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Article).ThenInclude(x => x!.BaseUnit)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Unit)
+            .Where(x => x.BranchId == req.BranchId);
+
+        if (req.OutputArticleId.HasValue) query = query.Where(x => x.OutputArticleId == req.OutputArticleId.Value);
+        if (req.WarehouseId.HasValue)
+            query = query.Where(x => x.SourceWarehouseId == req.WarehouseId.Value || x.DestinationWarehouseId == req.WarehouseId.Value);
+        if (req.FromUtc.HasValue) query = query.Where(x => x.CreatedAt >= req.FromUtc.Value);
+        if (req.ToUtc.HasValue) query = query.Where(x => x.CreatedAt <= req.ToUtc.Value);
+
+        var orders = await query
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(req.PageSize)
+            .ToListAsync(ct);
+
+        return orders.Select(InventoryProductionMapper.MapOrder).ToList();
+    }
+}
+
+internal static class InventoryProductionMapper
+{
+    internal static ProductionRecipeDto MapRecipe(ProductionRecipe recipe) => new()
+    {
+        Id = recipe.Id,
+        OutputArticleId = recipe.OutputArticleId,
+        OutputArticleName = recipe.OutputArticle?.Name ?? string.Empty,
+        OutputQuantity = recipe.OutputQuantity,
+        OutputUnitId = recipe.OutputUnitId,
+        OutputUnitSymbol = recipe.OutputUnit?.Symbol ?? string.Empty,
+        Notes = recipe.Notes,
+        IsActive = recipe.IsActive,
+        Ingredients = recipe.Ingredients
+            .Where(x => !x.IsDeleted)
+            .OrderBy(x => x.Article!.Name)
+            .Select(x => new ProductionRecipeIngredientDto
+            {
+                Id = x.Id,
+                ArticleId = x.ArticleId,
+                ArticleName = x.Article?.Name ?? string.Empty,
+                InternalCode = x.Article?.InternalCode,
+                Quantity = x.Quantity,
+                UnitId = x.UnitId,
+                UnitSymbol = x.Unit?.Symbol ?? string.Empty,
+                BaseUnitSymbol = x.Article?.BaseUnit?.Symbol ?? string.Empty,
+                Notes = x.Notes,
+            })
+            .ToList(),
+    };
+
+    internal static ProductionOrderDto MapOrder(ProductionOrder order) => new()
+    {
+        Id = order.Id,
+        Number = order.Number,
+        ProductionRecipeId = order.ProductionRecipeId,
+        OutputArticleId = order.OutputArticleId,
+        OutputArticleName = order.OutputArticle?.Name ?? string.Empty,
+        SourceWarehouseId = order.SourceWarehouseId,
+        SourceWarehouseName = order.SourceWarehouse?.Name ?? string.Empty,
+        DestinationWarehouseId = order.DestinationWarehouseId,
+        DestinationWarehouseName = order.DestinationWarehouse?.Name ?? string.Empty,
+        OutputQuantity = order.OutputQuantity,
+        OutputUnitId = order.OutputUnitId,
+        OutputUnitSymbol = order.OutputUnit?.Symbol ?? string.Empty,
+        OutputBaseQuantity = order.OutputBaseQuantity,
+        OutputBaseUnitSymbol = order.OutputArticle?.BaseUnit?.Symbol ?? string.Empty,
+        TotalCost = order.TotalCost,
+        UnitCost = order.UnitCost,
+        Status = order.Status.ToString(),
+        Notes = order.Notes,
+        ProducedAt = order.CreatedAt,
+        Ingredients = order.Ingredients
+            .Where(x => !x.IsDeleted)
+            .OrderBy(x => x.Article!.Name)
+            .Select(x => new ProductionOrderIngredientDto
+            {
+                ArticleId = x.ArticleId,
+                ArticleName = x.Article?.Name ?? string.Empty,
+                Quantity = x.Quantity,
+                UnitSymbol = x.Unit?.Symbol ?? string.Empty,
+                BaseQuantity = x.BaseQuantity,
+                BaseUnitSymbol = x.Article?.BaseUnit?.Symbol ?? string.Empty,
+                UnitCost = x.UnitCost,
+                TotalCost = x.TotalCost,
+            })
+            .ToList(),
+    };
+}

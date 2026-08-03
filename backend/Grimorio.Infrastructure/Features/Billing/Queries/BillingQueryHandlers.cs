@@ -3,6 +3,7 @@ using Grimorio.Application.Features.Billing.Queries;
 using Grimorio.Domain.Entities.Billing;
 using Grimorio.Domain.Entities.Purchases;
 using Grimorio.Infrastructure.Features.Billing.Commands;
+using Grimorio.Infrastructure.Features.Menu;
 using Grimorio.Infrastructure.Persistence;
 using System.Text.Json;
 using MediatR;
@@ -321,6 +322,14 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
                     .ThenInclude(r => r.Article)!.ThenInclude(a => a!.BaseUnit)
             .Include(p => p.Order)!.ThenInclude(o => o!.Items.Where(i => !i.IsDeleted))
                 .ThenInclude(i => i.MenuItem)!.ThenInclude(m => m!.Recipe.Where(r => !r.IsDeleted))
+                    .ThenInclude(r => r.SubRecipe)!.ThenInclude(s => s!.Ingredients.Where(i => !i.IsDeleted))
+                        .ThenInclude(i => i.Article)!.ThenInclude(a => a!.BaseUnit)
+            .Include(p => p.Order)!.ThenInclude(o => o!.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.MenuItem)!.ThenInclude(m => m!.Recipe.Where(r => !r.IsDeleted))
+                    .ThenInclude(r => r.SubRecipe)!.ThenInclude(s => s!.Ingredients.Where(i => !i.IsDeleted))
+                        .ThenInclude(i => i.Unit)
+            .Include(p => p.Order)!.ThenInclude(o => o!.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.MenuItem)!.ThenInclude(m => m!.Recipe.Where(r => !r.IsDeleted))
                     .ThenInclude(r => r.Unit)
             .Where(p => p.BranchId == req.BranchId && !p.IsDeleted && p.Order != null);
 
@@ -331,19 +340,18 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
 
         var payments = await query.AsSplitQuery().OrderBy(p => p.PaidAt).ToListAsync(ct);
 
-        var articleIds = payments
-            .SelectMany(p => p.Order?.Items ?? [])
-            .SelectMany(i => i.MenuItem?.Recipe ?? [])
-            .Where(r => !r.IsDeleted)
-            .Select(r => r.ArticleId)
-            .Distinct()
-            .ToList();
-
         var conversions = await _db.UnitConversions
             .AsNoTracking()
             .Where(x => x.BranchId == req.BranchId && !x.IsDeleted)
-            .Select(x => new SalesUnitConversionInfo(x.OriginUnitId, x.DestinationUnitId, x.Factor))
+            .Select(x => new global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo(x.OriginUnitId, x.DestinationUnitId, x.Factor))
             .ToListAsync(ct);
+
+        var articleIds = payments
+            .SelectMany(p => p.Order?.Items ?? [])
+            .Where(i => i.MenuItem != null)
+            .SelectMany(i => MenuRecipeExpansion.Expand(i.MenuItem!, 1, conversions).Select(r => r.ArticleId))
+            .Distinct()
+            .ToList();
 
         var baseUnitByArticle = await _db.InventoryArticles
             .AsNoTracking()
@@ -480,7 +488,7 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
     private async Task<Dictionary<Guid, SalesArticleUnitCost>> LoadUnitCosts(
         Guid branchId,
         List<Guid> articleIds,
-        IReadOnlyCollection<SalesUnitConversionInfo> conversions,
+        IReadOnlyCollection<global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo> conversions,
         CancellationToken ct)
     {
         if (articleIds.Count == 0) return [];
@@ -526,7 +534,7 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
         Domain.Entities.POS.OrderItem item,
         IReadOnlyDictionary<Guid, Guid> baseUnitByArticle,
         IReadOnlyDictionary<Guid, SalesArticleUnitCost> unitCosts,
-        IReadOnlyCollection<SalesUnitConversionInfo> conversions,
+        IReadOnlyCollection<global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo> conversions,
         out bool missingCosts,
         out bool conversionWarnings)
     {
@@ -534,13 +542,17 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
         conversionWarnings = false;
         var total = 0m;
 
-        foreach (var ingredient in item.MenuItem?.Recipe.Where(r => !r.IsDeleted) ?? [])
+        if (item.MenuItem is null) return total;
+
+        foreach (var ingredient in MenuRecipeExpansion.Expand(item.MenuItem, 1, conversions))
         {
             var articleId = ingredient.ArticleId;
-            var baseUnitId = baseUnitByArticle.GetValueOrDefault(articleId, ingredient.Article?.BaseUnitId ?? Guid.Empty);
-            var baseQty = ConvertQuantity(ingredient.Quantity, ingredient.UnitId, baseUnitId, conversions);
+            var baseUnitId = baseUnitByArticle.GetValueOrDefault(articleId, ingredient.BaseUnitId);
+            var baseQty = ingredient.BaseUnitId == baseUnitId
+                ? ingredient.BaseQuantity
+                : MenuRecipeExpansion.ConvertQuantity(ingredient.BaseQuantity, ingredient.BaseUnitId, baseUnitId, conversions);
 
-            if (baseQty <= 0 && ingredient.UnitId != baseUnitId)
+            if (baseQty <= 0 && ingredient.BaseUnitId != baseUnitId)
             {
                 conversionWarnings = true;
                 continue;
@@ -558,7 +570,7 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
         return total;
     }
 
-    private static decimal ConvertQuantity(decimal quantity, Guid originUnitId, Guid destinationUnitId, IEnumerable<SalesUnitConversionInfo> conversions)
+    private static decimal ConvertQuantity(decimal quantity, Guid originUnitId, Guid destinationUnitId, IEnumerable<global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo> conversions)
     {
         if (originUnitId == Guid.Empty || destinationUnitId == Guid.Empty) return 0m;
         if (originUnitId == destinationUnitId) return quantity;
@@ -574,7 +586,6 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
 
     private static decimal Round2(decimal value) => Math.Round(value, 2);
 
-    private sealed record SalesUnitConversionInfo(Guid OriginUnitId, Guid DestinationUnitId, decimal Factor);
     private sealed record SalesPurchaseCostInput(Guid ArticleId, Guid UnitId, Guid ArticleBaseUnitId, decimal Quantity, decimal UnitPrice, decimal DiscountAmount);
     private sealed record SalesArticleCostSample(Guid ArticleId, decimal BaseQuantity, decimal NetCost);
     private sealed record SalesArticleUnitCost(decimal Average);

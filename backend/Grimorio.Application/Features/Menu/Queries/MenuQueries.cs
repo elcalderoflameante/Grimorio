@@ -38,3 +38,9 @@ public class GetMenuProfitabilityQuery : IRequest<List<MenuItemProfitabilityDto>
     public bool ActiveOnly { get; set; } = true;
     public bool AvailableOnly { get; set; } = false;
 }
+
+public class GetSubRecipesQuery : IRequest<List<SubRecipeDto>>
+{
+    public Guid BranchId { get; set; }
+    public bool ActiveOnly { get; set; } = false;
+}

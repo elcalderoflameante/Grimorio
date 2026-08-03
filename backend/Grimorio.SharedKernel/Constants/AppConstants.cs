@@ -85,7 +85,6 @@ public static class AppConstants
         public const string MenuCategoriesManage = "Menu.Categories.Manage";
         public const string MenuItemsView = "Menu.Items.View";
         public const string MenuItemsManage = "Menu.Items.Manage";
-        public const string MenuStockConsume = "Menu.StockConsume";
 
         public const string InventoryConfigView = "Inventory.Config.View";
         public const string InventoryConfigManage = "Inventory.Config.Manage";
@@ -172,7 +171,6 @@ public static class AppConstants
             new(MenuCategoriesManage, "Administrar categorias del menu", "Menu"),
             new(MenuItemsView, "Ver items y recetas", "Menu"),
             new(MenuItemsManage, "Administrar items y recetas", "Menu"),
-            new(MenuStockConsume, "Descontar stock por venta", "Menu"),
 
             new(InventoryConfigView, "Ver configuracion de inventario", "Inventory"),
             new(InventoryConfigManage, "Administrar configuracion de inventario", "Inventory"),

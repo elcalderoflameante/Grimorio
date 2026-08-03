@@ -23,6 +23,8 @@ public enum MovementType
     TransferOut = 10,
     PositiveAdjustment = 11,
     NegativeAdjustment = 12,
+    ProductionInput = 13,
+    ProductionOutput = 14,
 }
 
 public enum StockReservationStatus
@@ -80,6 +82,8 @@ public class InventoryArticle : BaseEntity
     public virtual ICollection<WarehouseStock> Stocks { get; set; } = [];
     public virtual ICollection<StockMovement> Movements { get; set; } = [];
     public virtual ICollection<StockReservation> Reservations { get; set; } = [];
+    public virtual ProductionRecipe? ProductionRecipe { get; set; }
+    public virtual ICollection<ProductionRecipeIngredient> ProductionRecipeIngredients { get; set; } = [];
 }
 
 public class Warehouse : BaseEntity
@@ -141,4 +145,85 @@ public class StockReservation : BaseEntity
     public virtual InventoryArticle? Article { get; set; }
     public virtual Warehouse? Warehouse { get; set; }
     public virtual MeasurementUnit? Unit { get; set; }
+}
+
+public class ProductionRecipe : BaseEntity
+{
+    public Guid OutputArticleId { get; set; }
+    public decimal OutputQuantity { get; set; }
+    public Guid OutputUnitId { get; set; }
+    public string? Notes { get; set; }
+    public bool IsActive { get; set; } = true;
+
+    public virtual InventoryArticle? OutputArticle { get; set; }
+    public virtual MeasurementUnit? OutputUnit { get; set; }
+    public virtual ICollection<ProductionRecipeIngredient> Ingredients { get; set; } = [];
+    public virtual ICollection<ProductionOrder> ProductionOrders { get; set; } = [];
+}
+
+public class ProductionRecipeIngredient : BaseEntity
+{
+    public Guid ProductionRecipeId { get; set; }
+    public Guid ArticleId { get; set; }
+    public decimal Quantity { get; set; }
+    public Guid UnitId { get; set; }
+    public string? Notes { get; set; }
+
+    public virtual ProductionRecipe? ProductionRecipe { get; set; }
+    public virtual InventoryArticle? Article { get; set; }
+    public virtual MeasurementUnit? Unit { get; set; }
+}
+
+public enum ProductionOrderStatus
+{
+    Completed = 1,
+    Cancelled = 2,
+}
+
+public class ProductionOrder : BaseEntity
+{
+    public string Number { get; set; } = string.Empty;
+    public Guid ProductionRecipeId { get; set; }
+    public Guid OutputArticleId { get; set; }
+    public Guid SourceWarehouseId { get; set; }
+    public Guid DestinationWarehouseId { get; set; }
+    public decimal OutputQuantity { get; set; }
+    public Guid OutputUnitId { get; set; }
+    public decimal OutputBaseQuantity { get; set; }
+    public decimal TotalCost { get; set; }
+    public decimal UnitCost { get; set; }
+    public ProductionOrderStatus Status { get; set; } = ProductionOrderStatus.Completed;
+    public string? Notes { get; set; }
+
+    public virtual ProductionRecipe? ProductionRecipe { get; set; }
+    public virtual InventoryArticle? OutputArticle { get; set; }
+    public virtual Warehouse? SourceWarehouse { get; set; }
+    public virtual Warehouse? DestinationWarehouse { get; set; }
+    public virtual MeasurementUnit? OutputUnit { get; set; }
+    public virtual ICollection<ProductionOrderIngredient> Ingredients { get; set; } = [];
+    public virtual ICollection<ProductionOrderMovement> Movements { get; set; } = [];
+}
+
+public class ProductionOrderIngredient : BaseEntity
+{
+    public Guid ProductionOrderId { get; set; }
+    public Guid ArticleId { get; set; }
+    public decimal Quantity { get; set; }
+    public Guid UnitId { get; set; }
+    public decimal BaseQuantity { get; set; }
+    public decimal UnitCost { get; set; }
+    public decimal TotalCost { get; set; }
+
+    public virtual ProductionOrder? ProductionOrder { get; set; }
+    public virtual InventoryArticle? Article { get; set; }
+    public virtual MeasurementUnit? Unit { get; set; }
+}
+
+public class ProductionOrderMovement : BaseEntity
+{
+    public Guid ProductionOrderId { get; set; }
+    public Guid StockMovementId { get; set; }
+
+    public virtual ProductionOrder? ProductionOrder { get; set; }
+    public virtual StockMovement? StockMovement { get; set; }
 }

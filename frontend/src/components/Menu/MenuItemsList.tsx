@@ -376,13 +376,6 @@ export default function MenuItemsList() {
               style={{ marginBottom: 16, fontSize: 12 }}
             />
           )}
-          <Form.Item name="stationId" label="Estación destino">
-            <Select
-              options={estacionOptions}
-              placeholder="Sin estación asignada"
-              allowClear
-            />
-          </Form.Item>
           {editing && (
             <Space>
               <Form.Item name="isActive" label="Activo" valuePropName="checked"><Switch /></Form.Item>

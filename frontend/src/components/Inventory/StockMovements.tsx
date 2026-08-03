@@ -43,6 +43,8 @@ const TIPO_OPTIONS: { label: string; value: MovementType }[] = [
   { label: 'Transferencia salida', value: 'TransferOut' },
   { label: 'Ajuste positivo', value: 'PositiveAdjustment' },
   { label: 'Ajuste negativo', value: 'NegativeAdjustment' },
+  { label: 'Producción insumo', value: 'ProductionInput' },
+  { label: 'Producción salida', value: 'ProductionOutput' },
 ];
 
 const SALIDAS = new Set<MovementType>([
@@ -52,6 +54,7 @@ const SALIDAS = new Set<MovementType>([
   'SaleDeduction',
   'TransferOut',
   'NegativeAdjustment',
+  'ProductionInput',
 ]);
 
 const COST_MOVEMENTS = new Set<MovementType>([
@@ -71,6 +74,7 @@ export default function StockMovements() {
   const [unidades, setUnidades] = useState<MeasurementUnitDto[]>([]);
   const [conversiones, setConversiones] = useState<UnitConversionDto[]>([]);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState(false);
   const [filterArticulo, setFilterArticulo] = useState<string | undefined>();
   const [filterBodega, setFilterBodega] = useState<string | undefined>();
@@ -115,6 +119,7 @@ export default function StockMovements() {
 
   const registrar = async () => {
     const values = await form.validateFields();
+    setSaving(true);
     try {
       await inventoryApi.registerMovement(values);
       message.success('Movimiento registrado');
@@ -123,10 +128,13 @@ export default function StockMovements() {
       load();
     } catch (e) {
       message.error(formatError(e));
+    } finally {
+      setSaving(false);
     }
   };
 
   const closeModal = () => {
+    if (saving) return;
     setModal(false);
     form.resetFields();
   };
@@ -227,13 +235,13 @@ export default function StockMovements() {
             title: 'Cantidad',
             key: 'cantidad',
             render: (_: unknown, m: StockMovementDto) =>
-              `${SALIDAS.has(m.type) ? '-' : '+'}${m.quantity} ${m.unitSymbol}`,
+              `${SALIDAS.has(m.type) ? '-' : '+'}${Math.abs(m.quantity)} ${m.unitSymbol}`,
           },
           {
             title: 'En unidad base',
             key: 'cantidadBase',
             render: (_: unknown, m: StockMovementDto) =>
-              `${SALIDAS.has(m.type) ? '-' : '+'}${m.baseQuantity} ${m.baseUnitSymbol}`,
+              `${SALIDAS.has(m.type) ? '-' : '+'}${Math.abs(m.baseQuantity)} ${m.baseUnitSymbol}`,
           },
           {
             title: 'Costo',
@@ -259,6 +267,9 @@ export default function StockMovements() {
         open={modal}
         onOk={registrar}
         onCancel={closeModal}
+        confirmLoading={saving}
+        maskClosable={!saving}
+        closable={!saving}
         okText="Registrar"
         cancelText="Cancelar"
         width={680}

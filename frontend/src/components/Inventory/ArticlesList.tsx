@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { App as AntApp, Table, Button, Modal, Form, Input, InputNumber, Select, Switch,
   Popconfirm, Space, Typography, Tag, Badge, Row, Col } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, WarningOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, WarningOutlined, ReloadOutlined } from '@ant-design/icons';
 import { inventoryApi } from '../../services/api';
 import type {
-  InventoryArticleDto, InventoryCategoryDto, MeasurementUnitDto,
+  InventoryArticleDto, InventoryCategoryDto, MeasurementUnitDto, WarehouseDto, WarehouseStockDto,
   CreateInventoryArticleDto, ArticleType
 } from '../../types';
 import { formatError } from '../../utils/errorHandler';
@@ -32,8 +32,13 @@ export default function ArticlesList() {
   const [articulos, setArticulos] = useState<InventoryArticleDto[]>([]);
   const [categorias, setCategorias] = useState<InventoryCategoryDto[]>([]);
   const [unidades, setUnidades] = useState<MeasurementUnitDto[]>([]);
+  const [bodegas, setBodegas] = useState<WarehouseDto[]>([]);
+  const [stock, setStock] = useState<WarehouseStockDto[]>([]);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [modal, setModal] = useState(false);
+  const [filterBodega, setFilterBodega] = useState<string | undefined>();
+  const [filterCategoria, setFilterCategoria] = useState<string | undefined>();
   const [editing, setEditing] = useState<InventoryArticleDto | null>(null);
   const [form] = Form.useForm();
   const canManage = hasPermission(PERMISSIONS.inventory.articlesManage);
@@ -50,14 +55,18 @@ export default function ArticlesList() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [a, c, u] = await Promise.all([
-        inventoryApi.getArticles(),
+      const [a, c, u, b, s] = await Promise.all([
+        inventoryApi.getArticles({ categoryId: filterCategoria }),
         inventoryApi.getCategories(),
         inventoryApi.getUnits(),
+        inventoryApi.getWarehouses(),
+        inventoryApi.getStock({ warehouseId: filterBodega, categoryId: filterCategoria }),
       ]);
       setArticulos(a.data);
       setCategorias(c.data);
       setUnidades(u.data);
+      setBodegas(b.data);
+      setStock(s.data);
     } catch (e) {
       message.error(formatError(e));
       // Si falla la carga de artículos, igual cargamos los catálogos para el formulario
@@ -65,7 +74,7 @@ export default function ArticlesList() {
     } finally {
       setLoading(false);
     }
-  }, [loadCatalogos]);
+  }, [filterBodega, filterCategoria, loadCatalogos, message]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -94,6 +103,7 @@ export default function ArticlesList() {
 
   const save = async () => {
     const values = await form.validateFields();
+    setSaving(true);
     try {
       if (editing) {
         await inventoryApi.updateArticle(editing.id, values);
@@ -105,6 +115,8 @@ export default function ArticlesList() {
       load();
     } catch (e) {
       message.error(formatError(e));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -118,6 +130,31 @@ export default function ArticlesList() {
     }
   };
 
+  const stockByArticle = useMemo(() => {
+    const map = new Map<string, WarehouseStockDto>();
+    for (const row of stock) map.set(row.articleId, row);
+    return map;
+  }, [stock]);
+
+  const filteredArticulos = useMemo(() => {
+    if (!filterBodega) return articulos;
+    return articulos.filter(a => stockByArticle.has(a.id));
+  }, [articulos, filterBodega, stockByArticle]);
+
+  const renderStock = (article: InventoryArticleDto) => {
+    const warehouseStock = stockByArticle.get(article.id);
+    const quantity = filterBodega && warehouseStock ? warehouseStock.quantity : article.totalStock;
+    const lowStock = filterBodega && warehouseStock ? warehouseStock.lowStock : article.lowStock;
+    const unit = filterBodega && warehouseStock ? warehouseStock.unitSymbol : article.baseUnitSymbol;
+
+    return (
+      <Badge
+        status={lowStock ? 'error' : 'success'}
+        text={`${quantity} ${unit}`}
+      />
+    );
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -129,8 +166,26 @@ export default function ArticlesList() {
         )}
       </div>
 
+      <Space style={{ marginBottom: 16 }} wrap>
+        <Select
+          allowClear
+          placeholder="Filtrar por bodega"
+          style={{ width: 200 }}
+          options={bodegas.map(b => ({ label: b.name, value: b.id }))}
+          onChange={setFilterBodega}
+        />
+        <Select
+          allowClear
+          placeholder="Filtrar por categoría"
+          style={{ width: 200 }}
+          options={categorias.map(c => ({ label: c.name, value: c.id }))}
+          onChange={setFilterCategoria}
+        />
+        <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>Actualizar</Button>
+      </Space>
+
       <Table
-        dataSource={articulos}
+        dataSource={filteredArticulos}
         rowKey="id"
         loading={loading}
         size="small"
@@ -154,12 +209,7 @@ export default function ArticlesList() {
           { title: 'Categoría', dataIndex: 'categoryName', key: 'categoryName' },
           {
             title: 'Stock', key: 'stock',
-            render: (_: unknown, a: InventoryArticleDto) => (
-              <Badge
-                status={a.lowStock ? 'error' : 'success'}
-                text={`${a.totalStock} ${a.baseUnitSymbol}`}
-              />
-            ),
+            render: (_: unknown, a: InventoryArticleDto) => renderStock(a),
           },
           {
             title: 'Stock mín.', key: 'stockMin',
@@ -183,7 +233,10 @@ export default function ArticlesList() {
         title={editing ? 'Editar artículo' : 'Nuevo artículo'}
         open={modal}
         onOk={save}
-        onCancel={() => setModal(false)}
+        onCancel={saving ? undefined : () => setModal(false)}
+        confirmLoading={saving}
+        maskClosable={!saving}
+        closable={!saving}
         okText="Guardar"
         width={600}
       >

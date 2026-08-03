@@ -832,7 +832,9 @@ export type MovementType =
   | 'TransferIn'
   | 'TransferOut'
   | 'PositiveAdjustment'
-  | 'NegativeAdjustment';
+  | 'NegativeAdjustment'
+  | 'ProductionInput'
+  | 'ProductionOutput';
 
 export interface MeasurementUnitDto {
   id: string;
@@ -993,6 +995,89 @@ export interface StockAlertDto {
   minStock: number;
 }
 
+export interface ProductionRecipeDto {
+  id: string;
+  outputArticleId: string;
+  outputArticleName: string;
+  outputQuantity: number;
+  outputUnitId: string;
+  outputUnitSymbol: string;
+  notes?: string;
+  isActive: boolean;
+  ingredients: ProductionRecipeIngredientDto[];
+}
+
+export interface ProductionRecipeIngredientDto {
+  id: string;
+  articleId: string;
+  articleName: string;
+  internalCode?: string;
+  quantity: number;
+  unitId: string;
+  unitSymbol: string;
+  baseUnitSymbol: string;
+  notes?: string;
+}
+
+export interface UpsertProductionRecipeDto {
+  outputArticleId: string;
+  outputQuantity: number;
+  outputUnitId: string;
+  notes?: string;
+  isActive: boolean;
+  ingredients: UpsertProductionRecipeIngredientDto[];
+}
+
+export interface UpsertProductionRecipeIngredientDto {
+  articleId: string;
+  quantity: number;
+  unitId: string;
+  notes?: string;
+}
+
+export interface ProductionOrderDto {
+  id: string;
+  number: string;
+  productionRecipeId: string;
+  outputArticleId: string;
+  outputArticleName: string;
+  sourceWarehouseId: string;
+  sourceWarehouseName: string;
+  destinationWarehouseId: string;
+  destinationWarehouseName: string;
+  outputQuantity: number;
+  outputUnitId: string;
+  outputUnitSymbol: string;
+  outputBaseQuantity: number;
+  outputBaseUnitSymbol: string;
+  totalCost: number;
+  unitCost: number;
+  status: string;
+  notes?: string;
+  producedAt: string;
+  ingredients: ProductionOrderIngredientDto[];
+}
+
+export interface ProductionOrderIngredientDto {
+  articleId: string;
+  articleName: string;
+  quantity: number;
+  unitSymbol: string;
+  baseQuantity: number;
+  baseUnitSymbol: string;
+  unitCost: number;
+  totalCost: number;
+}
+
+export interface RegisterProductionDto {
+  productionRecipeId: string;
+  sourceWarehouseId: string;
+  destinationWarehouseId: string;
+  outputQuantity: number;
+  outputUnitId: string;
+  notes?: string;
+}
+
 // ======================== Menu ========================
 
 export interface MenuCategoryDto {
@@ -1123,6 +1208,42 @@ export interface UpdateMenuItemDto extends CreateMenuItemDto {
 
 export interface RecipeIngredientDto {
   id: string;
+  type: 'Article' | 'SubRecipe';
+  articleId?: string;
+  articleName: string;
+  internalCode?: string;
+  subRecipeId?: string;
+  subRecipeName?: string;
+  unitId: string;
+  unitName: string;
+  unitSymbol: string;
+  quantity: number;
+  notes?: string;
+}
+
+export interface UpsertRecipeIngredientDto {
+  type: 'Article' | 'SubRecipe';
+  articleId?: string;
+  subRecipeId?: string;
+  unitId: string;
+  quantity: number;
+  notes?: string;
+}
+
+export interface SubRecipeDto {
+  id: string;
+  name: string;
+  description?: string;
+  outputQuantity: number;
+  outputUnitId: string;
+  outputUnitName: string;
+  outputUnitSymbol: string;
+  isActive: boolean;
+  ingredients: SubRecipeIngredientDto[];
+}
+
+export interface SubRecipeIngredientDto {
+  id: string;
   articleId: string;
   articleName: string;
   internalCode?: string;
@@ -1133,7 +1254,16 @@ export interface RecipeIngredientDto {
   notes?: string;
 }
 
-export interface UpsertRecipeIngredientDto {
+export interface UpsertSubRecipeDto {
+  name: string;
+  description?: string;
+  outputQuantity: number;
+  outputUnitId: string;
+  isActive: boolean;
+  ingredients: UpsertSubRecipeIngredientDto[];
+}
+
+export interface UpsertSubRecipeIngredientDto {
   articleId: string;
   unitId: string;
   quantity: number;
@@ -1246,16 +1376,6 @@ export interface ModifierSelectionDto {
 
 export interface CreateModifierSelectionDto {
   modifierOptionId: string;
-  quantity: number;
-}
-
-export interface DeductStockFromSaleDto {
-  warehouseId: string;
-  items: SaleItemDto[];
-}
-
-export interface SaleItemDto {
-  menuItemId: string;
   quantity: number;
 }
 

@@ -6,6 +6,7 @@ using Grimorio.Domain.Entities.Inventory;
 using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.POS;
 using Grimorio.Infrastructure.Features.Billing.Queries;
+using Grimorio.Infrastructure.Features.Menu;
 using Grimorio.Infrastructure.Persistence;
 using Grimorio.Infrastructure.Services.Email;
 using Grimorio.Infrastructure.Services.Sri;
@@ -1020,6 +1021,25 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
             .Include(o => o.Items.Where(i => !i.IsDeleted))
                 .ThenInclude(i => i.MenuItem)
                     .ThenInclude(m => m!.Recipe.Where(r => !r.IsDeleted))
+                        .ThenInclude(r => r.Article)
+                            .ThenInclude(a => a!.BaseUnit)
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.MenuItem)
+                    .ThenInclude(m => m!.Recipe.Where(r => !r.IsDeleted))
+                        .ThenInclude(r => r.SubRecipe)
+                            .ThenInclude(s => s!.Ingredients.Where(i => !i.IsDeleted))
+                                .ThenInclude(i => i.Article)
+                                    .ThenInclude(a => a!.BaseUnit)
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.MenuItem)
+                    .ThenInclude(m => m!.Recipe.Where(r => !r.IsDeleted))
+                        .ThenInclude(r => r.SubRecipe)
+                            .ThenInclude(s => s!.Ingredients.Where(i => !i.IsDeleted))
+                                .ThenInclude(i => i.Unit)
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.MenuItem)
+                    .ThenInclude(m => m!.Recipe.Where(r => !r.IsDeleted))
+                        .ThenInclude(r => r.Unit)
             .FirstOrDefaultAsync(o => o.Id == orderId, ct);
 
         if (order == null) return;
@@ -1033,15 +1053,20 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
 
         if (fallbackWarehouseId == default) return;
 
+        var conversions = await _db.UnitConversions
+            .AsNoTracking()
+            .Where(c => c.BranchId == branchId && !c.IsDeleted)
+            .Select(c => new UnitConversionInfo(c.OriginUnitId, c.DestinationUnitId, c.Factor))
+            .ToListAsync(ct);
+
         foreach (var item in order.Items)
         {
             if (item.MenuItem?.Recipe == null) continue;
 
-            foreach (var ingredient in item.MenuItem.Recipe)
+            foreach (var ingredient in MenuRecipeExpansion.Expand(item.MenuItem, item.Quantity, conversions))
             {
                 // Ingrediente variable: usar el artículo elegido por el cliente
                 var articleId = ingredient.ArticleId;
-                var qty = ingredient.Quantity * item.Quantity;
 
                 // Bodega con más stock para ese artículo, o la de respaldo
                 var warehouseId = await _db.WarehouseStock
@@ -1060,8 +1085,8 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
                         ArticleId = articleId,
                         WarehouseId = warehouseId,
                         Type = MovementType.SaleDeduction,
-                        Quantity = qty,
-                        UnitId = ingredient.UnitId,
+                        Quantity = ingredient.BaseQuantity,
+                        UnitId = ingredient.BaseUnitId,
                         Reference = $"Orden #{orderNumber}",
                     }, ct);
                 }
@@ -1069,7 +1094,7 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
                 {
                     _logger.LogWarning(ex,
                         "No se pudo descontar inventario: artículo {ArticleId}, unidad {UnitId}, orden #{OrderNumber}",
-                        articleId, ingredient.UnitId, orderNumber);
+                        articleId, ingredient.BaseUnitId, orderNumber);
                     throw;
                 }
             }

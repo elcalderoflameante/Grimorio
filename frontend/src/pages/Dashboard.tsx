@@ -60,9 +60,11 @@ import InventoryConfig from '../components/Inventory/InventoryConfig';
 import MenuCategoriesList from '../components/Menu/MenuCategoriesList';
 import MenuItemsList from '../components/Menu/MenuItemsList';
 import MenuProfitability from '../components/Menu/MenuProfitability';
+import SubRecipesList from '../components/Menu/SubRecipesList';
 import ArticlesList from '../components/Inventory/ArticlesList';
 import CurrentStock from '../components/Inventory/CurrentStock';
 import StockMovements from '../components/Inventory/StockMovements';
+import Production from '../components/Inventory/Production';
 import SuppliersList from '../components/Purchases/SuppliersList';
 import PurchasesList from '../components/Purchases/PurchaseOrdersList';
 import CustomersList from '../components/Billing/CustomersList';
@@ -285,6 +287,7 @@ export default function Dashboard() {
         children: [
           { key: 'menu-categorias', label: 'Categorías', icon: <AppstoreOutlined />, permission: PERMISSIONS.menu.categoriesView },
           { key: 'menu-items', label: 'Ítems y recetas', icon: <UnorderedListOutlined />, permission: PERMISSIONS.menu.itemsView },
+          { key: 'menu-subrecipes', label: 'Subrecetas', icon: <UnorderedListOutlined />, permission: PERMISSIONS.menu.itemsView },
           { key: 'menu-profitability', label: 'Rentabilidad', icon: <BarChartOutlined />, permission: PERMISSIONS.menu.itemsView },
         ],
       },
@@ -304,6 +307,7 @@ export default function Dashboard() {
           { key: 'inv-articulos', label: 'Artículos', icon: <InboxOutlined />, permission: PERMISSIONS.inventory.articlesView },
           { key: 'inv-stock', label: 'Stock actual', icon: <WarningOutlined />, permission: PERMISSIONS.inventory.stockView },
           { key: 'inv-movimientos', label: 'Movimientos', icon: <SwapOutlined />, permission: PERMISSIONS.inventory.movementsView },
+          { key: 'inv-produccion', label: 'Producción', icon: <ToolOutlined />, permission: PERMISSIONS.inventory.movementsView },
         ],
       },
       {
@@ -440,12 +444,16 @@ case 'pos-estaciones':
         return <MenuCategoriesList />;
       case 'menu-items':
         return <MenuItemsList />;
+      case 'menu-subrecipes':
+        return <SubRecipesList />;
       case 'menu-profitability':
         return <MenuProfitability />;
       case 'inv-stock':
         return <CurrentStock />;
       case 'inv-movimientos':
         return <StockMovements />;
+      case 'inv-produccion':
+        return <Production />;
       case 'inv-articulos':
         return <ArticlesList />;
       case 'inv-config':

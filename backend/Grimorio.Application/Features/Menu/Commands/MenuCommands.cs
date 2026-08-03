@@ -92,6 +92,19 @@ public class DeleteRecipeIngredientCommand : IRequest<bool>
     public Guid BranchId { get; set; }
 }
 
+public class UpsertSubRecipeCommand : IRequest<SubRecipeDto>
+{
+    public Guid? Id { get; set; }
+    public Guid BranchId { get; set; }
+    public UpsertSubRecipeDto SubRecipe { get; set; } = new();
+}
+
+public class DeleteSubRecipeCommand : IRequest<bool>
+{
+    public Guid Id { get; set; }
+    public Guid BranchId { get; set; }
+}
+
 public class UpsertMenuItemModifiersCommand : IRequest<List<MenuItemModifierGroupDto>>
 {
     public Guid MenuItemId { get; set; }
@@ -106,11 +119,4 @@ public class UpsertMenuItemPreparationCommand : IRequest<MenuItemPreparationDto>
     public Guid MenuItemId { get; set; }
     public Guid BranchId { get; set; }
     public UpsertMenuItemPreparationDto Preparation { get; set; } = new();
-}
-
-public class DeductStockFromSaleCommand : IRequest<bool>
-{
-    public Guid BranchId { get; set; }
-    public Guid WarehouseId { get; set; }
-    public List<SaleItemDto> Items { get; set; } = [];
 }

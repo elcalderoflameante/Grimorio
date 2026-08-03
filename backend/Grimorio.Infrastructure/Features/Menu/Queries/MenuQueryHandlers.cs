@@ -49,6 +49,8 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
             .Include(x => x.Recipe.Where(r => !r.IsDeleted))
                 .ThenInclude(r => r.Article)
             .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.SubRecipe)
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
                 .ThenInclude(r => r.Unit)
             .Include(x => x.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
                 .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
@@ -181,18 +183,7 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
                 .OrderBy(g => g.DisplayOrder)
                 .ThenBy(g => g.Name)
                 .ToList()),
-            Recipe = item.Recipe.Select(r => new RecipeIngredientDto
-            {
-                Id = r.Id,
-                ArticleId = r.ArticleId,
-                ArticleName = r.Article?.Name ?? string.Empty,
-                InternalCode = r.Article?.InternalCode,
-                UnitId = r.UnitId,
-                UnitName = r.Unit?.Name ?? string.Empty,
-                UnitSymbol = r.Unit?.Symbol ?? string.Empty,
-                Quantity = r.Quantity,
-                Notes = r.Notes,
-            }).ToList(),
+            Recipe = item.Recipe.Select(MenuMapper.MapRecipeIngredient).ToList(),
             Preparation = item.Preparation is null || item.Preparation.IsDeleted
                 ? null
                 : MenuMapper.MapPreparation(item.Preparation),
@@ -302,6 +293,33 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
     private sealed record UnitConversionInfo(Guid OriginUnitId, Guid DestinationUnitId, decimal Factor);
 }
 
+public class GetSubRecipesHandler : IRequestHandler<GetSubRecipesQuery, List<SubRecipeDto>>
+{
+    private readonly GrimorioDbContext _db;
+    public GetSubRecipesHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<List<SubRecipeDto>> Handle(GetSubRecipesQuery req, CancellationToken ct)
+    {
+        var query = _db.SubRecipes
+            .AsNoTracking()
+            .Include(x => x.OutputUnit)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.Article)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.Unit)
+            .Where(x => x.BranchId == req.BranchId && !x.IsDeleted);
+
+        if (req.ActiveOnly) query = query.Where(x => x.IsActive);
+
+        var subRecipes = await query
+            .AsSplitQuery()
+            .OrderBy(x => x.Name)
+            .ToListAsync(ct);
+
+        return subRecipes.Select(MenuMapper.MapSubRecipe).ToList();
+    }
+}
+
 public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQuery, List<MenuItemAvailabilityDto>>
 {
     private readonly GrimorioDbContext _db;
@@ -311,22 +329,23 @@ public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQue
     {
         var query = _db.MenuItems
             .AsNoTracking()
-            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
-                .ThenInclude(r => r.Unit)
-            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
-                .ThenInclude(r => r.Article)
-                    .ThenInclude(a => a!.BaseUnit)
             .Where(x => x.BranchId == req.BranchId && !x.IsDeleted);
 
         if (req.CategoryId.HasValue) query = query.Where(x => x.MenuCategoryId == req.CategoryId.Value);
         if (req.ActiveOnly) query = query.Where(x => x.IsActive);
         if (req.AvailableOnly) query = query.Where(x => x.AvailableForSale);
 
-        var items = await query.AsSplitQuery().ToListAsync(ct);
+        var itemIds = await query.Select(x => x.Id).ToListAsync(ct);
+        var items = await MenuRecipeExpansion.LoadMenuItemsWithRecipeAsync(_db, req.BranchId, itemIds, ct);
+
+        var conversions = await _db.UnitConversions
+            .AsNoTracking()
+            .Where(x => x.BranchId == req.BranchId && !x.IsDeleted)
+            .Select(x => new global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo(x.OriginUnitId, x.DestinationUnitId, x.Factor))
+            .ToListAsync(ct);
 
         var articleIds = items
-            .SelectMany(item => item.Recipe.Where(r => !r.IsDeleted).SelectMany(r =>
-                new[] { r.ArticleId }))
+            .SelectMany(item => MenuRecipeExpansion.Expand(item, 1, conversions).Select(r => r.ArticleId))
             .Distinct()
             .ToList();
 
@@ -356,22 +375,16 @@ public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQue
             stockByArticle[articleId] = Math.Max(0, stockByArticle.GetValueOrDefault(articleId) - reservedQuantity);
         }
 
-        var conversions = await _db.UnitConversions
-            .AsNoTracking()
-            .Where(x => x.BranchId == req.BranchId && !x.IsDeleted)
-            .Select(x => new UnitConversionInfo(x.OriginUnitId, x.DestinationUnitId, x.Factor))
-            .ToListAsync(ct);
-
         return items.Select(item => BuildAvailability(item, stockByArticle, conversions)).ToList();
     }
 
     private static MenuItemAvailabilityDto BuildAvailability(
         MenuItem item,
         IReadOnlyDictionary<Guid, decimal> stockByArticle,
-        IReadOnlyCollection<UnitConversionInfo> conversions)
+        IReadOnlyCollection<global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo> conversions)
     {
-        var recipe = item.Recipe.Where(r => !r.IsDeleted).ToList();
-        if (recipe.Count == 0)
+        var requirements = MenuRecipeExpansion.Expand(item, 1, conversions);
+        if (requirements.Count == 0)
         {
             return new MenuItemAvailabilityDto
             {
@@ -390,25 +403,24 @@ public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQue
 
         var capacities = new List<(decimal Quantity, string? LimitingArticleName)>();
 
-        foreach (var ingredient in recipe)
+        foreach (var ingredient in requirements)
         {
-            var article = ingredient.Article;
-            var requiredBase = article is null ? 0m : ConvertQuantity(ingredient.Quantity, ingredient.UnitId, article.BaseUnitId, conversions);
+            var requiredBase = ingredient.BaseQuantity;
             var stock = stockByArticle.TryGetValue(ingredient.ArticleId, out var quantity) ? quantity : 0m;
             var servings = requiredBase > 0 ? stock / requiredBase : 0m;
 
             dto.Components.Add(new MenuItemAvailabilityComponentDto
             {
-                RecipeIngredientId = ingredient.Id,
+                RecipeIngredientId = ingredient.RecipeIngredientId,
                 ArticleId = ingredient.ArticleId,
-                ArticleName = article?.Name ?? string.Empty,
+                ArticleName = ingredient.SourceName is null ? ingredient.ArticleName : $"{ingredient.ArticleName} ({ingredient.SourceName})",
                 RequiredQuantity = ingredient.Quantity,
-                RequiredUnitSymbol = ingredient.Unit?.Symbol ?? string.Empty,
+                RequiredUnitSymbol = ingredient.UnitSymbol,
                 StockQuantity = Math.Round(stock, 4),
-                StockUnitSymbol = article?.BaseUnit?.Symbol ?? string.Empty,
+                StockUnitSymbol = ingredient.BaseUnitSymbol,
                 AvailableServings = Math.Floor(servings),
             });
-            capacities.Add((servings, article?.Name));
+            capacities.Add((servings, ingredient.ArticleName));
         }
 
         var limiting = capacities.OrderBy(x => x.Quantity).FirstOrDefault();
@@ -449,33 +461,30 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
             .AsNoTracking()
             .Include(x => x.Category)
             .Include(x => x.TaxRate)
-            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
-                .ThenInclude(r => r.Article)
-                    .ThenInclude(a => a!.BaseUnit)
-            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
-                .ThenInclude(r => r.Unit)
             .Where(x => x.BranchId == req.BranchId && !x.IsDeleted);
 
         if (req.CategoryId.HasValue) query = query.Where(x => x.MenuCategoryId == req.CategoryId.Value);
         if (req.ActiveOnly) query = query.Where(x => x.IsActive);
         if (req.AvailableOnly) query = query.Where(x => x.AvailableForSale);
 
-        var items = await query
-            .AsSplitQuery()
+        var orderedItemIds = await query
             .OrderBy(x => x.Category!.Order)
             .ThenBy(x => x.Name)
+            .Select(x => x.Id)
             .ToListAsync(ct);
-
-        var articleIds = items
-            .SelectMany(i => i.Recipe.Where(r => !r.IsDeleted).Select(r => r.ArticleId))
-            .Distinct()
-            .ToList();
+        var items = await MenuRecipeExpansion.LoadMenuItemsWithRecipeAsync(_db, req.BranchId, orderedItemIds, ct);
+        items = items.OrderBy(x => orderedItemIds.IndexOf(x.Id)).ToList();
 
         var conversions = await _db.UnitConversions
             .AsNoTracking()
             .Where(x => x.BranchId == req.BranchId && !x.IsDeleted)
-            .Select(x => new UnitConversionInfo(x.OriginUnitId, x.DestinationUnitId, x.Factor))
+            .Select(x => new global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo(x.OriginUnitId, x.DestinationUnitId, x.Factor))
             .ToListAsync(ct);
+
+        var articleIds = items
+            .SelectMany(i => MenuRecipeExpansion.Expand(i, 1, conversions).Select(r => r.ArticleId))
+            .Distinct()
+            .ToList();
 
         var purchaseItems = articleIds.Count == 0
             ? []
@@ -556,7 +565,7 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
 
     private static MenuItemProfitabilityDto BuildProfitability(
         MenuItem item,
-        IReadOnlyCollection<UnitConversionInfo> conversions,
+        IReadOnlyCollection<global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo> conversions,
         IReadOnlyDictionary<Guid, ArticleUnitCost> unitCosts)
     {
         var taxPct = item.TaxRate?.Percentage ?? 0m;
@@ -579,20 +588,13 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
             HasRecipe = item.Recipe.Any(r => !r.IsDeleted),
         };
 
-        foreach (var ingredient in item.Recipe.Where(r => !r.IsDeleted))
+        foreach (var ingredient in MenuRecipeExpansion.Expand(item, 1, conversions))
         {
-            var article = ingredient.Article;
-            var warning = article is null ? "Articulo no encontrado." : null;
-            var baseQty = article is null
-                ? 0m
-                : ConvertQuantity(ingredient.Quantity, ingredient.UnitId, article.BaseUnitId, conversions);
-
-            if (article is not null && ingredient.UnitId != article.BaseUnitId && baseQty == 0)
-                warning = "No existe conversion hacia la unidad base.";
+            var warning = ingredient.BaseQuantity <= 0 ? "No existe conversion hacia la unidad base." : null;
+            var baseQty = ingredient.BaseQuantity;
 
             ArticleUnitCost? costInfo = null;
-            var hasCost = article is not null
-                && unitCosts.TryGetValue(article.Id, out costInfo)
+            var hasCost = unitCosts.TryGetValue(ingredient.ArticleId, out costInfo)
                 && costInfo.Average > 0;
             var averageCost = hasCost ? costInfo!.Average : 0m;
             decimal? lastCost = hasCost ? costInfo!.Last : null;
@@ -600,15 +602,16 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
 
             dto.Ingredients.Add(new MenuItemProfitabilityIngredientDto
             {
-                RecipeIngredientId = ingredient.Id,
+                RecipeIngredientId = ingredient.RecipeIngredientId ?? Guid.Empty,
                 ArticleId = ingredient.ArticleId,
-                ArticleName = article?.Name ?? string.Empty,
-                InternalCode = article?.InternalCode,
+                ArticleName = ingredient.ArticleName,
+                InternalCode = ingredient.InternalCode,
+                SourceName = ingredient.SourceName,
                 Quantity = ingredient.Quantity,
                 UnitId = ingredient.UnitId,
-                UnitSymbol = ingredient.Unit?.Symbol ?? string.Empty,
+                UnitSymbol = ingredient.UnitSymbol,
                 BaseQuantity = Math.Round(baseQty, 4),
-                BaseUnitSymbol = article?.BaseUnit?.Symbol ?? string.Empty,
+                BaseUnitSymbol = ingredient.BaseUnitSymbol,
                 AverageUnitCost = Math.Round(averageCost, 4),
                 LastUnitCost = lastCost.HasValue ? Math.Round(lastCost.Value, 4) : null,
                 TotalCost = Math.Round(totalCost, 4),
@@ -669,7 +672,6 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
         return ("Critical", "Critico");
     }
 
-    private sealed record UnitConversionInfo(Guid OriginUnitId, Guid DestinationUnitId, decimal Factor);
     private sealed record PurchaseCostInput(
         Guid ArticleId,
         Guid UnitId,

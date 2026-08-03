@@ -1,7 +1,7 @@
 ﻿using Grimorio.Application.DTOs;
-using Grimorio.Application.Features.Inventory.Commands;
 using Grimorio.Application.Features.Menu.Commands;
 using Grimorio.Domain.Entities.Menu;
+using Grimorio.Infrastructure.Features.Menu;
 using Grimorio.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -175,6 +175,9 @@ public class UpsertRecipeHandler : IRequestHandler<UpsertRecipeCommand, List<Rec
 
     public async Task<List<RecipeIngredientDto>> Handle(UpsertRecipeCommand req, CancellationToken ct)
     {
+        var itemExists = await _db.MenuItems.AnyAsync(x => x.Id == req.MenuItemId && x.BranchId == req.BranchId && !x.IsDeleted, ct);
+        if (!itemExists) throw new KeyNotFoundException("Item no encontrado");
+
         var existentes = await _db.RecipeIngredients
             .Where(x => x.MenuItemId == req.MenuItemId && x.BranchId == req.BranchId)
             .ToListAsync(ct);
@@ -182,10 +185,23 @@ public class UpsertRecipeHandler : IRequestHandler<UpsertRecipeCommand, List<Rec
 
         foreach (var ing in req.Ingredients)
         {
+            if (ing.Quantity <= 0) throw new InvalidOperationException("La cantidad de la receta debe ser mayor a cero.");
+            var type = Enum.TryParse<RecipeIngredientType>(ing.Type, true, out var parsedType)
+                ? parsedType
+                : RecipeIngredientType.Article;
+
+            if (type == RecipeIngredientType.Article && !ing.ArticleId.HasValue)
+                throw new InvalidOperationException("Seleccione un artículo para el ingrediente.");
+            if (type == RecipeIngredientType.SubRecipe && !ing.SubRecipeId.HasValue)
+                throw new InvalidOperationException("Seleccione una subreceta.");
+
             var recipeIng = new RecipeIngredient
             {
                 BranchId = req.BranchId, MenuItemId = req.MenuItemId,
-                ArticleId = ing.ArticleId, UnitId = ing.UnitId,
+                Type = type,
+                ArticleId = type == RecipeIngredientType.Article ? ing.ArticleId : null,
+                SubRecipeId = type == RecipeIngredientType.SubRecipe ? ing.SubRecipeId : null,
+                UnitId = ing.UnitId,
                 Quantity = ing.Quantity, Notes = ing.Notes,
             };
             _db.RecipeIngredients.Add(recipeIng);
@@ -194,17 +210,101 @@ public class UpsertRecipeHandler : IRequestHandler<UpsertRecipeCommand, List<Rec
 
         var result = await _db.RecipeIngredients
             .Include(r => r.Article)
+            .Include(r => r.SubRecipe)
             .Include(r => r.Unit)
             .Where(r => r.MenuItemId == req.MenuItemId && r.BranchId == req.BranchId && !r.IsDeleted)
             .ToListAsync(ct);
 
-        return result.Select(r => new RecipeIngredientDto
+        return result.Select(MenuMapper.MapRecipeIngredient).ToList();
+    }
+}
+
+public class UpsertSubRecipeHandler : IRequestHandler<UpsertSubRecipeCommand, SubRecipeDto>
+{
+    private readonly GrimorioDbContext _db;
+    public UpsertSubRecipeHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<SubRecipeDto> Handle(UpsertSubRecipeCommand req, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.SubRecipe.Name))
+            throw new InvalidOperationException("La subreceta requiere nombre.");
+        if (req.SubRecipe.OutputQuantity <= 0)
+            throw new InvalidOperationException("El rendimiento debe ser mayor a cero.");
+        if (req.SubRecipe.Ingredients.Count == 0)
+            throw new InvalidOperationException("La subreceta requiere al menos un insumo.");
+
+        var subRecipe = req.Id.HasValue
+            ? await _db.SubRecipes
+                .Include(x => x.Ingredients)
+                .FirstOrDefaultAsync(x => x.Id == req.Id.Value && x.BranchId == req.BranchId, ct)
+            : null;
+
+        if (req.Id.HasValue && subRecipe is null)
+            throw new KeyNotFoundException("Subreceta no encontrada");
+
+        if (subRecipe is null)
         {
-            Id = r.Id, ArticleId = r.ArticleId,
-            ArticleName = r.Article?.Name ?? string.Empty, InternalCode = r.Article?.InternalCode,
-            UnitId = r.UnitId, UnitName = r.Unit?.Name ?? string.Empty,
-            UnitSymbol = r.Unit?.Symbol ?? string.Empty, Quantity = r.Quantity, Notes = r.Notes,
-        }).ToList();
+            subRecipe = new SubRecipe { BranchId = req.BranchId };
+            _db.SubRecipes.Add(subRecipe);
+        }
+
+        subRecipe.IsDeleted = false;
+        subRecipe.Name = req.SubRecipe.Name.Trim();
+        subRecipe.Description = req.SubRecipe.Description?.Trim();
+        subRecipe.OutputQuantity = req.SubRecipe.OutputQuantity;
+        subRecipe.OutputUnitId = req.SubRecipe.OutputUnitId;
+        subRecipe.IsActive = req.SubRecipe.IsActive;
+
+        foreach (var existing in subRecipe.Ingredients.Where(x => !x.IsDeleted))
+            existing.IsDeleted = true;
+
+        foreach (var ingredient in req.SubRecipe.Ingredients)
+        {
+            if (ingredient.Quantity <= 0)
+                throw new InvalidOperationException("La cantidad de los insumos debe ser mayor a cero.");
+
+            _db.SubRecipeIngredients.Add(new SubRecipeIngredient
+            {
+                BranchId = req.BranchId,
+                SubRecipeId = subRecipe.Id,
+                ArticleId = ingredient.ArticleId,
+                UnitId = ingredient.UnitId,
+                Quantity = ingredient.Quantity,
+                Notes = ingredient.Notes?.Trim(),
+            });
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        var result = await _db.SubRecipes
+            .AsNoTracking()
+            .Include(x => x.OutputUnit)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.Article)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.Unit)
+            .FirstAsync(x => x.Id == subRecipe.Id, ct);
+
+        return MenuMapper.MapSubRecipe(result);
+    }
+}
+
+public class DeleteSubRecipeHandler : IRequestHandler<DeleteSubRecipeCommand, bool>
+{
+    private readonly GrimorioDbContext _db;
+    public DeleteSubRecipeHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<bool> Handle(DeleteSubRecipeCommand req, CancellationToken ct)
+    {
+        var inUse = await _db.RecipeIngredients.AnyAsync(x =>
+            x.BranchId == req.BranchId && !x.IsDeleted && x.SubRecipeId == req.Id, ct);
+        if (inUse) throw new InvalidOperationException("No se puede eliminar una subreceta usada en platos.");
+
+        var subRecipe = await _db.SubRecipes.FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId, ct)
+            ?? throw new KeyNotFoundException("Subreceta no encontrada");
+        subRecipe.IsDeleted = true;
+        await _db.SaveChangesAsync(ct);
+        return true;
     }
 }
 
@@ -385,39 +485,6 @@ public class UpsertMenuItemPreparationHandler : IRequestHandler<UpsertMenuItemPr
     }
 }
 
-public class DescontarStockVentaHandler : IRequestHandler<DeductStockFromSaleCommand, bool>
-{
-    private readonly GrimorioDbContext _db;
-    private readonly IMediator _mediator;
-    public DescontarStockVentaHandler(GrimorioDbContext db, IMediator mediator)
-    { _db = db; _mediator = mediator; }
-
-    public async Task<bool> Handle(DeductStockFromSaleCommand req, CancellationToken ct)
-    {
-        foreach (var saleItem in req.Items)
-        {
-            var recipe = await _db.RecipeIngredients
-                .Where(r => r.MenuItemId == saleItem.MenuItemId && r.BranchId == req.BranchId && !r.IsDeleted)
-                .ToListAsync(ct);
-
-            foreach (var ingredient in recipe)
-            {
-                await _mediator.Send(new RegisterMovementCommand
-                {
-                    BranchId = req.BranchId,
-                    ArticleId = ingredient.ArticleId,
-                    WarehouseId = req.WarehouseId,
-                    Type = Grimorio.Domain.Entities.Inventory.MovementType.SaleDeduction,
-                    Quantity = ingredient.Quantity * saleItem.Quantity,
-                    UnitId = ingredient.UnitId,
-                    Reference = $"Venta item {saleItem.MenuItemId}",
-                }, ct);
-            }
-        }
-        return true;
-    }
-}
-
 internal static class MenuMapper
 {
     internal static MenuItemDto MapItem(MenuItem item, string categoryName, string? categoriaColor,
@@ -499,6 +566,51 @@ internal static class MenuMapper
                     EstimatedMinutes = s.EstimatedMinutes,
                     Temperature = s.Temperature,
                     IsCritical = s.IsCritical,
+                })
+                .ToList(),
+        };
+
+    internal static RecipeIngredientDto MapRecipeIngredient(RecipeIngredient r) =>
+        new()
+        {
+            Id = r.Id,
+            Type = r.Type.ToString(),
+            ArticleId = r.ArticleId,
+            ArticleName = r.Article?.Name ?? string.Empty,
+            InternalCode = r.Article?.InternalCode,
+            SubRecipeId = r.SubRecipeId,
+            SubRecipeName = r.SubRecipe?.Name,
+            UnitId = r.UnitId,
+            UnitName = r.Unit?.Name ?? string.Empty,
+            UnitSymbol = r.Unit?.Symbol ?? string.Empty,
+            Quantity = r.Quantity,
+            Notes = r.Notes,
+        };
+
+    internal static SubRecipeDto MapSubRecipe(SubRecipe subRecipe) =>
+        new()
+        {
+            Id = subRecipe.Id,
+            Name = subRecipe.Name,
+            Description = subRecipe.Description,
+            OutputQuantity = subRecipe.OutputQuantity,
+            OutputUnitId = subRecipe.OutputUnitId,
+            OutputUnitName = subRecipe.OutputUnit?.Name ?? string.Empty,
+            OutputUnitSymbol = subRecipe.OutputUnit?.Symbol ?? string.Empty,
+            IsActive = subRecipe.IsActive,
+            Ingredients = subRecipe.Ingredients
+                .Where(i => !i.IsDeleted)
+                .Select(i => new SubRecipeIngredientDto
+                {
+                    Id = i.Id,
+                    ArticleId = i.ArticleId,
+                    ArticleName = i.Article?.Name ?? string.Empty,
+                    InternalCode = i.Article?.InternalCode,
+                    UnitId = i.UnitId,
+                    UnitName = i.Unit?.Name ?? string.Empty,
+                    UnitSymbol = i.Unit?.Symbol ?? string.Empty,
+                    Quantity = i.Quantity,
+                    Notes = i.Notes,
                 })
                 .ToList(),
         };

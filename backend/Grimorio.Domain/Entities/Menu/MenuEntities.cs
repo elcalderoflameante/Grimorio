@@ -97,12 +97,47 @@ public class MenuItemModifierOption : BaseEntity
 public class RecipeIngredient : BaseEntity
 {
     public Guid MenuItemId { get; set; }
-    public Guid ArticleId { get; set; }
+    public RecipeIngredientType Type { get; set; } = RecipeIngredientType.Article;
+    public Guid? ArticleId { get; set; }
+    public Guid? SubRecipeId { get; set; }
     public Guid UnitId { get; set; }
     public decimal Quantity { get; set; }
     public string? Notes { get; set; }
 
     public virtual MenuItem? MenuItem { get; set; }
+    public virtual Inventory.InventoryArticle? Article { get; set; }
+    public virtual SubRecipe? SubRecipe { get; set; }
+    public virtual Inventory.MeasurementUnit? Unit { get; set; }
+}
+
+public enum RecipeIngredientType
+{
+    Article = 1,
+    SubRecipe = 2
+}
+
+public class SubRecipe : BaseEntity
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public decimal OutputQuantity { get; set; } = 1;
+    public Guid OutputUnitId { get; set; }
+    public bool IsActive { get; set; } = true;
+
+    public virtual Inventory.MeasurementUnit? OutputUnit { get; set; }
+    public virtual ICollection<SubRecipeIngredient> Ingredients { get; set; } = [];
+    public virtual ICollection<RecipeIngredient> MenuRecipeItems { get; set; } = [];
+}
+
+public class SubRecipeIngredient : BaseEntity
+{
+    public Guid SubRecipeId { get; set; }
+    public Guid ArticleId { get; set; }
+    public Guid UnitId { get; set; }
+    public decimal Quantity { get; set; }
+    public string? Notes { get; set; }
+
+    public virtual SubRecipe? SubRecipe { get; set; }
     public virtual Inventory.InventoryArticle? Article { get; set; }
     public virtual Inventory.MeasurementUnit? Unit { get; set; }
 }

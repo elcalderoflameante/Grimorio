@@ -351,6 +351,8 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
                 .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
             .ToListAsync(ct);
 
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+
         decimal addedSubtotal = 0, addedDiscount = 0;
         decimal addedBase15 = 0, addedBase0 = 0, addedBaseExempt = 0, addedIva15 = 0, addedIce = 0;
         var newItems = new List<OrderItem>();
@@ -418,6 +420,7 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
         }
 
         await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         var updated = await _db.Orders
             .Include(o => o.Table)

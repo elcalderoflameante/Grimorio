@@ -2,6 +2,7 @@ using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.TableService.Commands;
 using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.POS;
+using Grimorio.Infrastructure.Features.Menu;
 using Grimorio.Infrastructure.Features.POS.Commands;
 using Grimorio.Infrastructure.Features.TableService.Queries;
 using Grimorio.Infrastructure.Persistence;
@@ -253,6 +254,15 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
             .Include(m => m.Recipe.Where(r => !r.IsDeleted))
                 .ThenInclude(r => r.Article)
             .Include(m => m.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.SubRecipe)
+                    .ThenInclude(s => s!.Ingredients.Where(i => !i.IsDeleted))
+                        .ThenInclude(i => i.Article)
+                            .ThenInclude(a => a!.BaseUnit)
+            .Include(m => m.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.SubRecipe)
+                    .ThenInclude(s => s!.Ingredients.Where(i => !i.IsDeleted))
+                        .ThenInclude(i => i.Unit)
+            .Include(m => m.Recipe.Where(r => !r.IsDeleted))
                 .ThenInclude(r => r.Unit)
             .Include(m => m.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
                 .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
@@ -263,18 +273,20 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
             .AsSplitQuery()
             .ToListAsync(cancellationToken);
 
-        var articleIds = menuItems
-            .SelectMany(item => item.Recipe.Where(r => !r.IsDeleted).Select(r => r.ArticleId))
-            .Concat(menuItems.SelectMany(item => item.ModifierGroups
-                .SelectMany(group => group.Options)
-                .Where(option => option.ArticleId.HasValue)
-                .Select(option => option.ArticleId!.Value)))
-            .Distinct()
-            .ToList();
         var (stockByArticle, conversions) = await PublicMenuAvailability.LoadStockInputsAsync(
             _context,
             table.BranchId,
-            articleIds,
+            menuItems
+                .SelectMany(item => item.Recipe.Where(r => !r.IsDeleted && r.ArticleId.HasValue).Select(r => r.ArticleId!.Value)
+                    .Concat(item.Recipe
+                        .Where(r => !r.IsDeleted && r.SubRecipe != null)
+                        .SelectMany(r => r.SubRecipe!.Ingredients.Where(i => !i.IsDeleted).Select(i => i.ArticleId))))
+                .Concat(menuItems.SelectMany(item => item.ModifierGroups
+                    .SelectMany(group => group.Options)
+                    .Where(option => option.ArticleId.HasValue)
+                    .Select(option => option.ArticleId!.Value)))
+                .Distinct()
+                .ToList(),
             cancellationToken);
 
         var number = await _context.Orders

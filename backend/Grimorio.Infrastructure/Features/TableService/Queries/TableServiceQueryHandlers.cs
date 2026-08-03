@@ -3,6 +3,7 @@ using Grimorio.Application.Features.TableService.Queries;
 using Grimorio.Domain.Entities.Inventory;
 using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.POS;
+using Grimorio.Infrastructure.Features.Menu;
 using Grimorio.Infrastructure.Features.POS.Commands;
 using Grimorio.Infrastructure.Persistence;
 using MediatR;
@@ -126,6 +127,15 @@ public class GetPublicTableMenuQueryHandler : IRequestHandler<GetPublicTableMenu
             .Include(x => x.Recipe.Where(r => !r.IsDeleted))
                 .ThenInclude(r => r.Article)
                     .ThenInclude(a => a!.BaseUnit)
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.SubRecipe)
+                    .ThenInclude(s => s!.Ingredients.Where(i => !i.IsDeleted))
+                        .ThenInclude(i => i.Article)
+                            .ThenInclude(a => a!.BaseUnit)
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.SubRecipe)
+                    .ThenInclude(s => s!.Ingredients.Where(i => !i.IsDeleted))
+                        .ThenInclude(i => i.Unit)
             .Include(x => x.Recipe.Where(r => !r.IsDeleted))
                 .ThenInclude(r => r.Unit)
             .Include(x => x.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
@@ -347,8 +357,14 @@ internal static class PublicMenuAvailability
         IReadOnlyCollection<MenuItem> menuItems,
         CancellationToken cancellationToken)
     {
+        var conversions = await context.UnitConversions
+            .AsNoTracking()
+            .Where(x => x.BranchId == branchId && !x.IsDeleted)
+            .Select(x => new global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo(x.OriginUnitId, x.DestinationUnitId, x.Factor))
+            .ToListAsync(cancellationToken);
+
         var articleIds = menuItems
-            .SelectMany(item => item.Recipe.Where(r => !r.IsDeleted).Select(r => r.ArticleId))
+            .SelectMany(item => MenuRecipeExpansion.Expand(item, 1, conversions).Select(r => r.ArticleId))
             .Concat(menuItems.SelectMany(item => item.ModifierGroups
                 .Where(g => !g.IsDeleted && g.IsActive)
                 .SelectMany(g => g.Options
@@ -382,12 +398,6 @@ internal static class PublicMenuAvailability
         foreach (var (articleId, reservedQuantity) in reservedByArticle)
             stockByArticle[articleId] = Math.Max(0, stockByArticle.GetValueOrDefault(articleId) - reservedQuantity);
 
-        var conversions = await context.UnitConversions
-            .AsNoTracking()
-            .Where(x => x.BranchId == branchId && !x.IsDeleted)
-            .Select(x => new UnitConversionInfo(x.OriginUnitId, x.DestinationUnitId, x.Factor))
-            .ToListAsync(cancellationToken);
-
         var result = new PublicMenuAvailabilityResult();
         foreach (var item in menuItems)
         {
@@ -407,20 +417,17 @@ internal static class PublicMenuAvailability
     public static bool IsMenuItemAvailable(
         MenuItem item,
         IReadOnlyDictionary<Guid, decimal> stockByArticle,
-        IReadOnlyCollection<UnitConversionInfo> conversions,
+        IReadOnlyCollection<global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo> conversions,
         int quantity = 1)
     {
         if (!item.IsActive || !item.AvailableForSale || item.IsDeleted) return false;
 
-        var recipe = item.Recipe.Where(r => !r.IsDeleted).ToList();
-        if (recipe.Count == 0) return true;
+        var requirements = MenuRecipeExpansion.Expand(item, quantity, conversions);
+        if (requirements.Count == 0) return true;
 
-        foreach (var ingredient in recipe)
+        foreach (var ingredient in requirements)
         {
-            var article = ingredient.Article;
-            if (article is null) return false;
-
-            var requiredBase = ConvertQuantity(ingredient.Quantity * quantity, ingredient.UnitId, article.BaseUnitId, conversions);
+            var requiredBase = ingredient.BaseQuantity;
             if (requiredBase <= 0) return false;
 
             var stock = stockByArticle.GetValueOrDefault(ingredient.ArticleId);
@@ -433,7 +440,7 @@ internal static class PublicMenuAvailability
     public static bool IsModifierOptionAvailable(
         MenuItemModifierOption option,
         IReadOnlyDictionary<Guid, decimal> stockByArticle,
-        IReadOnlyCollection<UnitConversionInfo> conversions,
+        IReadOnlyCollection<global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo> conversions,
         int quantity = 1)
     {
         if (!option.IsActive || option.IsDeleted) return false;
@@ -446,7 +453,7 @@ internal static class PublicMenuAvailability
         return stockByArticle.GetValueOrDefault(option.ArticleId.Value) >= requiredBase;
     }
 
-    public static async Task<(Dictionary<Guid, decimal> StockByArticle, List<UnitConversionInfo> Conversions)> LoadStockInputsAsync(
+    public static async Task<(Dictionary<Guid, decimal> StockByArticle, List<global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo> Conversions)> LoadStockInputsAsync(
         GrimorioDbContext context,
         Guid branchId,
         IReadOnlyCollection<Guid> articleIds,
@@ -480,19 +487,17 @@ internal static class PublicMenuAvailability
         var conversions = await context.UnitConversions
             .AsNoTracking()
             .Where(x => x.BranchId == branchId && !x.IsDeleted)
-            .Select(x => new UnitConversionInfo(x.OriginUnitId, x.DestinationUnitId, x.Factor))
+            .Select(x => new global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo(x.OriginUnitId, x.DestinationUnitId, x.Factor))
             .ToListAsync(cancellationToken);
 
         return (stockByArticle, conversions);
     }
 
-    public sealed record UnitConversionInfo(Guid OriginUnitId, Guid DestinationUnitId, decimal Factor);
-
     private static decimal ConvertQuantity(
         decimal quantity,
         Guid originUnitId,
         Guid destinationUnitId,
-        IEnumerable<UnitConversionInfo> conversions)
+        IEnumerable<global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo> conversions)
     {
         if (originUnitId == destinationUnitId) return quantity;
 

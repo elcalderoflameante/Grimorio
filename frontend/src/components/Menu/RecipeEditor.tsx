@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { App as AntApp, Table, Button, Modal, Form, Select, InputNumber, Input, Popconfirm, Typography, Tag } from 'antd';
 import { PlusOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons';
 import { menuApi, inventoryApi } from '../../services/api';
-import type { InventoryArticleDto, MeasurementUnitDto, UnitConversionDto, UpsertRecipeIngredientDto } from '../../types';
+import type { InventoryArticleDto, MeasurementUnitDto, SubRecipeDto, UnitConversionDto, UpsertRecipeIngredientDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 
 const { Text } = Typography;
@@ -19,9 +19,11 @@ export default function RecipeEditor({ itemId, itemName, open, onClose }: Props)
 
   const [receta, setReceta] = useState<UpsertRecipeIngredientDto[]>([]);
   const [articulos, setArticulos] = useState<InventoryArticleDto[]>([]);
+  const [subrecetas, setSubrecetas] = useState<SubRecipeDto[]>([]);
   const [unidades, setUnidades] = useState<MeasurementUnitDto[]>([]);
   const [conversiones, setConversiones] = useState<UnitConversionDto[]>([]);
   const [selectedArticleId, setSelectedArticleId] = useState<string | undefined>();
+  const [selectedSubRecipeId, setSelectedSubRecipeId] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm();
 
@@ -29,19 +31,23 @@ export default function RecipeEditor({ itemId, itemName, open, onClose }: Props)
     if (!open) return;
     const loadData = async () => {
       try {
-        const [detalle, a, u, c] = await Promise.all([
+        const [detalle, a, s, u, c] = await Promise.all([
           menuApi.getItem(itemId),
           inventoryApi.getArticles({ activeOnly: true }),
+          menuApi.getSubRecipes(true),
           inventoryApi.getUnits(),
           inventoryApi.getConversions(),
         ]);
         setReceta(detalle.data.recipe.map(r => ({
+          type: r.type ?? 'Article',
           articleId: r.articleId,
+          subRecipeId: r.subRecipeId,
           unitId: r.unitId,
           quantity: r.quantity,
           notes: r.notes,
         })));
         setArticulos(a.data);
+        setSubrecetas(s.data);
         setUnidades(u.data);
         setConversiones(c.data);
       } catch (e) { message.error(formatError(e)); }
@@ -52,13 +58,16 @@ export default function RecipeEditor({ itemId, itemName, open, onClose }: Props)
   const addIngrediente = async () => {
     const values = await form.validateFields();
     setReceta(prev => [...prev, {
+      type: values.type,
       articleId: values.articleId,
+      subRecipeId: values.subRecipeId,
       unitId: values.unitId,
       quantity: values.quantity,
       notes: values.notes,
     }]);
     form.resetFields();
     setSelectedArticleId(undefined);
+    setSelectedSubRecipeId(undefined);
   };
 
   const removeIngrediente = (idx: number) => {
@@ -75,7 +84,8 @@ export default function RecipeEditor({ itemId, itemName, open, onClose }: Props)
     finally { setSaving(false); }
   };
 
-  const getCompatibleUnitIds = (articleId: string | undefined): Set<string> => {
+  const getCompatibleUnitIds = (articleId: string | undefined, subRecipeId?: string): Set<string> => {
+    if (subRecipeId) return new Set([subrecetas.find(s => s.id === subRecipeId)?.outputUnitId].filter(Boolean) as string[]);
     if (!articleId) return new Set(unidades.map(u => u.id));
     const article = articulos.find(a => a.id === articleId);
     if (!article) return new Set(unidades.map(u => u.id));
@@ -87,12 +97,14 @@ export default function RecipeEditor({ itemId, itemName, open, onClose }: Props)
     return ids;
   };
 
-  const compatibleUnitIds = getCompatibleUnitIds(selectedArticleId);
+  const selectedType = Form.useWatch('type', form) ?? 'Article';
+  const compatibleUnitIds = getCompatibleUnitIds(selectedArticleId, selectedType === 'SubRecipe' ? selectedSubRecipeId : undefined);
   const unidadOptions = unidades
     .filter(u => compatibleUnitIds.has(u.id))
     .map(u => ({ label: `${u.name} (${u.symbol})`, value: u.id }));
 
   const articuloOptions = articulos.map(a => ({ label: `${a.name} (${a.baseUnitSymbol})`, value: a.id }));
+  const subrecetaOptions = subrecetas.map(s => ({ label: `${s.name} (${s.outputQuantity} ${s.outputUnitSymbol})`, value: s.id }));
 
   const handleArticleChange = (id: string) => {
     setSelectedArticleId(id);
@@ -102,8 +114,16 @@ export default function RecipeEditor({ itemId, itemName, open, onClose }: Props)
       form.setFieldValue('unitId', undefined);
     }
   };
+  const handleSubRecipeChange = (id: string) => {
+    setSelectedSubRecipeId(id);
+    const subRecipe = subrecetas.find(s => s.id === id);
+    form.setFieldValue('unitId', subRecipe?.outputUnitId);
+  };
 
-  const getArticuloNombre = (id: string) => articulos.find(a => a.id === id)?.name ?? id;
+  const getIngredienteNombre = (r: UpsertRecipeIngredientDto) =>
+    r.type === 'SubRecipe'
+      ? subrecetas.find(s => s.id === r.subRecipeId)?.name ?? r.subRecipeId
+      : articulos.find(a => a.id === r.articleId)?.name ?? r.articleId;
   const getUnidadSimbolo = (id: string) => unidades.find(u => u.id === id)?.symbol ?? id;
 
   return (
@@ -133,7 +153,9 @@ export default function RecipeEditor({ itemId, itemName, open, onClose }: Props)
         columns={[
           {
             title: 'Ingrediente', key: 'articulo',
-            render: (_: unknown, r: UpsertRecipeIngredientDto) => <span>{getArticuloNombre(r.articleId)}</span>,
+            render: (_: unknown, r: UpsertRecipeIngredientDto) => (
+              <span>{getIngredienteNombre(r)} {r.type === 'SubRecipe' && <Tag>Subreceta</Tag>}</span>
+            ),
           },
           {
             title: 'Cantidad', key: 'quantity',
@@ -165,9 +187,30 @@ export default function RecipeEditor({ itemId, itemName, open, onClose }: Props)
           </Form.Item>
         </div>
 
-        <Form.Item name="articleId" label="Ingrediente" rules={[{ required: true }]} style={{ marginBottom: 8 }}>
-          <Select options={articuloOptions} placeholder="Seleccionar ingrediente" showSearch optionFilterProp="label" onChange={handleArticleChange} />
-        </Form.Item>
+        <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 8 }}>
+          <Form.Item name="type" label="Tipo" initialValue="Article" rules={[{ required: true }]} style={{ marginBottom: 8 }}>
+            <Select
+              options={[
+                { label: 'Artículo', value: 'Article' },
+                { label: 'Subreceta', value: 'SubRecipe' },
+              ]}
+              onChange={() => {
+                form.setFieldsValue({ articleId: undefined, subRecipeId: undefined, unitId: undefined });
+                setSelectedArticleId(undefined);
+                setSelectedSubRecipeId(undefined);
+              }}
+            />
+          </Form.Item>
+          {selectedType === 'SubRecipe' ? (
+            <Form.Item name="subRecipeId" label="Subreceta" rules={[{ required: true }]} style={{ marginBottom: 8 }}>
+              <Select options={subrecetaOptions} placeholder="Seleccionar subreceta" showSearch optionFilterProp="label" onChange={handleSubRecipeChange} />
+            </Form.Item>
+          ) : (
+            <Form.Item name="articleId" label="Ingrediente" rules={[{ required: true }]} style={{ marginBottom: 8 }}>
+              <Select options={articuloOptions} placeholder="Seleccionar ingrediente" showSearch optionFilterProp="label" onChange={handleArticleChange} />
+            </Form.Item>
+          )}
+        </div>
 
         <Button icon={<PlusOutlined />} onClick={addIngrediente} type="dashed" block>
           Agregar ingrediente

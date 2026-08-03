@@ -5,6 +5,7 @@ using Grimorio.Infrastructure.Features.Inventory.Queries;
 using Grimorio.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Grimorio.Infrastructure.Features.Inventory.Commands;
 
@@ -349,12 +350,14 @@ public class RegisterMovementHandler : IRequestHandler<RegisterMovementCommand, 
         // Determinar si suma o resta según tipo de movimiento
         var isExit = req.Type is MovementType.ManualExit or MovementType.Waste
             or MovementType.Spoilage or MovementType.SaleDeduction or MovementType.TransferOut
-            or MovementType.NegativeAdjustment;
+            or MovementType.NegativeAdjustment or MovementType.ProductionInput;
 
         var effectiveQuantity = isExit ? -Math.Abs(baseQuantity) : Math.Abs(baseQuantity);
         var allowsManualCost = req.Type is MovementType.InitialInventory
             or MovementType.ManualEntry
-            or MovementType.PositiveAdjustment;
+            or MovementType.PositiveAdjustment
+            or MovementType.ProductionInput
+            or MovementType.ProductionOutput;
         decimal? unitCost = allowsManualCost ? req.UnitCost : null;
         decimal? totalCost = unitCost.HasValue ? Math.Abs(effectiveQuantity) * unitCost.Value : null;
 
@@ -367,32 +370,55 @@ public class RegisterMovementHandler : IRequestHandler<RegisterMovementCommand, 
             Reference = req.Reference?.Trim(), Notes = req.Notes?.Trim(),
         };
         _db.StockMovements.Add(movement);
-        await _db.SaveChangesAsync(ct);
 
-        // Recalcular stock real desde todos los movimientos (corrige divergencias históricas)
-        var trueStock = await _db.StockMovements
-            .Where(m => m.BranchId == req.BranchId && m.ArticleId == req.ArticleId && m.WarehouseId == req.WarehouseId)
-            .SumAsync(m => m.BaseQuantity, ct);
+        var ownsTransaction = _db.Database.CurrentTransaction is null;
+        IDbContextTransaction? transaction = null;
+        if (ownsTransaction)
+            transaction = await _db.Database.BeginTransactionAsync(ct);
 
-        var stock = await _db.WarehouseStock.FirstOrDefaultAsync(
-            x => x.BranchId == req.BranchId && x.ArticleId == req.ArticleId && x.WarehouseId == req.WarehouseId, ct);
-
-        if (stock is null)
+        try
         {
-            stock = new WarehouseStock
+            await _db.SaveChangesAsync(ct);
+
+            // Recalcular stock real desde todos los movimientos (corrige divergencias históricas)
+            var trueStock = await _db.StockMovements
+                .Where(m => m.BranchId == req.BranchId && m.ArticleId == req.ArticleId && m.WarehouseId == req.WarehouseId)
+                .SumAsync(m => m.BaseQuantity, ct);
+
+            var stock = await _db.WarehouseStock.FirstOrDefaultAsync(
+                x => x.BranchId == req.BranchId && x.ArticleId == req.ArticleId && x.WarehouseId == req.WarehouseId, ct);
+
+            if (stock is null)
             {
-                Id = Guid.NewGuid(), BranchId = req.BranchId,
-                ArticleId = req.ArticleId, WarehouseId = req.WarehouseId,
-                Quantity = trueStock, LastUpdatedAt = DateTime.UtcNow,
-            };
-            _db.WarehouseStock.Add(stock);
+                stock = new WarehouseStock
+                {
+                    Id = Guid.NewGuid(), BranchId = req.BranchId,
+                    ArticleId = req.ArticleId, WarehouseId = req.WarehouseId,
+                    Quantity = trueStock, LastUpdatedAt = DateTime.UtcNow,
+                };
+                _db.WarehouseStock.Add(stock);
+            }
+            else
+            {
+                stock.Quantity = trueStock;
+                stock.LastUpdatedAt = DateTime.UtcNow;
+            }
+            await _db.SaveChangesAsync(ct);
+
+            if (transaction is not null)
+                await transaction.CommitAsync(ct);
         }
-        else
+        catch
         {
-            stock.Quantity = trueStock;
-            stock.LastUpdatedAt = DateTime.UtcNow;
+            if (transaction is not null)
+                await transaction.RollbackAsync(ct);
+            throw;
         }
-        await _db.SaveChangesAsync(ct);
+        finally
+        {
+            if (transaction is not null)
+                await transaction.DisposeAsync();
+        }
 
         return new StockMovementDto
         {
@@ -412,21 +438,448 @@ public class RegisterMovementHandler : IRequestHandler<RegisterMovementCommand, 
 public class RegisterInitialInventoryHandler : IRequestHandler<RegisterInitialInventoryCommand, List<StockMovementDto>>
 {
     private readonly IMediator _mediator;
-    public RegisterInitialInventoryHandler(IMediator mediator) => _mediator = mediator;
+    private readonly GrimorioDbContext _db;
+    public RegisterInitialInventoryHandler(IMediator mediator, GrimorioDbContext db)
+    {
+        _mediator = mediator;
+        _db = db;
+    }
 
     public async Task<List<StockMovementDto>> Handle(RegisterInitialInventoryCommand req, CancellationToken ct)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+
         var resultados = new List<StockMovementDto>();
-        foreach (var item in req.Items)
+        try
         {
-            var resultado = await _mediator.Send(new RegisterMovementCommand
+            foreach (var item in req.Items)
             {
-                BranchId = req.BranchId, ArticleId = item.ArticleId, WarehouseId = item.WarehouseId,
-                Type = MovementType.InitialInventory, Quantity = item.Quantity,
-                UnitId = item.UnitId, UnitCost = item.UnitCost, Notes = item.Notes,
-            }, ct);
-            resultados.Add(resultado);
+                var resultado = await _mediator.Send(new RegisterMovementCommand
+                {
+                    BranchId = req.BranchId, ArticleId = item.ArticleId, WarehouseId = item.WarehouseId,
+                    Type = MovementType.InitialInventory, Quantity = item.Quantity,
+                    UnitId = item.UnitId, UnitCost = item.UnitCost, Notes = item.Notes,
+                }, ct);
+                resultados.Add(resultado);
+            }
+
+            await transaction.CommitAsync(ct);
+            return resultados;
         }
-        return resultados;
+        catch
+        {
+            await transaction.RollbackAsync(ct);
+            throw;
+        }
+    }
+}
+
+public class UpsertProductionRecipeHandler : IRequestHandler<UpsertProductionRecipeCommand, ProductionRecipeDto>
+{
+    private readonly GrimorioDbContext _db;
+    public UpsertProductionRecipeHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<ProductionRecipeDto> Handle(UpsertProductionRecipeCommand req, CancellationToken ct)
+    {
+        if (req.OutputQuantity <= 0)
+            throw new InvalidOperationException("La cantidad resultante debe ser mayor a cero.");
+        if (req.Ingredients.Count == 0)
+            throw new InvalidOperationException("La receta de producción debe tener al menos un insumo.");
+
+        var outputArticle = await _db.InventoryArticles
+            .Include(x => x.BaseUnit)
+            .FirstOrDefaultAsync(x => x.Id == req.OutputArticleId && x.BranchId == req.BranchId && x.IsActive, ct)
+            ?? throw new InvalidOperationException("Artículo producido no encontrado.");
+
+        if (outputArticle.Type != ArticleType.FinishedProduct)
+            throw new InvalidOperationException("El artículo producido debe ser de tipo FinishedProduct.");
+
+        await InventoryProductionHelper.ToBaseQuantity(_db, req.BranchId, outputArticle, req.OutputQuantity, req.OutputUnitId, ct);
+
+        var ingredientArticleIds = req.Ingredients.Select(x => x.ArticleId).Distinct().ToList();
+        if (ingredientArticleIds.Contains(req.OutputArticleId))
+            throw new InvalidOperationException("El producto resultante no puede ser insumo de su propia receta.");
+
+        var ingredientArticles = await _db.InventoryArticles
+            .Include(x => x.BaseUnit)
+            .Where(x => x.BranchId == req.BranchId && ingredientArticleIds.Contains(x.Id) && x.IsActive)
+            .ToDictionaryAsync(x => x.Id, ct);
+
+        if (ingredientArticles.Count != ingredientArticleIds.Count)
+            throw new InvalidOperationException("Uno o más insumos no existen o están inactivos.");
+
+        foreach (var ingredient in req.Ingredients)
+        {
+            if (ingredient.Quantity <= 0)
+                throw new InvalidOperationException("La cantidad de cada insumo debe ser mayor a cero.");
+            await InventoryProductionHelper.ToBaseQuantity(
+                _db, req.BranchId, ingredientArticles[ingredient.ArticleId], ingredient.Quantity, ingredient.UnitId, ct);
+        }
+
+        var recipe = await _db.ProductionRecipes
+            .Include(x => x.Ingredients)
+            .FirstOrDefaultAsync(x => x.BranchId == req.BranchId && x.OutputArticleId == req.OutputArticleId, ct);
+
+        if (recipe is null)
+        {
+            recipe = new ProductionRecipe
+            {
+                Id = Guid.NewGuid(),
+                BranchId = req.BranchId,
+                OutputArticleId = req.OutputArticleId,
+            };
+            _db.ProductionRecipes.Add(recipe);
+        }
+
+        recipe.OutputQuantity = req.OutputQuantity;
+        recipe.OutputUnitId = req.OutputUnitId;
+        recipe.Notes = req.Notes?.Trim();
+        recipe.IsActive = req.IsActive;
+
+        foreach (var oldIngredient in recipe.Ingredients.Where(x => !x.IsDeleted))
+            oldIngredient.IsDeleted = true;
+
+        foreach (var ingredient in req.Ingredients)
+        {
+            _db.ProductionRecipeIngredients.Add(new ProductionRecipeIngredient
+            {
+                Id = Guid.NewGuid(),
+                BranchId = req.BranchId,
+                ProductionRecipeId = recipe.Id,
+                ArticleId = ingredient.ArticleId,
+                Quantity = ingredient.Quantity,
+                UnitId = ingredient.UnitId,
+                Notes = ingredient.Notes?.Trim(),
+            });
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        var saved = await _db.ProductionRecipes
+            .Include(x => x.OutputArticle).ThenInclude(x => x!.BaseUnit)
+            .Include(x => x.OutputUnit)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Article).ThenInclude(x => x!.BaseUnit)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Unit)
+            .FirstAsync(x => x.Id == recipe.Id, ct);
+
+        return InventoryProductionMapper.MapRecipe(saved);
+    }
+}
+
+public class RegisterProductionHandler : IRequestHandler<RegisterProductionCommand, ProductionOrderDto>
+{
+    private readonly GrimorioDbContext _db;
+
+    public RegisterProductionHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<ProductionOrderDto> Handle(RegisterProductionCommand req, CancellationToken ct)
+    {
+        if (req.OutputQuantity <= 0)
+            throw new InvalidOperationException("La cantidad a producir debe ser mayor a cero.");
+
+        var recipe = await _db.ProductionRecipes
+            .Include(x => x.OutputArticle).ThenInclude(x => x!.BaseUnit)
+            .Include(x => x.OutputUnit)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Article).ThenInclude(x => x!.BaseUnit)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Unit)
+            .FirstOrDefaultAsync(x => x.Id == req.ProductionRecipeId && x.BranchId == req.BranchId && x.IsActive, ct)
+            ?? throw new InvalidOperationException("Receta de producción no encontrada o inactiva.");
+
+        if (recipe.Ingredients.Count == 0)
+            throw new InvalidOperationException("La receta de producción no tiene insumos.");
+
+        var sourceWarehouse = await _db.Warehouses
+            .FirstOrDefaultAsync(x => x.Id == req.SourceWarehouseId && x.BranchId == req.BranchId && x.IsActive, ct)
+            ?? throw new InvalidOperationException("Bodega de origen no encontrada.");
+        var destinationWarehouse = await _db.Warehouses
+            .FirstOrDefaultAsync(x => x.Id == req.DestinationWarehouseId && x.BranchId == req.BranchId && x.IsActive, ct)
+            ?? throw new InvalidOperationException("Bodega de destino no encontrada.");
+
+        var outputBaseQuantity = await InventoryProductionHelper.ToBaseQuantity(
+            _db, req.BranchId, recipe.OutputArticle!, req.OutputQuantity, req.OutputUnitId, ct);
+        var recipeOutputBaseQuantity = await InventoryProductionHelper.ToBaseQuantity(
+            _db, req.BranchId, recipe.OutputArticle!, recipe.OutputQuantity, recipe.OutputUnitId, ct);
+        var factor = outputBaseQuantity / recipeOutputBaseQuantity;
+
+        var ingredientSnapshots = new List<ProductionOrderIngredient>();
+        foreach (var ingredient in recipe.Ingredients)
+        {
+            var requiredQuantity = ingredient.Quantity * factor;
+            var requiredBaseQuantity = await InventoryProductionHelper.ToBaseQuantity(
+                _db, req.BranchId, ingredient.Article!, requiredQuantity, ingredient.UnitId, ct);
+            var available = await InventoryProductionHelper.GetAvailableQuantity(
+                _db, req.BranchId, ingredient.ArticleId, req.SourceWarehouseId, ct);
+
+            if (available < requiredBaseQuantity)
+                throw new InvalidOperationException(
+                    $"Stock insuficiente para {ingredient.Article!.Name}. Disponible: {available} {ingredient.Article.BaseUnit!.Symbol}.");
+
+            var unitCost = await InventoryProductionHelper.GetAverageUnitCost(
+                _db, req.BranchId, ingredient.ArticleId, ct);
+            ingredientSnapshots.Add(new ProductionOrderIngredient
+            {
+                Id = Guid.NewGuid(),
+                BranchId = req.BranchId,
+                ArticleId = ingredient.ArticleId,
+                Quantity = requiredQuantity,
+                UnitId = ingredient.UnitId,
+                BaseQuantity = requiredBaseQuantity,
+                UnitCost = unitCost,
+                TotalCost = Math.Round(requiredBaseQuantity * unitCost, 4),
+            });
+        }
+
+        var totalCost = ingredientSnapshots.Sum(x => x.TotalCost);
+        var outputUnitCost = outputBaseQuantity == 0 ? 0 : Math.Round(totalCost / outputBaseQuantity, 4);
+        var productionNumber = await InventoryProductionHelper.NextProductionNumber(_db, req.BranchId, ct);
+        var reference = $"Producción {productionNumber}";
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+        var order = new ProductionOrder
+        {
+            Id = Guid.NewGuid(),
+            BranchId = req.BranchId,
+            Number = productionNumber,
+            ProductionRecipeId = recipe.Id,
+            OutputArticleId = recipe.OutputArticleId,
+            SourceWarehouseId = req.SourceWarehouseId,
+            DestinationWarehouseId = req.DestinationWarehouseId,
+            OutputQuantity = req.OutputQuantity,
+            OutputUnitId = req.OutputUnitId,
+            OutputBaseQuantity = outputBaseQuantity,
+            TotalCost = totalCost,
+            UnitCost = outputUnitCost,
+            Status = ProductionOrderStatus.Completed,
+            Notes = req.Notes?.Trim(),
+        };
+        _db.ProductionOrders.Add(order);
+
+        foreach (var item in ingredientSnapshots)
+        {
+            item.ProductionOrderId = order.Id;
+            _db.ProductionOrderIngredients.Add(item);
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        foreach (var item in ingredientSnapshots)
+        {
+            var movement = await InventoryProductionHelper.RegisterProductionMovement(
+                _db,
+                req.BranchId,
+                item.ArticleId,
+                req.SourceWarehouseId,
+                MovementType.ProductionInput,
+                item.Quantity,
+                item.UnitId,
+                item.UnitCost,
+                reference,
+                req.Notes,
+                ct);
+
+            _db.ProductionOrderMovements.Add(new ProductionOrderMovement
+            {
+                Id = Guid.NewGuid(),
+                BranchId = req.BranchId,
+                ProductionOrderId = order.Id,
+                StockMovementId = movement.Id,
+            });
+        }
+
+        var outputMovement = await InventoryProductionHelper.RegisterProductionMovement(
+            _db,
+            req.BranchId,
+            recipe.OutputArticleId,
+            req.DestinationWarehouseId,
+            MovementType.ProductionOutput,
+            req.OutputQuantity,
+            req.OutputUnitId,
+            outputUnitCost,
+            reference,
+            req.Notes,
+            ct);
+
+        _db.ProductionOrderMovements.Add(new ProductionOrderMovement
+        {
+            Id = Guid.NewGuid(),
+            BranchId = req.BranchId,
+            ProductionOrderId = order.Id,
+            StockMovementId = outputMovement.Id,
+        });
+
+        await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
+        var saved = await _db.ProductionOrders
+            .Include(x => x.OutputArticle).ThenInclude(x => x!.BaseUnit)
+            .Include(x => x.OutputUnit)
+            .Include(x => x.SourceWarehouse)
+            .Include(x => x.DestinationWarehouse)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Article).ThenInclude(x => x!.BaseUnit)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Unit)
+            .FirstAsync(x => x.Id == order.Id, ct);
+
+        return InventoryProductionMapper.MapOrder(saved);
+    }
+}
+
+internal static class InventoryProductionHelper
+{
+    internal static async Task<decimal> ToBaseQuantity(
+        GrimorioDbContext db,
+        Guid branchId,
+        InventoryArticle article,
+        decimal quantity,
+        Guid unitId,
+        CancellationToken ct)
+    {
+        if (quantity <= 0)
+            throw new InvalidOperationException("La cantidad debe ser mayor a cero.");
+
+        if (unitId == article.BaseUnitId) return quantity;
+
+        var conversion = await db.UnitConversions.FirstOrDefaultAsync(
+            x => x.BranchId == branchId && x.OriginUnitId == unitId && x.DestinationUnitId == article.BaseUnitId, ct);
+
+        if (conversion != null) return quantity * conversion.Factor;
+
+        var reverseConversion = await db.UnitConversions.FirstOrDefaultAsync(
+            x => x.BranchId == branchId && x.OriginUnitId == article.BaseUnitId && x.DestinationUnitId == unitId, ct);
+
+        if (reverseConversion is null)
+            throw new InvalidOperationException($"No existe conversión entre la unidad seleccionada y {article.BaseUnit!.Name}.");
+
+        return quantity / reverseConversion.Factor;
+    }
+
+    internal static async Task<decimal> GetAvailableQuantity(
+        GrimorioDbContext db,
+        Guid branchId,
+        Guid articleId,
+        Guid warehouseId,
+        CancellationToken ct)
+    {
+        var stock = await db.StockMovements
+            .Where(x => x.BranchId == branchId && x.ArticleId == articleId && x.WarehouseId == warehouseId)
+            .SumAsync(x => x.BaseQuantity, ct);
+
+        var reserved = await db.StockReservations
+            .Where(x => x.BranchId == branchId
+                && x.ArticleId == articleId
+                && x.WarehouseId == warehouseId
+                && x.Status == StockReservationStatus.Active)
+            .SumAsync(x => x.BaseQuantity, ct);
+
+        return stock - reserved;
+    }
+
+    internal static async Task<decimal> GetAverageUnitCost(
+        GrimorioDbContext db,
+        Guid branchId,
+        Guid articleId,
+        CancellationToken ct)
+    {
+        var costBase = await db.StockMovements
+            .Where(x => x.BranchId == branchId
+                && x.ArticleId == articleId
+                && x.BaseQuantity > 0
+                && x.TotalCost.HasValue
+                && x.TotalCost.Value > 0)
+            .GroupBy(x => x.ArticleId)
+            .Select(g => new
+            {
+                Quantity = g.Sum(x => x.BaseQuantity),
+                Cost = g.Sum(x => x.TotalCost!.Value),
+            })
+            .FirstOrDefaultAsync(ct);
+
+        if (costBase is null || costBase.Quantity <= 0) return 0;
+        return Math.Round(costBase.Cost / costBase.Quantity, 4);
+    }
+
+    internal static async Task<string> NextProductionNumber(GrimorioDbContext db, Guid branchId, CancellationToken ct)
+    {
+        var next = await db.ProductionOrders
+            .Where(x => x.BranchId == branchId)
+            .CountAsync(ct) + 1;
+        return $"PROD-{DateTime.UtcNow:yyyyMMdd}-{next:0000}";
+    }
+
+    internal static async Task<StockMovement> RegisterProductionMovement(
+        GrimorioDbContext db,
+        Guid branchId,
+        Guid articleId,
+        Guid warehouseId,
+        MovementType type,
+        decimal quantity,
+        Guid unitId,
+        decimal unitCost,
+        string reference,
+        string? notes,
+        CancellationToken ct)
+    {
+        var article = await db.InventoryArticles
+            .Include(x => x.BaseUnit)
+            .FirstOrDefaultAsync(x => x.Id == articleId && x.BranchId == branchId && x.IsActive, ct)
+            ?? throw new InvalidOperationException("Artículo no encontrado.");
+
+        var warehouseExists = await db.Warehouses
+            .FirstOrDefaultAsync(x => x.Id == warehouseId && x.BranchId == branchId && x.IsActive, ct)
+            ?? throw new InvalidOperationException("Bodega no encontrada.");
+
+        var unitExists = await db.MeasurementUnits
+            .FirstOrDefaultAsync(x => x.Id == unitId && x.BranchId == branchId, ct)
+            ?? throw new InvalidOperationException("Unidad de medida no encontrada.");
+
+        var baseQuantity = await ToBaseQuantity(db, branchId, article, quantity, unitId, ct);
+        var isExit = type == MovementType.ProductionInput;
+        var effectiveQuantity = isExit ? -Math.Abs(baseQuantity) : Math.Abs(baseQuantity);
+        var totalCost = Math.Round(Math.Abs(effectiveQuantity) * unitCost, 4);
+
+        var movement = new StockMovement
+        {
+            Id = Guid.NewGuid(),
+            BranchId = branchId,
+            ArticleId = articleId,
+            WarehouseId = warehouseId,
+            Type = type,
+            Quantity = quantity,
+            UnitId = unitId,
+            BaseQuantity = effectiveQuantity,
+            UnitCost = unitCost,
+            TotalCost = totalCost,
+            Reference = reference,
+            Notes = notes?.Trim(),
+        };
+        db.StockMovements.Add(movement);
+
+        var stock = await db.WarehouseStock.FirstOrDefaultAsync(
+            x => x.BranchId == branchId && x.ArticleId == articleId && x.WarehouseId == warehouseId, ct);
+
+        if (stock is null)
+        {
+            var currentQuantity = await db.StockMovements
+                .Where(x => x.BranchId == branchId && x.ArticleId == articleId && x.WarehouseId == warehouseId)
+                .SumAsync(x => x.BaseQuantity, ct);
+
+            stock = new WarehouseStock
+            {
+                Id = Guid.NewGuid(),
+                BranchId = branchId,
+                ArticleId = articleId,
+                WarehouseId = warehouseId,
+                Quantity = currentQuantity + effectiveQuantity,
+                LastUpdatedAt = DateTime.UtcNow,
+            };
+            db.WarehouseStock.Add(stock);
+        }
+        else
+        {
+            stock.Quantity += effectiveQuantity;
+            stock.LastUpdatedAt = DateTime.UtcNow;
+        }
+
+        return movement;
     }
 }

@@ -304,6 +304,94 @@ public class InventoryController : ControllerBase
         return Ok(result);
     }
 
+    // ── Producción ───────────────────────────────────────────────────────
+
+    [Authorize(Policy = "Inventory.Movements.View")]
+    [HttpGet("produccion/recetas")]
+    public async Task<IActionResult> GetProductionRecipes([FromQuery] bool? activeOnly)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        return Ok(await _mediator.Send(new GetProductionRecipesQuery { BranchId = branchId, ActiveOnly = activeOnly }));
+    }
+
+    [Authorize(Policy = "Inventory.Movements.View")]
+    [HttpGet("produccion/recetas/articulo/{articleId:guid}")]
+    public async Task<IActionResult> GetProductionRecipeByArticle(Guid articleId)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new GetProductionRecipeByArticleQuery { BranchId = branchId, OutputArticleId = articleId });
+        return result is null ? NotFound() : Ok(result);
+    }
+
+    [Authorize(Policy = "Inventory.Movements.Create")]
+    [HttpPut("produccion/recetas")]
+    public async Task<IActionResult> UpsertProductionRecipe([FromBody] UpsertProductionRecipeDto dto)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        try
+        {
+            var result = await _mediator.Send(new UpsertProductionRecipeCommand
+            {
+                BranchId = branchId,
+                OutputArticleId = dto.OutputArticleId,
+                OutputQuantity = dto.OutputQuantity,
+                OutputUnitId = dto.OutputUnitId,
+                Notes = dto.Notes,
+                IsActive = dto.IsActive,
+                Ingredients = dto.Ingredients,
+            });
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [Authorize(Policy = "Inventory.Movements.View")]
+    [HttpGet("produccion/ordenes")]
+    public async Task<IActionResult> GetProductionOrders(
+        [FromQuery] Guid? outputArticleId, [FromQuery] Guid? warehouseId,
+        [FromQuery] DateTime? from, [FromQuery] DateTime? to,
+        [FromQuery] int pageSize = 50)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        return Ok(await _mediator.Send(new GetProductionOrdersQuery
+        {
+            BranchId = branchId,
+            OutputArticleId = outputArticleId,
+            WarehouseId = warehouseId,
+            FromUtc = from,
+            ToUtc = to,
+            PageSize = pageSize,
+        }));
+    }
+
+    [Authorize(Policy = "Inventory.Movements.Create")]
+    [HttpPost("produccion/ordenes")]
+    public async Task<IActionResult> RegisterProduction([FromBody] RegisterProductionDto dto)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        try
+        {
+            var result = await _mediator.Send(new RegisterProductionCommand
+            {
+                BranchId = branchId,
+                ProductionRecipeId = dto.ProductionRecipeId,
+                SourceWarehouseId = dto.SourceWarehouseId,
+                DestinationWarehouseId = dto.DestinationWarehouseId,
+                OutputQuantity = dto.OutputQuantity,
+                OutputUnitId = dto.OutputUnitId,
+                Notes = dto.Notes,
+            });
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private bool TryGetBranchId(out Guid branchId)

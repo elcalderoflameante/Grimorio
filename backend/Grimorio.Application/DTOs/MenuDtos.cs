@@ -110,9 +110,12 @@ public class UpdateMenuItemDto
 public class RecipeIngredientDto
 {
     public Guid Id { get; set; }
-    public Guid ArticleId { get; set; }
+    public string Type { get; set; } = "Article";
+    public Guid? ArticleId { get; set; }
     public string ArticleName { get; set; } = string.Empty;
     public string? InternalCode { get; set; }
+    public Guid? SubRecipeId { get; set; }
+    public string? SubRecipeName { get; set; }
     public Guid UnitId { get; set; }
     public string UnitName { get; set; } = string.Empty;
     public string UnitSymbol { get; set; } = string.Empty;
@@ -210,6 +213,7 @@ public class MenuItemProfitabilityIngredientDto
     public Guid ArticleId { get; set; }
     public string ArticleName { get; set; } = string.Empty;
     public string? InternalCode { get; set; }
+    public string? SourceName { get; set; }
     public decimal Quantity { get; set; }
     public Guid UnitId { get; set; }
     public string UnitSymbol { get; set; } = string.Empty;
@@ -224,6 +228,52 @@ public class MenuItemProfitabilityIngredientDto
 }
 
 public class UpsertRecipeIngredientDto
+{
+    public string Type { get; set; } = "Article";
+    public Guid? ArticleId { get; set; }
+    public Guid? SubRecipeId { get; set; }
+    public Guid UnitId { get; set; }
+    public decimal Quantity { get; set; }
+    public string? Notes { get; set; }
+}
+
+public class SubRecipeDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public decimal OutputQuantity { get; set; }
+    public Guid OutputUnitId { get; set; }
+    public string OutputUnitName { get; set; } = string.Empty;
+    public string OutputUnitSymbol { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public List<SubRecipeIngredientDto> Ingredients { get; set; } = [];
+}
+
+public class SubRecipeIngredientDto
+{
+    public Guid Id { get; set; }
+    public Guid ArticleId { get; set; }
+    public string ArticleName { get; set; } = string.Empty;
+    public string? InternalCode { get; set; }
+    public Guid UnitId { get; set; }
+    public string UnitName { get; set; } = string.Empty;
+    public string UnitSymbol { get; set; } = string.Empty;
+    public decimal Quantity { get; set; }
+    public string? Notes { get; set; }
+}
+
+public class UpsertSubRecipeDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public decimal OutputQuantity { get; set; }
+    public Guid OutputUnitId { get; set; }
+    public bool IsActive { get; set; } = true;
+    public List<UpsertSubRecipeIngredientDto> Ingredients { get; set; } = [];
+}
+
+public class UpsertSubRecipeIngredientDto
 {
     public Guid ArticleId { get; set; }
     public Guid UnitId { get; set; }
@@ -275,17 +325,4 @@ public class UpsertMenuItemPreparationStepDto
     public int? EstimatedMinutes { get; set; }
     public string? Temperature { get; set; }
     public bool IsCritical { get; set; }
-}
-
-public class DeductStockFromSaleDto
-{
-    public Guid WarehouseId { get; set; }
-    public List<SaleItemDto> Items { get; set; } = [];
-}
-
-public class SaleItemDto
-{
-    public Guid MenuItemId { get; set; }
-    public decimal Quantity { get; set; }
-    public Guid? OrderItemId { get; set; }
 }

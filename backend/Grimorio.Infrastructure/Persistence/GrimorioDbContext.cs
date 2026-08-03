@@ -97,6 +97,8 @@ public class GrimorioDbContext : DbContext
     public DbSet<MenuItemPreparation> MenuItemPreparations { get; set; } = null!;
     public DbSet<MenuItemPreparationStep> MenuItemPreparationSteps { get; set; } = null!;
     public DbSet<RecipeIngredient> RecipeIngredients { get; set; } = null!;
+    public DbSet<SubRecipe> SubRecipes { get; set; } = null!;
+    public DbSet<SubRecipeIngredient> SubRecipeIngredients { get; set; } = null!;
 
     // === Purchases ===
     public DbSet<Supplier> Suppliers { get; set; } = null!;
@@ -112,6 +114,11 @@ public class GrimorioDbContext : DbContext
     public DbSet<WarehouseStock> WarehouseStock { get; set; } = null!;
     public DbSet<StockMovement> StockMovements { get; set; } = null!;
     public DbSet<StockReservation> StockReservations { get; set; } = null!;
+    public DbSet<ProductionRecipe> ProductionRecipes { get; set; } = null!;
+    public DbSet<ProductionRecipeIngredient> ProductionRecipeIngredients { get; set; } = null!;
+    public DbSet<ProductionOrder> ProductionOrders { get; set; } = null!;
+    public DbSet<ProductionOrderIngredient> ProductionOrderIngredients { get; set; } = null!;
+    public DbSet<ProductionOrderMovement> ProductionOrderMovements { get; set; } = null!;
 
     // === Finance ===
     public DbSet<CostCenter> CostCenters { get; set; } = null!;

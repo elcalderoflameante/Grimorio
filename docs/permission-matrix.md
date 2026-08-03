@@ -69,7 +69,6 @@ Los endpoints `public/*` de `TableService` quedan sin permiso de usuario porque 
 | `Menu.Categories.Manage` | Crear, editar o eliminar categorias | Menu > Categorias | `POST/PUT/DELETE /api/menu/categorias` |
 | `Menu.Items.View` | Ver items, recetas y modificadores | Menu > Items y recetas | `GET /api/menu/items` |
 | `Menu.Items.Manage` | Crear, editar o eliminar items, recetas y modificadores | Menu > Items y recetas | `POST/PUT/DELETE /api/menu/items`, `PUT/DELETE /api/menu/*receta*`, `PUT /api/menu/items/{id}/modifiers` |
-| `Menu.StockConsume` | Descontar stock por venta | Proceso POS/facturacion | `POST /api/menu/venta/descontar-stock` |
 
 ## Inventario
 

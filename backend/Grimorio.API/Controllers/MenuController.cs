@@ -253,6 +253,41 @@ public class MenuController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Policy = "Menu.Items.View")]
+    [HttpGet("subrecetas")]
+    public async Task<IActionResult> GetSubRecipes([FromQuery] bool activeOnly = false)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        return Ok(await _mediator.Send(new GetSubRecipesQuery { BranchId = branchId, ActiveOnly = activeOnly }));
+    }
+
+    [Authorize(Policy = "Menu.Items.Manage")]
+    [HttpPost("subrecetas")]
+    public async Task<IActionResult> CreateSubRecipe([FromBody] UpsertSubRecipeDto dto)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new UpsertSubRecipeCommand { BranchId = branchId, SubRecipe = dto });
+        return Ok(result);
+    }
+
+    [Authorize(Policy = "Menu.Items.Manage")]
+    [HttpPut("subrecetas/{id:guid}")]
+    public async Task<IActionResult> UpdateSubRecipe(Guid id, [FromBody] UpsertSubRecipeDto dto)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new UpsertSubRecipeCommand { Id = id, BranchId = branchId, SubRecipe = dto });
+        return Ok(result);
+    }
+
+    [Authorize(Policy = "Menu.Items.Manage")]
+    [HttpDelete("subrecetas/{id:guid}")]
+    public async Task<IActionResult> DeleteSubRecipe(Guid id)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        await _mediator.Send(new DeleteSubRecipeCommand { Id = id, BranchId = branchId });
+        return NoContent();
+    }
+
     [Authorize(Policy = "Menu.Items.Manage")]
     [HttpPut("items/{id:guid}/modifiers")]
     public async Task<IActionResult> UpsertModifiers(Guid id, [FromBody] List<UpsertMenuItemModifierGroupDto> groups)
@@ -282,18 +317,6 @@ public class MenuController : ControllerBase
     }
 
     // â”€â”€ Descuento por venta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-    [Authorize(Policy = "Menu.StockConsume")]
-    [HttpPost("venta/descontar-stock")]
-    public async Task<IActionResult> DeductStock([FromBody] DeductStockFromSaleDto dto)
-    {
-        if (!TryGetBranchId(out var branchId)) return Unauthorized();
-        await _mediator.Send(new DeductStockFromSaleCommand
-        {
-            BranchId = branchId, WarehouseId = dto.WarehouseId, Items = dto.Items,
-        });
-        return Ok();
-    }
 
     // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 

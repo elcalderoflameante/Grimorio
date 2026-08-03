@@ -206,3 +206,160 @@ public class StockReservationConfiguration : BaseEntityConfiguration<StockReserv
             .HasFilter("\"IsDeleted\" = false AND \"Status\" = 'Active'");
     }
 }
+
+public class ProductionRecipeConfiguration : BaseEntityConfiguration<ProductionRecipe>
+{
+    public override void Configure(EntityTypeBuilder<ProductionRecipe> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("ProductionRecipes", "inv");
+
+        builder.Property(x => x.OutputQuantity).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.Notes).HasMaxLength(500);
+
+        builder.HasOne(x => x.OutputArticle)
+            .WithOne(x => x.ProductionRecipe)
+            .HasForeignKey<ProductionRecipe>(x => x.OutputArticleId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.OutputUnit)
+            .WithMany()
+            .HasForeignKey(x => x.OutputUnitId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => new { x.BranchId, x.OutputArticleId })
+            .IsUnique().HasFilter("\"IsDeleted\" = false");
+    }
+}
+
+public class ProductionRecipeIngredientConfiguration : BaseEntityConfiguration<ProductionRecipeIngredient>
+{
+    public override void Configure(EntityTypeBuilder<ProductionRecipeIngredient> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("ProductionRecipeIngredients", "inv");
+
+        builder.Property(x => x.Quantity).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.Notes).HasMaxLength(300);
+
+        builder.HasOne(x => x.ProductionRecipe)
+            .WithMany(x => x.Ingredients)
+            .HasForeignKey(x => x.ProductionRecipeId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.Article)
+            .WithMany(x => x.ProductionRecipeIngredients)
+            .HasForeignKey(x => x.ArticleId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.Unit)
+            .WithMany()
+            .HasForeignKey(x => x.UnitId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => new { x.BranchId, x.ProductionRecipeId, x.ArticleId })
+            .HasFilter("\"IsDeleted\" = false");
+    }
+}
+
+public class ProductionOrderConfiguration : BaseEntityConfiguration<ProductionOrder>
+{
+    public override void Configure(EntityTypeBuilder<ProductionOrder> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("ProductionOrders", "inv");
+
+        builder.Property(x => x.Number).IsRequired().HasMaxLength(30);
+        builder.Property(x => x.OutputQuantity).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.OutputBaseQuantity).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.TotalCost).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.UnitCost).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(30).IsRequired();
+        builder.Property(x => x.Notes).HasMaxLength(500);
+
+        builder.HasOne(x => x.ProductionRecipe)
+            .WithMany(x => x.ProductionOrders)
+            .HasForeignKey(x => x.ProductionRecipeId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.OutputArticle)
+            .WithMany()
+            .HasForeignKey(x => x.OutputArticleId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.SourceWarehouse)
+            .WithMany()
+            .HasForeignKey(x => x.SourceWarehouseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.DestinationWarehouse)
+            .WithMany()
+            .HasForeignKey(x => x.DestinationWarehouseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.OutputUnit)
+            .WithMany()
+            .HasForeignKey(x => x.OutputUnitId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => new { x.BranchId, x.Number })
+            .IsUnique().HasFilter("\"IsDeleted\" = false");
+        builder.HasIndex(x => new { x.BranchId, x.CreatedAt });
+        builder.HasIndex(x => new { x.BranchId, x.OutputArticleId, x.CreatedAt });
+    }
+}
+
+public class ProductionOrderIngredientConfiguration : BaseEntityConfiguration<ProductionOrderIngredient>
+{
+    public override void Configure(EntityTypeBuilder<ProductionOrderIngredient> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("ProductionOrderIngredients", "inv");
+
+        builder.Property(x => x.Quantity).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.BaseQuantity).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.UnitCost).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.TotalCost).HasColumnType("numeric(18,4)").IsRequired();
+
+        builder.HasOne(x => x.ProductionOrder)
+            .WithMany(x => x.Ingredients)
+            .HasForeignKey(x => x.ProductionOrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.Article)
+            .WithMany()
+            .HasForeignKey(x => x.ArticleId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.Unit)
+            .WithMany()
+            .HasForeignKey(x => x.UnitId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => new { x.BranchId, x.ProductionOrderId });
+        builder.HasIndex(x => new { x.BranchId, x.ArticleId });
+    }
+}
+
+public class ProductionOrderMovementConfiguration : BaseEntityConfiguration<ProductionOrderMovement>
+{
+    public override void Configure(EntityTypeBuilder<ProductionOrderMovement> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("ProductionOrderMovements", "inv");
+
+        builder.HasOne(x => x.ProductionOrder)
+            .WithMany(x => x.Movements)
+            .HasForeignKey(x => x.ProductionOrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.StockMovement)
+            .WithMany()
+            .HasForeignKey(x => x.StockMovementId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => new { x.BranchId, x.ProductionOrderId });
+        builder.HasIndex(x => new { x.BranchId, x.StockMovementId })
+            .IsUnique().HasFilter("\"IsDeleted\" = false");
+    }
+}
