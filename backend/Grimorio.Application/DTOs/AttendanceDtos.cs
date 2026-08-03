@@ -85,3 +85,12 @@ public sealed class AttendanceCorrectionDto
     public string BeforeJson { get; set; } = string.Empty;
     public string AfterJson { get; set; } = string.Empty;
 }
+
+public sealed class CorrectAttendanceRequest
+{
+    public DateTime ClockInTimeUtc { get; set; }
+    public DateTime? ClockOutTimeUtc { get; set; }
+    public DateTime? BreakStartedAtUtc { get; set; }
+    public DateTime? BreakEndedAtUtc { get; set; }
+    public string Reason { get; set; } = string.Empty;
+}

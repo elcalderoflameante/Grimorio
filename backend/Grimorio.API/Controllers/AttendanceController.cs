@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Grimorio.API.Services;
+using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Attendance.Commands;
 using Grimorio.Application.Features.Attendance.Queries;
 using Grimorio.Domain.Enums;
@@ -89,13 +90,21 @@ public sealed class AttendanceController : ControllerBase
 
     [Authorize(Policy = AppConstants.Permissions.RrhhAttendanceManage)]
     [HttpPut("admin/clockings/{clockingId:guid}")]
-    public async Task<IActionResult> CorrectClocking(Guid clockingId, [FromBody] CorrectAttendanceCommand command,
+    public async Task<IActionResult> CorrectClocking(Guid clockingId, [FromBody] CorrectAttendanceRequest request,
         CancellationToken cancellationToken)
     {
         if (!TryGetBranchId(out var branchId) || !TryGetUserId(out var userId)) return Unauthorized();
-        command.EmployeeClockingId = clockingId;
-        command.BranchId = branchId;
-        command.CorrectedByUserId = userId;
+        var command = new CorrectAttendanceCommand
+        {
+            EmployeeClockingId = clockingId,
+            BranchId = branchId,
+            CorrectedByUserId = userId,
+            ClockInTimeUtc = request.ClockInTimeUtc,
+            ClockOutTimeUtc = request.ClockOutTimeUtc,
+            BreakStartedAtUtc = request.BreakStartedAtUtc,
+            BreakEndedAtUtc = request.BreakEndedAtUtc,
+            Reason = request.Reason
+        };
         try { return Ok(await _mediator.Send(command, cancellationToken)); }
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
         catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
