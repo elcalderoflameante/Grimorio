@@ -23,6 +23,13 @@ public class GetMenuItemDetailQuery : IRequest<MenuItemDetailDto?>
     public Guid BranchId { get; set; }
 }
 
+public class GenerateMenuItemOperationalSheetPdfQuery : IRequest<byte[]?>
+{
+    public Guid Id { get; set; }
+    public Guid BranchId { get; set; }
+    public string? WebRootPath { get; set; }
+}
+
 public class GetMenuAvailabilityQuery : IRequest<List<MenuItemAvailabilityDto>>
 {
     public Guid BranchId { get; set; }

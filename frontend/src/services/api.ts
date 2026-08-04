@@ -600,6 +600,8 @@ export const menuApi = {
     apiClient.get<MenuItemDto[]>('/menu/items', { params }),
   getItem: (id: string): Promise<AxiosResponse<MenuItemDetailDto>> =>
     apiClient.get<MenuItemDetailDto>(`/menu/items/${id}`),
+  getOperationalSheetPdf: (id: string): Promise<AxiosResponse<Blob>> =>
+    apiClient.get<Blob>(`/menu/items/${id}/ficha-operativa/pdf`, { responseType: 'blob' }),
   getAvailability: (params?: { categoryId?: string; activeOnly?: boolean; availableOnly?: boolean }): Promise<AxiosResponse<MenuItemAvailabilityDto[]>> =>
     apiClient.get<MenuItemAvailabilityDto[]>('/menu/items/disponibilidad', { params }),
   getProfitability: (params?: { categoryId?: string; activeOnly?: boolean; availableOnly?: boolean }): Promise<AxiosResponse<MenuItemProfitabilityDto[]>> =>

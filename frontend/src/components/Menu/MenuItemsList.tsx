@@ -118,6 +118,17 @@ export default function MenuItemsList() {
     catch (e) { message.error(formatError(e)); }
   };
 
+  const openOperationalSheet = async (item: MenuItemDto) => {
+    try {
+      const response = await menuApi.getOperationalSheetPdf(item.id);
+      const url = URL.createObjectURL(response.data);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      message.error(formatError(e));
+    }
+  };
+
   const categoriaOptions = categorias.map(c => ({ label: c.name, value: c.id }));
   const estacionOptions = estaciones.map(e => ({ label: e.name, value: e.id }));
   const taxRateOptions = taxRates.map(t => ({ label: `${t.name} (${t.percentage}%)`, value: t.id }));
@@ -249,6 +260,18 @@ export default function MenuItemsList() {
               </Tooltip>
             ),
           }] : []),
+          {
+            title: 'Ficha', key: 'operationalSheet', width: 80,
+            render: (_: unknown, item: MenuItemDto) => (
+              <Tooltip title="Abrir ficha operativa">
+                <Button
+                  size="small"
+                  icon={<FileTextOutlined />}
+                  onClick={() => openOperationalSheet(item)}
+                />
+              </Tooltip>
+            ),
+          },
           ...(canManage ? [{
             title: 'Acciones', key: 'acc', width: 100,
             render: (_: unknown, item: MenuItemDto) => (

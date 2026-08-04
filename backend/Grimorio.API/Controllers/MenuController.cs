@@ -97,6 +97,25 @@ public class MenuController : ControllerBase
     }
 
     [Authorize(Policy = "Menu.Items.View")]
+    [HttpGet("items/{id:guid}/ficha-operativa/pdf")]
+    public async Task<IActionResult> GetItemOperationalSheetPdf(Guid id, CancellationToken ct)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+
+        var webRoot = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
+        var pdf = await _mediator.Send(new GenerateMenuItemOperationalSheetPdfQuery
+        {
+            Id = id,
+            BranchId = branchId,
+            WebRootPath = webRoot,
+        }, ct);
+
+        return pdf is null
+            ? NotFound()
+            : File(pdf, "application/pdf", $"ficha-operativa-{id:N}.pdf");
+    }
+
+    [Authorize(Policy = "Menu.Items.View")]
     [HttpGet("items/disponibilidad")]
     public async Task<IActionResult> GetAvailability(
         [FromQuery] Guid? categoryId,

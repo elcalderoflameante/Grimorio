@@ -320,6 +320,67 @@ public class GetSubRecipesHandler : IRequestHandler<GetSubRecipesQuery, List<Sub
     }
 }
 
+public class GenerateMenuItemOperationalSheetPdfHandler : IRequestHandler<GenerateMenuItemOperationalSheetPdfQuery, byte[]?>
+{
+    private readonly GrimorioDbContext _db;
+    public GenerateMenuItemOperationalSheetPdfHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<byte[]?> Handle(GenerateMenuItemOperationalSheetPdfQuery req, CancellationToken ct)
+    {
+        var item = await _db.MenuItems
+            .AsNoTracking()
+            .Include(x => x.Category)
+            .Include(x => x.Station)
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.Article)
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.Unit)
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.SubRecipe)
+                    .ThenInclude(s => s!.OutputUnit)
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.SubRecipe)
+                    .ThenInclude(s => s!.Ingredients.Where(i => !i.IsDeleted))
+                        .ThenInclude(i => i.Article)
+            .Include(x => x.Recipe.Where(r => !r.IsDeleted))
+                .ThenInclude(r => r.SubRecipe)
+                    .ThenInclude(s => s!.Ingredients.Where(i => !i.IsDeleted))
+                        .ThenInclude(i => i.Unit)
+            .Include(x => x.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
+                .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
+                    .ThenInclude(o => o.Article)
+            .Include(x => x.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
+                .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
+                    .ThenInclude(o => o.Unit)
+            .Include(x => x.Preparation)
+                .ThenInclude(p => p!.Steps.Where(s => !s.IsDeleted))
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId && !x.IsDeleted, ct);
+
+        if (item is null) return null;
+
+        var imageBytes = TryReadImage(req.WebRootPath, item.ImageUrl);
+        return MenuItemOperationalSheetPdfGenerator.Generate(item, imageBytes);
+    }
+
+    private static byte[]? TryReadImage(string? webRootPath, string? imageUrl)
+    {
+        if (string.IsNullOrWhiteSpace(webRootPath)
+            || string.IsNullOrWhiteSpace(imageUrl)
+            || !imageUrl.StartsWith("/uploads/menu-items/", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var relativePath = imageUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+        var fullPath = Path.GetFullPath(Path.Combine(webRootPath, relativePath));
+        var uploadsRoot = Path.GetFullPath(Path.Combine(webRootPath, "uploads", "menu-items"));
+
+        if (!fullPath.StartsWith(uploadsRoot, StringComparison.OrdinalIgnoreCase)) return null;
+        return File.Exists(fullPath) ? File.ReadAllBytes(fullPath) : null;
+    }
+}
+
 public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQuery, List<MenuItemAvailabilityDto>>
 {
     private readonly GrimorioDbContext _db;
