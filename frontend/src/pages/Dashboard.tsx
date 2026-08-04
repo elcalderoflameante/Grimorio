@@ -240,7 +240,7 @@ export default function Dashboard() {
       },
       {
         key: 'rrhh',
-        label: 'RRHH',
+        label: 'Personal',
         icon: <TeamOutlined />,
         children: [
           { key: 'employees', label: 'Empleados', icon: <IdcardOutlined />, permission: PERMISSIONS.rrhh.employeesView },
@@ -256,18 +256,25 @@ export default function Dashboard() {
             ],
           },
           {
+            key: 'attendance',
+            label: 'Asistencia',
+            icon: <ClockCircleOutlined />,
+            children: [
+              { key: 'attendance-clockings', label: 'Control de asistencia', icon: <ClockCircleOutlined />, permission: PERMISSIONS.rrhh.attendanceView },
+              { key: 'attendance-enrollment', label: 'Enrolamiento facial', icon: <CameraOutlined />, permission: PERMISSIONS.rrhh.attendanceEnroll },
+              { key: 'attendance-kiosks', label: 'Kioscos de asistencia', icon: <TabletOutlined />, permission: PERMISSIONS.rrhh.attendanceView },
+            ],
+          },
+          {
             key: 'payroll',
-            label: 'Nomina',
-            icon: <ToolOutlined />,
+            label: 'Nómina',
+            icon: <DollarOutlined />,
             permission: PERMISSIONS.rrhh.payrollView,
             children: [
               { key: 'payroll-summary', label: 'Rol de pagos', icon: <IdcardOutlined /> },
-              { key: 'payroll-config', label: 'Configuracion', icon: <SettingOutlined /> },
+              { key: 'payroll-config', label: 'Configuración', icon: <SettingOutlined /> },
             ],
           },
-          { key: 'attendance-kiosks', label: 'Kioscos de asistencia', icon: <TabletOutlined />, permission: PERMISSIONS.rrhh.attendanceView },
-          { key: 'attendance-clockings', label: 'Control de asistencia', icon: <ClockCircleOutlined />, permission: PERMISSIONS.rrhh.attendanceView },
-          { key: 'attendance-enrollment', label: 'Enrolamiento facial', icon: <CameraOutlined />, permission: PERMISSIONS.rrhh.attendanceEnroll },
         ],
       },
       {
@@ -494,7 +501,7 @@ case 'pos-estaciones':
   const breadcrumbItems = useMemo(() => {
     if (selectedMenu === 'employee-detail') {
       return [
-        { title: 'RRHH' },
+        { title: 'Personal' },
         { title: 'Empleados' },
         { title: selectedEmployeeId ? 'Empleado' : 'Nuevo empleado' },
       ];
