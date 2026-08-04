@@ -13,7 +13,11 @@ internal static class MenuItemOperationalSheetPdfGenerator
         QuestPDF.Settings.License = LicenseType.Community;
     }
 
-    public static byte[] Generate(MenuItem item, byte[]? imageBytes)
+    public static byte[] Generate(
+        MenuItem item,
+        byte[]? imageBytes,
+        byte[]? logoBytes,
+        string restaurantName)
     {
         return Document.Create(document =>
         {
@@ -23,10 +27,11 @@ internal static class MenuItemOperationalSheetPdfGenerator
                 page.MarginHorizontal(28);
                 page.MarginVertical(24);
                 page.DefaultTextStyle(x => x.FontSize(9).FontFamily("Arial").FontColor("#1F2937"));
-                page.Header().Element(c => Header(c, item));
+                page.Header().Element(c => Header(c, item, logoBytes, restaurantName));
                 page.Content().Column(column =>
                 {
                     column.Spacing(10);
+                    column.Item().Element(c => InternalNotice(c, restaurantName));
                     column.Item().Element(c => Summary(c, item, imageBytes));
                     column.Item().Element(c => Recipe(c, item));
                     column.Item().Element(c => Modifiers(c, item));
@@ -36,18 +41,21 @@ internal static class MenuItemOperationalSheetPdfGenerator
                 {
                     text.Span("Ficha operativa generada el ");
                     text.Span(DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture)).SemiBold();
-                    text.Span(" - Uso interno");
+                    text.Span($" - Documento interno de {restaurantName}");
                 });
             });
         }).GeneratePdf();
     }
 
-    private static void Header(IContainer container, MenuItem item)
+    private static void Header(IContainer container, MenuItem item, byte[]? logoBytes, string restaurantName)
     {
         container.BorderBottom(1).BorderColor("#D0D5DD").PaddingBottom(8).Row(row =>
         {
+            row.ConstantItem(76).Height(54).Element(c => LogoBox(c, logoBytes, restaurantName));
+            row.ConstantItem(12);
             row.RelativeItem().Column(column =>
             {
+                column.Item().Text(restaurantName).FontSize(11).SemiBold().FontColor("#667085");
                 column.Item().Text("Ficha operativa").FontSize(18).Bold();
                 column.Item().Text(item.Name).FontSize(14).SemiBold().FontColor("#344054");
             });
@@ -57,6 +65,30 @@ internal static class MenuItemOperationalSheetPdfGenerator
                 .FontSize(9)
                 .FontColor("#667085");
         });
+    }
+
+    private static void LogoBox(IContainer container, byte[]? logoBytes, string restaurantName)
+    {
+        var box = container.Border(1).BorderColor("#EAECF0").Padding(3);
+        if (logoBytes is null || logoBytes.Length == 0)
+        {
+            box.AlignMiddle().AlignCenter().Text(restaurantName).FontSize(8).SemiBold().FontColor("#667085");
+            return;
+        }
+
+        box.Image(logoBytes).FitArea();
+    }
+
+    private static void InternalNotice(IContainer container, string restaurantName)
+    {
+        container
+            .Border(1)
+            .BorderColor("#FEDF89")
+            .Background("#FFFCF5")
+            .Padding(8)
+            .Text($"Documento operativo interno de {restaurantName}. Uso exclusivo para capacitacion y estandarizacion del personal. No distribuir, reproducir ni modificar sin autorizacion.")
+            .FontColor("#93370D")
+            .FontSize(8);
     }
 
     private static void Summary(IContainer container, MenuItem item, byte[]? imageBytes)

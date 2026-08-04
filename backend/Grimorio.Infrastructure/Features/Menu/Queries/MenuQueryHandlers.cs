@@ -360,7 +360,22 @@ public class GenerateMenuItemOperationalSheetPdfHandler : IRequestHandler<Genera
         if (item is null) return null;
 
         var imageBytes = TryReadImage(req.WebRootPath, item.ImageUrl);
-        return MenuItemOperationalSheetPdfGenerator.Generate(item, imageBytes);
+        var taxConfig = await _db.BranchTaxConfigs
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.BranchId == req.BranchId && !x.IsDeleted, ct);
+
+        var invoiceTemplate = await _db.InvoiceTemplates
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.BranchId == req.BranchId && !x.IsDeleted, ct);
+
+        var restaurantName = taxConfig is null
+            ? "Restaurante"
+            : string.IsNullOrWhiteSpace(taxConfig.NombreComercial)
+                ? taxConfig.RazonSocial
+                : taxConfig.NombreComercial!;
+
+        var logoBytes = TryParseLogo(invoiceTemplate?.LogoBase64);
+        return MenuItemOperationalSheetPdfGenerator.Generate(item, imageBytes, logoBytes, restaurantName);
     }
 
     private static byte[]? TryReadImage(string? webRootPath, string? imageUrl)
@@ -378,6 +393,23 @@ public class GenerateMenuItemOperationalSheetPdfHandler : IRequestHandler<Genera
 
         if (!fullPath.StartsWith(uploadsRoot, StringComparison.OrdinalIgnoreCase)) return null;
         return File.Exists(fullPath) ? File.ReadAllBytes(fullPath) : null;
+    }
+
+    private static byte[]? TryParseLogo(string? logoBase64)
+    {
+        if (string.IsNullOrWhiteSpace(logoBase64)) return null;
+
+        try
+        {
+            var data = logoBase64.Contains(',', StringComparison.Ordinal)
+                ? logoBase64.Split(',', 2)[1]
+                : logoBase64;
+            return Convert.FromBase64String(data);
+        }
+        catch
+        {
+            return null;
+        }
     }
 }
 
