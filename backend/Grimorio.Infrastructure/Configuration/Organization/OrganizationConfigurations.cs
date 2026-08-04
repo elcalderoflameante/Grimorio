@@ -38,6 +38,9 @@ public class BranchConfiguration : BaseEntityConfiguration<Branch>
             .HasDefaultValue("America/Guayaquil")
             .IsRequired();
 
+        builder.Property(s => s.LogoUrl)
+            .HasMaxLength(500);
+
         builder.Property(s => s.IsActive)
             .HasDefaultValue(true);
 

@@ -379,7 +379,8 @@ public class GenerateMenuItemOperationalSheetPdfHandler : IRequestHandler<Genera
                 ? taxConfig.RazonSocial
                 : taxConfig.NombreComercial!;
 
-        var logoBytes = TryParseLogo(invoiceTemplate?.LogoBase64);
+        var logoBytes = TryReadImage(req.WebRootPath, branch?.LogoUrl)
+            ?? TryParseLogo(invoiceTemplate?.LogoBase64);
         var generatedAtLocal = BranchTimeZone.FromUtc(DateTime.UtcNow, branch?.TimeZoneId);
         return MenuItemOperationalSheetPdfGenerator.Generate(item, imageBytes, logoBytes, restaurantName, generatedAtLocal);
     }
@@ -388,14 +389,14 @@ public class GenerateMenuItemOperationalSheetPdfHandler : IRequestHandler<Genera
     {
         if (string.IsNullOrWhiteSpace(webRootPath)
             || string.IsNullOrWhiteSpace(imageUrl)
-            || !imageUrl.StartsWith("/uploads/menu-items/", StringComparison.OrdinalIgnoreCase))
+            || !imageUrl.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
 
         var relativePath = imageUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
         var fullPath = Path.GetFullPath(Path.Combine(webRootPath, relativePath));
-        var uploadsRoot = Path.GetFullPath(Path.Combine(webRootPath, "uploads", "menu-items"));
+        var uploadsRoot = Path.GetFullPath(Path.Combine(webRootPath, "uploads"));
 
         if (!fullPath.StartsWith(uploadsRoot, StringComparison.OrdinalIgnoreCase)) return null;
         return File.Exists(fullPath) ? File.ReadAllBytes(fullPath) : null;

@@ -1,6 +1,21 @@
 import { useEffect, useState } from 'react';
-import { App as AntApp, Card, Form, Input, Button, Switch, Row, Col, Divider, Select } from 'antd';
-import { branchApi } from '../../services/api';
+import {
+  App as AntApp,
+  Button,
+  Card,
+  Col,
+  Divider,
+  Form,
+  Image,
+  Input,
+  Row,
+  Select,
+  Space,
+  Switch,
+  Upload,
+} from 'antd';
+import { DeleteOutlined, UploadOutlined } from '@ant-design/icons';
+import { branchApi, resolveMediaUrl } from '../../services/api';
 import { LocationMap } from './LocationMap';
 import type { BranchDto, UpdateBranchDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
@@ -27,6 +42,7 @@ export const BranchConfigurationForm = () => {
   const [branch, setBranch] = useState<BranchDto | null>(null);
   const [latitude, setLatitude] = useState<number | undefined>();
   const [longitude, setLongitude] = useState<number | undefined>();
+  const [logoLoading, setLogoLoading] = useState(false);
 
   useEffect(() => {
     const loadBranch = async () => {
@@ -46,15 +62,15 @@ export const BranchConfigurationForm = () => {
     };
 
     loadBranch();
-  }, [form]);
+  }, [form, message]);
 
   const handleLocationChange = (lat: number, lng: number, address?: string) => {
     setLatitude(lat);
     setLongitude(lng);
-    form.setFieldsValue({ 
-      latitude: lat, 
+    form.setFieldsValue({
+      latitude: lat,
       longitude: lng,
-      ...(address && { address })
+      ...(address && { address }),
     });
   };
 
@@ -64,6 +80,7 @@ export const BranchConfigurationForm = () => {
       const dataToSave = {
         ...values,
         timeZoneId: values.timeZoneId || DEFAULT_BRANCH_TIME_ZONE,
+        logoUrl: branch?.logoUrl,
         latitude,
         longitude,
       };
@@ -81,8 +98,36 @@ export const BranchConfigurationForm = () => {
     }
   };
 
+  const handleLogoUpload = async (file: File) => {
+    try {
+      setLogoLoading(true);
+      const response = await branchApi.uploadLogo(file);
+      setBranch(response.data);
+      form.setFieldsValue(response.data);
+      message.success('Logo actualizado correctamente.');
+    } catch (error) {
+      message.error(formatError(error));
+    } finally {
+      setLogoLoading(false);
+    }
+  };
+
+  const handleLogoDelete = async () => {
+    try {
+      setLogoLoading(true);
+      const response = await branchApi.deleteLogo();
+      setBranch(response.data);
+      form.setFieldsValue(response.data);
+      message.success('Logo eliminado correctamente.');
+    } catch (error) {
+      message.error(formatError(error));
+    } finally {
+      setLogoLoading(false);
+    }
+  };
+
   return (
-    <Card title="Configuración de Sucursal" loading={initialLoading}>
+    <Card title="Configuracion de Sucursal" loading={initialLoading}>
       <Form
         form={form}
         layout="vertical"
@@ -101,11 +146,11 @@ export const BranchConfigurationForm = () => {
           </Col>
           <Col xs={24} md={12}>
             <Form.Item
-              label="Código"
+              label="Codigo"
               name="code"
-              rules={[{ required: true, message: 'Ingrese el código de la sucursal' }]}
+              rules={[{ required: true, message: 'Ingrese el codigo de la sucursal' }]}
             >
-              <Input placeholder="Código" />
+              <Input placeholder="Codigo" />
             </Form.Item>
           </Col>
         </Row>
@@ -124,8 +169,8 @@ export const BranchConfigurationForm = () => {
 
         <Row gutter={16}>
           <Col xs={24} md={12}>
-            <Form.Item label="Teléfono" name="phone">
-              <Input placeholder="Teléfono" />
+            <Form.Item label="Telefono" name="phone">
+              <Input placeholder="Telefono" />
             </Form.Item>
           </Col>
           <Col xs={24} md={12}>
@@ -152,15 +197,70 @@ export const BranchConfigurationForm = () => {
           </Col>
         </Row>
 
-        <Form.Item label="Dirección" name="address">
-          <Input placeholder="Dirección" />
+        <Divider>Imagen de Sucursal</Divider>
+
+        <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
+          <Col xs={24} md={8}>
+            <div
+              style={{
+                width: 160,
+                height: 96,
+                border: '1px solid #d9d9d9',
+                borderRadius: 8,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                background: '#fafafa',
+              }}
+            >
+              {branch?.logoUrl ? (
+                <Image
+                  src={resolveMediaUrl(branch.logoUrl)}
+                  alt="Logo de sucursal"
+                  style={{ maxWidth: 150, maxHeight: 86, objectFit: 'contain' }}
+                />
+              ) : (
+                <span style={{ color: '#8c8c8c' }}>Sin logo</span>
+              )}
+            </div>
+          </Col>
+          <Col xs={24} md={16}>
+            <Space wrap>
+              <Upload
+                accept=".jpg,.jpeg,.png,.webp"
+                showUploadList={false}
+                beforeUpload={(file) => {
+                  void handleLogoUpload(file);
+                  return false;
+                }}
+                disabled={logoLoading}
+              >
+                <Button icon={<UploadOutlined />} loading={logoLoading}>
+                  Subir logo
+                </Button>
+              </Upload>
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                disabled={!branch?.logoUrl || logoLoading}
+                onClick={handleLogoDelete}
+              >
+                Quitar logo
+              </Button>
+            </Space>
+          </Col>
+        </Row>
+
+        <Form.Item label="Direccion" name="address">
+          <Input placeholder="Direccion" />
         </Form.Item>
 
         <Form.Item label="Activa" name="isActive" valuePropName="checked">
           <Switch />
         </Form.Item>
 
-        <Divider>Ubicación Geográfica</Divider>
+        <Divider>Ubicacion Geografica</Divider>
 
         <Row gutter={16} style={{ marginBottom: 16 }}>
           <Col xs={24} md={12}>
@@ -193,7 +293,7 @@ export const BranchConfigurationForm = () => {
 
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
-            Haz clic en el mapa para marcar la ubicación
+            Haz clic en el mapa para marcar la ubicacion
           </label>
           <LocationMap
             latitude={latitude}

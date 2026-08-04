@@ -13,6 +13,7 @@ public class BranchDto
     public string Phone { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string TimeZoneId { get; set; } = "America/Guayaquil";
+    public string? LogoUrl { get; set; }
     public bool IsActive { get; set; }
     public decimal? Latitude { get; set; }
     public decimal? Longitude { get; set; }
@@ -30,6 +31,7 @@ public class UpdateBranchDto
     public string Phone { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string TimeZoneId { get; set; } = "America/Guayaquil";
+    public string? LogoUrl { get; set; }
     public bool IsActive { get; set; }
     public decimal? Latitude { get; set; }
     public decimal? Longitude { get; set; }

@@ -16,14 +16,16 @@ namespace Grimorio.API.Controllers;
 public class BranchesController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IWebHostEnvironment _environment;
 
     /// <summary>
     /// Inicializa una nueva instancia del controlador de sucursales.
     /// </summary>
     /// <param name="mediator">Instancia de MediatR para enviar comandos.</param>
-    public BranchesController(IMediator mediator)
+    public BranchesController(IMediator mediator, IWebHostEnvironment environment)
     {
         _mediator = mediator;
+        _environment = environment;
     }
 
     /// <summary>
@@ -81,6 +83,7 @@ public class BranchesController : ControllerBase
                 Phone = dto.Phone,
                 Email = dto.Email,
                 TimeZoneId = dto.TimeZoneId,
+                LogoUrl = dto.LogoUrl,
                 IsActive = dto.IsActive,
                 Latitude = dto.Latitude,
                 Longitude = dto.Longitude
@@ -101,5 +104,104 @@ public class BranchesController : ControllerBase
         {
             return StatusCode(500, new { message = "Error al actualizar la sucursal.", error = ex.Message });
         }
+    }
+
+    [Authorize(Policy = "Admin.Branch.Update")]
+    [HttpPost("current/logo")]
+    [RequestSizeLimit(4 * 1024 * 1024)]
+    public async Task<IActionResult> UploadCurrentBranchLogo([FromForm] IFormFile? image, CancellationToken ct)
+    {
+        if (image == null || image.Length == 0) return BadRequest("Imagen no válida.");
+        if (image.Length > 3 * 1024 * 1024) return BadRequest("La imagen no puede superar 3 MB.");
+
+        var branchClaim = User.FindFirst("BranchId")?.Value;
+        if (branchClaim == null || !Guid.TryParse(branchClaim, out var branchId))
+            return Unauthorized("BranchId no vÃ¡lido en el token.");
+
+        var oldBranch = await _mediator.Send(new GetCurrentBranchQuery { BranchId = branchId }, ct);
+        if (oldBranch == null)
+            return NotFound(new { message = "Sucursal no encontrada." });
+
+        var extension = Path.GetExtension(image.FileName).ToLowerInvariant();
+        var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".webp" };
+        if (!allowedExtensions.Contains(extension)) return BadRequest("Formato no permitido. Usa JPG, PNG o WEBP.");
+
+        var webRoot = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
+        var relativeFolder = Path.Combine("uploads", "branches", branchId.ToString("N"));
+        var targetFolder = Path.Combine(webRoot, relativeFolder);
+        Directory.CreateDirectory(targetFolder);
+
+        var fileName = $"logo-{Guid.NewGuid():N}{extension}";
+        var fullPath = Path.Combine(targetFolder, fileName);
+        await using (var stream = System.IO.File.Create(fullPath))
+        {
+            await image.CopyToAsync(stream, ct);
+        }
+
+        var logoUrl = "/" + Path.Combine(relativeFolder, fileName).Replace('\\', '/');
+        var result = await _mediator.Send(new UpdateBranchCommand
+        {
+            BranchId = branchId,
+            Name = oldBranch.Name,
+            Code = oldBranch.Code,
+            IdentificationNumber = oldBranch.IdentificationNumber,
+            Address = oldBranch.Address,
+            Phone = oldBranch.Phone,
+            Email = oldBranch.Email,
+            TimeZoneId = oldBranch.TimeZoneId,
+            LogoUrl = logoUrl,
+            IsActive = oldBranch.IsActive,
+            Latitude = oldBranch.Latitude,
+            Longitude = oldBranch.Longitude
+        }, ct);
+
+        DeleteLocalLogo(oldBranch.LogoUrl);
+        return Ok(result);
+    }
+
+    [Authorize(Policy = "Admin.Branch.Update")]
+    [HttpDelete("current/logo")]
+    public async Task<IActionResult> DeleteCurrentBranchLogo(CancellationToken ct)
+    {
+        var branchClaim = User.FindFirst("BranchId")?.Value;
+        if (branchClaim == null || !Guid.TryParse(branchClaim, out var branchId))
+            return Unauthorized("BranchId no vÃ¡lido en el token.");
+
+        var oldBranch = await _mediator.Send(new GetCurrentBranchQuery { BranchId = branchId }, ct);
+        if (oldBranch == null)
+            return NotFound(new { message = "Sucursal no encontrada." });
+
+        var result = await _mediator.Send(new UpdateBranchCommand
+        {
+            BranchId = branchId,
+            Name = oldBranch.Name,
+            Code = oldBranch.Code,
+            IdentificationNumber = oldBranch.IdentificationNumber,
+            Address = oldBranch.Address,
+            Phone = oldBranch.Phone,
+            Email = oldBranch.Email,
+            TimeZoneId = oldBranch.TimeZoneId,
+            LogoUrl = null,
+            IsActive = oldBranch.IsActive,
+            Latitude = oldBranch.Latitude,
+            Longitude = oldBranch.Longitude
+        }, ct);
+
+        DeleteLocalLogo(oldBranch.LogoUrl);
+        return Ok(result);
+    }
+
+    private void DeleteLocalLogo(string? logoUrl)
+    {
+        if (string.IsNullOrWhiteSpace(logoUrl) || !logoUrl.StartsWith("/uploads/branches/", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var webRoot = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
+        var relativePath = logoUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+        var fullPath = Path.GetFullPath(Path.Combine(webRoot, relativePath));
+        var uploadsRoot = Path.GetFullPath(Path.Combine(webRoot, "uploads", "branches"));
+
+        if (!fullPath.StartsWith(uploadsRoot, StringComparison.OrdinalIgnoreCase)) return;
+        if (System.IO.File.Exists(fullPath)) System.IO.File.Delete(fullPath);
     }
 }

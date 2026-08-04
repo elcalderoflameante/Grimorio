@@ -42,6 +42,7 @@ public class UpdateBranchCommandHandler : IRequestHandler<UpdateBranchCommand, B
         branch.TimeZoneId = string.IsNullOrWhiteSpace(request.TimeZoneId)
             ? BranchTimeZone.DefaultTimeZoneId
             : request.TimeZoneId.Trim();
+        branch.LogoUrl = string.IsNullOrWhiteSpace(request.LogoUrl) ? null : request.LogoUrl.Trim();
         branch.IsActive = request.IsActive;
         branch.Latitude = request.Latitude;
         branch.Longitude = request.Longitude;

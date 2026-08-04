@@ -208,6 +208,15 @@ export const branchApi = {
     apiClient.get<BranchDto>('/branches/current'),
   updateCurrent: (data: UpdateBranchDto): Promise<AxiosResponse<BranchDto>> =>
     apiClient.put<BranchDto>('/branches/current', data),
+  uploadLogo: (image: File): Promise<AxiosResponse<BranchDto>> => {
+    const formData = new FormData();
+    formData.append('image', image);
+    return apiClient.post<BranchDto>('/branches/current/logo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  deleteLogo: (): Promise<AxiosResponse<BranchDto>> =>
+    apiClient.delete<BranchDto>('/branches/current/logo'),
 };
 
 // ======== USERS ========
