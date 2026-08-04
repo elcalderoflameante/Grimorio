@@ -260,6 +260,15 @@ public class CashController : ControllerBase
         return Ok(await _mediator.Send(new GetOrderPaymentsQuery { OrderId = orderId, BranchId = branchId }));
     }
 
+    [Authorize(Policy = "Billing.Cash.View")]
+    [HttpGet("pagos/{paymentId:guid}/ticket-80mm")]
+    public async Task<IActionResult> GetThermalReceipt(Guid paymentId)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new GetThermalReceiptQuery { PaymentId = paymentId, BranchId = branchId });
+        return result is null ? NotFound() : Ok(result);
+    }
+
     [Authorize(Policy = "Billing.Cash.Charge")]
     [HttpPost("cobrar/{orderId:guid}")]
     public async Task<IActionResult> PayOrder(Guid orderId, [FromBody] AddOrderPaymentDto dto)

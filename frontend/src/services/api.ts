@@ -757,7 +757,7 @@ export const financeApi = {
     apiClient.post<ExpenseDto>(`/finance/expenses/${id}/cancel`, { reason }),
 };
 
-import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto, CashRegisterDto, CreateCashRegisterDto, UpdateCashRegisterDto, CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, OrderPaymentDto, AddOrderPaymentDto, SalesProfitabilityReportDto, PaymentMethodConfigDto, CreatePaymentMethodConfigDto, UpdatePaymentMethodConfigDto, CardBankDto, CreateCardBankDto, UpdateCardBankDto, TaxRateDto, UpsertTaxRateDto, BranchTaxConfigDto, SriCertificateStatusDto, ElectronicDocumentDto, SmtpConfigDto, UpsertSmtpConfigDto, InvoiceTemplateDto } from '../types';
+import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto, CashRegisterDto, CreateCashRegisterDto, UpdateCashRegisterDto, CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, OrderPaymentDto, AddOrderPaymentDto, ThermalReceiptDto, SalesProfitabilityReportDto, PaymentMethodConfigDto, CreatePaymentMethodConfigDto, UpdatePaymentMethodConfigDto, CardBankDto, CreateCardBankDto, UpdateCardBankDto, TaxRateDto, UpsertTaxRateDto, BranchTaxConfigDto, SriCertificateStatusDto, ElectronicDocumentDto, SmtpConfigDto, UpsertSmtpConfigDto, InvoiceTemplateDto } from '../types';
 
 export const customersApi = {
   getAll: (params?: { activeOnly?: boolean; search?: string }): Promise<AxiosResponse<CustomerDto[]>> =>
@@ -810,6 +810,8 @@ export const cashApi = {
     apiClient.post<CashSessionDto>(`/cash/sesiones/${id}/cerrar`, dto),
   getOrderPayments: (orderId: string): Promise<AxiosResponse<OrderPaymentDto[]>> =>
     apiClient.get<OrderPaymentDto[]>(`/cash/ordenes/${orderId}/pagos`),
+  getThermalReceipt: (paymentId: string): Promise<AxiosResponse<ThermalReceiptDto>> =>
+    apiClient.get<ThermalReceiptDto>(`/cash/pagos/${paymentId}/ticket-80mm`),
   payOrder: (orderId: string, dto: AddOrderPaymentDto): Promise<AxiosResponse<OrderPaymentDto>> =>
     apiClient.post<OrderPaymentDto>(`/cash/cobrar/${orderId}`, dto),
   getSales: (params?: { from?: string; to?: string; pageSize?: number }): Promise<AxiosResponse<OrderPaymentDto[]>> =>

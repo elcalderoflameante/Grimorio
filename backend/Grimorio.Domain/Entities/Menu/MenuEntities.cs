@@ -54,7 +54,6 @@ public class MenuItemPreparationStep : BaseEntity
 {
     public Guid MenuItemPreparationId { get; set; }
     public int StepNumber { get; set; }
-    public string? Title { get; set; }
     public string Instructions { get; set; } = string.Empty;
     public int? EstimatedMinutes { get; set; }
     public string? Temperature { get; set; }

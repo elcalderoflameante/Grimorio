@@ -64,6 +64,12 @@ public class GetOrderPaymentsQuery : IRequest<List<OrderPaymentDto>>
     public Guid BranchId { get; set; }
 }
 
+public class GetThermalReceiptQuery : IRequest<ThermalReceiptDto?>
+{
+    public Guid PaymentId { get; set; }
+    public Guid BranchId { get; set; }
+}
+
 public class GetSalesQuery : IRequest<List<OrderPaymentDto>>
 {
     public Guid BranchId { get; set; }

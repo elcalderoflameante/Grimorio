@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { App as AntApp, Alert, Button, Card, Checkbox, Col, Divider, Empty, Input, InputNumber, Popconfirm,
   Modal, Row, Select, Space, Spin, Tabs, Tag, Tooltip, Typography } from 'antd';
 import { ArrowLeftOutlined, CheckCircleOutlined, DeleteOutlined, DollarOutlined, EditOutlined,
-  MinusOutlined, PlusOutlined, QuestionCircleOutlined, ReloadOutlined, SplitCellsOutlined } from '@ant-design/icons';
+  MinusOutlined, PlusOutlined, PrinterOutlined, QuestionCircleOutlined, ReloadOutlined, SplitCellsOutlined } from '@ant-design/icons';
 import type {
   OrderDto, RestaurantTableDto, PaymentMethodConfigDto,
   OrderPaymentDto, AddOrderPaymentDto, CustomerDto, MenuCategoryDto,
@@ -10,6 +10,7 @@ import type {
 } from '../../types';
 import { cashApi, menuApi, paymentMethodsApi, posApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
+import { printThermalReceipt } from '../../utils/thermalReceiptPrinter';
 import CustomerSelector from '../Billing/CustomerSelector';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
@@ -234,6 +235,16 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   });
   const canPay = targetAmount > 0.001 && !needsCustomer && tenderCoversAmount && cardDetailsComplete;
 
+  const handlePrintPayment = useCallback(async (paymentId: string) => {
+    try {
+      const { data } = await cashApi.getThermalReceipt(paymentId);
+      printThermalReceipt(data);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } }; message?: string };
+      message.error(err?.response?.data?.message ?? err.message ?? 'No se pudo imprimir el comprobante');
+    }
+  }, [message]);
+
   const getCartLineCapacity = (line: CartLine): number | null => {
     const item = menuItems.find(menuItem => menuItem.id === line.menuItemId);
     const capacities: number[] = [];
@@ -401,9 +412,10 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
           authorizationNumber: l.authorizationNumber?.trim(),
         })),
       };
-      await cashApi.payOrder(order.id, dto);
+      const { data: payment } = await cashApi.payOrder(order.id, dto);
       message.success('Cobro registrado');
       setShowPayModal(false);
+      await handlePrintPayment(payment.id);
       await loadAll();
       onTableUpdated();
     } catch (e: unknown) {
@@ -907,7 +919,17 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                           ))}
                           {p.documentType === 'Factura' && <Tag color="gold" style={{ fontSize: 11 }}>Factura</Tag>}
                         </Space>
-                        <Text style={{ fontSize: 12 }}>${p.orderAmount.toFixed(2)}</Text>
+                        <Space size={4}>
+                          <Text style={{ fontSize: 12 }}>${p.orderAmount.toFixed(2)}</Text>
+                          <Tooltip title="Imprimir comprobante 80mm">
+                            <Button
+                              size="small"
+                              type="text"
+                              icon={<PrinterOutlined />}
+                              onClick={() => handlePrintPayment(p.id)}
+                            />
+                          </Tooltip>
+                        </Space>
                       </div>
                     ))}
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>

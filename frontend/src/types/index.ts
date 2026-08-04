@@ -1284,7 +1284,6 @@ export interface MenuItemPreparationDto {
 export interface MenuItemPreparationStepDto {
   id?: string;
   stepNumber: number;
-  title?: string;
   instructions: string;
   estimatedMinutes?: number;
   temperature?: string;
@@ -1303,7 +1302,6 @@ export interface UpsertMenuItemPreparationDto {
 export interface UpsertMenuItemPreparationStepDto {
   id?: string;
   stepNumber: number;
-  title?: string;
   instructions: string;
   estimatedMinutes?: number;
   temperature?: string;
@@ -1892,6 +1890,71 @@ export interface OrderPaymentItemDto {
   quantity: number;
   unitPrice: number;
   total: number;
+}
+
+export interface ThermalReceiptDto {
+  paymentId: string;
+  orderId: string;
+  documentType: 'NotaDeVenta' | 'Factura';
+  orderNumber: number;
+  orderType?: string;
+  tableCode?: string;
+  paidAt: string;
+  cashRegisterName?: string;
+  cashRegisterCode?: string;
+  cashierName?: string;
+  issuer: ThermalReceiptIssuerDto;
+  customer: ThermalReceiptCustomerDto;
+  items: ThermalReceiptItemDto[];
+  payments: PaymentLineDto[];
+  totals: ThermalReceiptTotalsDto;
+  electronicDocument?: ThermalReceiptElectronicDocumentDto;
+}
+
+export interface ThermalReceiptIssuerDto {
+  businessName: string;
+  tradeName?: string;
+  ruc: string;
+  address: string;
+  phone?: string;
+  email?: string;
+  establishmentCode: string;
+  emissionPoint: string;
+  environment: string;
+  accountingRequired: boolean;
+}
+
+export interface ThermalReceiptCustomerDto {
+  name: string;
+  taxId?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface ThermalReceiptItemDto {
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+}
+
+export interface ThermalReceiptTotalsDto {
+  subtotal: number;
+  discount: number;
+  tax: number;
+  total: number;
+  tendered: number;
+  change: number;
+}
+
+export interface ThermalReceiptElectronicDocumentDto {
+  id: string;
+  number: string;
+  status: string;
+  authorizationNumber?: string;
+  authorizedAt?: string;
+  accessKey: string;
 }
 
 export interface SalesProfitabilityItemDto {

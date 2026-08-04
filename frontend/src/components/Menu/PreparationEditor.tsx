@@ -16,7 +16,6 @@ interface Props {
 
 const emptyStep = (stepNumber: number): UpsertMenuItemPreparationStepDto => ({
   stepNumber,
-  title: '',
   instructions: '',
   estimatedMinutes: undefined,
   temperature: '',
@@ -53,7 +52,6 @@ export default function PreparationEditor({ itemId, itemName, open, onClose }: P
             ? current.steps.map(s => ({
               id: s.id,
               stepNumber: s.stepNumber,
-              title: s.title,
               instructions: s.instructions,
               estimatedMinutes: s.estimatedMinutes,
               temperature: s.temperature,
@@ -88,7 +86,7 @@ export default function PreparationEditor({ itemId, itemName, open, onClose }: P
 
   const save = async () => {
     const steps = preparation.steps
-      .map((step, idx) => ({ ...step, stepNumber: idx + 1, instructions: step.instructions.trim(), title: step.title?.trim() }))
+      .map((step, idx) => ({ ...step, stepNumber: idx + 1, instructions: step.instructions.trim() }))
       .filter(step => step.instructions.length > 0);
 
     if (steps.length === 0) {
@@ -157,9 +155,8 @@ export default function PreparationEditor({ itemId, itemName, open, onClose }: P
       <Space direction="vertical" style={{ width: '100%' }} size={10}>
         {preparation.steps.map((step, idx) => (
           <div key={idx} style={{ border: '1px solid #f0f0f0', borderRadius: 8, padding: 12 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '56px minmax(150px, 1fr) 120px 120px 96px 34px', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '72px 120px 120px 96px 34px', gap: 8, alignItems: 'center', marginBottom: 8 }}>
               <Tag color="blue" style={{ textAlign: 'center', margin: 0 }}>Paso {idx + 1}</Tag>
-              <Input value={step.title} onChange={e => updateStep(idx, { title: e.target.value })} placeholder="Título opcional" />
               <InputNumber min={0} value={step.estimatedMinutes} onChange={v => updateStep(idx, { estimatedMinutes: v ?? undefined })} addonAfter="min" style={{ width: '100%' }} />
               <Input value={step.temperature} onChange={e => updateStep(idx, { temperature: e.target.value })} placeholder="Temp." />
               <Space size={4} style={{ whiteSpace: 'nowrap' }}>

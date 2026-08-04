@@ -330,6 +330,77 @@ public class OrderPaymentItemDto
     public decimal Total { get; set; }
 }
 
+public class ThermalReceiptDto
+{
+    public Guid PaymentId { get; set; }
+    public Guid OrderId { get; set; }
+    public string DocumentType { get; set; } = string.Empty;
+    public int OrderNumber { get; set; }
+    public string? OrderType { get; set; }
+    public string? TableCode { get; set; }
+    public DateTime PaidAt { get; set; }
+    public string? CashRegisterName { get; set; }
+    public string? CashRegisterCode { get; set; }
+    public string? CashierName { get; set; }
+    public ThermalReceiptIssuerDto Issuer { get; set; } = new();
+    public ThermalReceiptCustomerDto Customer { get; set; } = new();
+    public List<ThermalReceiptItemDto> Items { get; set; } = [];
+    public List<PaymentLineDto> Payments { get; set; } = [];
+    public ThermalReceiptTotalsDto Totals { get; set; } = new();
+    public ThermalReceiptElectronicDocumentDto? ElectronicDocument { get; set; }
+}
+
+public class ThermalReceiptIssuerDto
+{
+    public string BusinessName { get; set; } = string.Empty;
+    public string? TradeName { get; set; }
+    public string Ruc { get; set; } = string.Empty;
+    public string Address { get; set; } = string.Empty;
+    public string? Phone { get; set; }
+    public string? Email { get; set; }
+    public string EstablishmentCode { get; set; } = "001";
+    public string EmissionPoint { get; set; } = "001";
+    public string Environment { get; set; } = "1";
+    public bool AccountingRequired { get; set; }
+}
+
+public class ThermalReceiptCustomerDto
+{
+    public string Name { get; set; } = "Consumidor final";
+    public string? TaxId { get; set; }
+    public string? Address { get; set; }
+    public string? Phone { get; set; }
+    public string? Email { get; set; }
+}
+
+public class ThermalReceiptItemDto
+{
+    public string Name { get; set; } = string.Empty;
+    public decimal Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal Total { get; set; }
+}
+
+public class ThermalReceiptTotalsDto
+{
+    public decimal Subtotal { get; set; }
+    public decimal Discount { get; set; }
+    public decimal Tax { get; set; }
+    public decimal Total { get; set; }
+    public decimal Tendered { get; set; }
+    public decimal Change { get; set; }
+}
+
+public class ThermalReceiptElectronicDocumentDto
+{
+    public Guid Id { get; set; }
+    public string Number { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string? AuthorizationNumber { get; set; }
+    public DateTime? AuthorizedAt { get; set; }
+    public string AccessKey { get; set; } = string.Empty;
+}
+
 public class SalesProfitabilityReportDto
 {
     public DateTime? FromUtc { get; set; }

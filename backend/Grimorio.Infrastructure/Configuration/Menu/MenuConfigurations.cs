@@ -182,7 +182,6 @@ public class MenuItemPreparationStepConfiguration : BaseEntityConfiguration<Menu
         base.Configure(builder);
         builder.ToTable("MenuItemPreparationSteps", "menu");
 
-        builder.Property(x => x.Title).HasMaxLength(150);
         builder.Property(x => x.Instructions).IsRequired().HasMaxLength(2000);
         builder.Property(x => x.Temperature).HasMaxLength(80);
         builder.Property(x => x.IsCritical).HasDefaultValue(false);

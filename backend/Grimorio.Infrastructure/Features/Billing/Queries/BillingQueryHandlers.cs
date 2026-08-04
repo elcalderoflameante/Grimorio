@@ -257,6 +257,126 @@ public class GetOrderPaymentsHandler : IRequestHandler<GetOrderPaymentsQuery, Li
     }
 }
 
+public class GetThermalReceiptHandler : IRequestHandler<GetThermalReceiptQuery, ThermalReceiptDto?>
+{
+    private readonly GrimorioDbContext _db;
+    public GetThermalReceiptHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<ThermalReceiptDto?> Handle(GetThermalReceiptQuery req, CancellationToken ct)
+    {
+        var payment = await _db.OrderPayments
+            .AsNoTracking()
+            .Include(p => p.Lines).ThenInclude(l => l.Config)
+            .Include(p => p.Items).ThenInclude(i => i.OrderItem).ThenInclude(i => i!.MenuItem)
+            .Include(p => p.Customer)
+            .Include(p => p.CashSession).ThenInclude(s => s!.CashRegister)
+            .Include(p => p.Order).ThenInclude(o => o!.Table)
+            .FirstOrDefaultAsync(p => p.Id == req.PaymentId && p.BranchId == req.BranchId && !p.IsDeleted, ct);
+        if (payment is null) return null;
+
+        var branch = await _db.Branches
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Id == req.BranchId && !b.IsDeleted, ct);
+        var taxConfig = await _db.BranchTaxConfigs
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct);
+        var electronicDocument = await _db.ElectronicDocuments
+            .AsNoTracking()
+            .Where(d => d.BranchId == req.BranchId && d.OrderPaymentId == payment.Id && !d.IsDeleted)
+            .OrderByDescending(d => d.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
+        var itemTotal = payment.Items.Where(i => !i.IsDeleted).Sum(i => i.Total);
+        var subtotal = itemTotal > 0 ? itemTotal : payment.OrderAmount;
+        var tendered = payment.Lines.Where(l => !l.IsDeleted).Sum(l => l.AmountTendered);
+        var change = payment.Lines.Where(l => !l.IsDeleted).Sum(l => l.Change);
+
+        return new ThermalReceiptDto
+        {
+            PaymentId = payment.Id,
+            OrderId = payment.OrderId,
+            DocumentType = payment.DocumentType.ToString(),
+            OrderNumber = payment.Order?.Number ?? 0,
+            OrderType = payment.Order?.Type.ToString(),
+            TableCode = payment.Order?.Table?.Code,
+            PaidAt = payment.PaidAt,
+            CashRegisterName = payment.CashSession?.CashRegister?.Name,
+            CashRegisterCode = payment.CashSession?.CashRegister?.Code,
+            CashierName = payment.CashSession?.OpenedByName,
+            Issuer = new ThermalReceiptIssuerDto
+            {
+                BusinessName = taxConfig?.RazonSocial ?? branch?.Name ?? string.Empty,
+                TradeName = taxConfig?.NombreComercial,
+                Ruc = taxConfig?.Ruc ?? branch?.IdentificationNumber ?? string.Empty,
+                Address = taxConfig?.Direccion ?? branch?.Address ?? string.Empty,
+                Phone = branch?.Phone,
+                Email = branch?.Email,
+                EstablishmentCode = taxConfig?.CodigoEstablecimiento ?? "001",
+                EmissionPoint = taxConfig?.PuntoEmision ?? "001",
+                Environment = taxConfig?.Ambiente ?? "1",
+                AccountingRequired = taxConfig?.ObligadoContabilidad ?? false,
+            },
+            Customer = new ThermalReceiptCustomerDto
+            {
+                Name = payment.Customer?.Name ?? "Consumidor final",
+                TaxId = payment.Customer?.TaxId,
+                Address = payment.Customer?.Address,
+                Phone = payment.Customer?.Phone,
+                Email = payment.Customer?.Email,
+            },
+            Items = payment.Items
+                .Where(i => !i.IsDeleted)
+                .Select(i => new ThermalReceiptItemDto
+                {
+                    Name = i.OrderItem?.MenuItem?.Name ?? "Item",
+                    Quantity = i.Quantity,
+                    UnitPrice = i.UnitPrice,
+                    Total = i.Total,
+                })
+                .ToList(),
+            Payments = payment.Lines
+                .Where(l => !l.IsDeleted)
+                .Select(l => new PaymentLineDto
+                {
+                    Id = l.Id,
+                    MethodId = l.PaymentMethodConfigId,
+                    MethodName = l.Config?.Name ?? string.Empty,
+                    MethodColor = l.Config?.Color ?? "#1677ff",
+                    IsCash = l.Config?.IsCash ?? false,
+                    IsCard = l.Config?.IsCard ?? false,
+                    AmountTendered = l.AmountTendered,
+                    Change = l.Change,
+                    CardPaymentType = l.CardPaymentType?.ToString(),
+                    CardBankId = l.CardBankId,
+                    CardBankName = l.CardBankName,
+                    CardBrand = l.CardBrand,
+                    AuthorizationNumber = l.AuthorizationNumber,
+                })
+                .ToList(),
+            Totals = new ThermalReceiptTotalsDto
+            {
+                Subtotal = subtotal,
+                Discount = 0,
+                Tax = electronicDocument?.TotalIva ?? 0,
+                Total = payment.OrderAmount,
+                Tendered = tendered,
+                Change = change,
+            },
+            ElectronicDocument = electronicDocument is null
+                ? null
+                : new ThermalReceiptElectronicDocumentDto
+                {
+                    Id = electronicDocument.Id,
+                    Number = electronicDocument.NumeroFactura,
+                    Status = electronicDocument.Status.ToString(),
+                    AuthorizationNumber = electronicDocument.NumeroAutorizacion,
+                    AuthorizedAt = electronicDocument.FechaAutorizacion,
+                    AccessKey = electronicDocument.ClaveAcceso,
+                },
+        };
+    }
+}
+
 public class GetSalesHandler : IRequestHandler<GetSalesQuery, List<OrderPaymentDto>>
 {
     private readonly GrimorioDbContext _db;

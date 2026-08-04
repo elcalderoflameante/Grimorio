@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Tag, Space, Typography, Button, DatePicker, Row, Col, Statistic, Descriptions, Select } from 'antd';
-import { BankOutlined, ReloadOutlined, UserOutlined } from '@ant-design/icons';
+import { App as AntApp, Table, Tag, Space, Typography, Button, DatePicker, Row, Col, Statistic, Descriptions, Select, Tooltip } from 'antd';
+import { BankOutlined, PrinterOutlined, ReloadOutlined, UserOutlined } from '@ant-design/icons';
 import type { OrderPaymentDto, PaymentLineDto } from '../../types';
 import { cashApi } from '../../services/api';
 import { GenerateInvoiceButton } from './ElectronicInvoices';
+import { printThermalReceipt } from '../../utils/thermalReceiptPrinter';
 import dayjs, { type Dayjs } from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -51,6 +52,7 @@ function PaymentDetail({ payment }: { payment: OrderPaymentDto }) {
 }
 
 export default function SalesHistory() {
+  const { message } = AntApp.useApp();
   const [sales, setSales] = useState<OrderPaymentDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [cashierFilter, setCashierFilter] = useState<string>();
@@ -77,6 +79,16 @@ export default function SalesHistory() {
   }, [dateRange]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handlePrint = useCallback(async (paymentId: string) => {
+    try {
+      const { data } = await cashApi.getThermalReceipt(paymentId);
+      printThermalReceipt(data);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } }; message?: string };
+      message.error(err?.response?.data?.message ?? err.message ?? 'No se pudo imprimir el comprobante');
+    }
+  }, [message]);
 
   const cashierOptions = Array.from(new Set(sales.map(s => s.cashierName).filter(Boolean) as string[]))
     .sort()
@@ -255,15 +267,24 @@ export default function SalesHistory() {
           },
           {
             title: '',
-            width: 180,
+            width: 220,
             render: (_: unknown, r: OrderPaymentDto) => (
-              <GenerateInvoiceButton
-                orderPaymentId={r.id}
-                documentType={r.documentType}
-                electronicDocumentId={r.electronicDocumentId}
-                electronicDocumentStatus={r.electronicDocumentStatus}
-                onSuccess={load}
-              />
+              <Space size={4}>
+                <Tooltip title="Imprimir comprobante 80mm">
+                  <Button
+                    size="small"
+                    icon={<PrinterOutlined />}
+                    onClick={() => handlePrint(r.id)}
+                  />
+                </Tooltip>
+                <GenerateInvoiceButton
+                  orderPaymentId={r.id}
+                  documentType={r.documentType}
+                  electronicDocumentId={r.electronicDocumentId}
+                  electronicDocumentStatus={r.electronicDocumentStatus}
+                  onSuccess={load}
+                />
+              </Space>
             ),
           },
         ]}

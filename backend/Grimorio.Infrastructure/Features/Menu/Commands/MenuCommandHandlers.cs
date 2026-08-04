@@ -466,7 +466,6 @@ public class UpsertMenuItemPreparationHandler : IRequestHandler<UpsertMenuItemPr
                 BranchId = req.BranchId,
                 MenuItemPreparationId = preparation.Id,
                 StepNumber = stepDto.StepNumber,
-                Title = stepDto.Title?.Trim(),
                 Instructions = stepDto.Instructions.Trim(),
                 EstimatedMinutes = stepDto.EstimatedMinutes,
                 Temperature = stepDto.Temperature?.Trim(),
@@ -561,7 +560,6 @@ internal static class MenuMapper
                 {
                     Id = s.Id,
                     StepNumber = s.StepNumber,
-                    Title = s.Title,
                     Instructions = s.Instructions,
                     EstimatedMinutes = s.EstimatedMinutes,
                     Temperature = s.Temperature,
