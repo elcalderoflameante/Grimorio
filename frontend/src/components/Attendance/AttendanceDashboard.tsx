@@ -8,6 +8,7 @@ import type { EmployeeDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
+import { formatBranchDateTime, formatBranchTime, toBranchDayjs } from '../../utils/branchTimeZone';
 
 interface CorrectionValues {
   clockIn: Dayjs;
@@ -23,7 +24,7 @@ const statusTag = (status: AttendanceAdminRowDto['status']) => {
   return <Tag color="success">Finalizada</Tag>;
 };
 
-const time = (value?: string) => value ? dayjs(value).format('HH:mm') : '—';
+const time = (value?: string) => formatBranchTime(value, '—');
 const duration = (minutes: number) => `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 
 export const AttendanceDashboard = () => {
@@ -63,10 +64,10 @@ export const AttendanceDashboard = () => {
   const openCorrection = (row: AttendanceAdminRowDto) => {
     setEditing(row);
     form.setFieldsValue({
-      clockIn: dayjs(row.clockInTimeUtc),
-      clockOut: row.clockOutTimeUtc ? dayjs(row.clockOutTimeUtc) : undefined,
-      breakStart: row.breakStartedAtUtc ? dayjs(row.breakStartedAtUtc) : undefined,
-      breakEnd: row.breakEndedAtUtc ? dayjs(row.breakEndedAtUtc) : undefined,
+      clockIn: toBranchDayjs(row.clockInTimeUtc) ?? dayjs(row.clockInTimeUtc),
+      clockOut: toBranchDayjs(row.clockOutTimeUtc) ?? undefined,
+      breakStart: toBranchDayjs(row.breakStartedAtUtc) ?? undefined,
+      breakEnd: toBranchDayjs(row.breakEndedAtUtc) ?? undefined,
       reason: '',
     });
   };
@@ -170,7 +171,7 @@ export const AttendanceDashboard = () => {
           <Col span={12}><Typography.Text strong>Después</Typography.Text><pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(JSON.parse(item.afterJson), null, 2)}</pre></Col>
         </Row>,
       }} columns={[
-        { title: 'Fecha', dataIndex: 'correctedAtUtc', render: (value: string) => dayjs(value).format('DD/MM/YYYY HH:mm') },
+        { title: 'Fecha', dataIndex: 'correctedAtUtc', render: (value: string) => formatBranchDateTime(value) },
         { title: 'Motivo', dataIndex: 'reason' },
         { title: 'Usuario', dataIndex: 'correctedByUserId', ellipsis: true },
       ]} />

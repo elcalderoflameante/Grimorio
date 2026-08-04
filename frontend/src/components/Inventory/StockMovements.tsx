@@ -14,7 +14,6 @@ import {
   DatePicker,
 } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import { inventoryApi } from '../../services/api';
 import type {
   StockMovementDto,
@@ -25,6 +24,7 @@ import type {
   MovementType,
 } from '../../types';
 import { formatError } from '../../utils/errorHandler';
+import { branchDateRangeToUtcIso, formatBranchDateTime } from '../../utils/branchTimeZone';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
 
@@ -205,7 +205,10 @@ export default function StockMovements() {
           onChange={v => setFilterTipo(v as MovementType)}
         />
         <RangePicker
-          onChange={v => setFilterRango(v ? [v[0]!.toISOString(), v[1]!.toISOString()] : undefined)}
+          onChange={v => {
+            const range = branchDateRangeToUtcIso(v ? [v[0], v[1]] : undefined);
+            setFilterRango(range.from && range.to ? [range.from, range.to] : undefined);
+          }}
         />
       </Space>
 
@@ -220,7 +223,7 @@ export default function StockMovements() {
             title: 'Fecha',
             dataIndex: 'movedAt',
             key: 'fecha',
-            render: (v: string) => dayjs(v).format('DD/MM/YYYY HH:mm'),
+            render: (v: string) => formatBranchDateTime(v),
             width: 140,
           },
           { title: 'Articulo', dataIndex: 'articleName', key: 'articulo' },

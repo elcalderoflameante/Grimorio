@@ -5,6 +5,7 @@ import type { OrderPaymentDto, PaymentLineDto } from '../../types';
 import { cashApi } from '../../services/api';
 import { GenerateInvoiceButton } from './ElectronicInvoices';
 import { printThermalReceipt } from '../../utils/thermalReceiptPrinter';
+import { branchDateRangeToUtcIso, formatBranchDateTime } from '../../utils/branchTimeZone';
 import dayjs, { type Dayjs } from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -67,9 +68,10 @@ export default function SalesHistory() {
     setLoading(true);
     try {
       const [from, to] = dateRange;
+      const range = branchDateRangeToUtcIso([from, to]);
       const res = await cashApi.getSales({
-        from: from?.toISOString(),
-        to: to?.toISOString(),
+        from: range.from,
+        to: range.to,
         pageSize: 200,
       });
       setSales(res.data);
@@ -197,7 +199,7 @@ export default function SalesHistory() {
             title: 'Fecha',
             dataIndex: 'paidAt',
             width: 150,
-            render: (v: string) => dayjs(v).format('DD/MM/YYYY HH:mm'),
+            render: (v: string) => formatBranchDateTime(v),
           },
           {
             title: 'Orden',

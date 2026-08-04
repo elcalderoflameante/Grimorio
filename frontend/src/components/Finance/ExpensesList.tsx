@@ -15,6 +15,7 @@ import type {
   ExpenseReportGroupDto,
   PaymentMethodConfigDto,
 } from '../../types';
+import { branchDateRangeToUtcIso } from '../../utils/branchTimeZone';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -76,11 +77,12 @@ export default function ExpensesList() {
     setLoading(true);
     try {
       const [from, to] = dateRange;
+      const range = branchDateRangeToUtcIso([from, to]);
       const params = {
         costCenterId: costCenterFilter,
         expenseCategoryId: categoryFilter,
-        from: from?.startOf('day').toISOString(),
-        to: to?.endOf('day').toISOString(),
+        from: range.from,
+        to: range.to,
       };
       const [expensesRes, reportRes] = await Promise.all([
         financeApi.getExpenses({

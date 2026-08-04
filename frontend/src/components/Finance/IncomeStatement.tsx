@@ -4,6 +4,7 @@ import { ReloadOutlined, WarningOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { financeApi } from '../../services/api';
 import type { ExpenseReportGroupDto, IncomeStatementDto, IncomeStatementLineDto } from '../../types';
+import { branchDateRangeToUtcIso } from '../../utils/branchTimeZone';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -28,9 +29,10 @@ export default function IncomeStatement() {
     setLoading(true);
     try {
       const [from, to] = dateRange;
+      const range = branchDateRangeToUtcIso([from, to]);
       const res = await financeApi.getIncomeStatement({
-        from: from?.startOf('day').toISOString(),
-        to: to?.endOf('day').toISOString(),
+        from: range.from,
+        to: range.to,
       });
       setReport(res.data);
     } finally {

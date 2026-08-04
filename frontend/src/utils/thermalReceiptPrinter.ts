@@ -1,4 +1,5 @@
 import type { ThermalReceiptDto } from '../types';
+import { formatBranchDateTime } from './branchTimeZone';
 
 const money = (value?: number) => `$${(value ?? 0).toFixed(2)}`;
 
@@ -14,12 +15,6 @@ const esc = (value?: string | number | null) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-
-const formatDate = (value: string) =>
-  new Intl.DateTimeFormat('es-EC', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(new Date(value));
 
 const docLabel = (receipt: ThermalReceiptDto) => {
   if (receipt.documentType === 'Factura') return 'FACTURA';
@@ -54,7 +49,7 @@ const electronicDocument = (receipt: ThermalReceiptDto) => {
       <div class="row"><span>No.</span><strong>${esc(doc.number)}</strong></div>
       <div class="row"><span>Estado</span><strong>${esc(doc.status)}</strong></div>
       ${doc.authorizationNumber ? `<div>Autorizacion: ${esc(doc.authorizationNumber)}</div>` : ''}
-      ${doc.authorizedAt ? `<div>Fecha aut.: ${esc(formatDate(doc.authorizedAt))}</div>` : ''}
+      ${doc.authorizedAt ? `<div>Fecha aut.: ${esc(formatBranchDateTime(doc.authorizedAt))}</div>` : ''}
       <div class="small break-word">Clave: ${esc(doc.accessKey)}</div>
     </div>
   `;
@@ -119,7 +114,7 @@ const buildHtml = (receipt: ThermalReceiptDto) => `
       <div class="section center strong">${esc(docLabel(receipt))}</div>
       <div class="row"><span>Orden</span><strong>#${esc(receipt.orderNumber)}</strong></div>
       ${receipt.tableCode ? `<div class="row"><span>Mesa</span><strong>${esc(receipt.tableCode)}</strong></div>` : ''}
-      <div class="row"><span>Fecha</span><strong>${esc(formatDate(receipt.paidAt))}</strong></div>
+      <div class="row"><span>Fecha</span><strong>${esc(formatBranchDateTime(receipt.paidAt))}</strong></div>
       ${receipt.cashRegisterName ? `<div class="row"><span>Caja</span><strong>${esc(receipt.cashRegisterName)}</strong></div>` : ''}
       ${receipt.cashierName ? `<div class="row"><span>Cajero</span><strong>${esc(receipt.cashierName)}</strong></div>` : ''}
 

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { App as AntApp, Table, Select, Space, Typography, Tag, Badge, Button } from 'antd';
-import dayjs from 'dayjs';
 import { ReloadOutlined, WarningOutlined } from '@ant-design/icons';
 import { inventoryApi } from '../../services/api';
 import type { WarehouseStockDto, WarehouseDto, InventoryCategoryDto, ArticleType } from '../../types';
 import { formatError } from '../../utils/errorHandler';
+import { formatBranchDateTime } from '../../utils/branchTimeZone';
 
 const { Title } = Typography;
 
@@ -149,7 +149,7 @@ export default function CurrentStock() {
           },
           {
             title: 'Última actualización', dataIndex: 'lastUpdatedAt', key: 'lastUpdatedAt',
-            render: (v: string) => dayjs(v).format('DD/MM/YYYY HH:mm'),
+            render: (v: string) => formatBranchDateTime(v),
           },
         ]}
       />

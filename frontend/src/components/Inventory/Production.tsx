@@ -15,7 +15,6 @@ import {
   Typography,
 } from 'antd';
 import { PlayCircleOutlined, PlusOutlined, ReloadOutlined, ToolOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import { inventoryApi } from '../../services/api';
 import type {
   InventoryArticleDto,
@@ -28,6 +27,7 @@ import type {
 import { formatError } from '../../utils/errorHandler';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
+import { branchDateRangeToUtcIso, formatBranchDateTime } from '../../utils/branchTimeZone';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -324,7 +324,10 @@ export default function Production() {
           options={warehouses.map(w => ({ label: w.name, value: w.id }))}
           onChange={setFilterWarehouse}
         />
-        <RangePicker onChange={v => setFilterRange(v ? [v[0]!.toISOString(), v[1]!.toISOString()] : undefined)} />
+        <RangePicker onChange={v => {
+          const range = branchDateRangeToUtcIso(v ? [v[0], v[1]] : undefined);
+          setFilterRange(range.from && range.to ? [range.from, range.to] : undefined);
+        }} />
       </Space>
 
       <Table
@@ -334,7 +337,7 @@ export default function Production() {
         size="small"
         pagination={{ defaultPageSize: 20 }}
         columns={[
-          { title: 'Fecha', dataIndex: 'producedAt', key: 'producedAt', render: (v: string) => dayjs(v).format('DD/MM/YYYY HH:mm'), width: 140 },
+          { title: 'Fecha', dataIndex: 'producedAt', key: 'producedAt', render: (v: string) => formatBranchDateTime(v), width: 140 },
           { title: 'Número', dataIndex: 'number', key: 'number', width: 150 },
           { title: 'Producto', dataIndex: 'outputArticleName', key: 'outputArticleName' },
           { title: 'Origen', dataIndex: 'sourceWarehouseName', key: 'sourceWarehouseName' },

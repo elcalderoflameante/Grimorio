@@ -12,6 +12,7 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/es';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
+import { branchStartOfDayUtcIso, formatBranchDateTime, formatBranchTime, formatBranchTimeSeconds } from '../../utils/branchTimeZone';
 
 dayjs.extend(relativeTime);
 dayjs.locale('es');
@@ -64,7 +65,7 @@ export default function CashRegister() {
         cashApi.getActiveSession(),
         cashApi.getSessions({ pageSize: 20 }),
         posApi.getActiveOrderSummaries(),
-        cashApi.getSales({ from: dayjs().startOf('day').toISOString(), pageSize: 10 }),
+        cashApi.getSales({ from: branchStartOfDayUtcIso(dayjs()), pageSize: 10 }),
         cashApi.getRegisters(canManageRegisters ? false : true),
       ]);
 
@@ -191,10 +192,10 @@ export default function CashRegister() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Space align="center" size={12}>
           <Title level={4} style={{ margin: 0 }}>Caja</Title>
-          <Tooltip title={`Última actualización: ${dayjs(lastRefresh).format('HH:mm:ss')}`}>
+          <Tooltip title={`Última actualización: ${formatBranchTimeSeconds(lastRefresh.toDate())}`}>
             <Text type="secondary" style={{ fontSize: 12 }}>
               <SyncOutlined spin={loading} style={{ marginRight: 4 }} />
-              {dayjs(lastRefresh).format('HH:mm:ss')}
+              {formatBranchTimeSeconds(lastRefresh.toDate())}
             </Text>
           </Tooltip>
         </Space>
@@ -247,7 +248,7 @@ export default function CashRegister() {
             <Divider orientation="vertical" />
             <Text type="secondary" style={{ fontSize: 13 }}>
               <ClockCircleOutlined style={{ marginRight: 4 }} />
-              Desde {dayjs(activeSession.openedAt).format('HH:mm')}
+              Desde {formatBranchTime(activeSession.openedAt)}
               {' · '}
               {dayjs(activeSession.openedAt).fromNow()}
             </Text>
@@ -432,7 +433,7 @@ export default function CashRegister() {
                     dataIndex: 'paidAt',
                     width: 60,
                     render: (v: string) => (
-                      <Text style={{ fontSize: 12 }}>{dayjs(v).format('HH:mm')}</Text>
+                      <Text style={{ fontSize: 12 }}>{formatBranchTime(v)}</Text>
                     ),
                   },
                   {
@@ -505,7 +506,7 @@ export default function CashRegister() {
         columns={[
           {
             title: 'Fecha', dataIndex: 'openedAt', width: 150,
-            render: v => dayjs(v).format('DD/MM/YYYY HH:mm'),
+            render: v => formatBranchDateTime(v),
           },
           {
             title: 'Caja', width: 130,
@@ -752,7 +753,7 @@ function SessionDetail({ session }: { session: CashSessionDto }) {
       )}
       {session.closedAt && (
         <Descriptions.Item label="Cierre">
-          {dayjs(session.closedAt).format('DD/MM/YYYY HH:mm')}
+          {formatBranchDateTime(session.closedAt)}
         </Descriptions.Item>
       )}
       {session.closeNotes && (

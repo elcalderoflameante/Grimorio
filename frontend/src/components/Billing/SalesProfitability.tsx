@@ -5,6 +5,7 @@ import dayjs, { type Dayjs } from 'dayjs';
 import { cashApi } from '../../services/api';
 import type { CashRegisterDto, SalesProfitabilityItemDto, SalesProfitabilityReportDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
+import { branchDateTimeUtcIso } from '../../utils/branchTimeZone';
 
 const { RangePicker } = DatePicker;
 const { Text, Title } = Typography;
@@ -33,8 +34,8 @@ export default function SalesProfitability() {
     try {
       const [profitabilityRes, registersRes] = await Promise.all([
         cashApi.getSalesProfitability({
-          from: range[0].toISOString(),
-          to: range[1].toISOString(),
+          from: branchDateTimeUtcIso(range[0]),
+          to: branchDateTimeUtcIso(range[1]),
           cashRegisterId,
         }),
         cashApi.getRegisters(true),

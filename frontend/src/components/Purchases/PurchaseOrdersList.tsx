@@ -8,6 +8,7 @@ import { purchasesApi } from '../../services/api';
 import PurchaseForm from './PurchaseForm';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
+import { branchDateRangeToUtcIso } from '../../utils/branchTimeZone';
 
 const { RangePicker } = DatePicker;
 
@@ -41,12 +42,13 @@ export default function PurchasesList() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const range = branchDateRangeToUtcIso(filtroFechas);
       const [cRes, pvRes] = await Promise.all([
         purchasesApi.getPurchases({
           status: filtroEstado,
           supplierId: filtroProveedor,
-          dateFrom: filtroFechas ? filtroFechas[0].startOf('day').toISOString() : undefined,
-          dateTo: filtroFechas ? filtroFechas[1].endOf('day').toISOString() : undefined,
+          dateFrom: range.from,
+          dateTo: range.to,
         }),
         purchasesApi.getSuppliers(),
       ]);
