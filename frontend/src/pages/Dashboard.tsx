@@ -37,6 +37,7 @@ import { useAuth } from '../context/useAuth';
 import { PERMISSIONS } from '../constants/permissions';
 import { branchApi } from '../services/api';
 import { formatError } from '../utils/errorHandler';
+import { setBranchTimeZone } from '../utils/branchTimeZone';
 import type { BranchDto } from '../types';
 import Welcome from '../components/Welcome/Welcome';
 import EmployeeList from '../components/Employees/EmployeeList.tsx';
@@ -181,6 +182,7 @@ export default function Dashboard() {
       try {
         const response = await branchApi.getCurrent();
         setBranch(response.data);
+        setBranchTimeZone(response.data.timeZoneId);
       } catch (error) {
         message.error(formatError(error));
       }

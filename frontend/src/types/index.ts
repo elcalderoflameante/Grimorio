@@ -374,6 +374,7 @@ export interface BranchDto {
   address: string;
   phone: string;
   email: string;
+  timeZoneId: string;
   isActive: boolean;
   latitude?: number;
   longitude?: number;
@@ -386,6 +387,7 @@ export interface UpdateBranchDto {
   address: string;
   phone: string;
   email: string;
+  timeZoneId: string;
   isActive: boolean;
   latitude?: number;
   longitude?: number;

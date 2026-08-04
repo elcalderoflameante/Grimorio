@@ -33,6 +33,11 @@ public class BranchConfiguration : BaseEntityConfiguration<Branch>
         builder.Property(s => s.Email)
             .HasMaxLength(256);
 
+        builder.Property(s => s.TimeZoneId)
+            .HasMaxLength(100)
+            .HasDefaultValue("America/Guayaquil")
+            .IsRequired();
+
         builder.Property(s => s.IsActive)
             .HasDefaultValue(true);
 

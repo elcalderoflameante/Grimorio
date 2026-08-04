@@ -15,6 +15,7 @@ public class UpdateBranchCommand : IRequest<BranchDto>
     public string Address { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+    public string TimeZoneId { get; set; } = "America/Guayaquil";
     public bool IsActive { get; set; }
     public decimal? Latitude { get; set; }
     public decimal? Longitude { get; set; }

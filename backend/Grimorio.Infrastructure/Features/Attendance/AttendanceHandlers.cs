@@ -7,7 +7,7 @@ using Grimorio.Domain.Entities.Organization;
 using Grimorio.Domain.Enums;
 using Grimorio.Infrastructure.Persistence;
 using Grimorio.Infrastructure.Security;
-using Grimorio.Infrastructure.Services.Sri;
+using Grimorio.Infrastructure.Services;
 using MediatR;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -57,7 +57,8 @@ public sealed class AttendanceHandlers :
     {
         var (employee, kiosk) = await LoadEmployeeAndKiosk(request, cancellationToken);
         var nowUtc = DateTime.UtcNow;
-        var workDate = EcuadorTime.DateFromUtc(nowUtc);
+        var timeZoneId = await GetBranchTimeZoneId(kiosk.BranchId, cancellationToken);
+        var workDate = BranchTimeZone.DateFromUtc(nowUtc, timeZoneId);
 
         if (await _context.EmployeeClockings.AnyAsync(
                 x => x.EmployeeId == employee.Id && x.WorkDate == workDate && !x.IsDeleted,
@@ -70,7 +71,7 @@ public sealed class AttendanceHandlers :
             .OrderBy(x => x.StartTime)
             .FirstOrDefaultAsync(cancellationToken);
 
-        var localNow = EcuadorTime.FromUtc(nowUtc);
+        var localNow = BranchTimeZone.FromUtc(nowUtc, timeZoneId);
         var scheduledStart = shift?.StartTime;
         var delta = scheduledStart.HasValue
             ? (int)Math.Round((localNow.TimeOfDay - scheduledStart.Value).TotalMinutes)
@@ -107,7 +108,7 @@ public sealed class AttendanceHandlers :
     public async Task<AttendanceStatusDto> Handle(StartBreakCommand request, CancellationToken cancellationToken)
     {
         var (employee, kiosk) = await LoadEmployeeAndKiosk(request, cancellationToken);
-        var clocking = await LoadTodayClocking(employee.Id, true, cancellationToken);
+        var clocking = await LoadTodayClocking(employee.Id, kiosk.BranchId, true, cancellationToken);
         if (clocking.Status != AttendanceStatus.Working)
             throw new InvalidOperationException("La jornada no está disponible para iniciar el descanso.");
         if (clocking.Break is not null)
@@ -132,7 +133,7 @@ public sealed class AttendanceHandlers :
     public async Task<AttendanceStatusDto> Handle(EndBreakCommand request, CancellationToken cancellationToken)
     {
         var (employee, kiosk) = await LoadEmployeeAndKiosk(request, cancellationToken);
-        var clocking = await LoadTodayClocking(employee.Id, true, cancellationToken);
+        var clocking = await LoadTodayClocking(employee.Id, kiosk.BranchId, true, cancellationToken);
         if (clocking.Status != AttendanceStatus.OnBreak || clocking.Break?.EndedAtUtc is not null)
             throw new InvalidOperationException("El empleado no tiene un descanso activo.");
 
@@ -144,7 +145,7 @@ public sealed class AttendanceHandlers :
     public async Task<AttendanceStatusDto> Handle(ClockOutCommand request, CancellationToken cancellationToken)
     {
         var (employee, kiosk) = await LoadEmployeeAndKiosk(request, cancellationToken);
-        var clocking = await LoadTodayClocking(employee.Id, true, cancellationToken);
+        var clocking = await LoadTodayClocking(employee.Id, kiosk.BranchId, true, cancellationToken);
         if (clocking.Status == AttendanceStatus.Completed)
             throw new InvalidOperationException("La jornada ya fue finalizada.");
 
@@ -170,7 +171,8 @@ public sealed class AttendanceHandlers :
         var employee = await _context.Employees.FirstOrDefaultAsync(
             x => x.Id == request.EmployeeId && x.BranchId == request.BranchId && x.IsActive && !x.IsDeleted,
             cancellationToken) ?? throw new KeyNotFoundException("Empleado no encontrado en la sucursal del kiosco.");
-        var workDate = EcuadorTime.DateFromUtc(DateTime.UtcNow);
+        var timeZoneId = await GetBranchTimeZoneId(request.BranchId, cancellationToken);
+        var workDate = BranchTimeZone.DateFromUtc(DateTime.UtcNow, timeZoneId);
         var clocking = await _context.EmployeeClockings.Include(x => x.Break).FirstOrDefaultAsync(
             x => x.EmployeeId == employee.Id && x.WorkDate == workDate && !x.IsDeleted,
             cancellationToken);
@@ -471,7 +473,8 @@ public sealed class AttendanceHandlers :
                 ? Math.Max(0, (int)Math.Ceiling((breakEnd.Value - breakStart.Value).TotalMinutes)) : 0;
         }
 
-        Recalculate(clocking);
+        var timeZoneId = await GetBranchTimeZoneId(request.BranchId, cancellationToken);
+        Recalculate(clocking, timeZoneId);
         var afterJson = SerializeClockingSnapshot(clocking);
         _context.AttendanceCorrections.Add(new AttendanceCorrection
         {
@@ -500,13 +503,23 @@ public sealed class AttendanceHandlers :
         return (employee, kiosk);
     }
 
-    private async Task<EmployeeClocking> LoadTodayClocking(Guid employeeId, bool includeBreak, CancellationToken cancellationToken)
+    private async Task<EmployeeClocking> LoadTodayClocking(Guid employeeId, Guid branchId, bool includeBreak, CancellationToken cancellationToken)
     {
         var query = _context.EmployeeClockings.AsQueryable();
         if (includeBreak) query = query.Include(x => x.Break);
-        var workDate = EcuadorTime.DateFromUtc(DateTime.UtcNow);
+        var timeZoneId = await GetBranchTimeZoneId(branchId, cancellationToken);
+        var workDate = BranchTimeZone.DateFromUtc(DateTime.UtcNow, timeZoneId);
         return await query.FirstOrDefaultAsync(x => x.EmployeeId == employeeId && x.WorkDate == workDate && !x.IsDeleted, cancellationToken)
             ?? throw new InvalidOperationException("El empleado no tiene una jornada registrada para hoy.");
+    }
+
+    private async Task<string?> GetBranchTimeZoneId(Guid branchId, CancellationToken cancellationToken)
+    {
+        return await _context.Branches
+            .AsNoTracking()
+            .Where(x => x.Id == branchId && !x.IsDeleted)
+            .Select(x => x.TimeZoneId)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     private static void CloseBreak(EmployeeClocking clocking, DateTime nowUtc, AttendanceMethod method,
@@ -592,9 +605,9 @@ public sealed class AttendanceHandlers :
         return embedding;
     }
 
-    private static void Recalculate(EmployeeClocking clocking)
+    private static void Recalculate(EmployeeClocking clocking, string? timeZoneId)
     {
-        var localClockIn = EcuadorTime.FromUtc(clocking.ClockInTimeUtc);
+        var localClockIn = BranchTimeZone.FromUtc(clocking.ClockInTimeUtc, timeZoneId);
         var delta = clocking.ScheduledStartTime.HasValue
             ? (int)Math.Round((localClockIn.TimeOfDay - clocking.ScheduledStartTime.Value).TotalMinutes) : 0;
         clocking.LateMinutes = Math.Max(0, delta);

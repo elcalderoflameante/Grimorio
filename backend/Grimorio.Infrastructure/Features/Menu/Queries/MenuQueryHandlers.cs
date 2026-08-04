@@ -5,6 +5,7 @@ using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.Purchases;
 using Grimorio.Infrastructure.Features.Menu.Commands;
 using Grimorio.Infrastructure.Persistence;
+using Grimorio.Infrastructure.Services;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -360,6 +361,10 @@ public class GenerateMenuItemOperationalSheetPdfHandler : IRequestHandler<Genera
         if (item is null) return null;
 
         var imageBytes = TryReadImage(req.WebRootPath, item.ImageUrl);
+        var branch = await _db.Branches
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == req.BranchId && !x.IsDeleted, ct);
+
         var taxConfig = await _db.BranchTaxConfigs
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.BranchId == req.BranchId && !x.IsDeleted, ct);
@@ -375,7 +380,8 @@ public class GenerateMenuItemOperationalSheetPdfHandler : IRequestHandler<Genera
                 : taxConfig.NombreComercial!;
 
         var logoBytes = TryParseLogo(invoiceTemplate?.LogoBase64);
-        return MenuItemOperationalSheetPdfGenerator.Generate(item, imageBytes, logoBytes, restaurantName);
+        var generatedAtLocal = BranchTimeZone.FromUtc(DateTime.UtcNow, branch?.TimeZoneId);
+        return MenuItemOperationalSheetPdfGenerator.Generate(item, imageBytes, logoBytes, restaurantName, generatedAtLocal);
     }
 
     private static byte[]? TryReadImage(string? webRootPath, string? imageUrl)

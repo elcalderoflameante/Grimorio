@@ -1,9 +1,22 @@
 import { useEffect, useState } from 'react';
-import { App as AntApp, Card, Form, Input, Button, Switch, Row, Col, Divider } from 'antd';
+import { App as AntApp, Card, Form, Input, Button, Switch, Row, Col, Divider, Select } from 'antd';
 import { branchApi } from '../../services/api';
 import { LocationMap } from './LocationMap';
 import type { BranchDto, UpdateBranchDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
+import { DEFAULT_BRANCH_TIME_ZONE, setBranchTimeZone } from '../../utils/branchTimeZone';
+
+const timeZoneOptions = [
+  { value: DEFAULT_BRANCH_TIME_ZONE, label: 'Ecuador - America/Guayaquil (UTC-05:00)' },
+  { value: 'America/Bogota', label: 'Colombia - America/Bogota (UTC-05:00)' },
+  { value: 'America/Lima', label: 'Peru - America/Lima (UTC-05:00)' },
+  { value: 'America/Panama', label: 'Panama - America/Panama (UTC-05:00)' },
+  { value: 'America/New_York', label: 'Estados Unidos Este - America/New_York' },
+  { value: 'America/Chicago', label: 'Estados Unidos Centro - America/Chicago' },
+  { value: 'America/Denver', label: 'Estados Unidos Montana - America/Denver' },
+  { value: 'America/Los_Angeles', label: 'Estados Unidos Pacifico - America/Los_Angeles' },
+  { value: 'Europe/Madrid', label: 'Espana - Europe/Madrid' },
+];
 
 export const BranchConfigurationForm = () => {
   const { message } = AntApp.useApp();
@@ -22,6 +35,7 @@ export const BranchConfigurationForm = () => {
         const response = await branchApi.getCurrent();
         setBranch(response.data);
         form.setFieldsValue(response.data);
+        setBranchTimeZone(response.data.timeZoneId);
         setLatitude(response.data.latitude);
         setLongitude(response.data.longitude);
       } catch (error) {
@@ -49,12 +63,14 @@ export const BranchConfigurationForm = () => {
       setLoading(true);
       const dataToSave = {
         ...values,
+        timeZoneId: values.timeZoneId || DEFAULT_BRANCH_TIME_ZONE,
         latitude,
         longitude,
       };
       const response = await branchApi.updateCurrent(dataToSave);
       setBranch(response.data);
       form.setFieldsValue(response.data);
+      setBranchTimeZone(response.data.timeZoneId);
       setLatitude(response.data.latitude);
       setLongitude(response.data.longitude);
       message.success('Sucursal actualizada correctamente.');
@@ -115,6 +131,23 @@ export const BranchConfigurationForm = () => {
           <Col xs={24} md={12}>
             <Form.Item label="Email" name="email">
               <Input placeholder="Email" type="email" />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Row gutter={16}>
+          <Col xs={24} md={12}>
+            <Form.Item
+              label="Zona horaria"
+              name="timeZoneId"
+              rules={[{ required: true, message: 'Seleccione la zona horaria de la sucursal' }]}
+            >
+              <Select
+                showSearch
+                options={timeZoneOptions}
+                placeholder="Seleccione la zona horaria"
+                optionFilterProp="label"
+              />
             </Form.Item>
           </Col>
         </Row>

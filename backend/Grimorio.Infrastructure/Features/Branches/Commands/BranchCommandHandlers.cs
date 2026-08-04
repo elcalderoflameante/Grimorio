@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Branches.Commands;
 using Grimorio.Infrastructure.Persistence;
+using Grimorio.Infrastructure.Services;
 
 namespace Grimorio.Infrastructure.Features.Branches.Commands;
 
@@ -29,12 +30,18 @@ public class UpdateBranchCommandHandler : IRequestHandler<UpdateBranchCommand, B
         if (branch == null)
             throw new InvalidOperationException("La sucursal no existe.");
 
+        if (!BranchTimeZone.IsValid(request.TimeZoneId))
+            throw new ArgumentException("La zona horaria seleccionada no es valida.");
+
         branch.Name = request.Name;
         branch.Code = request.Code;
         branch.IdentificationNumber = request.IdentificationNumber;
         branch.Address = request.Address;
         branch.Phone = request.Phone;
         branch.Email = request.Email;
+        branch.TimeZoneId = string.IsNullOrWhiteSpace(request.TimeZoneId)
+            ? BranchTimeZone.DefaultTimeZoneId
+            : request.TimeZoneId.Trim();
         branch.IsActive = request.IsActive;
         branch.Latitude = request.Latitude;
         branch.Longitude = request.Longitude;

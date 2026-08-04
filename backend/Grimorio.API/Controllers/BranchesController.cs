@@ -80,6 +80,7 @@ public class BranchesController : ControllerBase
                 Address = dto.Address,
                 Phone = dto.Phone,
                 Email = dto.Email,
+                TimeZoneId = dto.TimeZoneId,
                 IsActive = dto.IsActive,
                 Latitude = dto.Latitude,
                 Longitude = dto.Longitude
@@ -91,6 +92,10 @@ public class BranchesController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
         catch (Exception ex)
         {

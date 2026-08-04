@@ -5,10 +5,13 @@ using Grimorio.Application.Features.Attendance.Commands;
 using Grimorio.Application.Features.Attendance.Queries;
 using Grimorio.Domain.Enums;
 using Grimorio.Infrastructure.Features.Attendance;
+using Grimorio.Infrastructure.Persistence;
+using Grimorio.Infrastructure.Services;
 using Grimorio.SharedKernel.Constants;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Grimorio.API.Controllers;
 
@@ -20,13 +23,15 @@ public sealed class AttendanceController : ControllerBase
     private readonly IMediator _mediator;
     private readonly AttendanceKioskAuthenticator _kioskAuthenticator;
     private readonly SFaceBiometricService _biometricService;
+    private readonly GrimorioDbContext _dbContext;
 
     public AttendanceController(IMediator mediator, AttendanceKioskAuthenticator kioskAuthenticator,
-        SFaceBiometricService biometricService)
+        SFaceBiometricService biometricService, GrimorioDbContext dbContext)
     {
         _mediator = mediator;
         _kioskAuthenticator = kioskAuthenticator;
         _biometricService = biometricService;
+        _dbContext = dbContext;
     }
 
     [Authorize(Policy = AppConstants.Permissions.RrhhAttendanceEnroll)]
@@ -64,8 +69,8 @@ public sealed class AttendanceController : ControllerBase
         [FromQuery] Guid? employeeId, CancellationToken cancellationToken)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
-        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(
-            DateTime.UtcNow, OperatingSystem.IsWindows() ? "SA Pacific Standard Time" : "America/Guayaquil"));
+        var timeZoneId = await GetBranchTimeZoneId(branchId, cancellationToken);
+        var today = BranchTimeZone.DateFromUtc(DateTime.UtcNow, timeZoneId);
         return Ok(await _mediator.Send(new GetAttendanceAdminRowsQuery
         {
             BranchId = branchId,
@@ -73,6 +78,15 @@ public sealed class AttendanceController : ControllerBase
             ToDate = to ?? today,
             EmployeeId = employeeId
         }, cancellationToken));
+    }
+
+    private async Task<string?> GetBranchTimeZoneId(Guid branchId, CancellationToken cancellationToken)
+    {
+        return await _dbContext.Branches
+            .AsNoTracking()
+            .Where(x => x.Id == branchId && !x.IsDeleted)
+            .Select(x => x.TimeZoneId)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     [Authorize(Policy = AppConstants.Permissions.RrhhAttendanceView)]

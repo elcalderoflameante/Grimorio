@@ -2,6 +2,7 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { AuthContext, type DecodedToken, type User } from './auth-context';
 import { MICROSOFT_ROLE_CLAIM } from '../constants/auth';
+import { clearBranchTimeZone } from '../utils/branchTimeZone';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(() => {
@@ -84,6 +85,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('user');
     localStorage.removeItem('branchId');
+    clearBranchTimeZone();
   };
 
   // Función helper para verificar si el usuario tiene un permiso

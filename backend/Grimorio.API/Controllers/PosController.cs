@@ -1,7 +1,9 @@
 ﻿using Grimorio.API.Hubs;
 using Grimorio.Application.DTOs;
+using Grimorio.Application.Features.Branches.Queries;
 using Grimorio.Application.Features.POS.Commands;
 using Grimorio.Application.Features.POS.Queries;
+using Grimorio.Infrastructure.Services;
 using Grimorio.SharedKernel.Constants;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -424,13 +426,13 @@ public class PosController : ControllerBase
     public async Task<IActionResult> GetCompletedStationItems(Guid id, [FromQuery] DateOnly? date = null)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
-        // Ecuador es UTC-5 sin DST; calculamos "hoy" en hora local ecuatoriana
-        var todayEcuador = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(-5));
+        var branch = await _mediator.Send(new GetCurrentBranchQuery { BranchId = branchId });
+        var today = BranchTimeZone.DateFromUtc(DateTime.UtcNow, branch?.TimeZoneId);
         var result = await _mediator.Send(new GetCompletedStationItemsQuery
         {
             StationId = id,
             BranchId = branchId,
-            Date = date ?? todayEcuador,
+            Date = date ?? today,
         });
         return Ok(result);
     }

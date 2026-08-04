@@ -17,7 +17,8 @@ internal static class MenuItemOperationalSheetPdfGenerator
         MenuItem item,
         byte[]? imageBytes,
         byte[]? logoBytes,
-        string restaurantName)
+        string restaurantName,
+        DateTime generatedAtLocal)
     {
         return Document.Create(document =>
         {
@@ -40,7 +41,7 @@ internal static class MenuItemOperationalSheetPdfGenerator
                 page.Footer().AlignCenter().Text(text =>
                 {
                     text.Span("Ficha operativa generada el ");
-                    text.Span(DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture)).SemiBold();
+                    text.Span(generatedAtLocal.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture)).SemiBold();
                     text.Span($" - Documento interno de {restaurantName}");
                 });
             });
