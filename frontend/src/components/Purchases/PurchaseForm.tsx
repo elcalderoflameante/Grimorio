@@ -8,6 +8,7 @@ import type {
   InventoryArticleDto, WarehouseDto, TaxRateDto,
 } from '../../types';
 import { purchasesApi, inventoryApi, taxApi } from '../../services/api';
+import { branchStartOfDayUtcIso, formatBranchDate, toBranchDayjs } from '../../utils/branchTimeZone';
 
 const { Text } = Typography;
 
@@ -126,7 +127,7 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
       form.setFieldsValue({
         documentType: DOC_TYPE_VALUE[compra.documentType] ?? 1,
         documentNumber: compra.documentNumber,
-        documentDate: dayjs(compra.documentDate),
+        documentDate: toBranchDayjs(compra.documentDate) ?? dayjs(compra.documentDate),
         supplierId: compra.supplierId,
         destinationWarehouseId: compra.destinationWarehouseId,
         notes: compra.notes,
@@ -185,7 +186,7 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
       const payload = {
         documentType: values.documentType,
         documentNumber: values.documentNumber || undefined,
-        documentDate: values.documentDate.toISOString(),
+        documentDate: branchStartOfDayUtcIso(values.documentDate) ?? values.documentDate.toISOString(),
         supplierId: values.supplierId || undefined,
         notes: values.notes || undefined,
         destinationWarehouseId: values.destinationWarehouseId || undefined,
@@ -235,7 +236,7 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
             {DOC_TYPE_LABEL[f.documentType] ?? f.documentType}
           </Descriptions.Item>
           <Descriptions.Item label="Fecha del comprobante">
-            {dayjs(f.documentDate).format('DD/MM/YYYY')}
+            {formatBranchDate(f.documentDate)}
           </Descriptions.Item>
           <Descriptions.Item label="Proveedor">{f.supplierName ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="Bodega destino">{f.warehouseName ?? '—'}</Descriptions.Item>

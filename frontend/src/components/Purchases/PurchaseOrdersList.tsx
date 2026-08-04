@@ -8,7 +8,7 @@ import { purchasesApi } from '../../services/api';
 import PurchaseForm from './PurchaseForm';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
-import { branchDateRangeToUtcIso } from '../../utils/branchTimeZone';
+import { branchDateRangeToUtcIso, formatBranchDate } from '../../utils/branchTimeZone';
 
 const { RangePicker } = DatePicker;
 
@@ -89,7 +89,7 @@ export default function PurchasesList() {
       dataIndex: 'documentDate',
       key: 'documentDate',
       width: 100,
-      render: (d: string) => dayjs(d).format('DD/MM/YY'),
+      render: (d: string) => formatBranchDate(d),
     },
     {
       title: 'Tipo',

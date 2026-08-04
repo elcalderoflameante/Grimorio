@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import dayjs from 'dayjs';
 import jsPDF from 'jspdf';
 import { App as AntApp, Button,
   Card,
@@ -23,6 +22,7 @@ import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
 import { tableServiceApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
+import { formatBranchTime } from '../../utils/branchTimeZone';
 import { compareTablesByNumber } from '../../utils/tableOrdering';
 import ecfLogo from '../../assets/ECF-Logo.png';
 import {
@@ -642,7 +642,7 @@ export default function TableServiceModule() {
       dataIndex: 'requestedAt',
       key: 'requestedAt',
       width: 85,
-      render: (value: string) => dayjs(value).format('HH:mm'),
+      render: (value: string) => formatBranchTime(value),
     },
     {
       title: 'Mesa',

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { App, Button, Card, Descriptions, Form, Input, Modal, Popconfirm, Space, Table, Tag, Typography } from 'antd';
 import { CopyOutlined, DownloadOutlined, PlusOutlined, ReloadOutlined, StopOutlined, TabletOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import { attendanceApi, type AttendanceKioskDto, type KioskRegistrationDto } from '../../services/attendanceApi';
 import { formatError } from '../../utils/errorHandler';
+import { formatBranchDateTime } from '../../utils/branchTimeZone';
 
 interface RegisterValues { name: string; deviceIdentifier: string }
 
@@ -81,7 +81,7 @@ export const KioskManagement = () => {
           { title: 'Identificador', dataIndex: 'deviceIdentifier', ellipsis: true },
           { title: 'Estado', dataIndex: 'status', render: (status: AttendanceKioskDto['status']) =>
             <Tag color={status === 'Active' ? 'green' : status === 'Revoked' ? 'red' : 'gold'}>{status}</Tag> },
-          { title: 'Última conexión', dataIndex: 'lastSeenAtUtc', render: (value?: string) => value ? dayjs(value).format('DD/MM/YYYY HH:mm') : 'Nunca' },
+          { title: 'Última conexión', dataIndex: 'lastSeenAtUtc', render: (value?: string) => formatBranchDateTime(value, 'Nunca') },
           { title: 'Versión', dataIndex: 'appVersion', render: (value?: string) => value || '—' },
           { title: 'Acciones', render: (_: unknown, item: AttendanceKioskDto) => item.status === 'Active' && (
             <Popconfirm title="¿Revocar este kiosco?" description="El dispositivo dejará de poder realizar marcaciones." onConfirm={() => void revoke(item.id)}>

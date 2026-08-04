@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { App, Button, Card, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd';
 import { CameraOutlined, DeleteOutlined, ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import { employeeApi } from '../../services/api';
 import { attendanceApi, type FacialEnrollmentDto } from '../../services/attendanceApi';
 import type { EmployeeDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
+import { formatBranchDateTime } from '../../utils/branchTimeZone';
 
 const requiredSamples = 3;
 const sampleInstructions = [
@@ -152,7 +152,7 @@ export const BiometricEnrollment = () => {
           { title: 'Empleado', dataIndex: 'employeeName' },
           { title: 'Modelo', dataIndex: 'modelVersion', render: (value: string) => <Tag color="blue">{value}</Tag> },
           { title: 'Muestras', dataIndex: 'sampleCount' },
-          { title: 'Enrolado', dataIndex: 'enrolledAtUtc', render: (value: string) => dayjs(value).format('DD/MM/YYYY HH:mm') },
+          { title: 'Enrolado', dataIndex: 'enrolledAtUtc', render: (value: string) => formatBranchDateTime(value) },
           { title: 'Acciones', render: (_: unknown, item: FacialEnrollmentDto) =>
             <Popconfirm title="¿Revocar la biometría?" description="El empleado no podrá marcar con su rostro." onConfirm={() => void revoke(item.employeeId)}>
               <Button danger icon={<DeleteOutlined />}>Revocar</Button>

@@ -24,6 +24,7 @@ import type {
 } from '../../types';
 import { PayrollAdjustmentType, PayrollAdjustmentCategory, PayrollRoleStatus } from '../../types';
 import logo from '../../assets/ECF-Logo.png';
+import { formatBranchDate } from '../../utils/branchTimeZone';
 
 interface AdvanceFormValues {
   date: Dayjs;
@@ -590,7 +591,7 @@ export const PayrollSummary = () => {
 
     const advancesBreakdown: SalaryBreakdownItem[] = advancesDetails.map((item) => ({
       key: item.id,
-      detail: `${dayjs(item.date).format('DD/MM/YYYY')} - ${item.method}`,
+      detail: `${formatBranchDate(item.date)} - ${item.method}`,
       note: [
         `Periodo: ${formatPeriod(dayjs().year(item.payrollYear).month(item.payrollMonth - 1))}`,
         item.notes?.trim(),
@@ -602,7 +603,7 @@ export const PayrollSummary = () => {
 
     const consumptionsBreakdown: SalaryBreakdownItem[] = consumptionsDetails.map((item) => ({
       key: item.id,
-      detail: dayjs(item.date).format('DD/MM/YYYY'),
+      detail: formatBranchDate(item.date),
       note: item.notes?.trim() || '-',
       amount: item.amount,
       deleteType: 'consumption',
@@ -615,7 +616,7 @@ export const PayrollSummary = () => {
         && item.category !== PayrollAdjustmentCategory.Overtime100)
       .map((item) => ({
         key: item.id,
-        detail: `${dayjs(item.date).format('DD/MM/YYYY')} - ${getAdjustmentCategoryLabel(item.category)}`,
+        detail: `${formatBranchDate(item.date)} - ${getAdjustmentCategoryLabel(item.category)}`,
         note: item.notes?.trim() || '-',
         amount: resolveAdjustmentAmount(item),
         deleteType: 'adjustment',
@@ -626,7 +627,7 @@ export const PayrollSummary = () => {
       .filter((item) => item.type === PayrollAdjustmentType.Income && item.category === PayrollAdjustmentCategory.Overtime50)
       .map((item) => ({
         key: item.id,
-        detail: `${dayjs(item.date).format('DD/MM/YYYY')} - ${item.hours ?? 0}h`,
+        detail: `${formatBranchDate(item.date)} - ${item.hours ?? 0}h`,
         note: item.notes?.trim() || '-',
         amount: resolveAdjustmentAmount(item),
         deleteType: 'adjustment',
@@ -637,7 +638,7 @@ export const PayrollSummary = () => {
       .filter((item) => item.type === PayrollAdjustmentType.Income && item.category === PayrollAdjustmentCategory.Overtime100)
       .map((item) => ({
         key: item.id,
-        detail: `${dayjs(item.date).format('DD/MM/YYYY')} - ${item.hours ?? 0}h`,
+        detail: `${formatBranchDate(item.date)} - ${item.hours ?? 0}h`,
         note: item.notes?.trim() || '-',
         amount: resolveAdjustmentAmount(item),
         deleteType: 'adjustment',
@@ -648,7 +649,7 @@ export const PayrollSummary = () => {
       .filter((item) => item.type === PayrollAdjustmentType.Deduction)
       .map((item) => ({
         key: item.id,
-        detail: `${dayjs(item.date).format('DD/MM/YYYY')} - ${getAdjustmentCategoryLabel(item.category)}`,
+        detail: `${formatBranchDate(item.date)} - ${getAdjustmentCategoryLabel(item.category)}`,
         note: item.notes?.trim() || '-',
         amount: resolveAdjustmentAmount(item),
         deleteType: 'adjustment',

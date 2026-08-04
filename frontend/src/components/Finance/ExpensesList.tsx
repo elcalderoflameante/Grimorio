@@ -15,7 +15,7 @@ import type {
   ExpenseReportGroupDto,
   PaymentMethodConfigDto,
 } from '../../types';
-import { branchDateRangeToUtcIso } from '../../utils/branchTimeZone';
+import { branchDateRangeToUtcIso, branchStartOfDayUtcIso, formatBranchDate } from '../../utils/branchTimeZone';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -120,7 +120,7 @@ export default function ExpensesList() {
     const method = values.paymentMethodConfigId ? paymentMethodById.get(values.paymentMethodConfigId) : undefined;
     const dto: CreateExpenseDto = {
       ...values,
-      expenseDate: dayjs(values.expenseDate).toISOString(),
+      expenseDate: branchStartOfDayUtcIso(values.expenseDate) ?? dayjs(values.expenseDate).toISOString(),
       cashSessionId: method?.isCash && activeSession ? activeSession.id : undefined,
     };
 
@@ -299,7 +299,7 @@ export default function ExpensesList() {
             title: 'Fecha',
             dataIndex: 'expenseDate',
             width: 120,
-            render: (value: string) => dayjs(value).format('DD/MM/YYYY'),
+            render: (value: string) => formatBranchDate(value),
           },
           { title: 'Centro de costo', dataIndex: 'costCenterName', width: 160 },
           {
