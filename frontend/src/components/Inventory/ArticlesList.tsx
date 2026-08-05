@@ -39,6 +39,7 @@ export default function ArticlesList() {
   const [modal, setModal] = useState(false);
   const [filterBodega, setFilterBodega] = useState<string | undefined>();
   const [filterCategoria, setFilterCategoria] = useState<string | undefined>();
+  const [filterNombre, setFilterNombre] = useState('');
   const [editing, setEditing] = useState<InventoryArticleDto | null>(null);
   const [form] = Form.useForm();
   const canManage = hasPermission(PERMISSIONS.inventory.articlesManage);
@@ -137,9 +138,13 @@ export default function ArticlesList() {
   }, [stock]);
 
   const filteredArticulos = useMemo(() => {
-    if (!filterBodega) return articulos;
-    return articulos.filter(a => stockByArticle.has(a.id));
-  }, [articulos, filterBodega, stockByArticle]);
+    const search = filterNombre.trim().toLowerCase();
+    return articulos.filter(a => {
+      const matchesWarehouse = !filterBodega || stockByArticle.has(a.id);
+      const matchesName = !search || a.name.toLowerCase().includes(search);
+      return matchesWarehouse && matchesName;
+    });
+  }, [articulos, filterBodega, filterNombre, stockByArticle]);
 
   const renderStock = (article: InventoryArticleDto) => {
     const warehouseStock = stockByArticle.get(article.id);
@@ -167,6 +172,13 @@ export default function ArticlesList() {
       </div>
 
       <Space style={{ marginBottom: 16 }} wrap>
+        <Input.Search
+          allowClear
+          placeholder="Buscar por nombre"
+          style={{ width: 260 }}
+          value={filterNombre}
+          onChange={(e) => setFilterNombre(e.target.value)}
+        />
         <Select
           allowClear
           placeholder="Filtrar por bodega"
