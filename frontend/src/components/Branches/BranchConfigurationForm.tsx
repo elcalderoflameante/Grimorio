@@ -6,7 +6,6 @@ import {
   Col,
   Divider,
   Form,
-  Image,
   Input,
   Row,
   Select,
@@ -33,6 +32,13 @@ const timeZoneOptions = [
   { value: 'Europe/Madrid', label: 'Espana - Europe/Madrid' },
 ];
 
+const buildLogoPreviewUrl = (url?: string | null, refresh = false): string | undefined => {
+  const resolved = resolveMediaUrl(url);
+  if (!resolved || !refresh || /^(data:|blob:)/i.test(resolved)) return resolved;
+
+  return `${resolved}${resolved.includes('?') ? '&' : '?'}v=${Date.now()}`;
+};
+
 export const BranchConfigurationForm = () => {
   const { message } = AntApp.useApp();
 
@@ -43,17 +49,25 @@ export const BranchConfigurationForm = () => {
   const [latitude, setLatitude] = useState<number | undefined>();
   const [longitude, setLongitude] = useState<number | undefined>();
   const [logoLoading, setLogoLoading] = useState(false);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | undefined>();
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
+
+  const applyBranch = (nextBranch: BranchDto, refreshLogo = false) => {
+    setBranch(nextBranch);
+    form.setFieldsValue(nextBranch);
+    setLatitude(nextBranch.latitude);
+    setLongitude(nextBranch.longitude);
+    setLogoPreviewUrl(buildLogoPreviewUrl(nextBranch.logoUrl, refreshLogo));
+    setLogoLoadFailed(false);
+  };
 
   useEffect(() => {
     const loadBranch = async () => {
       try {
         setInitialLoading(true);
         const response = await branchApi.getCurrent();
-        setBranch(response.data);
-        form.setFieldsValue(response.data);
+        applyBranch(response.data);
         setBranchTimeZone(response.data.timeZoneId);
-        setLatitude(response.data.latitude);
-        setLongitude(response.data.longitude);
       } catch (error) {
         message.error(formatError(error));
       } finally {
@@ -85,11 +99,8 @@ export const BranchConfigurationForm = () => {
         longitude,
       };
       const response = await branchApi.updateCurrent(dataToSave);
-      setBranch(response.data);
-      form.setFieldsValue(response.data);
+      applyBranch(response.data);
       setBranchTimeZone(response.data.timeZoneId);
-      setLatitude(response.data.latitude);
-      setLongitude(response.data.longitude);
       message.success('Sucursal actualizada correctamente.');
     } catch (error) {
       message.error(formatError(error));
@@ -102,8 +113,7 @@ export const BranchConfigurationForm = () => {
     try {
       setLogoLoading(true);
       const response = await branchApi.uploadLogo(file);
-      setBranch(response.data);
-      form.setFieldsValue(response.data);
+      applyBranch(response.data, true);
       message.success('Logo actualizado correctamente.');
     } catch (error) {
       message.error(formatError(error));
@@ -116,8 +126,7 @@ export const BranchConfigurationForm = () => {
     try {
       setLogoLoading(true);
       const response = await branchApi.deleteLogo();
-      setBranch(response.data);
-      form.setFieldsValue(response.data);
+      applyBranch(response.data);
       message.success('Logo eliminado correctamente.');
     } catch (error) {
       message.error(formatError(error));
@@ -214,14 +223,17 @@ export const BranchConfigurationForm = () => {
                 background: '#fafafa',
               }}
             >
-              {branch?.logoUrl ? (
-                <Image
-                  src={resolveMediaUrl(branch.logoUrl)}
+              {logoPreviewUrl && !logoLoadFailed ? (
+                <img
+                  src={logoPreviewUrl}
                   alt="Logo de sucursal"
                   style={{ maxWidth: 150, maxHeight: 86, objectFit: 'contain' }}
+                  onError={() => setLogoLoadFailed(true)}
                 />
               ) : (
-                <span style={{ color: '#8c8c8c' }}>Sin logo</span>
+                <span style={{ color: '#8c8c8c' }}>
+                  {branch?.logoUrl ? 'No se pudo cargar' : 'Sin logo'}
+                </span>
               )}
             </div>
           </Col>
