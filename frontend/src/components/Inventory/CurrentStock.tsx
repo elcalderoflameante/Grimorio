@@ -11,7 +11,15 @@ const { Title } = Typography;
 const TIPO_COLOR: Record<string, string> = {
   Ingredient: 'blue',
   FinishedProduct: 'green',
+  ElaboratedProduct: 'purple',
   Supply: 'orange',
+};
+
+const TIPO_LABEL: Record<string, string> = {
+  Ingredient: 'Ingrediente',
+  FinishedProduct: 'Producto terminado',
+  ElaboratedProduct: 'Producto elaborado',
+  Supply: 'Suministro',
 };
 
 const formatQuantity = (value: number, unit: string) => `${Number(value).toFixed(2)} ${unit}`;
@@ -114,7 +122,7 @@ export default function CurrentStock() {
           },
           {
             title: 'Tipo', dataIndex: 'type', key: 'tipo',
-            render: (v: ArticleType) => <Tag color={TIPO_COLOR[v]}>{v}</Tag>,
+            render: (v: ArticleType) => <Tag color={TIPO_COLOR[v]}>{TIPO_LABEL[v] ?? v}</Tag>,
           },
           { title: 'Categoría', dataIndex: 'categoryName', key: 'categoryName' },
           { title: 'Bodega', dataIndex: 'warehouseName', key: 'warehouseName' },

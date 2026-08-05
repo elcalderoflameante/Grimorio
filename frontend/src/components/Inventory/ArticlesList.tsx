@@ -16,13 +16,22 @@ const { Title } = Typography;
 const TIPO_OPTIONS = [
   { label: 'Ingrediente', value: 'Ingredient' },
   { label: 'Producto terminado', value: 'FinishedProduct' },
+  { label: 'Producto elaborado', value: 'ElaboratedProduct' },
   { label: 'Suministro', value: 'Supply' },
 ];
 
 const TIPO_COLOR: Record<string, string> = {
   Ingredient: 'blue',
   FinishedProduct: 'green',
+  ElaboratedProduct: 'purple',
   Supply: 'orange',
+};
+
+const TIPO_LABEL: Record<string, string> = {
+  Ingredient: 'Ingrediente',
+  FinishedProduct: 'Producto terminado',
+  ElaboratedProduct: 'Producto elaborado',
+  Supply: 'Suministro',
 };
 
 export default function ArticlesList() {
@@ -216,7 +225,7 @@ export default function ArticlesList() {
           { title: 'Código', dataIndex: 'internalCode', key: 'internalCode' },
           {
             title: 'Tipo', dataIndex: 'type', key: 'tipo',
-            render: (v: ArticleType) => <Tag color={TIPO_COLOR[v]}>{v}</Tag>,
+            render: (v: ArticleType) => <Tag color={TIPO_COLOR[v]}>{TIPO_LABEL[v] ?? v}</Tag>,
           },
           { title: 'Categoría', dataIndex: 'categoryName', key: 'categoryName' },
           {

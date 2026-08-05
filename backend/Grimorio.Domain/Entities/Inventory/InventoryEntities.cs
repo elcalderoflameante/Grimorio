@@ -7,6 +7,7 @@ public enum ArticleType
     Ingredient = 1,
     FinishedProduct = 2,
     Supply = 3,
+    ElaboratedProduct = 4,
 }
 
 public enum MovementType

@@ -824,7 +824,7 @@ export interface PublicDraftOrderResultDto {
 
 // ======================== Inventory ========================
 
-export type ArticleType = 'Ingredient' | 'FinishedProduct' | 'Supply';
+export type ArticleType = 'Ingredient' | 'FinishedProduct' | 'ElaboratedProduct' | 'Supply';
 export type MovementType =
   | 'InitialInventory'
   | 'PurchaseEntry'

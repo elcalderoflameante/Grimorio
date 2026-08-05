@@ -491,8 +491,8 @@ public class UpsertProductionRecipeHandler : IRequestHandler<UpsertProductionRec
             .FirstOrDefaultAsync(x => x.Id == req.OutputArticleId && x.BranchId == req.BranchId && x.IsActive, ct)
             ?? throw new InvalidOperationException("Artículo producido no encontrado.");
 
-        if (outputArticle.Type != ArticleType.FinishedProduct)
-            throw new InvalidOperationException("El artículo producido debe ser de tipo FinishedProduct.");
+        if (outputArticle.Type != ArticleType.ElaboratedProduct)
+            throw new InvalidOperationException("El artículo producido debe ser de tipo Producto elaborado.");
 
         await InventoryProductionHelper.ToBaseQuantity(_db, req.BranchId, outputArticle, req.OutputQuantity, req.OutputUnitId, ct);
 
@@ -587,6 +587,8 @@ public class RegisterProductionHandler : IRequestHandler<RegisterProductionComma
 
         if (recipe.Ingredients.Count == 0)
             throw new InvalidOperationException("La receta de producción no tiene insumos.");
+        if (recipe.OutputArticle?.Type != ArticleType.ElaboratedProduct)
+            throw new InvalidOperationException("Solo se puede registrar producción de artículos tipo Producto elaborado.");
 
         var sourceWarehouse = await _db.Warehouses
             .FirstOrDefaultAsync(x => x.Id == req.SourceWarehouseId && x.BranchId == req.BranchId && x.IsActive, ct)

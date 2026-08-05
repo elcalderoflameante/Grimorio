@@ -79,8 +79,8 @@ export default function Production() {
   const selectedProductionRecipeId = Form.useWatch('productionRecipeId', productionForm);
   const canCreate = hasPermission(PERMISSIONS.inventory.movementsCreate);
 
-  const finishedProducts = useMemo(
-    () => articles.filter(a => a.type === 'FinishedProduct' && a.isActive),
+  const elaboratedProducts = useMemo(
+    () => articles.filter(a => a.type === 'ElaboratedProduct' && a.isActive),
     [articles]
   );
 
@@ -312,7 +312,7 @@ export default function Production() {
           allowClear
           placeholder="Producto elaborado"
           style={{ width: 240 }}
-          options={finishedProducts.map(a => ({ label: a.name, value: a.id }))}
+          options={elaboratedProducts.map(a => ({ label: a.name, value: a.id }))}
           onChange={setFilterArticle}
           showSearch
           optionFilterProp="label"
@@ -396,7 +396,7 @@ export default function Production() {
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 120px minmax(160px, 190px) 110px', gap: 12 }}>
             <Form.Item name="outputArticleId" label="Producto elaborado" rules={[{ required: true }]}>
               <Select
-                options={finishedProducts.map(a => ({ label: `${a.name} (${a.baseUnitSymbol})`, value: a.id }))}
+                options={elaboratedProducts.map(a => ({ label: `${a.name} (${a.baseUnitSymbol})`, value: a.id }))}
                 showSearch
                 optionFilterProp="label"
                 onChange={handleRecipeOutputChange}
