@@ -137,6 +137,11 @@ export const resolveMediaUrl = (url?: string | null): string | undefined => {
   if (!url) return undefined;
   if (/^(https?:|data:|blob:)/i.test(url)) return url;
   if (!url.startsWith('/')) return url;
+  if (url.startsWith('/uploads/')) {
+    const apiUrl = new URL(API_BASE_URL, window.location.origin);
+    const apiPath = apiUrl.pathname.replace(/\/$/, '');
+    return `${apiUrl.origin}${apiPath}${url}`;
+  }
   if (API_BASE_URL === defaultApiBaseUrl) return url;
 
   const apiUrl = new URL(API_BASE_URL, window.location.origin);
