@@ -124,6 +124,30 @@ public sealed class AttendanceController : ControllerBase
         catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
     }
 
+    [Authorize(Policy = AppConstants.Permissions.RrhhAttendanceManage)]
+    [HttpPost("admin/clockings/manual")]
+    public async Task<IActionResult> CreateManualClocking([FromBody] CreateManualAttendanceRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetBranchId(out var branchId) || !TryGetUserId(out var userId)) return Unauthorized();
+        try
+        {
+            return Ok(await _mediator.Send(new CreateManualAttendanceCommand
+            {
+                EmployeeId = request.EmployeeId,
+                BranchId = branchId,
+                CreatedByUserId = userId,
+                ClockInTimeUtc = request.ClockInTimeUtc,
+                ClockOutTimeUtc = request.ClockOutTimeUtc,
+                BreakStartedAtUtc = request.BreakStartedAtUtc,
+                BreakEndedAtUtc = request.BreakEndedAtUtc,
+                Reason = request.Reason
+            }, cancellationToken));
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
+    }
+
     [Authorize(Policy = AppConstants.Permissions.RrhhAttendanceEnroll)]
     [HttpPost("admin/employees/{employeeId:guid}/face")]
     [RequestSizeLimit(16 * 1024 * 1024)]

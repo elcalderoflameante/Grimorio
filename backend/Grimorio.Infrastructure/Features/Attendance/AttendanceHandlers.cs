@@ -29,7 +29,8 @@ public sealed class AttendanceHandlers :
     IRequestHandler<GetFacialEnrollmentsQuery, List<FacialEnrollmentDto>>,
     IRequestHandler<GetAttendanceAdminRowsQuery, List<AttendanceAdminRowDto>>,
     IRequestHandler<GetAttendanceCorrectionsQuery, List<AttendanceCorrectionDto>>,
-    IRequestHandler<CorrectAttendanceCommand, AttendanceAdminRowDto>
+    IRequestHandler<CorrectAttendanceCommand, AttendanceAdminRowDto>,
+    IRequestHandler<CreateManualAttendanceCommand, AttendanceAdminRowDto>
 {
     public const int BreakLimitMinutes = 30;
     public const double FaceSimilarityThreshold = 0.45;
@@ -389,6 +390,8 @@ public sealed class AttendanceHandlers :
                 ClockOutTimeUtc = x.ClockOutTimeUtc,
                 BreakStartedAtUtc = x.Break != null ? x.Break.StartedAtUtc : null,
                 BreakEndedAtUtc = x.Break != null ? x.Break.EndedAtUtc : null,
+                ClockInMethod = x.ClockInMethod,
+                ClockOutMethod = x.ClockOutMethod,
                 BreakMinutes = x.BreakMinutes,
                 LateMinutes = x.LateMinutes,
                 EarlyArrivalMinutes = x.EarlyArrivalMinutes,
@@ -418,6 +421,88 @@ public sealed class AttendanceHandlers :
                 BeforeJson = x.BeforeJson,
                 AfterJson = x.AfterJson
             }).ToListAsync(cancellationToken);
+    }
+
+    public async Task<AttendanceAdminRowDto> Handle(CreateManualAttendanceCommand request,
+        CancellationToken cancellationToken)
+    {
+        var employee = await _context.Employees.FirstOrDefaultAsync(x => x.Id == request.EmployeeId &&
+                x.BranchId == request.BranchId && x.IsActive && !x.IsDeleted, cancellationToken)
+            ?? throw new KeyNotFoundException("Empleado activo no encontrado en la sucursal.");
+
+        var clockIn = AsUtc(request.ClockInTimeUtc);
+        DateTime? clockOut = request.ClockOutTimeUtc.HasValue ? AsUtc(request.ClockOutTimeUtc.Value) : null;
+        DateTime? breakStart = request.BreakStartedAtUtc.HasValue ? AsUtc(request.BreakStartedAtUtc.Value) : null;
+        DateTime? breakEnd = request.BreakEndedAtUtc.HasValue ? AsUtc(request.BreakEndedAtUtc.Value) : null;
+        ValidateAttendanceTimes(clockIn, clockOut, breakStart, breakEnd);
+        if (clockOut.HasValue && breakStart.HasValue && !breakEnd.HasValue) breakEnd = clockOut;
+
+        var timeZoneId = await GetBranchTimeZoneId(request.BranchId, cancellationToken);
+        var workDate = BranchTimeZone.DateFromUtc(clockIn, timeZoneId);
+        if (await _context.EmployeeClockings.AnyAsync(x => x.EmployeeId == request.EmployeeId &&
+                x.WorkDate == workDate && !x.IsDeleted, cancellationToken))
+            throw new InvalidOperationException("El empleado ya tiene una jornada registrada para esa fecha. Utiliza la opción Corregir.");
+
+        var assignmentDate = workDate.ToDateTime(TimeOnly.MinValue);
+        var shift = await _context.ShiftAssignments
+            .Where(x => x.EmployeeId == employee.Id && x.Date == assignmentDate && !x.IsDeleted)
+            .OrderBy(x => x.StartTime)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var clocking = new EmployeeClocking
+        {
+            BranchId = request.BranchId,
+            EmployeeId = employee.Id,
+            WorkDate = workDate,
+            ClockInTimeUtc = clockIn,
+            ClockOutTimeUtc = clockOut,
+            ScheduledStartTime = shift?.StartTime,
+            ScheduledEndTime = shift?.EndTime,
+            ClockInMethod = AttendanceMethod.Manual,
+            ClockOutMethod = clockOut.HasValue ? AttendanceMethod.Manual : null,
+            AdministrativeNotes = request.Reason.Trim(),
+            Employee = employee
+        };
+
+        if (breakStart.HasValue)
+        {
+            clocking.Break = new EmployeeClockingBreak
+            {
+                BranchId = request.BranchId,
+                EmployeeClockingId = clocking.Id,
+                StartedAtUtc = breakStart.Value,
+                EndedAtUtc = breakEnd,
+                StartMethod = AttendanceMethod.Manual,
+                EndMethod = breakEnd.HasValue ? AttendanceMethod.Manual : null,
+                ClosedAutomaticallyOnClockOut = clockOut.HasValue && breakEnd == clockOut,
+                DurationMinutes = breakEnd.HasValue
+                    ? Math.Max(0, (int)Math.Ceiling((breakEnd.Value - breakStart.Value).TotalMinutes)) : 0
+            };
+        }
+
+        Recalculate(clocking, timeZoneId);
+        _context.EmployeeClockings.Add(clocking);
+        _context.AttendanceCorrections.Add(new AttendanceCorrection
+        {
+            BranchId = request.BranchId,
+            EmployeeClockingId = clocking.Id,
+            CorrectedByUserId = request.CreatedByUserId,
+            CorrectedAtUtc = DateTime.UtcNow,
+            Reason = request.Reason.Trim(),
+            BeforeJson = "{}",
+            AfterJson = SerializeClockingSnapshot(clocking)
+        });
+
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            throw new InvalidOperationException("El empleado ya tiene una jornada registrada para esa fecha.");
+        }
+
+        return MapAdmin(clocking, employee, 1);
     }
 
     public async Task<AttendanceAdminRowDto> Handle(CorrectAttendanceCommand request,
@@ -637,6 +722,18 @@ public sealed class AttendanceHandlers :
         clocking.AdministrativeNotes
     });
 
+    private static void ValidateAttendanceTimes(DateTime clockIn, DateTime? clockOut, DateTime? breakStart,
+        DateTime? breakEnd)
+    {
+        if (clockOut.HasValue && clockOut <= clockIn)
+            throw new InvalidOperationException("La salida debe ser posterior a la entrada.");
+        if (breakStart.HasValue && (breakStart < clockIn || clockOut.HasValue && breakStart > clockOut))
+            throw new InvalidOperationException("El descanso debe estar dentro de la jornada.");
+        if (breakEnd.HasValue && (!breakStart.HasValue || breakEnd <= breakStart ||
+                                  clockOut.HasValue && breakEnd > clockOut))
+            throw new InvalidOperationException("El fin del descanso no es válido.");
+    }
+
     private static DateTime AsUtc(DateTime value) => value.Kind switch
     {
         DateTimeKind.Utc => value,
@@ -655,6 +752,8 @@ public sealed class AttendanceHandlers :
         ClockOutTimeUtc = item.ClockOutTimeUtc,
         BreakStartedAtUtc = item.Break?.StartedAtUtc,
         BreakEndedAtUtc = item.Break?.EndedAtUtc,
+        ClockInMethod = item.ClockInMethod,
+        ClockOutMethod = item.ClockOutMethod,
         BreakMinutes = item.BreakMinutes,
         LateMinutes = item.LateMinutes,
         EarlyArrivalMinutes = item.EarlyArrivalMinutes,

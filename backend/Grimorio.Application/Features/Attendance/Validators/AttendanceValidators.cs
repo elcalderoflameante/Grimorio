@@ -90,3 +90,20 @@ public sealed class CorrectAttendanceCommandValidator : AbstractValidator<Correc
         RuleFor(x => x.BreakEndedAtUtc).Null().When(x => !x.BreakStartedAtUtc.HasValue);
     }
 }
+
+public sealed class CreateManualAttendanceCommandValidator : AbstractValidator<CreateManualAttendanceCommand>
+{
+    public CreateManualAttendanceCommandValidator()
+    {
+        RuleFor(x => x.EmployeeId).NotEmpty();
+        RuleFor(x => x.BranchId).NotEmpty();
+        RuleFor(x => x.CreatedByUserId).NotEmpty();
+        RuleFor(x => x.Reason).NotEmpty().MinimumLength(5).MaximumLength(500);
+        RuleFor(x => x.ClockInTimeUtc).NotEmpty();
+        RuleFor(x => x.ClockOutTimeUtc).GreaterThan(x => x.ClockInTimeUtc)
+            .When(x => x.ClockOutTimeUtc.HasValue);
+        RuleFor(x => x.BreakEndedAtUtc).GreaterThan(x => x.BreakStartedAtUtc)
+            .When(x => x.BreakStartedAtUtc.HasValue && x.BreakEndedAtUtc.HasValue);
+        RuleFor(x => x.BreakEndedAtUtc).Null().When(x => !x.BreakStartedAtUtc.HasValue);
+    }
+}

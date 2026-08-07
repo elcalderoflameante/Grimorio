@@ -36,6 +36,8 @@ export interface AttendanceAdminRowDto {
   clockOutTimeUtc?: string;
   breakStartedAtUtc?: string;
   breakEndedAtUtc?: string;
+  clockInMethod: 1 | 2 | 3;
+  clockOutMethod?: 1 | 2 | 3;
   breakMinutes: number;
   lateMinutes: number;
   earlyArrivalMinutes: number;
@@ -84,6 +86,15 @@ export const attendanceApi = {
     reason: string;
   }): Promise<AxiosResponse<AttendanceAdminRowDto>> =>
     apiClient.put(`/attendance/admin/clockings/${id}`, data),
+  createManualClocking: (data: {
+    employeeId: string;
+    clockInTimeUtc: string;
+    clockOutTimeUtc?: string;
+    breakStartedAtUtc?: string;
+    breakEndedAtUtc?: string;
+    reason: string;
+  }): Promise<AxiosResponse<AttendanceAdminRowDto>> =>
+    apiClient.post('/attendance/admin/clockings/manual', data),
   getCorrections: (id: string): Promise<AxiosResponse<AttendanceCorrectionDto[]>> =>
     apiClient.get(`/attendance/admin/clockings/${id}/corrections`),
 };

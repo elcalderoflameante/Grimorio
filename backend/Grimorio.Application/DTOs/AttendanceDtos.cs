@@ -67,6 +67,8 @@ public sealed class AttendanceAdminRowDto
     public DateTime? ClockOutTimeUtc { get; set; }
     public DateTime? BreakStartedAtUtc { get; set; }
     public DateTime? BreakEndedAtUtc { get; set; }
+    public AttendanceMethod ClockInMethod { get; set; }
+    public AttendanceMethod? ClockOutMethod { get; set; }
     public int BreakMinutes { get; set; }
     public int LateMinutes { get; set; }
     public int EarlyArrivalMinutes { get; set; }
@@ -88,6 +90,16 @@ public sealed class AttendanceCorrectionDto
 
 public sealed class CorrectAttendanceRequest
 {
+    public DateTime ClockInTimeUtc { get; set; }
+    public DateTime? ClockOutTimeUtc { get; set; }
+    public DateTime? BreakStartedAtUtc { get; set; }
+    public DateTime? BreakEndedAtUtc { get; set; }
+    public string Reason { get; set; } = string.Empty;
+}
+
+public sealed class CreateManualAttendanceRequest
+{
+    public Guid EmployeeId { get; set; }
     public DateTime ClockInTimeUtc { get; set; }
     public DateTime? ClockOutTimeUtc { get; set; }
     public DateTime? BreakStartedAtUtc { get; set; }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { App, Badge, Button, Card, Col, DatePicker, Form, Input, Modal, Row, Select, Space, Statistic, Table, Tag, Typography } from 'antd';
-import { ClockCircleOutlined, EditOutlined, HistoryOutlined, ReloadOutlined } from '@ant-design/icons';
+import { ClockCircleOutlined, EditOutlined, HistoryOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { attendanceApi, type AttendanceAdminRowDto, type AttendanceCorrectionDto } from '../../services/attendanceApi';
 import { employeeApi } from '../../services/api';
@@ -18,6 +18,14 @@ interface CorrectionValues {
   reason: string;
 }
 
+interface ManualAttendanceValues extends CorrectionValues {
+  employeeId: string;
+  reasonType: string;
+  notes?: string;
+}
+
+const manualReasons = ['Equipo dañado', 'Sin conexión a Internet', 'Corte eléctrico', 'Olvido de marcación', 'Otro'];
+
 const statusTag = (status: AttendanceAdminRowDto['status']) => {
   if (status === 1) return <Tag color="processing">Trabajando</Tag>;
   if (status === 2) return <Tag color="warning">En descanso</Tag>;
@@ -31,6 +39,7 @@ export const AttendanceDashboard = () => {
   const { message } = App.useApp();
   const { hasPermission } = useAuth();
   const [form] = Form.useForm<CorrectionValues>();
+  const [manualForm] = Form.useForm<ManualAttendanceValues>();
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([dayjs(), dayjs()]);
   const [employeeId, setEmployeeId] = useState<string>();
   const [employees, setEmployees] = useState<EmployeeDto[]>([]);
@@ -38,6 +47,7 @@ export const AttendanceDashboard = () => {
   const [editing, setEditing] = useState<AttendanceAdminRowDto>();
   const [history, setHistory] = useState<AttendanceCorrectionDto[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -94,6 +104,35 @@ export const AttendanceDashboard = () => {
     }
   };
 
+  const openManual = () => {
+    manualForm.resetFields();
+    manualForm.setFieldsValue({ clockIn: dayjs().second(0).millisecond(0) });
+    setManualOpen(true);
+  };
+
+  const saveManual = async (values: ManualAttendanceValues) => {
+    setSaving(true);
+    try {
+      const notes = values.notes?.trim();
+      await attendanceApi.createManualClocking({
+        employeeId: values.employeeId,
+        clockInTimeUtc: values.clockIn.toISOString(),
+        clockOutTimeUtc: values.clockOut?.toISOString(),
+        breakStartedAtUtc: values.breakStart?.toISOString(),
+        breakEndedAtUtc: values.breakEnd?.toISOString(),
+        reason: notes ? `${values.reasonType}: ${notes}` : values.reasonType,
+      });
+      message.success('Marcación manual registrada y auditada');
+      setManualOpen(false);
+      manualForm.resetFields();
+      await load();
+    } catch (error) {
+      message.error(formatError(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const showHistory = async (row: AttendanceAdminRowDto) => {
     try {
       setHistory((await attendanceApi.getCorrections(row.id)).data);
@@ -117,6 +156,8 @@ export const AttendanceDashboard = () => {
           value={employeeId} onChange={setEmployeeId}
           options={employees.map((employee) => ({ value: employee.id, label: `${employee.firstName} ${employee.lastName}` }))} />
         <Button icon={<ReloadOutlined />} onClick={() => void load()}>Actualizar</Button>
+        {hasPermission(PERMISSIONS.rrhh.attendanceManage) &&
+          <Button type="primary" icon={<PlusOutlined />} onClick={openManual}>Nueva marcación manual</Button>}
       </Space>
 
       <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
@@ -130,6 +171,8 @@ export const AttendanceDashboard = () => {
         { title: 'Fecha', dataIndex: 'workDate', render: (value: string) => dayjs(value).format('DD/MM/YYYY') },
         { title: 'Empleado', dataIndex: 'employeeName', fixed: 'left' },
         { title: 'Estado', dataIndex: 'status', render: statusTag },
+        { title: 'Origen', dataIndex: 'clockInMethod', render: (value: number) =>
+          value === 3 ? <Tag color="purple">Manual</Tag> : <Tag color="blue">Biométrico</Tag> },
         { title: 'Entrada', dataIndex: 'clockInTimeUtc', render: time },
         { title: 'Inicio descanso', dataIndex: 'breakStartedAtUtc', render: time },
         { title: 'Fin descanso', dataIndex: 'breakEndedAtUtc', render: time },
@@ -149,6 +192,39 @@ export const AttendanceDashboard = () => {
         </Space> },
       ]} />
     </Card>
+
+    <Modal title="Nueva marcación manual" open={manualOpen} footer={null}
+      onCancel={() => { setManualOpen(false); manualForm.resetFields(); }} destroyOnHidden>
+      <Form form={manualForm} layout="vertical" onFinish={saveManual}>
+        <Form.Item name="employeeId" label="Empleado" rules={[{ required: true, message: 'Selecciona un empleado' }]}>
+          <Select showSearch optionFilterProp="label" placeholder="Selecciona un empleado"
+            options={employees.map((employee) => ({ value: employee.id, label: `${employee.firstName} ${employee.lastName}` }))} />
+        </Form.Item>
+        <Form.Item name="clockIn" label="Entrada" rules={[{ required: true, message: 'Ingresa la fecha y hora de entrada' }]}>
+          <DatePicker showTime format="DD/MM/YYYY HH:mm" style={{ width: '100%' }} />
+        </Form.Item>
+        <Form.Item name="breakStart" label="Inicio del descanso">
+          <DatePicker showTime format="DD/MM/YYYY HH:mm" style={{ width: '100%' }} />
+        </Form.Item>
+        <Form.Item name="breakEnd" label="Fin del descanso">
+          <DatePicker showTime format="DD/MM/YYYY HH:mm" style={{ width: '100%' }} />
+        </Form.Item>
+        <Form.Item name="clockOut" label="Salida">
+          <DatePicker showTime format="DD/MM/YYYY HH:mm" style={{ width: '100%' }} />
+        </Form.Item>
+        <Form.Item name="reasonType" label="Motivo" rules={[{ required: true, message: 'Selecciona un motivo' }]}>
+          <Select placeholder="Selecciona el motivo"
+            options={manualReasons.map((reason) => ({ value: reason, label: reason }))} />
+        </Form.Item>
+        <Form.Item noStyle shouldUpdate={(previous, current) => previous.reasonType !== current.reasonType}>
+          {({ getFieldValue }) => <Form.Item name="notes" label="Observación"
+            rules={[{ required: getFieldValue('reasonType') === 'Otro', message: 'Describe el motivo' }, { max: 400 }]}>
+            <Input.TextArea rows={3} placeholder="Detalle adicional de la contingencia" />
+          </Form.Item>}
+        </Form.Item>
+        <Button type="primary" htmlType="submit" loading={saving} block>Registrar marcación manual</Button>
+      </Form>
+    </Modal>
 
     <Modal title={`Corregir marcación · ${editing?.employeeName ?? ''}`} open={Boolean(editing)} footer={null}
       onCancel={() => { setEditing(undefined); form.resetFields(); }} destroyOnHidden>
