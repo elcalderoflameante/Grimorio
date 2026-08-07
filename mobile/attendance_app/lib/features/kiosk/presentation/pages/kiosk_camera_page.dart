@@ -9,8 +9,13 @@ import '../../../biometrics/domain/face_detection_result.dart';
 import '../../data/attendance_api.dart';
 
 class KioskCameraPage extends StatefulWidget {
-  const KioskCameraPage({super.key, required this.kioskName});
+  const KioskCameraPage({
+    super.key,
+    required this.kioskName,
+    required this.onUnlink,
+  });
   final String kioskName;
+  final Future<void> Function() onUnlink;
 
   @override
   State<KioskCameraPage> createState() => _KioskCameraPageState();
@@ -259,7 +264,35 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       appBar: AppBar(
         title: Text(widget.kioskName),
         automaticallyImplyLeading: false,
-        actions: const [_EcuadorClock()],
+        actions: [
+          const _EcuadorClock(),
+          IconButton(
+            tooltip: 'Desvincular kiosco',
+            icon: const Icon(Icons.link_off),
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text('Desvincular kiosco'),
+                  content: const Text(
+                    'La tablet volverá a mostrar su identificador para generar credenciales nuevas.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      child: const Text('Cancelar'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      child: const Text('Desvincular'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed == true) await widget.onUnlink();
+            },
+          ),
+        ],
       ),
       body: camera == null || !camera.value.isInitialized
           ? Center(child: Text(_message))
@@ -366,11 +399,27 @@ class _EcuadorClockState extends State<_EcuadorClock> {
 
   String get _formattedDate {
     const weekdays = [
-      'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo',
+      'lunes',
+      'martes',
+      'miércoles',
+      'jueves',
+      'viernes',
+      'sábado',
+      'domingo',
     ];
     const months = [
-      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-      'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+      'enero',
+      'febrero',
+      'marzo',
+      'abril',
+      'mayo',
+      'junio',
+      'julio',
+      'agosto',
+      'septiembre',
+      'octubre',
+      'noviembre',
+      'diciembre',
     ];
     return '${weekdays[_time.weekday - 1]}, '
         '${_time.day} de ${months[_time.month - 1]}';
@@ -384,22 +433,22 @@ class _EcuadorClockState extends State<_EcuadorClock> {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              _formattedTime,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.2,
-                fontFeatures: [FontFeature.tabularFigures()],
-              ),
-            ),
-            Text(_formattedDate, style: const TextStyle(fontSize: 11)),
-          ],
+    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          _formattedTime,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+            fontFeatures: [FontFeature.tabularFigures()],
+          ),
         ),
-      );
+        Text(_formattedDate, style: const TextStyle(fontSize: 11)),
+      ],
+    ),
+  );
 }

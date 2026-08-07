@@ -30,15 +30,30 @@ class _SetupPageState extends State<SetupPage> {
   }
 
   Future<void> _initialize() async {
-    final identifier = await _store.getOrCreateDeviceIdentifier();
-    final existing = await _store.read();
-    if (!mounted) return;
-    setState(() => _deviceIdentifier = identifier);
-    if (existing != null) {
-      _kioskIdController.text = existing.kioskId;
-      _apiKeyController.text = existing.apiKey;
-      await _validateAndSave(showProgress: false);
+    try {
+      final identifier = await _store.getOrCreateDeviceIdentifier();
+      final existing = await _store.read();
+      if (!mounted) return;
+      setState(() => _deviceIdentifier = identifier);
+      if (existing != null) {
+        _kioskIdController.text = existing.kioskId;
+        _apiKeyController.text = existing.apiKey;
+        await _validateAndSave(showProgress: false);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(
+        () => _error =
+            'No se pudo preparar el identificador. Cierra y abre la app nuevamente.',
+      );
     }
+  }
+
+  Future<void> _unlink() async {
+    await _store.clearCredentials();
+    _kioskIdController.clear();
+    _apiKeyController.clear();
+    if (mounted) setState(() => _linkedName = null);
   }
 
   Future<void> _validateAndSave({bool showProgress = true}) async {
@@ -93,7 +108,7 @@ class _SetupPageState extends State<SetupPage> {
   @override
   Widget build(BuildContext context) {
     if (_linkedName != null) {
-      return KioskCameraPage(kioskName: _linkedName!);
+      return KioskCameraPage(kioskName: _linkedName!, onUnlink: _unlink);
     }
     return Scaffold(
       body: SafeArea(
@@ -122,7 +137,7 @@ class _SetupPageState extends State<SetupPage> {
                     const SizedBox(height: 28),
                     ...[
                       const Text(
-                        '1. Registra este identificador desde RR. HH. → Kioscos de asistencia.',
+                        '1. Registra este identificador desde Personal → Asistencia → Kioscos.',
                       ),
                       const SizedBox(height: 10),
                       Card(

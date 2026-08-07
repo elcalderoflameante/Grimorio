@@ -9,7 +9,11 @@ class KioskCredentials {
 
 class KioskCredentialsStore {
   KioskCredentialsStore([FlutterSecureStorage? storage])
-    : _storage = storage ?? const FlutterSecureStorage();
+    : _storage =
+          storage ??
+          const FlutterSecureStorage(
+            aOptions: AndroidOptions(resetOnError: true),
+          );
 
   static const _kioskIdKey = 'attendance_kiosk_id';
   static const _apiKeyKey = 'attendance_kiosk_api_key';
@@ -26,6 +30,11 @@ class KioskCredentialsStore {
   Future<void> save(KioskCredentials credentials) async {
     await _storage.write(key: _kioskIdKey, value: credentials.kioskId);
     await _storage.write(key: _apiKeyKey, value: credentials.apiKey);
+  }
+
+  Future<void> clearCredentials() async {
+    await _storage.delete(key: _kioskIdKey);
+    await _storage.delete(key: _apiKeyKey);
   }
 
   Future<void> clear() => _storage.deleteAll();
