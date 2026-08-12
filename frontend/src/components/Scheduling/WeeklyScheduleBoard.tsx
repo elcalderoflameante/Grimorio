@@ -4,8 +4,7 @@
  *
  * Izquierda  : lista de empleados elegibles (arrastrables)
  * Derecha     : columnas por día con los slots de plantilla de cada día
- * Acciones    : Auto-rellenar la semana o colocar empleados manualmente
- *               Confirmar la semana (guarda en servidor)
+ * Acciones    : Colocar empleados manualmente y confirmar la semana (guarda en servidor)
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { App as AntApp, Alert,
@@ -27,7 +26,6 @@ import { CheckOutlined,
   DeleteOutlined,
   InfoCircleOutlined,
   PrinterOutlined,
-  RobotOutlined,
   LeftOutlined,
   RightOutlined,
   UserOutlined } from '@ant-design/icons';
@@ -138,9 +136,9 @@ export const WeeklyScheduleBoard = ({
   onConfirmed,
   onPreviewAssignmentsChange,
 }: WeeklyScheduleBoardProps) => {
-  const { message } = AntApp.useApp();
+  const { message, modal } = AntApp.useApp();
 
-  const { branchId } = useAuth();
+  const { branchId, userRoles } = useAuth();
 
   // -------------------------------------------------------------------------
   // Impresión
@@ -182,7 +180,6 @@ export const WeeklyScheduleBoard = ({
   const [slots, setSlots] = useState<Record<string, BoardSlot>>({});
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [autofilling, setAutofilling] = useState(false);
   const [deletingWeek, setDeletingWeek] = useState(false);
   const [dragEmployee, setDragEmployee] = useState<EmployeeDto | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
@@ -207,6 +204,46 @@ export const WeeklyScheduleBoard = ({
   const isDateInSelectedMonth = useCallback(
     (date: string | Dayjs) => dayjs(date).isSame(selectedMonth, 'month'),
     [selectedMonth],
+  );
+  const isAdministrator = useMemo(
+    () => userRoles.includes('Administrador'),
+    [userRoles],
+  );
+  const getPastDates = useCallback(
+    (dates: Array<string | Dayjs>) => {
+      const today = dayjs().startOf('day');
+      return Array.from(new Set(
+        dates
+          .map(date => dayjs(date))
+          .filter(date => date.isBefore(today, 'day'))
+          .map(date => date.format('YYYY-MM-DD')),
+      )).sort();
+    },
+    [],
+  );
+  const requirePastDateConfirmation = useCallback(
+    (dates: Array<string | Dayjs>, actionLabel: string, onConfirm: () => void) => {
+      const pastDates = getPastDates(dates);
+      if (pastDates.length === 0) {
+        onConfirm();
+        return;
+      }
+
+      if (!isAdministrator) {
+        message.warning('Solo un usuario con perfil Administrador puede modificar fechas anteriores.');
+        return;
+      }
+
+      modal.confirm({
+        title: 'Modificar fechas anteriores',
+        content: `Vas a ${actionLabel} en fecha(s) anterior(es): ${pastDates.map(date => dayjs(date).format('DD/MM/YYYY')).join(', ')}. Esta acción puede afectar horarios ya trabajados. ¿Deseas continuar?`,
+        okText: 'Sí, continuar',
+        cancelText: 'Cancelar',
+        okButtonProps: { danger: true },
+        onOk: onConfirm,
+      });
+    },
+    [getPastDates, isAdministrator, message, modal],
   );
 
   const weekIntersectsSelectedMonth = useCallback(
@@ -408,76 +445,22 @@ export const WeeklyScheduleBoard = ({
     }));
   };
 
-  // -------------------------------------------------------------------------
-  // Auto-rellenar
-  // -------------------------------------------------------------------------
-  const handleAutoFill = useCallback(async () => {
-    if (!branchId) return;
-    setAutofilling(true);
-    try {
-      const weekEnd = weekStart.add(6, 'day');
-      const rangeStart = weekStart.isBefore(monthStart, 'day') ? monthStart : weekStart;
-      const rangeEnd = weekEnd.isAfter(monthEnd, 'day') ? monthEnd : weekEnd;
+  const handleAuthorizedDropOnSlot = (slot: BoardSlot) => {
+    const employee = dragEmployeeRef.current ?? dragEmployee;
+    if (!employee) return;
+    requirePastDateConfirmation([slot.date], 'reasignar un turno', () => {
+      dragEmployeeRef.current = employee;
+      setDragEmployee(employee);
+      handleDropOnSlot(slot);
+    });
+  };
 
-      if (rangeStart.isAfter(rangeEnd, 'day')) {
-        message.info('La semana visible está fuera del mes seleccionado.');
-        return;
-      }
+  const handleAuthorizedClearSlot = (key: string) => {
+    const targetDate = slots[key]?.date;
+    if (!targetDate) return;
+    requirePastDateConfirmation([targetDate], 'quitar un empleado de un turno', () => clearSlot(key));
+  };
 
-      const result = await scheduleShiftApi.generateWeekly(
-        selectedMonth.year(),
-        selectedMonth.month() + 1,
-        rangeStart.format('YYYY-MM-DD'),
-        rangeEnd.format('YYYY-MM-DD'),
-      );
-
-      const generated: ShiftAssignmentDto[] = result.data.assignments ?? [];
-
-      // Actualizar slots con las asignaciones generadas
-      setSlots(prev => {
-        const next = { ...prev };
-
-        // Agrupar generados por la plantilla visible del casillero.
-        const grouped: Record<string, ShiftAssignmentDto[]> = {};
-        const consumedGeneratedByTemplate: Record<string, number> = {};
-        for (const a of generated) {
-          const gKey = shiftTemplateMatchKey(
-            dayjs(a.date).format('YYYY-MM-DD'),
-            a.workAreaId,
-            a.workRoleId,
-            a.startTime,
-          );
-          if (!grouped[gKey]) grouped[gKey] = [];
-          grouped[gKey].push(a);
-        }
-
-        for (const key of Object.keys(next)) {
-          const s = next[key];
-          const tmpl = templates.find(t => t.id === s.templateId);
-          if (!tmpl) continue;
-
-          const gKey = shiftTemplateMatchKey(s.date, tmpl.workAreaId, tmpl.workRoleId, tmpl.startTime);
-          const assignments = grouped[gKey] ?? [];
-          const consumedIndex = consumedGeneratedByTemplate[gKey] ?? 0;
-          const assigned = assignments[consumedIndex];
-          consumedGeneratedByTemplate[gKey] = consumedIndex + 1;
-
-          if (assigned) {
-            const emp = eligibleEmployees.find(e => e.id === assigned.employeeId) ?? null;
-            next[key] = { ...s, employee: emp, existingShiftId: assigned.id };
-          }
-        }
-        return next;
-      });
-
-      const total = result.data.totalShiftsGenerated ?? 0;
-      message.success(`${total} turno(s) autogenerado(s) para la semana.`);
-    } catch (err) {
-      message.error(formatError(err));
-    } finally {
-      if (isMounted.current) setAutofilling(false);
-    }
-  }, [branchId, weekStart, templates, eligibleEmployees, monthStart, monthEnd, selectedMonth]);
 
   // -------------------------------------------------------------------------
   // Confirmar semana
@@ -762,19 +745,13 @@ export const WeeklyScheduleBoard = ({
               >
                 Imprimir / PDF
               </Button>
-              <Button
-                icon={<RobotOutlined />}
-                onClick={handleAutoFill}
-                loading={autofilling}
-                disabled={confirming}
-                type="default"
-              >
-                Auto-rellenar
-              </Button>
               <Popconfirm
                 title="Confirmar semana"
                 description="Se guardarán los turnos asignados en el tablero. ¿Continuar?"
-                onConfirm={handleConfirm}
+                onConfirm={() => {
+                  const editableDays = weekDays.filter(day => day.isSame(selectedMonth, 'month'));
+                  requirePastDateConfirmation(editableDays, 'guardar cambios de planificación', () => void handleConfirm());
+                }}
                 okText="Confirmar"
                 cancelText="Cancelar"
                 disabled={filledSlots === 0}
@@ -783,7 +760,7 @@ export const WeeklyScheduleBoard = ({
                   type="primary"
                   icon={<CheckOutlined />}
                   loading={confirming}
-                  disabled={filledSlots === 0 || autofilling}
+                  disabled={filledSlots === 0}
                 >
                   Confirmar semana
                 </Button>
@@ -1040,7 +1017,7 @@ export const WeeklyScheduleBoard = ({
                                       }}
                                       onDrop={() => {
                                         if (isLockedDay) return;
-                                        handleDropOnSlot(slot);
+                                        handleAuthorizedDropOnSlot(slot);
                                       }}
                                       onDragLeave={() => setDragOverSlot(null)}
                                       style={{
@@ -1086,7 +1063,7 @@ export const WeeklyScheduleBoard = ({
                                           </Tooltip>
                                           <CloseOutlined
                                             style={{ fontSize: 9, color: '#bbb', cursor: 'pointer', flexShrink: 0 }}
-                                            onClick={() => clearSlot(key)}
+                                            onClick={() => handleAuthorizedClearSlot(key)}
                                           />
                                         </>
                                       ) : (
@@ -1160,7 +1137,7 @@ export const WeeklyScheduleBoard = ({
           <Space>
             <Button
               onClick={() => loadWeek()}
-              disabled={loadingTemplates || autofilling || confirming}
+              disabled={loadingTemplates || confirming}
             >
               Recargar
             </Button>
@@ -1168,35 +1145,41 @@ export const WeeklyScheduleBoard = ({
               danger
               icon={<DeleteOutlined />}
               onClick={() => {
-                setSlots(prev => {
-                  const next = { ...prev };
-                  for (const k of Object.keys(next)) {
-                    if (isDateInSelectedMonth(next[k].date)) {
-                      next[k] = { ...next[k], employee: null };
+                const editableDays = weekDays.filter(day => day.isSame(selectedMonth, 'month'));
+                requirePastDateConfirmation(editableDays, 'limpiar el tablero', () => {
+                  setSlots(prev => {
+                    const next = { ...prev };
+                    for (const k of Object.keys(next)) {
+                      if (isDateInSelectedMonth(next[k].date)) {
+                        next[k] = { ...next[k], employee: null };
+                      }
                     }
-                  }
-                  return next;
+                    return next;
+                  });
                 });
               }}
-              disabled={filledSlots === 0 || autofilling || confirming}
+              disabled={filledSlots === 0 || confirming}
             >
               Limpiar tablero
             </Button>
             <Popconfirm
               title="Borrar turnos de la semana"
               description={`Se eliminarán permanentemente los turnos guardados ${deleteWeekLabel}. Esta acción no se puede deshacer.`}
-              onConfirm={handleDeleteWeekShifts}
+              onConfirm={() => {
+                const editableDays = weekDays.filter(day => day.isSame(selectedMonth, 'month'));
+                requirePastDateConfirmation(editableDays, 'borrar turnos guardados', () => void handleDeleteWeekShifts());
+              }}
               okText="Borrar"
               okButtonProps={{ danger: true }}
               cancelText="Cancelar"
-              disabled={deletingWeek || autofilling || confirming}
+              disabled={deletingWeek || confirming}
             >
               <Button
                 danger
                 type="primary"
                 icon={<DeleteOutlined />}
                 loading={deletingWeek}
-                disabled={autofilling || confirming || loadingTemplates}
+                disabled={confirming || loadingTemplates}
               >
                 Borrar turnos de la semana
               </Button>
