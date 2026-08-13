@@ -548,6 +548,28 @@ export const WeeklyScheduleBoard = ({
     }
   }, [branchId, weekStart, weekDays, slots, templates, loadWeek, onConfirmed, isDateInSelectedMonth, selectedMonth]);
 
+  const handleConfirmWeekClick = useCallback(() => {
+    const editableDays = weekDays.filter(day => day.isSame(selectedMonth, 'month'));
+    const pastDates = getPastDates(editableDays);
+
+    if (pastDates.length > 0) {
+      requirePastDateConfirmation(
+        editableDays,
+        'guardar cambios de planificación',
+        () => void handleConfirm(),
+      );
+      return;
+    }
+
+    modal.confirm({
+      title: 'Confirmar semana',
+      content: 'Se guardarán los turnos asignados en el tablero. ¿Continuar?',
+      okText: 'Confirmar',
+      cancelText: 'Cancelar',
+      onOk: () => void handleConfirm(),
+    });
+  }, [getPastDates, handleConfirm, modal, requirePastDateConfirmation, selectedMonth, weekDays]);
+
   // -------------------------------------------------------------------------
   // Borrar turnos de la semana (solo días del mes seleccionado)
   // -------------------------------------------------------------------------
@@ -745,26 +767,15 @@ export const WeeklyScheduleBoard = ({
               >
                 Imprimir / PDF
               </Button>
-              <Popconfirm
-                title="Confirmar semana"
-                description="Se guardarán los turnos asignados en el tablero. ¿Continuar?"
-                onConfirm={() => {
-                  const editableDays = weekDays.filter(day => day.isSame(selectedMonth, 'month'));
-                  requirePastDateConfirmation(editableDays, 'guardar cambios de planificación', () => void handleConfirm());
-                }}
-                okText="Confirmar"
-                cancelText="Cancelar"
+              <Button
+                type="primary"
+                icon={<CheckOutlined />}
+                loading={confirming}
                 disabled={filledSlots === 0}
+                onClick={handleConfirmWeekClick}
               >
-                <Button
-                  type="primary"
-                  icon={<CheckOutlined />}
-                  loading={confirming}
-                  disabled={filledSlots === 0}
-                >
-                  Confirmar semana
-                </Button>
-              </Popconfirm>
+                Confirmar semana
+              </Button>
             </Space>
           </Col>
         </Row>

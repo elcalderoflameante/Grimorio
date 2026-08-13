@@ -5,6 +5,7 @@ using FluentValidation.AspNetCore;
 using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Scheduling.Commands;
 using Grimorio.Application.Features.Scheduling.Queries;
+using Grimorio.SharedKernel.Constants;
 
 namespace Grimorio.API.Controllers;
 
@@ -452,6 +453,7 @@ public class SchedulingController : ControllerBase
     {
         try
         {
+            command.AllowPastDateModification = User.IsInRole(AppConstants.Roles.Admin);
             var result = await _mediator.Send(command);
             return Ok(result);
         }
@@ -520,7 +522,11 @@ public class SchedulingController : ControllerBase
     {
         try
         {
-            await _mediator.Send(new DeleteShiftAssignmentCommand { Id = id });
+            await _mediator.Send(new DeleteShiftAssignmentCommand
+            {
+                Id = id,
+                AllowPastDateModification = User.IsInRole(AppConstants.Roles.Admin)
+            });
             return Ok(new { message = "Asignación de turno eliminada correctamente." });
         }
         catch (InvalidOperationException ex)

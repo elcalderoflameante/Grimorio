@@ -189,7 +189,7 @@ public class ReplaceWeeklyShiftAssignmentsCommandHandler
         var assignments = request.Assignments;
         var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
 
-        if (assignments.Any(a => a.Date.Date < today.Date))
+        if (!request.AllowPastDateModification && startDate < today.Date)
             throw new InvalidOperationException("No se pueden confirmar ni modificar turnos de fechas anteriores.");
 
         if (assignments.Any(a => a.Date.Date < startDate || a.Date.Date > endDate))
@@ -261,7 +261,7 @@ public class ReplaceWeeklyShiftAssignmentsCommandHandler
                 sa.BranchId == request.BranchId &&
                 sa.Date.Date >= startDate &&
                 sa.Date.Date <= endDate &&
-                sa.Date >= today &&
+                (request.AllowPastDateModification || sa.Date >= today) &&
                 !sa.IsDeleted)
             .ToListAsync(cancellationToken);
         foreach (var existing in existingAssignments)
@@ -479,7 +479,7 @@ public class DeleteShiftAssignmentCommandHandler : IRequestHandler<DeleteShiftAs
             throw new InvalidOperationException("Asignación de turno no encontrada.");
 
         var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
-        if (shiftAssignment.Date.Date < today.Date)
+        if (!request.AllowPastDateModification && shiftAssignment.Date.Date < today.Date)
             throw new InvalidOperationException("No se pueden eliminar turnos de fechas anteriores.");
 
         shiftAssignment.IsDeleted = true;

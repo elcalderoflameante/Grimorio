@@ -117,6 +117,7 @@ public class ReplaceWeeklyShiftAssignmentsCommand : IRequest<List<ShiftAssignmen
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
     public List<CreateShiftAssignmentCommand> Assignments { get; set; } = new();
+    public bool AllowPastDateModification { get; set; }
 }
 
 public class UpdateShiftAssignmentCommand : IRequest<ShiftAssignmentDto>
@@ -140,6 +141,7 @@ public class ApproveShiftAssignmentCommand : IRequest<bool>
 public class DeleteShiftAssignmentCommand : IRequest<bool>
 {
     public Guid Id { get; set; }
+    public bool AllowPastDateModification { get; set; }
 }
 
 // ======================== EmployeeAvailability Commands ========================
