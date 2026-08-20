@@ -3,6 +3,7 @@ using System;
 using Grimorio.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Grimorio.Infrastructure.Migrations
 {
     [DbContext(typeof(GrimorioDbContext))]
-    partial class GrimorioDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260817151832_AddPosPromotions")]
+    partial class AddPosPromotions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4683,9 +4686,6 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<decimal?>("FixedPrice")
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<decimal?>("CardPrice")
-                        .HasColumnType("numeric(18,2)");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -4699,11 +4699,6 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.Property<int?>("PayQuantity")
                         .HasColumnType("integer");
-
-                    b.Property<string>("PaymentPolicy")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
 
                     b.Property<int>("Priority")
                         .ValueGeneratedOnAdd()

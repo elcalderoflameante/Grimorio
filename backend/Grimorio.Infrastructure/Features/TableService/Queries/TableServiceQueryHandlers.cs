@@ -4,8 +4,10 @@ using Grimorio.Domain.Entities.Inventory;
 using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.POS;
 using Grimorio.Infrastructure.Features.Menu;
+using Grimorio.Infrastructure.Features.POS;
 using Grimorio.Infrastructure.Features.POS.Commands;
 using Grimorio.Infrastructure.Persistence;
+using Grimorio.Infrastructure.Services;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
@@ -158,6 +160,21 @@ public class GetPublicTableMenuQueryHandler : IRequestHandler<GetPublicTableMenu
             .ToListAsync(cancellationToken);
 
         var availability = await PublicMenuAvailability.BuildAsync(_context, table.BranchId, items, cancellationToken);
+        var branchTimeZoneId = await _context.Branches
+            .AsNoTracking()
+            .Where(x => x.Id == table.BranchId && !x.IsDeleted)
+            .Select(x => x.TimeZoneId)
+            .FirstOrDefaultAsync(cancellationToken);
+        var localNow = BranchTimeZone.FromUtc(DateTime.UtcNow, branchTimeZoneId);
+        var promotions = await _context.Promotions
+            .AsNoTracking()
+            .Where(x => x.BranchId == table.BranchId && x.IsActive && !x.IsDeleted)
+            .Include(x => x.MenuItems.Where(i => !i.IsDeleted))
+            .Include(x => x.MenuCategories.Where(c => !c.IsDeleted))
+            .AsSplitQuery()
+            .OrderByDescending(x => x.Priority)
+            .ThenBy(x => x.Name)
+            .ToListAsync(cancellationToken);
 
         return new PublicTableMenuDto
         {
@@ -207,6 +224,7 @@ public class GetPublicTableMenuQueryHandler : IRequestHandler<GetPublicTableMenu
                     })
                     .ToList(),
             }).ToList(),
+            Promotions = promotions.Select(promotion => PromotionEngine.Map(promotion, localNow)).ToList(),
         };
     }
 }

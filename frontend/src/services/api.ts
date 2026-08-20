@@ -107,6 +107,8 @@ import type {
   WorkStationDto,
   CreateWorkStationDto,
   UpdateWorkStationDto,
+  PromotionDto,
+  UpsertPromotionDto,
   OrderDto,
   ActiveOrderSummaryDto,
   CreateOrderDto,
@@ -670,6 +672,17 @@ export const posApi = {
     apiClient.delete<void>(`/pos/estaciones/${id}`),
 
   // Posición de mesas
+  getPromotions: (params?: { activeOnly?: boolean }): Promise<AxiosResponse<PromotionDto[]>> =>
+    apiClient.get<PromotionDto[]>('/pos/promociones', { params }),
+  getActivePromotions: (): Promise<AxiosResponse<PromotionDto[]>> =>
+    apiClient.get<PromotionDto[]>('/pos/promociones/activas'),
+  createPromotion: (data: UpsertPromotionDto): Promise<AxiosResponse<PromotionDto>> =>
+    apiClient.post<PromotionDto>('/pos/promociones', data),
+  updatePromotion: (id: string, data: UpsertPromotionDto): Promise<AxiosResponse<PromotionDto>> =>
+    apiClient.put<PromotionDto>(`/pos/promociones/${id}`, data),
+  deletePromotion: (id: string): Promise<AxiosResponse<void>> =>
+    apiClient.delete<void>(`/pos/promociones/${id}`),
+
   updateTablePosition: (id: string, posX: number, posY: number): Promise<AxiosResponse<void>> =>
     apiClient.patch<void>(`/pos/tables/${id}/position`, { posX, posY }),
 

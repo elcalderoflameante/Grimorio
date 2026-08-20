@@ -76,6 +76,21 @@ public enum OrderItemStatus { Pending = 1, InPreparation = 2, Ready = 3, Cancell
 
 public enum StationType { Kitchen = 1, Bar = 2, Beverages = 3, HotKitchen = 4, Fries = 5 }
 
+public enum PromotionType
+{
+    Percentage = 1,
+    FixedAmount = 2,
+    FixedPrice = 3,
+    BuyXPayY = 4,
+}
+
+public enum PromotionPaymentPolicy
+{
+    AnyPayment = 1,
+    CashTransferOnly = 2,
+    CardAlternativePrice = 3,
+}
+
 public class WorkStation : BaseEntity
 {
     public string Name { get; set; } = string.Empty;
@@ -124,6 +139,8 @@ public class OrderItem : BaseEntity
     public decimal UnitPrice { get; set; }
     public decimal DiscountPct { get; set; }
     public decimal DiscountAmount { get; set; }
+    public Guid? PromotionId { get; set; }
+    public string? PromotionName { get; set; }
     public Guid? TaxRateId { get; set; }
     public decimal TaxAmount { get; set; }
     public decimal TotalPrice { get; set; }
@@ -134,8 +151,52 @@ public class OrderItem : BaseEntity
     public virtual Order? Order { get; set; }
     public virtual Menu.MenuItem? MenuItem { get; set; }
     public virtual WorkStation? Station { get; set; }
+    public virtual Promotion? Promotion { get; set; }
     public virtual Billing.TaxRate? TaxRate { get; set; }
     public virtual ICollection<OrderItemModifierSelection> ModifierSelections { get; set; } = [];
+}
+
+public class Promotion : BaseEntity
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public PromotionType Type { get; set; } = PromotionType.Percentage;
+    public bool IsActive { get; set; } = true;
+    public DateOnly? StartsOn { get; set; }
+    public DateOnly? EndsOn { get; set; }
+    public TimeOnly? StartsAt { get; set; }
+    public TimeOnly? EndsAt { get; set; }
+    public int DaysOfWeekMask { get; set; }
+    public decimal? DiscountPercent { get; set; }
+    public decimal? DiscountAmount { get; set; }
+    public decimal? FixedPrice { get; set; }
+    public PromotionPaymentPolicy PaymentPolicy { get; set; } = PromotionPaymentPolicy.AnyPayment;
+    public decimal? CardPrice { get; set; }
+    public int? BuyQuantity { get; set; }
+    public int? PayQuantity { get; set; }
+    public int Priority { get; set; }
+
+    public virtual ICollection<PromotionMenuItem> MenuItems { get; set; } = [];
+    public virtual ICollection<PromotionMenuCategory> MenuCategories { get; set; } = [];
+    public virtual ICollection<OrderItem> OrderItems { get; set; } = [];
+}
+
+public class PromotionMenuItem : BaseEntity
+{
+    public Guid PromotionId { get; set; }
+    public Guid MenuItemId { get; set; }
+
+    public virtual Promotion? Promotion { get; set; }
+    public virtual Menu.MenuItem? MenuItem { get; set; }
+}
+
+public class PromotionMenuCategory : BaseEntity
+{
+    public Guid PromotionId { get; set; }
+    public Guid MenuCategoryId { get; set; }
+
+    public virtual Promotion? Promotion { get; set; }
+    public virtual Menu.MenuCategory? MenuCategory { get; set; }
 }
 
 public class OrderItemModifierSelection : BaseEntity

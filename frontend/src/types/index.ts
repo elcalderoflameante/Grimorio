@@ -809,6 +809,7 @@ export interface PublicMenuItemDto {
 export interface PublicTableMenuDto {
   categories: PublicMenuCategoryDto[];
   items: PublicMenuItemDto[];
+  promotions: PromotionDto[];
 }
 
 export interface PublicCreateDraftOrderDto {
@@ -1417,6 +1418,8 @@ export interface OrderItemDto {
   unitPrice: number;
   discountPct: number;
   discountAmount: number;
+  promotionId?: string;
+  promotionName?: string;
   taxRateId?: string;
   taxRateName?: string;
   taxRatePercentage?: number;
@@ -1469,6 +1472,7 @@ export interface ActiveOrderSummaryDto {
 export interface CreateOrderItemDto {
   menuItemId: string;
   quantity: number;
+  promotionId?: string;
   notes?: string;
   modifierSelections?: CreateModifierSelectionDto[];
 }
@@ -1480,6 +1484,55 @@ export interface CreateOrderDto {
   deliveryAddress?: string;
   notes?: string;
   items: CreateOrderItemDto[];
+}
+
+export type PromotionType = 'Percentage' | 'FixedAmount' | 'FixedPrice' | 'BuyXPayY';
+export type PromotionPaymentPolicy = 'AnyPayment' | 'CashTransferOnly' | 'CardAlternativePrice';
+
+export interface PromotionDto {
+  id: string;
+  name: string;
+  description?: string;
+  type: PromotionType;
+  isActive: boolean;
+  startsOn?: string;
+  endsOn?: string;
+  startsAt?: string;
+  endsAt?: string;
+  daysOfWeekMask: number;
+  discountPercent?: number;
+  discountAmount?: number;
+  fixedPrice?: number;
+  paymentPolicy: PromotionPaymentPolicy;
+  cardPrice?: number;
+  buyQuantity?: number;
+  payQuantity?: number;
+  priority: number;
+  menuItemIds: string[];
+  menuCategoryIds: string[];
+  isCurrentlyActive: boolean;
+}
+
+export interface UpsertPromotionDto {
+  name: string;
+  description?: string;
+  type: PromotionType;
+  isActive: boolean;
+  startsOn?: string;
+  endsOn?: string;
+  startsAt?: string;
+  endsAt?: string;
+  daysOfWeekMask: number;
+  discountPercent?: number;
+  discountAmount?: number;
+  fixedPrice?: number;
+  paymentPolicy: PromotionPaymentPolicy;
+  cardPrice?: number;
+  buyQuantity?: number;
+  payQuantity?: number;
+  priority: number;
+  menuItemIds: string[];
+  menuCategoryIds: string[];
 }
 
 // ── Purchases ───────────────────────────────────────────────────────────────

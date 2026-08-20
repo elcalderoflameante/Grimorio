@@ -76,6 +76,53 @@ public class PosController : ControllerBase
         return Ok(new { message = "Estación eliminada." });
     }
 
+    // ── Promociones ────────────────────────────────────────────────────────
+
+    [Authorize(Policy = "POS.Orders.View")]
+    [HttpGet("promociones")]
+    public async Task<IActionResult> GetPromotions([FromQuery] bool activeOnly = false)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new GetPromotionsQuery { BranchId = branchId, ActiveOnly = activeOnly });
+        return Ok(result);
+    }
+
+    [Authorize(Policy = "POS.Orders.View")]
+    [HttpGet("promociones/activas")]
+    public async Task<IActionResult> GetActivePromotions()
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new GetActivePromotionsQuery { BranchId = branchId });
+        return Ok(result);
+    }
+
+    [Authorize(Policy = "POS.Orders.Update")]
+    [HttpPost("promociones")]
+    public async Task<IActionResult> CreatePromotion([FromBody] UpsertPromotionDto dto)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new CreatePromotionCommand { BranchId = branchId, Data = dto });
+        return Ok(result);
+    }
+
+    [Authorize(Policy = "POS.Orders.Update")]
+    [HttpPut("promociones/{id:guid}")]
+    public async Task<IActionResult> UpdatePromotion(Guid id, [FromBody] UpsertPromotionDto dto)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new UpdatePromotionCommand { Id = id, BranchId = branchId, Data = dto });
+        return Ok(result);
+    }
+
+    [Authorize(Policy = "POS.Orders.Update")]
+    [HttpDelete("promociones/{id:guid}")]
+    public async Task<IActionResult> DeletePromotion(Guid id)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        await _mediator.Send(new DeletePromotionCommand { Id = id, BranchId = branchId });
+        return Ok(new { message = "Promoción eliminada." });
+    }
+
     // ── Posición de mesas ───────────────────────────────────────────────────
 
     [Authorize(Policy = "POS.Tables.Manage")]

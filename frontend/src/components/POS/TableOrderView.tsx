@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { App as AntApp, Alert, Button, Card, Checkbox, Col, Divider, Empty, Input, InputNumber, Popconfirm,
   Modal, Row, Select, Space, Spin, Tabs, Tag, Tooltip, Typography } from 'antd';
 import { ArrowLeftOutlined, CheckCircleOutlined, DeleteOutlined, DollarOutlined, EditOutlined,
@@ -6,7 +6,7 @@ import { ArrowLeftOutlined, CheckCircleOutlined, DeleteOutlined, DollarOutlined,
 import type {
   OrderDto, RestaurantTableDto, PaymentMethodConfigDto,
   OrderPaymentDto, AddOrderPaymentDto, CustomerDto, MenuCategoryDto,
-  MenuItemDto, CreateOrderItemDto, CreateModifierSelectionDto, CardBankDto,
+  MenuItemDto, CreateOrderItemDto, CreateModifierSelectionDto, CardBankDto, PromotionDto,
 } from '../../types';
 import { cashApi, menuApi, paymentMethodsApi, posApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
@@ -27,6 +27,7 @@ function modifiersLabel(selections: CreateModifierSelectionDto[] | undefined, it
 }
 
 const { Title, Text } = Typography;
+const PROMOTIONS_CATEGORY_ID = '__promotions__';
 
 const STATUS_COLORS: Record<string, string> = {
   Draft: 'default', Confirmed: 'processing', InPreparation: 'orange',
@@ -64,7 +65,7 @@ interface PayLine {
 interface SplitRow { checked: boolean; qty: number }
 interface CartLine {
   menuItemId: string; name: string; price: number; quantity: number;
-  notes?: string; modifierSelections?: CreateModifierSelectionDto[];
+  promotionId?: string; notes?: string; modifierSelections?: CreateModifierSelectionDto[];
 }
 
 interface Props {
@@ -85,10 +86,12 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const [cardBanks, setCardBanks] = useState<CardBankDto[]>([]);
   const [categories, setCategories] = useState<MenuCategoryDto[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItemDto[]>([]);
+  const [promotions, setPromotions] = useState<PromotionDto[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [selectedPromotionId, setSelectedPromotionId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const [modifierTarget, setModifierTarget] = useState<MenuItemDto | null>(null);
@@ -117,7 +120,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [orderRes, paymentsRes, methodsRes, banksRes, catsRes, itemsRes, sessionRes] = await Promise.allSettled([
+      const [orderRes, paymentsRes, methodsRes, banksRes, catsRes, itemsRes, sessionRes, promosRes] = await Promise.allSettled([
         posApi.getOrden(orderId),
         cashApi.getOrderPayments(orderId),
         paymentMethodsApi.getAll(true),
@@ -125,6 +128,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         menuApi.getCategories(),
         menuApi.getItems({ activeOnly: true, lightweight: true }),
         cashApi.getActiveSession(),
+        posApi.getPromotions(),
       ]);
       if (orderRes.status === 'fulfilled') {
         setOrder(orderRes.value.data);
@@ -152,6 +156,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         }
         setMenuItems(loadedMenuItems);
       }
+      if (promosRes.status === 'fulfilled') setPromotions(promosRes.value.data);
       setCashSessionId(sessionRes.status === 'fulfilled' ? sessionRes.value.data.id : undefined);
     } finally {
       setLoading(false);
@@ -199,17 +204,73 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const remaining = order ? Math.max(0, order.total - alreadyPaid) : 0;
   const isFullyPaid = remaining <= 0.01;
   const cartSubtotal = cart.reduce((s, l) => s + l.price * l.quantity, 0);
+  const promotionsByItemId = useMemo(() => {
+    const map = new Map<string, PromotionDto[]>();
+    for (const item of menuItems) {
+      const itemPromotions = promotions.filter(promotion =>
+        promotion.isActive &&
+        promotion.isCurrentlyActive &&
+        (promotion.menuItemIds.includes(item.id) ||
+          promotion.menuCategoryIds.includes(item.menuCategoryId)));
+      if (itemPromotions.length > 0) map.set(item.id, itemPromotions);
+    }
+    return map;
+  }, [menuItems, promotions]);
+  const calculateCartDiscount = (line: CartLine) => {
+    const promotion = line.promotionId
+      ? promotionsByItemId.get(line.menuItemId)?.find(p => p.id === line.promotionId)
+      : undefined;
+    if (!promotion) return 0;
 
+    const gross = line.price * line.quantity;
+    let discount = 0;
+    if (promotion.type === 'Percentage') discount = gross * ((promotion.discountPercent ?? 0) / 100);
+    else if (promotion.type === 'FixedAmount') discount = promotion.discountAmount ?? 0;
+    else if (promotion.type === 'FixedPrice') discount = gross - ((promotion.fixedPrice ?? line.price) * line.quantity);
+    else {
+      const buyQuantity = promotion.buyQuantity ?? 0;
+      const payQuantity = promotion.payQuantity ?? 0;
+      const groups = buyQuantity > 0 ? Math.floor(line.quantity / buyQuantity) : 0;
+      discount = groups * Math.max(0, buyQuantity - payQuantity) * line.price;
+    }
+
+    return Math.min(Math.max(Math.round(discount * 100) / 100, 0), gross);
+  };
+  const cartDiscount = cart.reduce((s, l) => s + calculateCartDiscount(l), 0);
+  const cartTotal = Math.max(0, cartSubtotal - cartDiscount);
+
+  const getMethod = (id: string) => methods.find(m => m.id === id);
+  const hasCardLine = payLines.some(l => getMethod(l.methodId)?.isCard ?? false);
+  const getPaymentLineTotal = (item: OrderDto['items'][number], useCardPrice: boolean) => {
+    if (!useCardPrice || !item.promotionId) return item.totalPrice;
+
+    const promotion = promotions.find(p => p.id === item.promotionId);
+    if (!promotion) return item.totalPrice;
+
+    if (promotion.paymentPolicy === 'CashTransferOnly') {
+      return Math.round(item.unitPrice * item.quantity * 100) / 100;
+    }
+    if (promotion.paymentPolicy === 'CardAlternativePrice' && promotion.cardPrice !== undefined && promotion.cardPrice !== null) {
+      return Math.round(Math.max(0, promotion.cardPrice * item.quantity) * 100) / 100;
+    }
+    return item.totalPrice;
+  };
+  const getPaymentUnitTotal = (item: OrderDto['items'][number], useCardPrice: boolean) =>
+    item.quantity > 0 ? getPaymentLineTotal(item, useCardPrice) / item.quantity : 0;
+  const adjustedOrderTotal = order
+    ? order.items
+        .filter(item => item.status !== 'Cancelled')
+        .reduce((sum, item) => sum + getPaymentLineTotal(item, hasCardLine), 0)
+    : 0;
+  const paymentRemaining = order ? Math.max(0, adjustedOrderTotal - alreadyPaid) : 0;
   const splitSubtotal = order
     ? order.items.reduce((sum, item) => {
         const row = splitRows[item.id];
         const pendingQty = getPendingItemQty(item.id, item.quantity);
         const qty = Math.min(row?.qty ?? pendingQty, pendingQty);
-        return row?.checked ? sum + item.unitPrice * qty : sum;
+        return row?.checked ? sum + getPaymentUnitTotal(item, hasCardLine) * qty : sum;
       }, 0)
     : 0;
-
-  const getMethod = (id: string) => methods.find(m => m.id === id);
   const buildLineForMethod = (methodId: string, amountTendered = 0): PayLine => {
     const method = getMethod(methodId);
     return method?.isCard
@@ -222,7 +283,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         }
       : { methodId, amountTendered };
   };
-  const targetAmount = payTab === 'split' ? splitSubtotal : remaining;
+  const targetAmount = payTab === 'split' ? splitSubtotal : paymentRemaining;
   const totalTendered = payLines.reduce((s, l) => s + (l.amountTendered || 0), 0);
   const totalChange = Math.max(0, totalTendered - targetAmount);
   const hasCashLine = payLines.some(l => getMethod(l.methodId)?.isCash ?? false);
@@ -265,7 +326,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
     return detail;
   };
 
-  const addToCart = async (item: MenuItemDto) => {
+  const addToCart = async (item: MenuItemDto, promotionId?: string) => {
     if (!canUpdateOrders) {
       message.warning('No tienes permiso para modificar pedidos');
       return;
@@ -276,16 +337,16 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
     }
     const itemDetail = await ensureItemDetail(item);
     if (itemDetail.modifierGroups?.length > 0) {
-      setModifierBaseLine({ menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1 });
+      setModifierBaseLine({ menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1, promotionId });
       setPendingModifiers({});
       setModifierError(false);
       setModifierTarget(itemDetail);
       return;
     }
     setCart(prev => {
-      const existing = prev.findIndex(l => l.menuItemId === itemDetail.id && !l.modifierSelections?.length);
+      const existing = prev.findIndex(l => l.menuItemId === itemDetail.id && !l.modifierSelections?.length && l.promotionId === promotionId);
       if (existing >= 0) return prev.map((l, i) => i === existing ? { ...l, quantity: l.quantity + 1 } : l);
-      return [...prev, { menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1 }];
+      return [...prev, { menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1, promotionId }];
     });
   };
 
@@ -348,7 +409,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
     setSaving(true);
     try {
       const newItems: CreateOrderItemDto[] = cart.map(l => ({
-        menuItemId: l.menuItemId, quantity: l.quantity, notes: l.notes,
+        menuItemId: l.menuItemId, quantity: l.quantity, promotionId: l.promotionId, notes: l.notes,
         modifierSelections: l.modifierSelections,
       }));
 
@@ -356,7 +417,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       if (order.status === 'Draft') {
         // Draft: enviar todos los ítems (reemplaza)
         const existingItems: CreateOrderItemDto[] = order.items.map(i => ({
-          menuItemId: i.menuItemId, quantity: i.quantity, notes: i.notes,
+          menuItemId: i.menuItemId, quantity: i.quantity, promotionId: i.promotionId, notes: i.notes,
           modifierSelections: i.modifierSelections?.map(s => ({
             modifierOptionId: s.modifierOptionId,
             quantity: s.quantity,
@@ -478,9 +539,28 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   if (loading) return <Spin style={{ display: 'block', margin: '80px auto' }} />;
   if (!order) return <Alert type="error" title="No se pudo cargar la orden" />;
 
-  const visibleItems = activeCategory
-    ? menuItems.filter(i => i.menuCategoryId === activeCategory)
-    : menuItems;
+  const activePromotions = promotions.filter(promotion => promotion.isActive);
+  const selectedPromotion = selectedPromotionId ? promotions.find(promotion => promotion.id === selectedPromotionId) : undefined;
+  const promotionValueLabel = (promotion: PromotionDto) => {
+    if (promotion.type === 'Percentage') return `${promotion.discountPercent ?? 0}%`;
+    if (promotion.type === 'FixedAmount') return `$${(promotion.discountAmount ?? 0).toFixed(2)} desc.`;
+    if (promotion.type === 'FixedPrice') return `$${(promotion.fixedPrice ?? 0).toFixed(2)}`;
+    return `${promotion.buyQuantity ?? 0}x${promotion.payQuantity ?? 0}`;
+  };
+  const promotionScheduleLabel = (promotion: PromotionDto) => {
+    const days = promotion.daysOfWeekMask === 0 ? 'Todos los dias' : 'Dias configurados';
+    const hours = promotion.startsAt && promotion.endsAt
+      ? `${promotion.startsAt.slice(0, 5)} - ${promotion.endsAt.slice(0, 5)}`
+      : 'Todo el dia';
+    return `${days} · ${hours}`;
+  };
+  const visibleItems = activeCategory === PROMOTIONS_CATEGORY_ID && selectedPromotion
+    ? menuItems.filter(item =>
+        selectedPromotion.menuItemIds.includes(item.id) ||
+        selectedPromotion.menuCategoryIds.includes(item.menuCategoryId))
+    : activeCategory
+      ? menuItems.filter(i => i.menuCategoryId === activeCategory)
+      : menuItems;
 
   const methodOptions = methods.map(m => ({
     value: m.id,
@@ -618,6 +698,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         const pendingQty = getPendingItemQty(item.id, item.quantity);
         const row = splitRows[item.id] ?? { checked: false, qty: pendingQty };
         const selectedQty = Math.min(row.qty, pendingQty);
+        const paymentUnitTotal = getPaymentUnitTotal(item, hasCardLine);
         return (
           <div key={item.id} style={{
             display: 'flex', alignItems: 'center', gap: 8,
@@ -638,7 +719,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
             />
             <div style={{ flex: 1, minWidth: 0 }}>
               <Text ellipsis style={{ display: 'block', fontSize: 13 }}>{item.itemName}</Text>
-              <Text type="secondary" style={{ fontSize: 11 }}>${item.unitPrice.toFixed(2)} c/u</Text>
+              <Text type="secondary" style={{ fontSize: 11 }}>${paymentUnitTotal.toFixed(2)} c/u</Text>
             </div>
             {row.checked ? (
               <InputNumber
@@ -649,7 +730,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
               <Text type="secondary" style={{ fontSize: 12 }}>×{pendingQty}</Text>
             )}
             <Text strong style={{ width: 60, textAlign: 'right', fontSize: 13 }}>
-              ${(item.unitPrice * (row.checked ? selectedQty : pendingQty)).toFixed(2)}
+              ${(paymentUnitTotal * (row.checked ? selectedQty : pendingQty)).toFixed(2)}
             </Text>
           </div>
         );
@@ -689,16 +770,34 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
             <Tag
               style={{ cursor: 'pointer', padding: '4px 10px', fontSize: 13 }}
               color={!activeCategory ? 'blue' : 'default'}
-              onClick={() => setActiveCategory(null)}
+              onClick={() => {
+                setActiveCategory(null);
+                setSelectedPromotionId(null);
+              }}
             >
               Todos
             </Tag>
+            {activePromotions.length > 0 && (
+              <Tag
+                style={{ cursor: 'pointer', padding: '4px 10px', fontSize: 13 }}
+                color={activeCategory === PROMOTIONS_CATEGORY_ID ? 'magenta' : 'default'}
+                onClick={() => {
+                  setActiveCategory(PROMOTIONS_CATEGORY_ID);
+                  setSelectedPromotionId(null);
+                }}
+              >
+                Promociones
+              </Tag>
+            )}
             {categories.map(c => (
               <Tag
                 key={c.id}
                 style={{ cursor: 'pointer', padding: '4px 10px', fontSize: 13 }}
                 color={activeCategory === c.id ? 'blue' : 'default'}
-                onClick={() => setActiveCategory(c.id)}
+                onClick={() => {
+                  setActiveCategory(c.id);
+                  setSelectedPromotionId(null);
+                }}
               >
                 {c.name}
               </Tag>
@@ -706,6 +805,40 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {activeCategory === PROMOTIONS_CATEGORY_ID && !selectedPromotionId && activePromotions.map(promotion => (
+              <Card
+                key={promotion.id}
+                size="small"
+                hoverable={promotion.isCurrentlyActive}
+                onClick={() => promotion.isCurrentlyActive && setSelectedPromotionId(promotion.id)}
+                style={{
+                  width: 'calc(50% - 4px)',
+                  cursor: promotion.isCurrentlyActive ? 'pointer' : 'not-allowed',
+                  borderColor: promotion.isCurrentlyActive ? '#c41d7f' : '#d9d9d9',
+                  background: promotion.isCurrentlyActive ? '#fff0f6' : '#fafafa',
+                  opacity: promotion.isCurrentlyActive ? 1 : 0.65,
+                }}
+                styles={{ body: { padding: '10px 12px' } }}
+              >
+                <Text strong style={{ display: 'block', fontSize: 13 }}>{promotion.name}</Text>
+                <Tag color={promotion.isCurrentlyActive ? 'magenta' : 'default'} style={{ marginTop: 6 }}>
+                  {promotionValueLabel(promotion)}
+                </Tag>
+                <Text type="secondary" style={{ display: 'block', fontSize: 11, marginTop: 4 }}>
+                  {promotionScheduleLabel(promotion)}
+                </Text>
+                {!promotion.isCurrentlyActive && (
+                  <Text type="warning" style={{ display: 'block', fontSize: 11, marginTop: 4 }}>
+                    No disponible ahora
+                  </Text>
+                )}
+              </Card>
+            ))}
+            {activeCategory === PROMOTIONS_CATEGORY_ID && selectedPromotionId && (
+              <Button size="small" onClick={() => setSelectedPromotionId(null)}>
+                Ver promociones
+              </Button>
+            )}
             {visibleItems.map(item => {
               const inCart = cart.filter(l => l.menuItemId === item.id);
               const cartQty = inCart.reduce((s, l) => s + l.quantity, 0);
@@ -715,7 +848,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                   key={item.id}
                   size="small"
                   hoverable={!isFullyPaid && canUpdateOrders}
-                  onClick={() => { void addToCart(item).catch(e => message.error(formatError(e))); }}
+                  onClick={() => { void addToCart(item, selectedPromotion?.isCurrentlyActive ? selectedPromotion.id : undefined).catch(e => message.error(formatError(e))); }}
                   style={{
                     width: 'calc(50% - 4px)', cursor: isFullyPaid || !canUpdateOrders ? 'not-allowed' : 'pointer',
                     opacity: isFullyPaid || !canUpdateOrders ? 0.55 : 1,
@@ -826,6 +959,9 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                     <Divider style={{ margin: '8px 0' }}>Nuevos ítems</Divider>
                     {cart.map((line, idx) => {
                       const modifierLabel = modifiersLabel(line.modifierSelections, menuItems, line.menuItemId);
+                      const linePromotions = promotionsByItemId.get(line.menuItemId) ?? [];
+                      const lineDiscount = calculateCartDiscount(line);
+                      const lineTotal = Math.max(0, line.price * line.quantity - lineDiscount);
                       return (
                         <div key={idx} style={{
                           background: '#e6f4ff', borderRadius: 6, padding: '6px 8px', marginBottom: 6,
@@ -836,12 +972,29 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                             <Text style={{ minWidth: 20, textAlign: 'center' }}>{line.quantity}</Text>
                             <Button size="small" icon={<PlusOutlined />} onClick={() => updateCartQty(idx, line.quantity + 1)} />
                             <Text strong style={{ minWidth: 52, textAlign: 'right', fontSize: 13 }}>
-                              ${(line.price * line.quantity).toFixed(2)}
+                              ${lineTotal.toFixed(2)}
                             </Text>
                             <Button size="small" type="text" danger icon={<DeleteOutlined />}
                               onClick={() => updateCartQty(idx, 0)} />
                           </div>
                           {modifierLabel && <Tag color="blue" style={{ fontSize: 11, marginTop: 4 }}>{modifierLabel}</Tag>}
+                          {linePromotions.length > 0 && (
+                            <Select
+                              size="small"
+                              allowClear
+                              placeholder="Promoción"
+                              value={line.promotionId}
+                              options={linePromotions.map(promo => ({ label: promo.name, value: promo.id }))}
+                              onChange={promotionId => setCart(prev => prev.map((current, currentIdx) =>
+                                currentIdx === idx ? { ...current, promotionId } : current))}
+                              style={{ width: '100%', marginTop: 4 }}
+                            />
+                          )}
+                          {lineDiscount > 0 && (
+                            <Tag color="magenta" style={{ fontSize: 11, marginTop: 4 }}>
+                              Desc. ${lineDiscount.toFixed(2)}
+                            </Tag>
+                          )}
                           <Button
                             type="link" size="small" style={{ padding: 0, fontSize: 11, display: 'block', marginTop: 2 }}
                             onClick={() => setObsModal({ idx, obs: line.notes ?? '' })}
@@ -893,13 +1046,19 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                       <Text type="secondary" style={{ fontSize: 12 }}>Nuevos ítems</Text>
-                      <Text style={{ fontSize: 12 }}>+${cartSubtotal.toFixed(2)}</Text>
+                      <Text style={{ fontSize: 12 }}>+${cartTotal.toFixed(2)}</Text>
                     </div>
+                    {cartDiscount > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Text type="secondary" style={{ fontSize: 12 }}>Descuentos nuevos</Text>
+                        <Text style={{ fontSize: 12, color: '#c41d7f' }}>-${cartDiscount.toFixed(2)}</Text>
+                      </div>
+                    )}
                   </>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f0f0f0', paddingTop: 4 }}>
                   <Text strong>Total</Text>
-                  <Text strong style={{ fontSize: 15 }}>${(order.total + cartSubtotal).toFixed(2)}</Text>
+                  <Text strong style={{ fontSize: 15 }}>${(order.total + cartTotal).toFixed(2)}</Text>
                 </div>
 
                 {payments.length > 0 && (
@@ -995,8 +1154,13 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         destroyOnHidden
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, marginTop: 4 }}>
-          <Text type="secondary">Total pendiente</Text>
-          <Text strong style={{ fontSize: 16, color: '#faad14' }}>${remaining.toFixed(2)}</Text>
+          <Text type="secondary">{hasCardLine ? 'Pendiente con tarjeta' : 'Total pendiente'}</Text>
+          <Space size={6}>
+            {hasCardLine && Math.abs(paymentRemaining - remaining) > 0.01 && (
+              <Text delete type="secondary">${remaining.toFixed(2)}</Text>
+            )}
+            <Text strong style={{ fontSize: 16, color: '#faad14' }}>${paymentRemaining.toFixed(2)}</Text>
+          </Space>
         </div>
 
         <Tabs

@@ -1,8 +1,10 @@
 ﻿using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.POS.Queries;
 using Grimorio.Domain.Entities.POS;
+using Grimorio.Infrastructure.Features.POS;
 using Grimorio.Infrastructure.Features.POS.Commands;
 using Grimorio.Infrastructure.Persistence;
+using Grimorio.Infrastructure.Services;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
@@ -30,6 +32,56 @@ public class GetWorkStationsQueryHandler : IRequestHandler<GetWorkStationsQuery,
             })
             .ToListAsync(ct);
     }
+}
+
+public class GetPromotionsQueryHandler : IRequestHandler<GetPromotionsQuery, List<PromotionDto>>
+{
+    private readonly GrimorioDbContext _db;
+    public GetPromotionsQueryHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<List<PromotionDto>> Handle(GetPromotionsQuery req, CancellationToken ct)
+    {
+        var localNow = await GetLocalNowAsync(req.BranchId, ct);
+        var query = _db.Promotions
+            .AsNoTracking()
+            .Where(x => x.BranchId == req.BranchId && !x.IsDeleted)
+            .Include(x => x.MenuItems.Where(i => !i.IsDeleted))
+            .Include(x => x.MenuCategories.Where(c => !c.IsDeleted))
+            .AsQueryable();
+
+        if (req.ActiveOnly)
+            query = query.Where(x => x.IsActive);
+
+        var promotions = await query
+            .AsSplitQuery()
+            .OrderByDescending(x => x.Priority)
+            .ThenBy(x => x.Name)
+            .ToListAsync(ct);
+
+        var mapped = promotions.Select(x => PromotionEngine.Map(x, localNow)).ToList();
+        return req.ActiveOnly
+            ? mapped.Where(x => x.IsCurrentlyActive).ToList()
+            : mapped;
+    }
+
+    private async Task<DateTime> GetLocalNowAsync(Guid branchId, CancellationToken ct)
+    {
+        var timeZoneId = await _db.Branches
+            .Where(x => x.Id == branchId && !x.IsDeleted)
+            .Select(x => x.TimeZoneId)
+            .FirstOrDefaultAsync(ct);
+
+        return BranchTimeZone.FromUtc(DateTime.UtcNow, timeZoneId);
+    }
+}
+
+public class GetActivePromotionsQueryHandler : IRequestHandler<GetActivePromotionsQuery, List<PromotionDto>>
+{
+    private readonly IMediator _mediator;
+    public GetActivePromotionsQueryHandler(IMediator mediator) => _mediator = mediator;
+
+    public Task<List<PromotionDto>> Handle(GetActivePromotionsQuery req, CancellationToken ct) =>
+        _mediator.Send(new GetPromotionsQuery { BranchId = req.BranchId, ActiveOnly = true }, ct);
 }
 
 public class GetOrdersQueryHandler : IRequestHandler<GetOrdersQuery, List<OrderDto>>

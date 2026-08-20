@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { App as AntApp, Button, Card, Col, Divider, Empty, InputNumber, Modal,
-  Row, Space, Spin, Tag, Typography, Input, Badge, Alert, Tooltip } from 'antd';
+  Row, Space, Spin, Tag, Typography, Input, Badge, Alert, Tooltip, Select } from 'antd';
 import { ArrowLeftOutlined, CheckOutlined,
   DeleteOutlined, MinusOutlined, PlusOutlined, SendOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { menuApi, posApi } from '../../services/api';
 import type {
   MenuCategoryDto, CreateOrderItemDto, MenuItemDto,
   OrderDto, RestaurantTableDto, OrderType,
-  CreateModifierSelectionDto, MenuItemAvailabilityDto
+  CreateModifierSelectionDto, MenuItemAvailabilityDto, PromotionDto
 } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 
 const { Title, Text } = Typography;
+const PROMOTIONS_CATEGORY_ID = '__promotions__';
 
 interface Props {
   table?: RestaurantTableDto;
@@ -28,6 +29,7 @@ interface OrderLine {
   price: number;
   quantity: number;
   notes?: string;
+  promotionId?: string;
   modifierSelections?: CreateModifierSelectionDto[];
 }
 
@@ -48,7 +50,9 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
   const [categories, setCategories] = useState<MenuCategoryDto[]>([]);
   const [items, setItems] = useState<MenuItemDto[]>([]);
   const [availability, setAvailability] = useState<MenuItemAvailabilityDto[]>([]);
+  const [promotions, setPromotions] = useState<PromotionDto[]>([]);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [selectedPromotionId, setSelectedPromotionId] = useState<string | null>(null);
   const [lines, setLines] = useState<OrderLine[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -68,9 +72,10 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
     const loadData = async () => {
       setLoading(true);
       try {
-        const [cats, its] = await Promise.all([
+        const [cats, its, promos] = await Promise.all([
           menuApi.getCategories(),
           menuApi.getItems({ activeOnly: true, availableOnly: true, lightweight: true }),
+          posApi.getPromotions(),
         ]);
         const stock = await menuApi.getAvailability({ activeOnly: true, availableOnly: true });
         let menuItems = its.data;
@@ -88,6 +93,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
         setCategories(cats.data);
         setItems(menuItems);
         setAvailability(stock.data);
+        setPromotions(promos.data);
         if (cats.data.length > 0) setActiveCategory(cats.data[0].id);
 
         if (existingOrder) {
@@ -97,6 +103,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
             price: i.unitPrice,
             quantity: i.quantity,
             notes: i.notes,
+            promotionId: i.promotionId,
             modifierSelections: i.modifierSelections?.map(s => ({
               modifierOptionId: s.modifierOptionId,
               quantity: s.quantity,
@@ -116,9 +123,52 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
     [availability]
   );
   const filteredItems = useMemo(
-    () => items.filter(i => i.menuCategoryId === activeCategory),
-    [activeCategory, items]
+    () => {
+      if (activeCategory === PROMOTIONS_CATEGORY_ID && selectedPromotionId) {
+        const promotion = promotions.find(p => p.id === selectedPromotionId);
+        if (!promotion) return [];
+        return items.filter(item =>
+          promotion.menuItemIds.includes(item.id) ||
+          promotion.menuCategoryIds.includes(item.menuCategoryId));
+      }
+      return items.filter(i => i.menuCategoryId === activeCategory);
+    },
+    [activeCategory, items, promotions, selectedPromotionId]
   );
+
+  const promotionsByItemId = useMemo(() => {
+    const map = new Map<string, PromotionDto[]>();
+    for (const item of items) {
+      const itemPromotions = promotions.filter(promotion =>
+        promotion.isActive &&
+        promotion.isCurrentlyActive &&
+        (promotion.menuItemIds.includes(item.id) ||
+          promotion.menuCategoryIds.includes(item.menuCategoryId)));
+      if (itemPromotions.length > 0) map.set(item.id, itemPromotions);
+    }
+    return map;
+  }, [items, promotions]);
+
+  const calculateLineDiscount = (line: OrderLine) => {
+    const promotion = line.promotionId
+      ? promotionsByItemId.get(line.menuItemId)?.find(p => p.id === line.promotionId)
+      : undefined;
+    if (!promotion) return 0;
+
+    const gross = line.price * line.quantity;
+    let discount = 0;
+    if (promotion.type === 'Percentage') discount = gross * ((promotion.discountPercent ?? 0) / 100);
+    else if (promotion.type === 'FixedAmount') discount = promotion.discountAmount ?? 0;
+    else if (promotion.type === 'FixedPrice') discount = gross - ((promotion.fixedPrice ?? line.price) * line.quantity);
+    else {
+      const buyQuantity = promotion.buyQuantity ?? 0;
+      const payQuantity = promotion.payQuantity ?? 0;
+      const groups = buyQuantity > 0 ? Math.floor(line.quantity / buyQuantity) : 0;
+      discount = groups * Math.max(0, buyQuantity - payQuantity) * line.price;
+    }
+
+    return Math.min(Math.max(Math.round(discount * 100) / 100, 0), gross);
+  };
 
   const getLineCapacity = (line: OrderLine): number | null => {
     const itemAvailability = availabilityByItemId.get(line.menuItemId);
@@ -169,7 +219,25 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
     return detail;
   };
 
-  const addItem = async (item: MenuItemDto) => {
+  const activePromotions = promotions.filter(promotion => promotion.isActive);
+  const selectedPromotion = selectedPromotionId ? promotions.find(promotion => promotion.id === selectedPromotionId) : undefined;
+
+  const promotionValueLabel = (promotion: PromotionDto) => {
+    if (promotion.type === 'Percentage') return `${promotion.discountPercent ?? 0}%`;
+    if (promotion.type === 'FixedAmount') return `$${(promotion.discountAmount ?? 0).toFixed(2)} desc.`;
+    if (promotion.type === 'FixedPrice') return `$${(promotion.fixedPrice ?? 0).toFixed(2)}`;
+    return `${promotion.buyQuantity ?? 0}x${promotion.payQuantity ?? 0}`;
+  };
+
+  const promotionScheduleLabel = (promotion: PromotionDto) => {
+    const days = promotion.daysOfWeekMask === 0 ? 'Todos los días' : 'Días configurados';
+    const hours = promotion.startsAt && promotion.endsAt
+      ? `${promotion.startsAt.slice(0, 5)} - ${promotion.endsAt.slice(0, 5)}`
+      : 'Todo el día';
+    return `${days} · ${hours}`;
+  };
+
+  const addItem = async (item: MenuItemDto, promotionId?: string) => {
     const itemDetail = await ensureItemDetail(item);
     const itemAvailability = availabilityByItemId.get(itemDetail.id);
     const currentQty = lines
@@ -182,7 +250,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
     }
 
     if (itemDetail.modifierGroups && itemDetail.modifierGroups.length > 0) {
-      setModifierBaseLine({ menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1 });
+      setModifierBaseLine({ menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1, promotionId });
       setPendingModifiers({});
       setModifierError(false);
       setModifierTarget(itemDetail);
@@ -193,11 +261,11 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
       return;
     }
     setLines(prev => {
-      const existing = prev.findIndex(l => l.menuItemId === itemDetail.id && !l.modifierSelections?.length);
-      if (existing >= 0) {
-        return prev.map((l, i) => i === existing ? { ...l, quantity: l.quantity + 1 } : l);
+      const existingWithPromotion = prev.findIndex(l => l.menuItemId === itemDetail.id && !l.modifierSelections?.length && l.promotionId === promotionId);
+      if (existingWithPromotion >= 0) {
+        return prev.map((l, i) => i === existingWithPromotion ? { ...l, quantity: l.quantity + 1 } : l);
       }
-      return [...prev, { menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1 }];
+      return [...prev, { menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1, promotionId }];
     });
   };
 
@@ -259,6 +327,11 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
     () => lines.reduce((sum, l) => sum + l.price * l.quantity, 0),
     [lines]
   );
+  const discountTotal = useMemo(
+    () => lines.reduce((sum, l) => sum + calculateLineDiscount(l), 0),
+    [lines, promotionsByItemId]
+  );
+  const total = Math.max(0, subtotal - discountTotal);
 
   // El precio en menú ya incluye IVA — extraemos la base y el impuesto
   const fiscal = useMemo(() => lines.reduce((acc, l) => {
@@ -266,18 +339,19 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
     const sriCode = menuItem?.taxRateSriCode;
     const taxPct = menuItem?.taxRatePercentage;
     const gross = l.price * l.quantity;
+    const net = Math.max(0, gross - calculateLineDiscount(l));
     if (sriCode === '10' && taxPct) {
-      const base = Math.round(gross / (1 + taxPct / 100) * 100) / 100;
-      const iva = Math.round((gross - base) * 100) / 100;
+      const base = Math.round(net / (1 + taxPct / 100) * 100) / 100;
+      const iva = Math.round((net - base) * 100) / 100;
       acc.base15 += base;
       acc.iva15 += iva;
     } else if (sriCode === '0' || sriCode === '8') {
-      acc.base0 += gross;
+      acc.base0 += net;
     } else {
-      acc.baseExempt += gross;
+      acc.baseExempt += net;
     }
     return acc;
-  }, { base15: 0, base0: 0, baseExempt: 0, iva15: 0 }), [itemsById, lines]);
+  }, { base15: 0, base0: 0, baseExempt: 0, iva15: 0 }), [itemsById, lines, promotionsByItemId]);
 
   const handleSave = async (confirm: boolean) => {
     if (lines.length === 0) { message.warning('Agrega al menos un ítem'); return; }
@@ -298,6 +372,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
       const itemsPayload: CreateOrderItemDto[] = lines.map(l => ({
         menuItemId: l.menuItemId,
         quantity: l.quantity,
+        promotionId: l.promotionId,
         notes: l.notes,
         modifierSelections: l.modifierSelections,
       }));
@@ -391,12 +466,28 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
         <Col xs={24} md={14} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {/* Categorías */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {activePromotions.length > 0 && (
+              <Button
+                size="small"
+                type={activeCategory === PROMOTIONS_CATEGORY_ID ? 'primary' : 'default'}
+                onClick={() => {
+                  setActiveCategory(PROMOTIONS_CATEGORY_ID);
+                  setSelectedPromotionId(null);
+                }}
+                style={activeCategory !== PROMOTIONS_CATEGORY_ID ? { borderColor: '#c41d7f', color: '#c41d7f' } : {}}
+              >
+                Promociones
+              </Button>
+            )}
             {categories.map(c => (
               <Button
                 key={c.id}
                 size="small"
                 type={activeCategory === c.id ? 'primary' : 'default'}
-                onClick={() => setActiveCategory(c.id)}
+                onClick={() => {
+                  setActiveCategory(c.id);
+                  setSelectedPromotionId(null);
+                }}
                 style={c.color && activeCategory !== c.id ? { borderColor: c.color, color: c.color } : {}}
               >
                 {c.name}
@@ -406,8 +497,41 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
 
           {/* Items */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, overflowY: 'auto', maxHeight: 380 }}>
-            {filteredItems.length === 0 && (
+            {activeCategory === PROMOTIONS_CATEGORY_ID && !selectedPromotionId && activePromotions.map(promotion => (
+              <Card
+                key={promotion.id}
+                hoverable={promotion.isCurrentlyActive}
+                size="small"
+                onClick={() => promotion.isCurrentlyActive && setSelectedPromotionId(promotion.id)}
+                style={{
+                  width: 160,
+                  cursor: promotion.isCurrentlyActive ? 'pointer' : 'not-allowed',
+                  borderColor: promotion.isCurrentlyActive ? '#c41d7f' : '#d9d9d9',
+                  background: promotion.isCurrentlyActive ? '#fff0f6' : '#fafafa',
+                  opacity: promotion.isCurrentlyActive ? 1 : 0.65,
+                }}
+                styles={{ body: { padding: '8px 10px' } }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.3 }}>{promotion.name}</div>
+                <Tag color={promotion.isCurrentlyActive ? 'magenta' : 'default'} style={{ fontSize: 10, marginTop: 5, marginInlineEnd: 0 }}>
+                  {promotionValueLabel(promotion)}
+                </Tag>
+                <div style={{ fontSize: 11, color: '#666', marginTop: 5 }}>{promotionScheduleLabel(promotion)}</div>
+                {!promotion.isCurrentlyActive && (
+                  <div style={{ fontSize: 11, color: '#fa8c16', marginTop: 4 }}>No disponible ahora</div>
+                )}
+              </Card>
+            ))}
+            {activeCategory === PROMOTIONS_CATEGORY_ID && selectedPromotionId && (
+              <Button size="small" onClick={() => setSelectedPromotionId(null)}>
+                Ver promociones
+              </Button>
+            )}
+            {filteredItems.length === 0 && activeCategory !== PROMOTIONS_CATEGORY_ID && (
               <Empty description="Sin ítems en esta categoría" style={{ width: '100%' }} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            )}
+            {filteredItems.length === 0 && activeCategory === PROMOTIONS_CATEGORY_ID && selectedPromotionId && (
+              <Empty description="Sin ítems para esta promoción" style={{ width: '100%' }} image={Empty.PRESENTED_IMAGE_SIMPLE} />
             )}
             {filteredItems.map(item => {
               const inOrder = lines.filter(l => l.menuItemId === item.id);
@@ -425,7 +549,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
                   key={item.id}
                   hoverable={!isSoldOut && !reachedLimit}
                   size="small"
-                  onClick={() => { void addItem(item).catch(e => message.error(formatError(e))); }}
+                  onClick={() => { void addItem(item, selectedPromotion?.isCurrentlyActive ? selectedPromotion.id : undefined).catch(e => message.error(formatError(e))); }}
                   style={{
                     width: 130,
                     cursor: isSoldOut || reachedLimit ? 'not-allowed' : 'pointer',
@@ -466,6 +590,9 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
                 {lines.map((line, idx) => {
                   const modifierLabel = modifiersLabel(line.modifierSelections, items, line.menuItemId);
                   const capacity = getRemainingLineCapacity(line, idx);
+                  const linePromotions = promotionsByItemId.get(line.menuItemId) ?? [];
+                  const lineDiscount = calculateLineDiscount(line);
+                  const lineTotal = Math.max(0, line.price * line.quantity - lineDiscount);
                   return (
                     <div key={`${line.menuItemId}-${idx}`} style={{ padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
                       <div style={{ width: '100%' }}>
@@ -479,6 +606,26 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
                         {capacity !== null && (
                           <Tag color={line.quantity > capacity ? 'red' : 'green'} style={{ fontSize: 11, marginTop: 2 }}>
                             Stock: {Math.floor(capacity)}
+                          </Tag>
+                        )}
+                        {linePromotions.length > 0 && (
+                          <Select
+                            size="small"
+                            allowClear
+                            placeholder="Promoción"
+                            value={line.promotionId}
+                            options={linePromotions.map(promo => ({
+                              label: promo.name,
+                              value: promo.id,
+                            }))}
+                            onChange={promotionId => setLines(prev => prev.map((current, currentIdx) =>
+                              currentIdx === idx ? { ...current, promotionId } : current))}
+                            style={{ width: '100%', marginTop: 4 }}
+                          />
+                        )}
+                        {lineDiscount > 0 && (
+                          <Tag color="magenta" style={{ fontSize: 11, marginTop: 4 }}>
+                            Desc. ${lineDiscount.toFixed(2)}
                           </Tag>
                         )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
@@ -498,7 +645,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
                             onClick={() => changeQuantity(idx, line.quantity + 1)}
                           />
                           <Text type="secondary" style={{ fontSize: 12, marginLeft: 'auto' }}>
-                            ${(line.price * line.quantity).toFixed(2)}
+                            ${lineTotal.toFixed(2)}
                           </Text>
                         </div>
                         <Button
@@ -541,9 +688,21 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
                 <Text style={{ fontSize: 11 }}>${fiscal.baseExempt.toFixed(2)}</Text>
               </div>
             )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, borderTop: '1px solid #f0f0f0', paddingTop: 4 }}>
+            {discountTotal > 0 && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, borderTop: '1px solid #f0f0f0', paddingTop: 4 }}>
+                  <Text type="secondary" style={{ fontSize: 11 }}>Subtotal</Text>
+                  <Text style={{ fontSize: 11 }}>${subtotal.toFixed(2)}</Text>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text type="secondary" style={{ fontSize: 11 }}>Descuentos</Text>
+                  <Text style={{ fontSize: 11, color: '#c41d7f' }}>-${discountTotal.toFixed(2)}</Text>
+                </div>
+              </>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, borderTop: discountTotal > 0 ? undefined : '1px solid #f0f0f0', paddingTop: 4 }}>
               <Text strong>Total (IVA incluido)</Text>
-              <Text strong style={{ fontSize: 16 }}>${subtotal.toFixed(2)}</Text>
+              <Text strong style={{ fontSize: 16 }}>${total.toFixed(2)}</Text>
             </div>
 
             <Input.TextArea

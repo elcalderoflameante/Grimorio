@@ -2,7 +2,9 @@ using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.POS.Commands;
 using Grimorio.Domain.Entities.POS;
 using Grimorio.Infrastructure.Features.Inventory;
+using Grimorio.Infrastructure.Features.POS;
 using Grimorio.Infrastructure.Persistence;
+using Grimorio.Infrastructure.Services;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
@@ -67,6 +69,66 @@ public class DeleteWorkStationCommandHandler : IRequestHandler<DeleteWorkStation
     {
         var entity = await _db.WorkStations.FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId && !x.IsDeleted, ct)
             ?? throw new InvalidOperationException("Estación no encontrada.");
+        entity.IsDeleted = true;
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
+}
+
+public class CreatePromotionCommandHandler : IRequestHandler<CreatePromotionCommand, PromotionDto>
+{
+    private readonly GrimorioDbContext _db;
+    public CreatePromotionCommandHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<PromotionDto> Handle(CreatePromotionCommand req, CancellationToken ct)
+    {
+        var entity = new Promotion
+        {
+            Id = Guid.NewGuid(),
+            BranchId = req.BranchId,
+        };
+
+        await PosPromotionCommandHelper.ApplyPromotionDataAsync(_db, entity, req.Data, req.BranchId, ct);
+        _db.Promotions.Add(entity);
+        await _db.SaveChangesAsync(ct);
+
+        var localNow = await PosPromotionCommandHelper.GetLocalNowAsync(_db, req.BranchId, ct);
+        return PromotionEngine.Map(entity, localNow);
+    }
+}
+
+public class UpdatePromotionCommandHandler : IRequestHandler<UpdatePromotionCommand, PromotionDto>
+{
+    private readonly GrimorioDbContext _db;
+    public UpdatePromotionCommandHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<PromotionDto> Handle(UpdatePromotionCommand req, CancellationToken ct)
+    {
+        var entity = await _db.Promotions
+            .Include(x => x.MenuItems)
+            .Include(x => x.MenuCategories)
+            .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId && !x.IsDeleted, ct)
+            ?? throw new InvalidOperationException("Promocion no encontrada.");
+
+        await PosPromotionCommandHelper.ApplyPromotionDataAsync(_db, entity, req.Data, req.BranchId, ct);
+        await _db.SaveChangesAsync(ct);
+
+        var localNow = await PosPromotionCommandHelper.GetLocalNowAsync(_db, req.BranchId, ct);
+        return PromotionEngine.Map(entity, localNow);
+    }
+}
+
+public class DeletePromotionCommandHandler : IRequestHandler<DeletePromotionCommand, bool>
+{
+    private readonly GrimorioDbContext _db;
+    public DeletePromotionCommandHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<bool> Handle(DeletePromotionCommand req, CancellationToken ct)
+    {
+        var entity = await _db.Promotions
+            .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId && !x.IsDeleted, ct)
+            ?? throw new InvalidOperationException("Promocion no encontrada.");
+
         entity.IsDeleted = true;
         await _db.SaveChangesAsync(ct);
         return true;
@@ -144,6 +206,8 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
             .Include(m => m.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
                 .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
             .ToListAsync(ct);
+        var localNow = await PosPromotionCommandHelper.GetLocalNowAsync(_db, req.BranchId, ct);
+        var activePromotions = await PosMapper.LoadActivePromotionsAsync(_db, req.BranchId, localNow, ct);
 
         decimal subtotal = 0, discountTotal = 0;
         decimal base15 = 0, base0 = 0, baseExempt = 0, iva15 = 0, ice = 0;
@@ -154,10 +218,11 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
 
             var modifierSelections = PosMapper.BuildModifierSelections(req.BranchId, itemDto, menuItem);
             var unitPrice = menuItem.Price + modifierSelections.Sum(s => s.UnitPriceDelta * s.Quantity);
-            var (discountAmt, taxableBase, taxAmt, totalPrice) = PosMapper.CalcItem(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage);
+            var promotion = PosMapper.ResolvePromotion(itemDto.PromotionId, menuItem, activePromotions);
+            var pricing = PosMapper.CalcItemWithPromotion(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage, promotion);
             subtotal += unitPrice * itemDto.Quantity;
-            discountTotal += discountAmt;
-            PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, taxableBase, taxAmt, ref base15, ref base0, ref baseExempt, ref iva15, ref ice);
+            discountTotal += pricing.DiscountAmount;
+            PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, pricing.TaxableBase, pricing.TaxAmount, ref base15, ref base0, ref baseExempt, ref iva15, ref ice);
 
             var orderItem = new OrderItem
             {
@@ -167,11 +232,13 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
                 StationId = menuItem.StationId,
                 Quantity = itemDto.Quantity,
                 UnitPrice = unitPrice,
-                DiscountPct = itemDto.DiscountPct,
-                DiscountAmount = discountAmt,
+                DiscountPct = pricing.DiscountPct,
+                DiscountAmount = pricing.DiscountAmount,
+                PromotionId = promotion?.Id,
+                PromotionName = promotion?.Name,
                 TaxRateId = menuItem.TaxRateId,
-                TaxAmount = taxAmt,
-                TotalPrice = totalPrice,
+                TaxAmount = pricing.TaxAmount,
+                TotalPrice = pricing.TotalPrice,
                 Notes = itemDto.Notes?.Trim(),
                 IsTakeout = itemDto.IsTakeout,
                 Status = OrderItemStatus.Pending,
@@ -248,6 +315,8 @@ public class CreateDirectSaleCommandHandler : IRequestHandler<CreateDirectSaleCo
             .Include(m => m.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
                 .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
             .ToListAsync(ct);
+        var localNow = await PosPromotionCommandHelper.GetLocalNowAsync(_db, req.BranchId, ct);
+        var activePromotions = await PosMapper.LoadActivePromotionsAsync(_db, req.BranchId, localNow, ct);
 
         decimal subtotal = 0, discountTotal = 0;
         decimal base15 = 0, base0 = 0, baseExempt = 0, iva15 = 0, ice = 0;
@@ -258,10 +327,11 @@ public class CreateDirectSaleCommandHandler : IRequestHandler<CreateDirectSaleCo
 
             var modifierSelections = PosMapper.BuildModifierSelections(req.BranchId, itemDto, menuItem);
             var unitPrice = menuItem.Price + modifierSelections.Sum(s => s.UnitPriceDelta * s.Quantity);
-            var (discountAmt, taxableBase, taxAmt, totalPrice) = PosMapper.CalcItem(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage);
+            var promotion = PosMapper.ResolvePromotion(itemDto.PromotionId, menuItem, activePromotions);
+            var pricing = PosMapper.CalcItemWithPromotion(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage, promotion);
             subtotal += unitPrice * itemDto.Quantity;
-            discountTotal += discountAmt;
-            PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, taxableBase, taxAmt, ref base15, ref base0, ref baseExempt, ref iva15, ref ice);
+            discountTotal += pricing.DiscountAmount;
+            PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, pricing.TaxableBase, pricing.TaxAmount, ref base15, ref base0, ref baseExempt, ref iva15, ref ice);
 
             var orderItem = new OrderItem
             {
@@ -271,11 +341,13 @@ public class CreateDirectSaleCommandHandler : IRequestHandler<CreateDirectSaleCo
                 StationId = menuItem.StationId,
                 Quantity = itemDto.Quantity,
                 UnitPrice = unitPrice,
-                DiscountPct = itemDto.DiscountPct,
-                DiscountAmount = discountAmt,
+                DiscountPct = pricing.DiscountPct,
+                DiscountAmount = pricing.DiscountAmount,
+                PromotionId = promotion?.Id,
+                PromotionName = promotion?.Name,
                 TaxRateId = menuItem.TaxRateId,
-                TaxAmount = taxAmt,
-                TotalPrice = totalPrice,
+                TaxAmount = pricing.TaxAmount,
+                TotalPrice = pricing.TotalPrice,
                 Notes = itemDto.Notes?.Trim(),
                 IsTakeout = itemDto.IsTakeout,
                 Status = OrderItemStatus.Pending,
@@ -350,6 +422,8 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
             .Include(m => m.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
                 .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
             .ToListAsync(ct);
+        var localNow = await PosPromotionCommandHelper.GetLocalNowAsync(_db, req.BranchId, ct);
+        var activePromotions = await PosMapper.LoadActivePromotionsAsync(_db, req.BranchId, localNow, ct);
 
         await using var transaction = await _db.Database.BeginTransactionAsync(ct);
 
@@ -363,10 +437,11 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
 
             var modifierSelections = PosMapper.BuildModifierSelections(req.BranchId, itemDto, menuItem);
             var unitPrice = menuItem.Price + modifierSelections.Sum(s => s.UnitPriceDelta * s.Quantity);
-            var (discountAmt, taxableBase, taxAmt, totalPrice) = PosMapper.CalcItem(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage);
+            var promotion = PosMapper.ResolvePromotion(itemDto.PromotionId, menuItem, activePromotions);
+            var pricing = PosMapper.CalcItemWithPromotion(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage, promotion);
             addedSubtotal += unitPrice * itemDto.Quantity;
-            addedDiscount += discountAmt;
-            PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, taxableBase, taxAmt, ref addedBase15, ref addedBase0, ref addedBaseExempt, ref addedIva15, ref addedIce);
+            addedDiscount += pricing.DiscountAmount;
+            PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, pricing.TaxableBase, pricing.TaxAmount, ref addedBase15, ref addedBase0, ref addedBaseExempt, ref addedIva15, ref addedIce);
 
             var newItem = new OrderItem
             {
@@ -377,11 +452,13 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
                 StationId = menuItem.StationId,
                 Quantity = itemDto.Quantity,
                 UnitPrice = unitPrice,
-                DiscountPct = itemDto.DiscountPct,
-                DiscountAmount = discountAmt,
+                DiscountPct = pricing.DiscountPct,
+                DiscountAmount = pricing.DiscountAmount,
+                PromotionId = promotion?.Id,
+                PromotionName = promotion?.Name,
                 TaxRateId = menuItem.TaxRateId,
-                TaxAmount = taxAmt,
-                TotalPrice = totalPrice,
+                TaxAmount = pricing.TaxAmount,
+                TotalPrice = pricing.TotalPrice,
                 Notes = itemDto.Notes?.Trim(),
                 IsTakeout = itemDto.IsTakeout,
                 Status = OrderItemStatus.Pending,
@@ -1045,6 +1122,105 @@ public class ProcessAlexaKitchenCommandHandler
     }
 }
 
+internal static class PosPromotionCommandHelper
+{
+    public static async Task ApplyPromotionDataAsync(
+        GrimorioDbContext db,
+        Promotion entity,
+        UpsertPromotionDto dto,
+        Guid branchId,
+        CancellationToken ct)
+    {
+        if (!Enum.TryParse<PromotionType>(dto.Type, out var type))
+            throw new InvalidOperationException($"Tipo de promocion no valido: {dto.Type}");
+        if (!Enum.TryParse<PromotionPaymentPolicy>(dto.PaymentPolicy, out var paymentPolicy))
+            throw new InvalidOperationException($"Politica de pago de promocion no valida: {dto.PaymentPolicy}");
+
+        var menuItemIds = dto.MenuItemIds.Distinct().ToList();
+        var menuCategoryIds = dto.MenuCategoryIds.Distinct().ToList();
+
+        var validMenuItemIds = await db.MenuItems
+            .Where(x => x.BranchId == branchId && menuItemIds.Contains(x.Id) && !x.IsDeleted)
+            .Select(x => x.Id)
+            .ToListAsync(ct);
+        var validMenuCategoryIds = await db.MenuCategories
+            .Where(x => x.BranchId == branchId && menuCategoryIds.Contains(x.Id) && !x.IsDeleted)
+            .Select(x => x.Id)
+            .ToListAsync(ct);
+
+        if (validMenuItemIds.Count != menuItemIds.Count)
+            throw new InvalidOperationException("Uno o mas items de menu no existen en esta sucursal.");
+        if (validMenuCategoryIds.Count != menuCategoryIds.Count)
+            throw new InvalidOperationException("Una o mas categorias de menu no existen en esta sucursal.");
+
+        entity.Name = dto.Name.Trim();
+        entity.Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim();
+        entity.Type = type;
+        entity.IsActive = dto.IsActive;
+        entity.StartsOn = dto.StartsOn;
+        entity.EndsOn = dto.EndsOn;
+        entity.StartsAt = dto.StartsAt;
+        entity.EndsAt = dto.EndsAt;
+        entity.DaysOfWeekMask = dto.DaysOfWeekMask;
+        entity.DiscountPercent = dto.DiscountPercent;
+        entity.DiscountAmount = dto.DiscountAmount;
+        entity.FixedPrice = dto.FixedPrice;
+        entity.PaymentPolicy = paymentPolicy;
+        entity.CardPrice = dto.CardPrice;
+        entity.BuyQuantity = dto.BuyQuantity;
+        entity.PayQuantity = dto.PayQuantity;
+        entity.Priority = dto.Priority;
+
+        foreach (var target in entity.MenuItems)
+            target.IsDeleted = !validMenuItemIds.Contains(target.MenuItemId);
+        foreach (var target in entity.MenuCategories)
+            target.IsDeleted = !validMenuCategoryIds.Contains(target.MenuCategoryId);
+
+        var existingMenuItemIds = entity.MenuItems
+            .Where(x => !x.IsDeleted)
+            .Select(x => x.MenuItemId)
+            .ToHashSet();
+        var existingMenuCategoryIds = entity.MenuCategories
+            .Where(x => !x.IsDeleted)
+            .Select(x => x.MenuCategoryId)
+            .ToHashSet();
+
+        foreach (var menuItemId in validMenuItemIds.Where(id => !existingMenuItemIds.Contains(id)))
+        {
+            entity.MenuItems.Add(new PromotionMenuItem
+            {
+                Id = Guid.NewGuid(),
+                BranchId = branchId,
+                PromotionId = entity.Id,
+                MenuItemId = menuItemId,
+            });
+        }
+
+        foreach (var menuCategoryId in validMenuCategoryIds.Where(id => !existingMenuCategoryIds.Contains(id)))
+        {
+            entity.MenuCategories.Add(new PromotionMenuCategory
+            {
+                Id = Guid.NewGuid(),
+                BranchId = branchId,
+                PromotionId = entity.Id,
+                MenuCategoryId = menuCategoryId,
+            });
+        }
+
+        PromotionEngine.Validate(entity);
+    }
+
+    public static async Task<DateTime> GetLocalNowAsync(GrimorioDbContext db, Guid branchId, CancellationToken ct)
+    {
+        var timeZoneId = await db.Branches
+            .Where(x => x.Id == branchId && !x.IsDeleted)
+            .Select(x => x.TimeZoneId)
+            .FirstOrDefaultAsync(ct);
+
+        return BranchTimeZone.FromUtc(DateTime.UtcNow, timeZoneId);
+    }
+}
+
 internal static class PosMapper
 {
     // El precio ingresado en menú es precio final al público (incluye IVA).
@@ -1054,6 +1230,37 @@ internal static class PosMapper
     {
         var gross = unitPrice * quantity;
         var discountAmount = Math.Round(gross * (discountPct / 100m), 2);
+        return CalcItemFromDiscountAmount(unitPrice, quantity, discountAmount, taxPct);
+    }
+
+    public static PosItemPricing CalcItemWithPromotion(
+        decimal unitPrice,
+        int quantity,
+        decimal discountPct,
+        decimal? taxPct,
+        Promotion? promotion,
+        bool useCardPrice = false)
+    {
+        var promoCalculation = promotion == null
+            ? null
+            : PromotionEngine.Calculate(promotion, unitPrice, quantity, useCardPrice);
+        var effectiveDiscountPct = promoCalculation?.DiscountPct ?? discountPct;
+        var discountAmount = promoCalculation?.DiscountAmount ?? Math.Round(unitPrice * quantity * (discountPct / 100m), 2);
+        var (_, taxableBase, taxAmount, totalPrice) = CalcItemFromDiscountAmount(unitPrice, quantity, discountAmount, taxPct);
+
+        return new PosItemPricing(
+            Math.Clamp(effectiveDiscountPct, 0m, 100m),
+            discountAmount,
+            taxableBase,
+            taxAmount,
+            totalPrice);
+    }
+
+    public static (decimal discountAmount, decimal taxableBase, decimal taxAmount, decimal totalPrice) CalcItemFromDiscountAmount(
+        decimal unitPrice, int quantity, decimal discountAmount, decimal? taxPct)
+    {
+        var gross = unitPrice * quantity;
+        discountAmount = Math.Clamp(Math.Round(discountAmount, 2), 0m, gross);
         var netInclusive = gross - discountAmount;
         decimal taxableBase, taxAmount;
         if (taxPct.HasValue && taxPct.Value > 0)
@@ -1067,6 +1274,42 @@ internal static class PosMapper
             taxAmount = 0m;
         }
         return (discountAmount, taxableBase, taxAmount, netInclusive);
+    }
+
+    public static async Task<List<Promotion>> LoadActivePromotionsAsync(
+        GrimorioDbContext db,
+        Guid branchId,
+        DateTime localNow,
+        CancellationToken ct)
+    {
+        var promotions = await db.Promotions
+            .Where(x => x.BranchId == branchId && !x.IsDeleted && x.IsActive)
+            .Include(x => x.MenuItems.Where(i => !i.IsDeleted))
+            .Include(x => x.MenuCategories.Where(c => !c.IsDeleted))
+            .ToListAsync(ct);
+
+        return promotions
+            .Where(x => PromotionEngine.IsCurrentlyActive(x, localNow))
+            .OrderByDescending(x => x.Priority)
+            .ThenBy(x => x.Name)
+            .ToList();
+    }
+
+    public static Promotion? ResolvePromotion(
+        Guid? promotionId,
+        Grimorio.Domain.Entities.Menu.MenuItem menuItem,
+        IReadOnlyList<Promotion> activePromotions)
+    {
+        if (!promotionId.HasValue)
+            return null;
+
+        var promotion = activePromotions.FirstOrDefault(x => x.Id == promotionId.Value)
+            ?? throw new InvalidOperationException("La promocion seleccionada ya no esta activa.");
+
+        if (!PromotionEngine.AppliesTo(promotion, menuItem))
+            throw new InvalidOperationException($"La promocion {promotion.Name} no aplica para {menuItem.Name}.");
+
+        return promotion;
     }
 
     public static void ClassifyTax(string? sriCode, decimal taxableBase, decimal taxAmt,
@@ -1102,10 +1345,10 @@ internal static class PosMapper
 
         foreach (var item in order.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled))
         {
-            var (discountAmt, taxableBase, taxAmt, _) = CalcItem(
+            var (discountAmt, taxableBase, taxAmt, _) = CalcItemFromDiscountAmount(
                 item.UnitPrice,
                 item.Quantity,
-                item.DiscountPct,
+                item.DiscountAmount,
                 item.TaxRate?.Percentage);
 
             subtotal += item.UnitPrice * item.Quantity;
@@ -1246,6 +1489,8 @@ internal static class PosMapper
         UnitPrice = i.UnitPrice,
         DiscountPct = i.DiscountPct,
         DiscountAmount = i.DiscountAmount,
+        PromotionId = i.PromotionId,
+        PromotionName = i.PromotionName,
         TaxRateId = i.TaxRateId,
         TaxRateName = i.TaxRate?.Name,
         TaxRatePercentage = i.TaxRate?.Percentage,
@@ -1268,3 +1513,10 @@ internal static class PosMapper
             }).ToList(),
     };
 }
+
+internal sealed record PosItemPricing(
+    decimal DiscountPct,
+    decimal DiscountAmount,
+    decimal TaxableBase,
+    decimal TaxAmount,
+    decimal TotalPrice);

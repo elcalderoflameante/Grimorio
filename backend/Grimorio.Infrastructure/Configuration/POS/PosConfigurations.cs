@@ -81,6 +81,7 @@ public class OrdenItemConfiguration : IEntityTypeConfiguration<OrderItem>
             .IsRequired();
 
         builder.Property(x => x.Notes).HasMaxLength(300);
+        builder.Property(x => x.PromotionName).HasMaxLength(160);
         builder.Property(x => x.IsTakeout).HasDefaultValue(false);
         builder.Property(x => x.UnitPrice).HasColumnType("numeric(18,2)");
         builder.Property(x => x.DiscountPct).HasColumnType("numeric(5,2)");
@@ -98,6 +99,11 @@ public class OrdenItemConfiguration : IEntityTypeConfiguration<OrderItem>
             .HasForeignKey(x => x.StationId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        builder.HasOne(x => x.Promotion)
+            .WithMany(x => x.OrderItems)
+            .HasForeignKey(x => x.PromotionId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasOne(x => x.TaxRate)
             .WithMany()
             .HasForeignKey(x => x.TaxRateId)
@@ -105,6 +111,83 @@ public class OrdenItemConfiguration : IEntityTypeConfiguration<OrderItem>
 
         builder.HasIndex(x => new { x.BranchId, x.OrderId });
         builder.HasIndex(x => new { x.StationId, x.Status })
+            .HasFilter("\"IsDeleted\" = false");
+    }
+}
+
+public class PromotionConfiguration : IEntityTypeConfiguration<Promotion>
+{
+    public void Configure(EntityTypeBuilder<Promotion> builder)
+    {
+        builder.ToTable("Promotions", "pos");
+
+        builder.Property(x => x.Name)
+            .IsRequired()
+            .HasMaxLength(160);
+        builder.Property(x => x.Description).HasMaxLength(500);
+        builder.Property(x => x.Type)
+            .HasConversion<string>()
+            .HasMaxLength(40)
+            .IsRequired();
+        builder.Property(x => x.DiscountPercent).HasColumnType("numeric(5,2)");
+        builder.Property(x => x.DiscountAmount).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.FixedPrice).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.PaymentPolicy)
+            .HasConversion<string>()
+            .HasMaxLength(40)
+            .IsRequired();
+        builder.Property(x => x.CardPrice).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Priority).HasDefaultValue(0);
+
+        builder.HasIndex(x => new { x.BranchId, x.IsActive, x.Priority })
+            .HasFilter("\"IsDeleted\" = false");
+
+        builder.HasIndex(x => new { x.BranchId, x.Name })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = false");
+    }
+}
+
+public class PromotionMenuItemConfiguration : IEntityTypeConfiguration<PromotionMenuItem>
+{
+    public void Configure(EntityTypeBuilder<PromotionMenuItem> builder)
+    {
+        builder.ToTable("PromotionMenuItems", "pos");
+
+        builder.HasOne(x => x.Promotion)
+            .WithMany(x => x.MenuItems)
+            .HasForeignKey(x => x.PromotionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.MenuItem)
+            .WithMany()
+            .HasForeignKey(x => x.MenuItemId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => new { x.BranchId, x.PromotionId, x.MenuItemId })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = false");
+    }
+}
+
+public class PromotionMenuCategoryConfiguration : IEntityTypeConfiguration<PromotionMenuCategory>
+{
+    public void Configure(EntityTypeBuilder<PromotionMenuCategory> builder)
+    {
+        builder.ToTable("PromotionMenuCategories", "pos");
+
+        builder.HasOne(x => x.Promotion)
+            .WithMany(x => x.MenuCategories)
+            .HasForeignKey(x => x.PromotionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.MenuCategory)
+            .WithMany()
+            .HasForeignKey(x => x.MenuCategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => new { x.BranchId, x.PromotionId, x.MenuCategoryId })
+            .IsUnique()
             .HasFilter("\"IsDeleted\" = false");
     }
 }

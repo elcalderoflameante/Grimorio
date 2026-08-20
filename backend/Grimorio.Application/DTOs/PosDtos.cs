@@ -97,6 +97,8 @@ public class OrderItemDto
     public decimal UnitPrice { get; set; }
     public decimal DiscountPct { get; set; }
     public decimal DiscountAmount { get; set; }
+    public Guid? PromotionId { get; set; }
+    public string? PromotionName { get; set; }
     public Guid? TaxRateId { get; set; }
     public string? TaxRateName { get; set; }
     public decimal? TaxRatePercentage { get; set; }
@@ -123,6 +125,7 @@ public class CreateOrderItemDto
     public Guid MenuItemId { get; set; }
     public int Quantity { get; set; }
     public decimal DiscountPct { get; set; }
+    public Guid? PromotionId { get; set; }
     public string? Notes { get; set; }
     public bool IsTakeout { get; set; }
     public List<CreateModifierSelectionDto> ModifierSelections { get; set; } = [];
@@ -136,6 +139,54 @@ public class UpdateOrderItemsDto
 public class UpdateOrderItemNotesDto
 {
     public string? Notes { get; set; }
+}
+
+public class PromotionDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Type { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public DateOnly? StartsOn { get; set; }
+    public DateOnly? EndsOn { get; set; }
+    public TimeOnly? StartsAt { get; set; }
+    public TimeOnly? EndsAt { get; set; }
+    public int DaysOfWeekMask { get; set; }
+    public decimal? DiscountPercent { get; set; }
+    public decimal? DiscountAmount { get; set; }
+    public decimal? FixedPrice { get; set; }
+    public string PaymentPolicy { get; set; } = string.Empty;
+    public decimal? CardPrice { get; set; }
+    public int? BuyQuantity { get; set; }
+    public int? PayQuantity { get; set; }
+    public int Priority { get; set; }
+    public List<Guid> MenuItemIds { get; set; } = [];
+    public List<Guid> MenuCategoryIds { get; set; } = [];
+    public bool IsCurrentlyActive { get; set; }
+}
+
+public class UpsertPromotionDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Type { get; set; } = string.Empty;
+    public bool IsActive { get; set; } = true;
+    public DateOnly? StartsOn { get; set; }
+    public DateOnly? EndsOn { get; set; }
+    public TimeOnly? StartsAt { get; set; }
+    public TimeOnly? EndsAt { get; set; }
+    public int DaysOfWeekMask { get; set; }
+    public decimal? DiscountPercent { get; set; }
+    public decimal? DiscountAmount { get; set; }
+    public decimal? FixedPrice { get; set; }
+    public string PaymentPolicy { get; set; } = "AnyPayment";
+    public decimal? CardPrice { get; set; }
+    public int? BuyQuantity { get; set; }
+    public int? PayQuantity { get; set; }
+    public int Priority { get; set; }
+    public List<Guid> MenuItemIds { get; set; } = [];
+    public List<Guid> MenuCategoryIds { get; set; } = [];
 }
 
 public class AlexaKitchenCommandDto

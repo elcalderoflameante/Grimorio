@@ -3,6 +3,7 @@ using Grimorio.Application.Features.TableService.Commands;
 using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.POS;
 using Grimorio.Infrastructure.Features.Menu;
+using Grimorio.Infrastructure.Features.POS;
 using Grimorio.Infrastructure.Features.POS.Commands;
 using Grimorio.Infrastructure.Features.TableService.Queries;
 using Grimorio.Infrastructure.Persistence;
@@ -293,6 +294,8 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
             .Where(o => o.BranchId == table.BranchId)
             .MaxAsync(o => (int?)o.Number, cancellationToken) ?? 0;
         number++;
+        var localNow = await PosPromotionCommandHelper.GetLocalNowAsync(_context, table.BranchId, cancellationToken);
+        var activePromotions = await PosMapper.LoadActivePromotionsAsync(_context, table.BranchId, localNow, cancellationToken);
 
         var order = new Order
         {
@@ -336,10 +339,11 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
             }
 
             var unitPrice = menuItem.Price + modifierSelections.Sum(s => s.UnitPriceDelta * s.Quantity);
-            var (discountAmt, taxableBase, taxAmt, totalPrice) = PosMapper.CalcItem(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage);
+            var promotion = PosMapper.ResolvePromotion(itemDto.PromotionId, menuItem, activePromotions);
+            var pricing = PosMapper.CalcItemWithPromotion(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage, promotion);
             subtotal += unitPrice * itemDto.Quantity;
-            discountTotal += discountAmt;
-            PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, taxableBase, taxAmt, ref base15, ref base0, ref baseExempt, ref iva15, ref ice);
+            discountTotal += pricing.DiscountAmount;
+            PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, pricing.TaxableBase, pricing.TaxAmount, ref base15, ref base0, ref baseExempt, ref iva15, ref ice);
 
             var orderItem = new OrderItem
             {
@@ -349,11 +353,13 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
                 StationId = menuItem.StationId,
                 Quantity = itemDto.Quantity,
                 UnitPrice = unitPrice,
-                DiscountPct = itemDto.DiscountPct,
-                DiscountAmount = discountAmt,
+                DiscountPct = pricing.DiscountPct,
+                DiscountAmount = pricing.DiscountAmount,
+                PromotionId = promotion?.Id,
+                PromotionName = promotion?.Name,
                 TaxRateId = menuItem.TaxRateId,
-                TaxAmount = taxAmt,
-                TotalPrice = totalPrice,
+                TaxAmount = pricing.TaxAmount,
+                TotalPrice = pricing.TotalPrice,
                 Notes = itemDto.Notes?.Trim(),
                 IsTakeout = false,
                 Status = OrderItemStatus.Pending,

@@ -21,6 +21,7 @@ import type {
   PublicMenuCategoryDto,
   PublicMenuItemDto,
   PublicMenuItemModifierOptionDto,
+  PromotionDto,
   TableServiceRequestType,
 } from '../types';
 import './PublicTableRequest.tailwind.pcss';
@@ -66,6 +67,8 @@ interface CartLine {
   quantity: number;
   unitPrice: number;
   notes?: string;
+  promotionId?: string;
+  promotionName?: string;
   modifierSelections: CreateModifierSelectionDto[];
   modifierLabels: string[];
 }
@@ -80,7 +83,8 @@ interface ItemDraft {
 
 type PublicTab = 'requests' | 'menu' | 'order';
 
-const PUBLIC_MENU_ENABLED = false;
+const PUBLIC_MENU_ENABLED = true;
+const PROMOTIONS_CATEGORY_ID = '__promotions__';
 const money = (value: number) => `$${value.toFixed(2)}`;
 const createLocalId = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -123,7 +127,9 @@ export default function PublicTableRequest() {
   const [tab, setTab] = useState<PublicTab>('requests');
   const [categories, setCategories] = useState<PublicMenuCategoryDto[]>([]);
   const [menuItems, setMenuItems] = useState<PublicMenuItemDto[]>([]);
+  const [promotions, setPromotions] = useState<PromotionDto[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectedPromotionId, setSelectedPromotionId] = useState<string | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [itemDraft, setItemDraft] = useState<ItemDraft | null>(null);
   const [orderMessage, setOrderMessage] = useState<string | null>(null);
@@ -181,7 +187,9 @@ export default function PublicTableRequest() {
     if (!PUBLIC_MENU_ENABLED) {
       setCategories([]);
       setMenuItems([]);
+      setPromotions([]);
       setSelectedCategoryId(null);
+      setSelectedPromotionId(null);
       return;
     }
     if (!token) return;
@@ -193,6 +201,7 @@ export default function PublicTableRequest() {
         const response = await tableServiceApi.getPublicTableMenu(token);
         setCategories(response.data.categories);
         setMenuItems(response.data.items);
+        setPromotions(response.data.promotions ?? []);
         setSelectedCategoryId(response.data.categories[0]?.id ?? null);
       } catch {
         setMenuError('No se pudo cargar el menu en este momento.');
@@ -298,13 +307,74 @@ export default function PublicTableRequest() {
   }, [tableId]);
 
   const visibleItems = useMemo(
-    () => menuItems.filter(item => !selectedCategoryId || item.menuCategoryId === selectedCategoryId),
-    [menuItems, selectedCategoryId],
+    () => {
+      if (selectedCategoryId === PROMOTIONS_CATEGORY_ID && selectedPromotionId) {
+        const promotion = promotions.find(p => p.id === selectedPromotionId);
+        if (!promotion) return [];
+        return menuItems.filter(item =>
+          promotion.menuItemIds.includes(item.id) ||
+          promotion.menuCategoryIds.includes(item.menuCategoryId));
+      }
+
+      if (selectedCategoryId === PROMOTIONS_CATEGORY_ID) return [];
+      return menuItems.filter(item => !selectedCategoryId || item.menuCategoryId === selectedCategoryId);
+    },
+    [menuItems, promotions, selectedCategoryId, selectedPromotionId],
+  );
+
+  const activePromotions = useMemo(
+    () => promotions.filter(promotion => promotion.isActive),
+    [promotions],
+  );
+
+  const selectedPromotion = selectedPromotionId
+    ? promotions.find(promotion => promotion.id === selectedPromotionId)
+    : undefined;
+
+  const promotionValueLabel = (promotion: PromotionDto) => {
+    if (promotion.type === 'Percentage') return `${promotion.discountPercent ?? 0}%`;
+    if (promotion.type === 'FixedAmount') return `${money(promotion.discountAmount ?? 0)} desc.`;
+    if (promotion.type === 'FixedPrice') return money(promotion.fixedPrice ?? 0);
+    return `${promotion.buyQuantity ?? 0}x${promotion.payQuantity ?? 0}`;
+  };
+
+  const promotionScheduleLabel = (promotion: PromotionDto) => {
+    const days = promotion.daysOfWeekMask === 0 ? 'Todos los dias' : 'Dias seleccionados';
+    const hours = promotion.startsAt && promotion.endsAt
+      ? `${promotion.startsAt.slice(0, 5)} - ${promotion.endsAt.slice(0, 5)}`
+      : 'Todo el dia';
+    return `${days} · ${hours}`;
+  };
+
+  const calculateLineDiscount = (line: CartLine) => {
+    const promotion = line.promotionId
+      ? promotions.find(p => p.id === line.promotionId && p.isCurrentlyActive)
+      : undefined;
+    if (!promotion) return 0;
+
+    const gross = line.unitPrice * line.quantity;
+    let discount = 0;
+    if (promotion.type === 'Percentage') discount = gross * ((promotion.discountPercent ?? 0) / 100);
+    else if (promotion.type === 'FixedAmount') discount = promotion.discountAmount ?? 0;
+    else if (promotion.type === 'FixedPrice') discount = gross - ((promotion.fixedPrice ?? line.unitPrice) * line.quantity);
+    else {
+      const buyQuantity = promotion.buyQuantity ?? 0;
+      const payQuantity = promotion.payQuantity ?? 0;
+      const groups = buyQuantity > 0 ? Math.floor(line.quantity / buyQuantity) : 0;
+      discount = groups * Math.max(0, buyQuantity - payQuantity) * line.unitPrice;
+    }
+
+    return Math.min(Math.max(Math.round(discount * 100) / 100, 0), gross);
+  };
+
+  const cartDiscount = useMemo(
+    () => cart.reduce((sum, line) => sum + calculateLineDiscount(line), 0),
+    [cart, promotions],
   );
 
   const cartTotal = useMemo(
-    () => cart.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0),
-    [cart],
+    () => Math.max(0, cart.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0) - cartDiscount),
+    [cart, cartDiscount],
   );
 
   const cartItemsCount = useMemo(
@@ -408,6 +478,10 @@ export default function PublicTableRequest() {
     }
 
     const selected = Object.values(selectedOptions).flat();
+    const applicablePromotion = selectedPromotion?.isCurrentlyActive &&
+      (selectedPromotion.menuItemIds.includes(item.id) || selectedPromotion.menuCategoryIds.includes(item.menuCategoryId))
+        ? selectedPromotion
+        : undefined;
     const modifierTotal = selected.reduce((sum, option) => sum + option.priceDelta, 0);
     const modifierSelections = selected.map(option => ({
       modifierOptionId: option.id,
@@ -424,6 +498,8 @@ export default function PublicTableRequest() {
         quantity: itemDraft.quantity,
         unitPrice: item.price + modifierTotal,
         notes: itemDraft.notes.trim() || undefined,
+        promotionId: applicablePromotion?.id,
+        promotionName: applicablePromotion?.name,
         modifierSelections,
         modifierLabels,
       },
@@ -454,6 +530,7 @@ export default function PublicTableRequest() {
         items: cart.map(line => ({
           menuItemId: line.menuItemId,
           quantity: line.quantity,
+          promotionId: line.promotionId,
           notes: line.notes,
           modifierSelections: line.modifierSelections,
         })),
@@ -606,10 +683,24 @@ export default function PublicTableRequest() {
               ) : (
                 <>
                   <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1">
+                    {activePromotions.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setSelectedCategoryId(PROMOTIONS_CATEGORY_ID);
+                          setSelectedPromotionId(null);
+                        }}
+                        className={`shrink-0 rounded-full border-2 border-[#8B5E3C] px-2.5 py-1 text-[11px] font-bold [font-family:'Eagle_Lake',serif] ${selectedCategoryId === PROMOTIONS_CATEGORY_ID ? 'bg-[#8B5E3C] text-[#f5ead8]' : 'bg-[#e8d9c0] text-[#3e2723]'}`}
+                      >
+                        Promociones
+                      </button>
+                    )}
                     {categories.map(category => (
                       <button
                         key={category.id}
-                        onClick={() => setSelectedCategoryId(category.id)}
+                        onClick={() => {
+                          setSelectedCategoryId(category.id);
+                          setSelectedPromotionId(null);
+                        }}
                         className={`shrink-0 rounded-full border-2 border-[#8B5E3C] px-2.5 py-1 text-[11px] font-bold [font-family:'Eagle_Lake',serif] ${selectedCategoryId === category.id ? 'bg-[#8B5E3C] text-[#f5ead8]' : 'bg-[#e8d9c0] text-[#3e2723]'}`}
                       >
                         {category.name}
@@ -618,6 +709,34 @@ export default function PublicTableRequest() {
                   </div>
 
                   <div className="space-y-1.5">
+                    {selectedCategoryId === PROMOTIONS_CATEGORY_ID && !selectedPromotionId && activePromotions.map(promotion => (
+                      <button
+                        key={promotion.id}
+                        onClick={() => promotion.isCurrentlyActive && setSelectedPromotionId(promotion.id)}
+                        disabled={!promotion.isCurrentlyActive}
+                        className="w-full rounded-lg border-2 border-[#8B5E3C] bg-[#f5f1ed]/95 p-2.5 text-left shadow-md disabled:opacity-55"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-xs font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif]">{promotion.name}</h3>
+                            {promotion.description && <p className="mt-0.5 text-[11px] text-[#6d4c3d]">{promotion.description}</p>}
+                            <p className="mt-1 text-[11px] font-bold text-[#6d4c3d]">{promotionScheduleLabel(promotion)}</p>
+                            {!promotion.isCurrentlyActive && <p className="mt-1 text-xs font-bold text-[#8B2E2E]">No disponible ahora</p>}
+                          </div>
+                          <span className="shrink-0 rounded-full bg-[#8B5E3C] px-2 py-0.5 text-[11px] font-bold text-[#f5ead8]">
+                            {promotionValueLabel(promotion)}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                    {selectedCategoryId === PROMOTIONS_CATEGORY_ID && selectedPromotionId && (
+                      <button
+                        onClick={() => setSelectedPromotionId(null)}
+                        className="mb-1 rounded-full border-2 border-[#8B5E3C] bg-[#e8d9c0] px-3 py-1 text-[11px] font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif]"
+                      >
+                        Ver promociones
+                      </button>
+                    )}
                     {visibleItems.map(item => (
                       <button
                         key={item.id}
@@ -645,8 +764,11 @@ export default function PublicTableRequest() {
                         </div>
                       </button>
                     ))}
-                    {visibleItems.length === 0 && (
+                    {visibleItems.length === 0 && selectedCategoryId !== PROMOTIONS_CATEGORY_ID && (
                       <p className="py-8 text-center text-sm font-bold text-[#6d4c3d]">No hay productos en esta categoria.</p>
+                    )}
+                    {visibleItems.length === 0 && selectedCategoryId === PROMOTIONS_CATEGORY_ID && selectedPromotionId && (
+                      <p className="py-8 text-center text-sm font-bold text-[#6d4c3d]">No hay productos para esta promocion.</p>
                     )}
                   </div>
                 </>
@@ -756,6 +878,7 @@ export default function PublicTableRequest() {
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-bold">{cartItemsCount} item(s) en carrito</p>
                 <p className="text-sm font-bold">{money(cartTotal)}</p>
+                {cartDiscount > 0 && <p className="text-[10px] font-bold text-[#D2B48C]">Ahorro {money(cartDiscount)}</p>}
               </div>
               <button
                 onClick={() => setItemDraft({
@@ -837,10 +960,14 @@ export default function PublicTableRequest() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-bold text-[#3e2723]">{line.itemName}</p>
+                      {line.promotionName && <p className="mt-0.5 text-[11px] font-bold text-[#8B2E83]">{line.promotionName}</p>}
                       {line.modifierLabels.map(label => <p key={label} className="text-[11px] text-[#6d4c3d]">{label}</p>)}
                       {line.notes && <p className="mt-0.5 text-[11px] italic text-[#6d4c3d]">{line.notes}</p>}
                     </div>
-                    <p className="text-xs font-bold text-[#3e2723]">{money(line.unitPrice * line.quantity)}</p>
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-[#3e2723]">{money(line.unitPrice * line.quantity - calculateLineDiscount(line))}</p>
+                      {calculateLineDiscount(line) > 0 && <p className="text-[11px] font-bold text-[#8B2E83]">-{money(calculateLineDiscount(line))}</p>}
+                    </div>
                   </div>
                   <div className="mt-2 flex items-center justify-between">
                     <div className="flex items-center gap-2">

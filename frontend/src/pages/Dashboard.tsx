@@ -56,6 +56,7 @@ import {
 import TableServiceModule from '../components/POS/TableServiceModule';
 import PosOrderModule from '../components/POS/PosOrderModule';
 import StationsConfig from '../components/POS/StationsConfig';
+import PromotionsList from '../components/POS/PromotionsList';
 import { BranchConfigurationForm } from '../components/Branches/BranchConfigurationForm';
 import InventoryConfig from '../components/Inventory/InventoryConfig';
 import MenuCategoriesList from '../components/Menu/MenuCategoriesList';
@@ -285,6 +286,7 @@ export default function Dashboard() {
         icon: <ShopOutlined />,
         children: [
           { key: 'pos-ordenes', label: 'Pedidos', icon: <ShoppingCartOutlined />, permission: PERMISSIONS.pos.ordersView },
+          { key: 'pos-promociones', label: 'Promociones', icon: <PercentageOutlined />, permission: PERMISSIONS.pos.ordersUpdate },
           { key: 'pos-estaciones', label: 'Estaciones', icon: <ToolOutlined />, permission: PERMISSIONS.pos.stationsManage },
           { key: 'pos-table-service', label: 'Atención QR', icon: <ToolOutlined />, permission: PERMISSIONS.pos.tableRequestsView },
         ],
@@ -445,6 +447,8 @@ export default function Dashboard() {
         return <BiometricEnrollment />;
       case 'pos-ordenes':
         return <PosOrderModule />;
+      case 'pos-promociones':
+        return <PromotionsList />;
 case 'pos-estaciones':
         return <StationsConfig />;
       case 'pos-table-service':

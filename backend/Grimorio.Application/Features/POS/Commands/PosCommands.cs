@@ -27,6 +27,25 @@ public class DeleteWorkStationCommand : IRequest<bool>
     public Guid BranchId { get; set; }
 }
 
+public class CreatePromotionCommand : IRequest<PromotionDto>
+{
+    public Guid BranchId { get; set; }
+    public UpsertPromotionDto Data { get; set; } = new();
+}
+
+public class UpdatePromotionCommand : IRequest<PromotionDto>
+{
+    public Guid Id { get; set; }
+    public Guid BranchId { get; set; }
+    public UpsertPromotionDto Data { get; set; } = new();
+}
+
+public class DeletePromotionCommand : IRequest<bool>
+{
+    public Guid Id { get; set; }
+    public Guid BranchId { get; set; }
+}
+
 // ── Mesas (posición en mapa) ──────────────────────────────────────────────
 
 public class UpdateTablePositionCommand : IRequest<bool>

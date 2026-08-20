@@ -117,6 +117,7 @@ public class PublicTableMenuDto
 {
     public List<PublicMenuCategoryDto> Categories { get; set; } = [];
     public List<PublicMenuItemDto> Items { get; set; } = [];
+    public List<PromotionDto> Promotions { get; set; } = [];
 }
 
 public class PublicCreateDraftOrderDto

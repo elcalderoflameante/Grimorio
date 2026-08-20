@@ -8,6 +8,17 @@ public class GetWorkStationsQuery : IRequest<List<WorkStationDto>>
     public Guid BranchId { get; set; }
 }
 
+public class GetPromotionsQuery : IRequest<List<PromotionDto>>
+{
+    public Guid BranchId { get; set; }
+    public bool ActiveOnly { get; set; }
+}
+
+public class GetActivePromotionsQuery : IRequest<List<PromotionDto>>
+{
+    public Guid BranchId { get; set; }
+}
+
 public class GetOrdersQuery : IRequest<List<OrderDto>>
 {
     public Guid BranchId { get; set; }

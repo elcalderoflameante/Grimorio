@@ -7,6 +7,8 @@ using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.POS;
 using Grimorio.Infrastructure.Features.Billing.Queries;
 using Grimorio.Infrastructure.Features.Menu;
+using Grimorio.Infrastructure.Features.POS;
+using Grimorio.Infrastructure.Features.POS.Commands;
 using Grimorio.Infrastructure.Persistence;
 using Grimorio.Infrastructure.Services.Email;
 using Grimorio.Infrastructure.Services.Sri;
@@ -705,6 +707,10 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
             .Include(o => o.Payments)
             .Include(o => o.Items.Where(i => !i.IsDeleted))
                 .ThenInclude(i => i.MenuItem)
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.Promotion)
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.TaxRate)
             .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
             ?? throw new KeyNotFoundException("Orden no encontrada.");
 
@@ -713,6 +719,8 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
 
         if (order.Status == Domain.Entities.POS.OrderStatus.Draft)
             throw new InvalidOperationException("La orden debe estar confirmada antes de cobrarla.");
+
+        ApplyPromotionPaymentPolicy(order, cardLines.Count > 0);
 
         var alreadyPaid = order.Payments.Where(p => !p.IsDeleted).Sum(p => p.OrderAmount);
         var remaining = order.Total - alreadyPaid;
@@ -777,6 +785,9 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
                     throw new InvalidOperationException($"La cantidad a cobrar de {item.MenuItem?.Name ?? "item"} supera lo pendiente.");
 
                 remainingQuantityBeforePayment[item.Id] = remainingQuantity;
+                var netUnitPrice = item.Quantity > 0
+                    ? Math.Round(item.TotalPrice / item.Quantity, 4)
+                    : 0m;
                 paymentItems.Add(new OrderPaymentItem
                 {
                     Id = Guid.NewGuid(),
@@ -784,8 +795,8 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
                     OrderPaymentId = Guid.Empty,
                     OrderItemId = item.Id,
                     Quantity = selected.Quantity,
-                    UnitPrice = item.UnitPrice,
-                    Total = Math.Round(item.UnitPrice * selected.Quantity, 2),
+                    UnitPrice = netUnitPrice,
+                    Total = Math.Round(netUnitPrice * selected.Quantity, 2),
                     OrderItem = item,
                 });
             }
@@ -910,6 +921,46 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
         await transaction.CommitAsync(ct);
 
         return BillingMapper.MapPayment(payment, order.Number, customer);
+    }
+
+    private static void ApplyPromotionPaymentPolicy(Order order, bool hasCardPayment)
+    {
+        foreach (var item in order.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled && i.Promotion != null))
+        {
+            var promotion = item.Promotion!;
+            var taxPct = item.TaxRate?.Percentage;
+
+            if (hasCardPayment && promotion.PaymentPolicy == PromotionPaymentPolicy.CashTransferOnly)
+            {
+                var (_, _, taxAmount, totalPrice) = PosMapper.CalcItemFromDiscountAmount(
+                    item.UnitPrice,
+                    item.Quantity,
+                    0m,
+                    taxPct);
+                item.DiscountPct = 0m;
+                item.DiscountAmount = 0m;
+                item.TaxAmount = taxAmount;
+                item.TotalPrice = totalPrice;
+                item.PromotionId = null;
+                item.PromotionName = null;
+                continue;
+            }
+
+            var pricing = PosMapper.CalcItemWithPromotion(
+                item.UnitPrice,
+                item.Quantity,
+                item.DiscountPct,
+                taxPct,
+                promotion,
+                hasCardPayment);
+
+            item.DiscountPct = pricing.DiscountPct;
+            item.DiscountAmount = pricing.DiscountAmount;
+            item.TaxAmount = pricing.TaxAmount;
+            item.TotalPrice = pricing.TotalPrice;
+        }
+
+        PosMapper.RecalculateOrderTotals(order);
     }
 
     private async Task DeductInventoryForPaymentItemsAsync(
