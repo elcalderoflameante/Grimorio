@@ -27,6 +27,8 @@ public class PublicTableInfoDto
     public string Code { get; set; } = string.Empty;
     public string? Area { get; set; }
     public bool IsActive { get; set; }
+    public bool PublicMenuEnabled { get; set; }
+    public bool PublicOrderingEnabled { get; set; }
 }
 
 public class TableServiceRequestDto

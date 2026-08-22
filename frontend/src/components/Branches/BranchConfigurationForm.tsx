@@ -95,6 +95,8 @@ export const BranchConfigurationForm = () => {
         ...values,
         timeZoneId: values.timeZoneId || DEFAULT_BRANCH_TIME_ZONE,
         logoUrl: branch?.logoUrl,
+        publicMenuEnabled: values.publicMenuEnabled ?? true,
+        publicOrderingEnabled: values.publicOrderingEnabled ?? true,
         latitude,
         longitude,
       };
@@ -202,6 +204,29 @@ export const BranchConfigurationForm = () => {
                 placeholder="Seleccione la zona horaria"
                 optionFilterProp="label"
               />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Divider>Atención QR</Divider>
+
+        <Row gutter={16}>
+          <Col xs={24} md={12}>
+            <Form.Item
+              label="Mostrar pestaña de menú"
+              name="publicMenuEnabled"
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item
+              label="Permitir pedidos desde QR"
+              name="publicOrderingEnabled"
+              valuePropName="checked"
+            >
+              <Switch />
             </Form.Item>
           </Col>
         </Row>

@@ -41,6 +41,12 @@ public class BranchConfiguration : BaseEntityConfiguration<Branch>
         builder.Property(s => s.LogoUrl)
             .HasMaxLength(500);
 
+        builder.Property(s => s.PublicMenuEnabled)
+            .HasDefaultValue(true);
+
+        builder.Property(s => s.PublicOrderingEnabled)
+            .HasDefaultValue(true);
+
         builder.Property(s => s.IsActive)
             .HasDefaultValue(true);
 

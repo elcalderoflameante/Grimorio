@@ -79,14 +79,18 @@ public class GetRestaurantTableByTokenQueryHandler : IRequestHandler<GetRestaura
 
     public async Task<PublicTableInfoDto?> Handle(GetRestaurantTableByTokenQuery request, CancellationToken cancellationToken)
     {
-        return await _context.RestaurantTables
-            .Where(x => x.PublicToken == request.Token && !x.IsDeleted)
-            .Select(x => new PublicTableInfoDto
+        return await (
+            from table in _context.RestaurantTables.AsNoTracking()
+            join branch in _context.Branches.AsNoTracking() on table.BranchId equals branch.Id
+            where table.PublicToken == request.Token && !table.IsDeleted && !branch.IsDeleted
+            select new PublicTableInfoDto
             {
-                TableId = x.Id,
-                Code = x.Code,
-                Area = x.Area,
-                IsActive = x.IsActive,
+                TableId = table.Id,
+                Code = table.Code,
+                Area = table.Area,
+                IsActive = table.IsActive,
+                PublicMenuEnabled = branch.PublicMenuEnabled,
+                PublicOrderingEnabled = branch.PublicOrderingEnabled,
             })
             .FirstOrDefaultAsync(cancellationToken);
     }
@@ -107,6 +111,15 @@ public class GetPublicTableMenuQueryHandler : IRequestHandler<GetPublicTableMenu
 
         if (!table.IsActive)
             throw new InvalidOperationException("La mesa no está habilitada.");
+
+        var publicMenuEnabled = await _context.Branches
+            .AsNoTracking()
+            .Where(x => x.Id == table.BranchId && !x.IsDeleted)
+            .Select(x => x.PublicMenuEnabled)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (!publicMenuEnabled)
+            throw new InvalidOperationException("El menu publico no esta habilitado en este momento.");
 
         var categories = await _context.MenuCategories
             .AsNoTracking()
@@ -237,14 +250,25 @@ public class GetActivePublicTableOrderQueryHandler : IRequestHandler<GetActivePu
 
     public async Task<OrderDto?> Handle(GetActivePublicTableOrderQuery request, CancellationToken cancellationToken)
     {
+        var tableSettings = await (
+            from table in _context.RestaurantTables.AsNoTracking()
+            join branch in _context.Branches.AsNoTracking() on table.BranchId equals branch.Id
+            where table.PublicToken == request.TableToken && table.IsActive && !table.IsDeleted && !branch.IsDeleted
+            select new
+            {
+                table.Id,
+                branch.PublicOrderingEnabled,
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (tableSettings is null || !tableSettings.PublicOrderingEnabled)
+            return null;
+
         var order = await _context.Orders
             .AsNoTracking()
             .Where(x =>
                 !x.IsDeleted &&
-                x.Table != null &&
-                x.Table.PublicToken == request.TableToken &&
-                x.Table.IsActive &&
-                !x.Table.IsDeleted &&
+                x.TableId == tableSettings.Id &&
                 x.Status != OrderStatus.Cancelled &&
                 x.Status != OrderStatus.Delivered &&
                 x.PaidAt == null)

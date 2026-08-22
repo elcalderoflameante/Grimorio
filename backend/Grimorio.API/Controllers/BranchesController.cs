@@ -84,6 +84,8 @@ public class BranchesController : ControllerBase
                 Email = dto.Email,
                 TimeZoneId = dto.TimeZoneId,
                 LogoUrl = dto.LogoUrl,
+                PublicMenuEnabled = dto.PublicMenuEnabled,
+                PublicOrderingEnabled = dto.PublicOrderingEnabled,
                 IsActive = dto.IsActive,
                 Latitude = dto.Latitude,
                 Longitude = dto.Longitude
@@ -150,6 +152,8 @@ public class BranchesController : ControllerBase
             Email = oldBranch.Email,
             TimeZoneId = oldBranch.TimeZoneId,
             LogoUrl = logoUrl,
+            PublicMenuEnabled = oldBranch.PublicMenuEnabled,
+            PublicOrderingEnabled = oldBranch.PublicOrderingEnabled,
             IsActive = oldBranch.IsActive,
             Latitude = oldBranch.Latitude,
             Longitude = oldBranch.Longitude
@@ -182,6 +186,8 @@ public class BranchesController : ControllerBase
             Email = oldBranch.Email,
             TimeZoneId = oldBranch.TimeZoneId,
             LogoUrl = null,
+            PublicMenuEnabled = oldBranch.PublicMenuEnabled,
+            PublicOrderingEnabled = oldBranch.PublicOrderingEnabled,
             IsActive = oldBranch.IsActive,
             Latitude = oldBranch.Latitude,
             Longitude = oldBranch.Longitude

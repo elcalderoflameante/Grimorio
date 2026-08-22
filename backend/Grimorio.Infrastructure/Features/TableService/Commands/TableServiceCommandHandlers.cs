@@ -226,6 +226,16 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
         if (!table.IsActive)
             throw new InvalidOperationException("La mesa no está habilitada para pedidos.");
 
+        var branchSettings = await _context.Branches
+            .AsNoTracking()
+            .Where(x => x.Id == table.BranchId && !x.IsDeleted)
+            .Select(x => new { x.PublicMenuEnabled, x.PublicOrderingEnabled })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new InvalidOperationException("La sucursal no existe.");
+
+        if (!branchSettings.PublicMenuEnabled || !branchSettings.PublicOrderingEnabled)
+            throw new InvalidOperationException("Los pedidos por QR no estan habilitados en este momento.");
+
         if (request.Items.Count == 0)
             throw new InvalidOperationException("Agrega al menos un producto para enviar el pedido.");
 

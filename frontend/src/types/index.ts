@@ -376,6 +376,8 @@ export interface BranchDto {
   email: string;
   timeZoneId: string;
   logoUrl?: string;
+  publicMenuEnabled: boolean;
+  publicOrderingEnabled: boolean;
   isActive: boolean;
   latitude?: number;
   longitude?: number;
@@ -390,6 +392,8 @@ export interface UpdateBranchDto {
   email: string;
   timeZoneId: string;
   logoUrl?: string;
+  publicMenuEnabled: boolean;
+  publicOrderingEnabled: boolean;
   isActive: boolean;
   latitude?: number;
   longitude?: number;
@@ -724,6 +728,8 @@ export interface PublicTableInfoDto {
   code: string;
   area?: string;
   isActive: boolean;
+  publicMenuEnabled: boolean;
+  publicOrderingEnabled: boolean;
 }
 
 export interface TableServiceRequestDto {

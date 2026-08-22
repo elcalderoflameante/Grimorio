@@ -83,7 +83,6 @@ interface ItemDraft {
 
 type PublicTab = 'requests' | 'menu' | 'order';
 
-const PUBLIC_MENU_ENABLED = true;
 const PROMOTIONS_CATEGORY_ID = '__promotions__';
 const money = (value: number) => `$${value.toFixed(2)}`;
 const createLocalId = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -119,6 +118,8 @@ export default function PublicTableRequest() {
   const { token } = useParams<{ token: string }>();
   const [tableCode, setTableCode] = useState<string | null>(null);
   const [tableId, setTableId] = useState<string | null>(null);
+  const [publicMenuEnabled, setPublicMenuEnabled] = useState(false);
+  const [publicOrderingEnabled, setPublicOrderingEnabled] = useState(false);
   const [customRequest, setCustomRequest] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingRequest, setPendingRequest] = useState<PendingRequest | null>(null);
@@ -158,6 +159,8 @@ export default function PublicTableRequest() {
       try {
         const response = await tableServiceApi.getPublicTable(token);
         setTableCode(response.data.code || null);
+        setPublicMenuEnabled(response.data.publicMenuEnabled);
+        setPublicOrderingEnabled(response.data.publicMenuEnabled && response.data.publicOrderingEnabled);
 
         const resolvedTableId = response.data.tableId || null;
         setTableId(resolvedTableId);
@@ -175,6 +178,8 @@ export default function PublicTableRequest() {
       } catch {
         setTableCode(null);
         setTableId(null);
+        setPublicMenuEnabled(false);
+        setPublicOrderingEnabled(false);
         setActiveRequestId(null);
         setActiveRequestStatus(null);
       }
@@ -184,7 +189,7 @@ export default function PublicTableRequest() {
   }, [token]);
 
   useEffect(() => {
-    if (!PUBLIC_MENU_ENABLED) {
+    if (!publicMenuEnabled) {
       setCategories([]);
       setMenuItems([]);
       setPromotions([]);
@@ -211,10 +216,10 @@ export default function PublicTableRequest() {
     };
 
     loadMenu().catch(() => {});
-  }, [token]);
+  }, [publicMenuEnabled, token]);
 
   const loadActiveOrder = useCallback(async (showLoading = false) => {
-    if (!PUBLIC_MENU_ENABLED || !token) {
+    if (!publicOrderingEnabled || !token) {
       setActiveOrder(null);
       return;
     }
@@ -229,29 +234,36 @@ export default function PublicTableRequest() {
     } finally {
       if (showLoading) setLoadingOrder(false);
     }
-  }, [token]);
+  }, [publicOrderingEnabled, token]);
 
   useEffect(() => {
-    if (!PUBLIC_MENU_ENABLED) return;
+    if (!publicOrderingEnabled) return;
     loadActiveOrder(true).catch(() => {});
-  }, [loadActiveOrder]);
+  }, [loadActiveOrder, publicOrderingEnabled]);
 
   useEffect(() => {
-    if (!PUBLIC_MENU_ENABLED || !token) return;
+    if (!publicOrderingEnabled || !token) return;
 
     const intervalId = window.setInterval(() => {
       loadActiveOrder().catch(() => {});
     }, 15000);
 
     return () => window.clearInterval(intervalId);
-  }, [loadActiveOrder, token]);
+  }, [loadActiveOrder, publicOrderingEnabled, token]);
 
   useEffect(() => {
-    if (PUBLIC_MENU_ENABLED || tab === 'requests') return;
+    if ((publicMenuEnabled || tab !== 'menu') && (publicOrderingEnabled || tab !== 'order')) return;
     setTab('requests');
     setCart([]);
     setItemDraft(null);
-  }, [tab]);
+  }, [publicMenuEnabled, publicOrderingEnabled, tab]);
+
+  useEffect(() => {
+    if (publicOrderingEnabled) return;
+    setCart([]);
+    setItemDraft(null);
+    setActiveOrder(null);
+  }, [publicOrderingEnabled]);
 
   useEffect(() => {
     if (!tableId) return;
@@ -426,7 +438,7 @@ export default function PublicTableRequest() {
   };
 
   const openItemDraft = (item: PublicMenuItemDto) => {
-    if (!PUBLIC_MENU_ENABLED) return;
+    if (!publicOrderingEnabled) return;
     if (!item.isAvailable) return;
     setItemDraft({
       item,
@@ -460,7 +472,7 @@ export default function PublicTableRequest() {
   };
 
   const addDraftToCart = () => {
-    if (!PUBLIC_MENU_ENABLED) return;
+    if (!publicOrderingEnabled) return;
     if (!itemDraft) return;
     const { item, selectedOptions } = itemDraft;
 
@@ -519,7 +531,7 @@ export default function PublicTableRequest() {
   };
 
   const submitDraftOrder = async () => {
-    if (!PUBLIC_MENU_ENABLED) return;
+    if (!publicOrderingEnabled) return;
     if (!token || cart.length === 0 || isSubmitting) return;
 
     try {
@@ -610,19 +622,19 @@ export default function PublicTableRequest() {
               Solicitudes
             </button>
             <button
-              onClick={() => PUBLIC_MENU_ENABLED && setTab('menu')}
-              disabled={!PUBLIC_MENU_ENABLED}
+              onClick={() => publicMenuEnabled && setTab('menu')}
+              disabled={!publicMenuEnabled}
               className={`rounded-md py-1.5 text-[11px] font-bold [font-family:'Eagle_Lake',serif] disabled:cursor-not-allowed disabled:opacity-45 ${tab === 'menu' ? 'bg-[#8B5E3C] text-[#f5ead8]' : 'text-[#3e2723]'}`}
             >
               Menu
             </button>
             <button
               onClick={() => {
-                if (!PUBLIC_MENU_ENABLED) return;
+                if (!publicOrderingEnabled) return;
                 setTab('order');
                 loadActiveOrder(true).catch(() => {});
               }}
-              disabled={!PUBLIC_MENU_ENABLED}
+              disabled={!publicOrderingEnabled}
               className={`rounded-md py-1.5 text-[11px] font-bold [font-family:'Eagle_Lake',serif] disabled:cursor-not-allowed disabled:opacity-45 ${tab === 'order' ? 'bg-[#8B5E3C] text-[#f5ead8]' : 'text-[#3e2723]'}`}
             >
               Pedido
@@ -707,6 +719,12 @@ export default function PublicTableRequest() {
                       </button>
                     ))}
                   </div>
+
+                  {!publicOrderingEnabled && (
+                    <div className="mb-2 rounded-xl border-2 border-[#8B5E3C] bg-[#f5f1ed] p-2 text-center text-[11px] font-bold text-[#6d4c3d]">
+                      El menu esta disponible solo para consulta en este momento.
+                    </div>
+                  )}
 
                   <div className="space-y-1.5">
                     {selectedCategoryId === PROMOTIONS_CATEGORY_ID && !selectedPromotionId && activePromotions.map(promotion => (
@@ -872,7 +890,7 @@ export default function PublicTableRequest() {
           )}
         </div>
 
-        {cart.length > 0 && (
+        {publicOrderingEnabled && cart.length > 0 && (
           <div className="fixed inset-x-0 bottom-0 z-30 border-t-2 border-[#8B5E3C] bg-[#2f1f18] px-3 py-1.5 text-[#f5ead8] shadow-2xl">
             <div className="mx-auto flex max-w-md items-center gap-3">
               <div className="min-w-0 flex-1">
