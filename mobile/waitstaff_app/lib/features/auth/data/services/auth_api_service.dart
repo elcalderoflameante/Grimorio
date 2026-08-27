@@ -17,6 +17,7 @@ class AuthApiService {
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/login',
       data: request.toJson(),
+      options: Options(extra: const {'skipAuth': true}),
     );
 
     final data = response.data;
@@ -28,7 +29,10 @@ class AuthApiService {
   }
 
   Future<List<PinBranch>> getWaitstaffBranches() async {
-    final response = await _dio.get<List<dynamic>>('/auth/waitstaff/branches');
+    final response = await _dio.get<List<dynamic>>(
+      '/auth/waitstaff/branches',
+      options: Options(extra: const {'skipAuth': true}),
+    );
     return (response.data ?? const [])
         .map((item) => PinBranch.fromJson(item as Map<String, dynamic>))
         .toList();
@@ -38,6 +42,7 @@ class AuthApiService {
     final response = await _dio.get<List<dynamic>>(
       '/auth/waitstaff/users',
       queryParameters: {'branchId': branchId},
+      options: Options(extra: const {'skipAuth': true}),
     );
     return (response.data ?? const [])
         .map((item) => PinUser.fromJson(item as Map<String, dynamic>))
@@ -52,6 +57,7 @@ class AuthApiService {
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/waitstaff/login',
       data: {'branchId': branchId, 'userId': userId, 'pin': pin},
+      options: Options(extra: const {'skipAuth': true}),
     );
     if (response.data == null) {
       throw const FormatException('Respuesta vacía del servidor');
