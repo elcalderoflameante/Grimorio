@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { App as AntApp, Button, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Typography } from 'antd';
-import { DeleteOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
+import { App as AntApp, Button, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Tooltip, Typography } from 'antd';
+import { DeleteOutlined, DownOutlined, PlusOutlined, SaveOutlined, UpOutlined } from '@ant-design/icons';
 import { inventoryApi, menuApi } from '../../services/api';
 import type {
   InventoryArticleDto,
@@ -41,6 +41,9 @@ const emptyGroup = (displayOrder: number): UpsertMenuItemModifierGroupDto => ({
 
 const nextDisplayOrder = (items: { displayOrder: number }[]) =>
   items.length === 0 ? 1 : Math.max(...items.map(item => item.displayOrder ?? 0)) + 1;
+
+const normalizeDisplayOrder = <T extends { displayOrder: number }>(items: T[]) =>
+  items.map((item, index) => ({ ...item, displayOrder: index + 1 }));
 
 export default function ModifierEditor({ itemId, itemName, open, onClose }: Props) {
   const { message } = AntApp.useApp();
@@ -97,6 +100,16 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
       ? { ...g, options: g.options.map((o, oi) => oi === optionIdx ? { ...o, ...patch } : o) }
       : g));
 
+  const moveOption = (groupIdx: number, optionIdx: number, direction: -1 | 1) =>
+    setGroups(prev => prev.map((group, currentGroupIdx) => {
+      if (currentGroupIdx !== groupIdx) return group;
+      const targetIdx = optionIdx + direction;
+      if (targetIdx < 0 || targetIdx >= group.options.length) return group;
+      const options = [...group.options];
+      [options[optionIdx], options[targetIdx]] = [options[targetIdx], options[optionIdx]];
+      return { ...group, options: normalizeDisplayOrder(options) };
+    }));
+
   const getCompatibleUnitIds = (articleId: string | undefined): Set<string> => {
     if (!articleId) return new Set(units.map(u => u.id));
     const article = articles.find(a => a.id === articleId);
@@ -145,7 +158,7 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
       title={`Modificadores - ${itemName}`}
       open={open}
       onCancel={onClose}
-      width={960}
+      width={1040}
       footer={[
         <Button key="cancel" onClick={onClose}>Cancelar</Button>,
         <Button key="save" type="primary" icon={<SaveOutlined />} loading={saving} onClick={save}>Guardar modificadores</Button>,
@@ -200,12 +213,30 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
                     key={optionIdx}
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '92px minmax(130px, 1fr) 110px minmax(180px, 1.4fr) 86px 118px 34px',
+                      gridTemplateColumns: '64px 92px minmax(130px, 1fr) 110px minmax(180px, 1.4fr) 86px 118px 34px',
                       gap: 8,
                       alignItems: 'center',
                       width: '100%',
                     }}
                   >
+                    <Space.Compact>
+                      <Tooltip title="Subir opción">
+                        <Button
+                          size="small"
+                          icon={<UpOutlined />}
+                          disabled={optionIdx === 0}
+                          onClick={() => moveOption(groupIdx, optionIdx, -1)}
+                        />
+                      </Tooltip>
+                      <Tooltip title="Bajar opción">
+                        <Button
+                          size="small"
+                          icon={<DownOutlined />}
+                          disabled={optionIdx === group.options.length - 1}
+                          onClick={() => moveOption(groupIdx, optionIdx, 1)}
+                        />
+                      </Tooltip>
+                    </Space.Compact>
                     <InputNumber
                       min={0}
                       value={option.displayOrder}
