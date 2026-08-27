@@ -61,6 +61,8 @@ class OrderItemDto {
   final int quantity;
   final double unitPrice;
   final double totalPrice;
+  final String? promotionId;
+  final String? promotionName;
   final String? notes;
   final bool isTakeout;
   final OrderItemStatus status;
@@ -76,6 +78,8 @@ class OrderItemDto {
     required this.quantity,
     required this.unitPrice,
     required this.totalPrice,
+    this.promotionId,
+    this.promotionName,
     this.notes,
     required this.isTakeout,
     required this.status,
@@ -92,6 +96,8 @@ class OrderItemDto {
     quantity: (j['quantity'] as num).toInt(),
     unitPrice: (j['unitPrice'] as num).toDouble(),
     totalPrice: (j['totalPrice'] as num).toDouble(),
+    promotionId: j['promotionId'] as String?,
+    promotionName: j['promotionName'] as String?,
     notes: j['notes'] as String?,
     isTakeout: j['isTakeout'] as bool? ?? false,
     status: OrderItemStatus.fromApi(j['status']),
@@ -228,6 +234,79 @@ class MenuCategoryDto {
     name: j['name'] as String,
     color: j['color'] as String?,
   );
+}
+
+class PromotionDto {
+  final String id;
+  final String name;
+  final String? description;
+  final String type;
+  final double? discountPercent;
+  final double? discountAmount;
+  final double? fixedPrice;
+  final int? buyQuantity;
+  final int? payQuantity;
+  final List<String> menuItemIds;
+  final List<String> menuCategoryIds;
+
+  const PromotionDto({
+    required this.id,
+    required this.name,
+    this.description,
+    required this.type,
+    this.discountPercent,
+    this.discountAmount,
+    this.fixedPrice,
+    this.buyQuantity,
+    this.payQuantity,
+    this.menuItemIds = const [],
+    this.menuCategoryIds = const [],
+  });
+
+  factory PromotionDto.fromJson(Map<String, dynamic> j) => PromotionDto(
+    id: j['id'] as String,
+    name: j['name'] as String? ?? '',
+    description: j['description'] as String?,
+    type: j['type'] as String? ?? '',
+    discountPercent: (j['discountPercent'] as num?)?.toDouble(),
+    discountAmount: (j['discountAmount'] as num?)?.toDouble(),
+    fixedPrice: (j['fixedPrice'] as num?)?.toDouble(),
+    buyQuantity: (j['buyQuantity'] as num?)?.toInt(),
+    payQuantity: (j['payQuantity'] as num?)?.toInt(),
+    menuItemIds: (j['menuItemIds'] as List<dynamic>? ?? [])
+        .map((value) => value.toString())
+        .toList(),
+    menuCategoryIds: (j['menuCategoryIds'] as List<dynamic>? ?? [])
+        .map((value) => value.toString())
+        .toList(),
+  );
+
+  String get valueLabel => switch (type) {
+    'Percentage' => '${discountPercent ?? 0}%',
+    'FixedAmount' => '\$${(discountAmount ?? 0).toStringAsFixed(2)} desc.',
+    'FixedPrice' => '\$${(fixedPrice ?? 0).toStringAsFixed(2)}',
+    _ => '${buyQuantity ?? 0}x${payQuantity ?? 0}',
+  };
+
+  bool appliesTo(MenuItemDto item) =>
+      menuItemIds.contains(item.id) ||
+      menuCategoryIds.contains(item.menuCategoryId);
+
+  double calculateDiscount(double unitPrice, int quantity) {
+    final gross = unitPrice * quantity;
+    final discount = switch (type) {
+      'Percentage' => gross * ((discountPercent ?? 0) / 100),
+      'FixedAmount' => discountAmount ?? 0,
+      'FixedPrice' => gross - ((fixedPrice ?? unitPrice) * quantity),
+      _ =>
+        (buyQuantity ?? 0) > 0
+            ? (quantity ~/ buyQuantity!) *
+                  ((buyQuantity ?? 0) - (payQuantity ?? 0)).clamp(0, quantity) *
+                  unitPrice
+            : 0.0,
+    };
+    return discount.clamp(0, gross).toDouble();
+  }
 }
 
 class MenuItemModifierOptionDto {
@@ -442,6 +521,8 @@ class CartItem {
   final String menuItemId;
   final String name;
   final double price;
+  String? promotionId;
+  String? promotionName;
   int quantity;
   String? notes;
   bool isTakeout;
@@ -451,6 +532,8 @@ class CartItem {
     required this.menuItemId,
     required this.name,
     required this.price,
+    this.promotionId,
+    this.promotionName,
     this.quantity = 1,
     this.notes,
     this.isTakeout = false,

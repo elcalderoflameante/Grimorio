@@ -60,6 +60,14 @@ class OrderApiService {
         .toList();
   }
 
+  Future<List<PromotionDto>> getActivePromotions() async {
+    final dio = _ref.read(dioProvider);
+    final res = await dio.get('/pos/promociones/activas');
+    return (res.data as List<dynamic>)
+        .map((e) => PromotionDto.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<List<OrderDto>> getOrders({bool activeOnly = true}) async {
     final dio = _ref.read(dioProvider);
     final res = await dio.get(
@@ -94,6 +102,7 @@ class OrderApiService {
             (i) => {
               'menuItemId': i.menuItemId,
               'quantity': i.quantity,
+              if (i.promotionId != null) 'promotionId': i.promotionId,
               if (i.notes != null && i.notes!.isNotEmpty) 'notes': i.notes,
               'isTakeout': i.isTakeout,
               if (i.modifierSelections.isNotEmpty)
@@ -138,6 +147,7 @@ class OrderApiService {
               (i) => {
                 'menuItemId': i.menuItemId,
                 'quantity': i.quantity,
+                if (i.promotionId != null) 'promotionId': i.promotionId,
                 'notes': i.notes,
                 'isTakeout': i.isTakeout,
                 if (i.modifierSelections.isNotEmpty)

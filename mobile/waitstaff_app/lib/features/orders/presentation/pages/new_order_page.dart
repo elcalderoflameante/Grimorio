@@ -36,9 +36,11 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
   // ── Catálogo ──────────────────────────────────────────────────────────────
   List<MenuCategoryDto> _categories = [];
   List<MenuItemDto> _items = [];
+  List<PromotionDto> _promotions = [];
   Map<String, MenuItemAvailabilityDto> _availabilityByItemId = {};
   bool _loadingCatalog = true;
   String? _selectedCategory; // null = todas las categorías
+  String? _selectedPromotionId;
 
   // ── Carrito ───────────────────────────────────────────────────────────────
   final List<CartItem> _cart = [];
@@ -48,7 +50,11 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
   bool _cartExpanded = false;
   bool _saving = false;
 
-  double get _total => _cart.fold(0, (s, i) => s + i.subtotal);
+  double get _subtotal => _cart.fold(0, (s, i) => s + i.subtotal);
+  double get _discountTotal =>
+      _cart.fold(0, (sum, item) => sum + _discountForItem(item));
+  double get _total =>
+      (_subtotal - _discountTotal).clamp(0, double.infinity).toDouble();
   int get _totalItems => _cart.fold(0, (s, i) => s + i.quantity);
 
   @override
@@ -69,6 +75,8 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
           menuItemId: item.menuItemId,
           name: item.itemName,
           price: item.unitPrice,
+          promotionId: item.promotionId,
+          promotionName: item.promotionName,
           quantity: item.quantity,
           notes: item.notes,
           isTakeout: item.isTakeout,
@@ -103,15 +111,17 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
     setState(() => _loadingCatalog = true);
     try {
       final api = ref.read(orderApiServiceProvider);
-      final (cats, items, availability) = await (
+      final (cats, items, availability, promotions) = await (
         api.getCategories(),
         api.getMenuItems(),
         api.getMenuAvailability(),
+        api.getActivePromotions(),
       ).wait;
       if (mounted) {
         setState(() {
           _categories = cats;
           _items = items;
+          _promotions = promotions;
           _availabilityByItemId = {
             for (final entry in availability) entry.menuItemId: entry,
           };
@@ -132,13 +142,38 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
     }
   }
 
-  List<MenuItemDto> get _filteredItems => _selectedCategory == null
-      ? _items
-      : _items.where((i) => i.menuCategoryId == _selectedCategory).toList();
+  List<MenuItemDto> get _filteredItems {
+    final promotion = _selectedPromotion;
+    if (promotion != null) {
+      return _items.where(promotion.appliesTo).toList();
+    }
+    return _selectedCategory == null
+        ? _items
+        : _items.where((i) => i.menuCategoryId == _selectedCategory).toList();
+  }
+
+  PromotionDto? get _selectedPromotion {
+    for (final promotion in _promotions) {
+      if (promotion.id == _selectedPromotionId) return promotion;
+    }
+    return null;
+  }
+
+  PromotionDto? _promotionForItem(CartItem item) {
+    for (final promotion in _promotions) {
+      if (promotion.id == item.promotionId) return promotion;
+    }
+    return null;
+  }
+
+  double _discountForItem(CartItem item) =>
+      _promotionForItem(item)?.calculateDiscount(item.price, item.quantity) ??
+      0;
 
   // ── Carrito ───────────────────────────────────────────────────────────────
 
   Future<void> _addItem(MenuItemDto item) async {
+    final promotion = _selectedPromotion;
     final availability = _availabilityByItemId[item.id];
     if (availability?.isTracked == true && !availability!.isAvailable) {
       final reason = availability.limitingArticleName;
@@ -159,7 +194,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
             .read(orderApiServiceProvider)
             .getMenuItem(item.id);
         if (!mounted) return;
-        await _showModifierDialog(detail);
+        await _showModifierDialog(detail, promotion: promotion);
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -178,19 +213,31 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
 
     setState(() {
       final idx = _cart.indexWhere(
-        (c) => c.menuItemId == item.id && c.modifierSelections.isEmpty,
+        (c) =>
+            c.menuItemId == item.id &&
+            c.modifierSelections.isEmpty &&
+            c.promotionId == promotion?.id,
       );
       if (idx >= 0) {
         _cart[idx].quantity++;
       } else {
         _cart.add(
-          CartItem(menuItemId: item.id, name: item.name, price: item.price),
+          CartItem(
+            menuItemId: item.id,
+            name: item.name,
+            price: item.price,
+            promotionId: promotion?.id,
+            promotionName: promotion?.name,
+          ),
         );
       }
     });
   }
 
-  Future<void> _showModifierDialog(MenuItemDto item) async {
+  Future<void> _showModifierDialog(
+    MenuItemDto item, {
+    PromotionDto? promotion,
+  }) async {
     final selected = <String, int>{};
     var showValidationError = false;
 
@@ -440,6 +487,8 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
           menuItemId: item.id,
           name: item.name,
           price: item.price + modifierTotal,
+          promotionId: promotion?.id,
+          promotionName: promotion?.name,
           modifierSelections: selections,
         ),
       );
@@ -578,6 +627,65 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
         .fold(0, (sum, item) => sum + item.quantity);
   }
 
+  Future<void> _choosePromotion() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: kBgCard,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+              child: Text(
+                'Promociones disponibles',
+                style: GoogleFonts.cinzel(
+                  color: kGold,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            ..._promotions.map(
+              (promotion) => Card(
+                child: ListTile(
+                  minTileHeight: 64,
+                  title: Text(
+                    promotion.name,
+                    style: GoogleFonts.lato(
+                      color: kParchment,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  subtitle: Text(
+                    [
+                      promotion.valueLabel,
+                      if (promotion.description?.trim().isNotEmpty == true)
+                        promotion.description!.trim(),
+                    ].join(' · '),
+                    style: GoogleFonts.lato(color: kParchmentDim),
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right_rounded,
+                    color: kGold,
+                  ),
+                  onTap: () => Navigator.of(sheetContext).pop(promotion.id),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || selected == null) return;
+    setState(() {
+      _selectedPromotionId = selected;
+      _selectedCategory = null;
+    });
+  }
+
   // ── Enviar a cocina ───────────────────────────────────────────────────────
 
   Future<void> _saveOrder({required bool confirm}) async {
@@ -700,15 +808,28 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
         children: [
           _CategoryChip(
             label: 'Todos',
-            selected: _selectedCategory == null,
-            onTap: () => setState(() => _selectedCategory = null),
+            selected: _selectedCategory == null && _selectedPromotionId == null,
+            onTap: () => setState(() {
+              _selectedCategory = null;
+              _selectedPromotionId = null;
+            }),
           ),
+          if (_promotions.isNotEmpty)
+            _CategoryChip(
+              label: _selectedPromotion?.name ?? 'Promociones',
+              selected: _selectedPromotionId != null,
+              color: '#C41D7F',
+              onTap: _choosePromotion,
+            ),
           ..._categories.map(
             (c) => _CategoryChip(
               label: c.name,
               selected: _selectedCategory == c.id,
               color: c.color,
-              onTap: () => setState(() => _selectedCategory = c.id),
+              onTap: () => setState(() {
+                _selectedCategory = c.id;
+                _selectedPromotionId = null;
+              }),
             ),
           ),
         ],
@@ -739,6 +860,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
       itemCount: items.length,
       itemBuilder: (_, i) => _ItemCard(
         item: items[i],
+        promotion: _selectedPromotion,
         availability: _availabilityByItemId[items[i].id],
         quantity: _quantityInCart(items[i].id),
         onTap:
@@ -827,6 +949,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
                 itemCount: _cart.length,
                 itemBuilder: (_, i) => _CartRow(
                   item: _cart[i],
+                  discount: _discountForItem(_cart[i]),
                   onIncrease: () => _changeQuantity(i, 1),
                   onDecrease: () => _changeQuantity(i, -1),
                   onNote: () => _editNote(i),
@@ -834,6 +957,20 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
                 ),
               ),
             ),
+            if (_discountTotal > 0)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Column(
+                  children: [
+                    _CartAmountRow(label: 'Subtotal', amount: _subtotal),
+                    _CartAmountRow(
+                      label: 'Descuentos',
+                      amount: -_discountTotal,
+                      color: const Color(0xFFFF80AB),
+                    ),
+                  ],
+                ),
+              ),
             // Observación general del pedido
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -969,12 +1106,14 @@ class _CategoryChip extends StatelessWidget {
 class _ItemCard extends StatelessWidget {
   const _ItemCard({
     required this.item,
+    required this.promotion,
     required this.availability,
     required this.quantity,
     required this.onTap,
   });
 
   final MenuItemDto item;
+  final PromotionDto? promotion;
   final MenuItemAvailabilityDto? availability;
   final int quantity;
   final VoidCallback? onTap;
@@ -984,6 +1123,7 @@ class _ItemCard extends StatelessWidget {
     if (value == null || value.isEmpty) return null;
     final uri = Uri.tryParse(value);
     if (uri != null && uri.hasScheme) return value;
+    if (value.startsWith('/uploads/')) return '${ApiConfig.baseUrl}$value';
     if (value.startsWith('/')) return '${ApiConfig.hubBaseUrl}$value';
     return value;
   }
@@ -1034,9 +1174,7 @@ class _ItemCard extends StatelessWidget {
                               color: soldOut
                                   ? Colors.black.withAlpha(100)
                                   : null,
-                              colorBlendMode: soldOut
-                                  ? BlendMode.darken
-                                  : null,
+                              colorBlendMode: soldOut ? BlendMode.darken : null,
                               errorBuilder: (_, _, _) =>
                                   _ItemImagePlaceholder(dimmed: soldOut),
                             ),
@@ -1054,6 +1192,17 @@ class _ItemCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (promotion != null)
+                    Text(
+                      '${promotion!.name} · ${promotion!.valueLabel}',
+                      style: GoogleFonts.lato(
+                        color: const Color(0xFFFF80AB),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   if (availability?.isTracked == true)
                     Text(
                       soldOut
@@ -1147,9 +1296,38 @@ class _ItemImagePlaceholder extends StatelessWidget {
   }
 }
 
+class _CartAmountRow extends StatelessWidget {
+  const _CartAmountRow({required this.label, required this.amount, this.color});
+
+  final String label;
+  final double amount;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: GoogleFonts.lato(color: kParchmentDim)),
+          Text(
+            '${amount < 0 ? '-' : ''}\$${amount.abs().toStringAsFixed(2)}',
+            style: GoogleFonts.lato(
+              color: color ?? kParchment,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CartRow extends StatelessWidget {
   const _CartRow({
     required this.item,
+    required this.discount,
     required this.onIncrease,
     required this.onDecrease,
     required this.onNote,
@@ -1157,6 +1335,7 @@ class _CartRow extends StatelessWidget {
   });
 
   final CartItem item;
+  final double discount;
   final VoidCallback onIncrease;
   final VoidCallback onDecrease;
   final VoidCallback onNote;
@@ -1206,6 +1385,18 @@ class _CartRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                if (item.promotionName != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      item.promotionName!,
+                      style: GoogleFonts.lato(
+                        color: const Color(0xFFFF80AB),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
                 if (item.notes != null)
                   Text(
                     item.notes!,
@@ -1251,13 +1442,27 @@ class _CartRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            '\$${item.subtotal.toStringAsFixed(2)}',
-            style: GoogleFonts.lato(
-              color: kGoldLight,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (discount > 0)
+                Text(
+                  '\$${item.subtotal.toStringAsFixed(2)}',
+                  style: GoogleFonts.lato(
+                    color: kParchmentDim,
+                    fontSize: 11,
+                    decoration: TextDecoration.lineThrough,
+                  ),
+                ),
+              Text(
+                '\$${(item.subtotal - discount).toStringAsFixed(2)}',
+                style: GoogleFonts.lato(
+                  color: kGoldLight,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 4),
           SizedBox(

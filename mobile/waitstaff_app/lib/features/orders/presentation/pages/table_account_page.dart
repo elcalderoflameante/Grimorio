@@ -377,6 +377,18 @@ class _OrderItemCard extends StatelessWidget {
                         style: const TextStyle(color: kGoldLight, fontSize: 12),
                       ),
                     ),
+                  if (item.promotionName?.isNotEmpty == true)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        item.promotionName!,
+                        style: const TextStyle(
+                          color: Color(0xFFFF80AB),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                   if (item.isTakeout)
                     const Padding(
                       padding: EdgeInsets.only(top: 4),
