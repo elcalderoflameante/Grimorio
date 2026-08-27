@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { App as AntApp, Button, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Tag, Typography } from 'antd';
+import { App as AntApp, Button, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Typography } from 'antd';
 import { DeleteOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
 import { inventoryApi, menuApi } from '../../services/api';
 import type {
@@ -36,8 +36,11 @@ const emptyGroup = (displayOrder: number): UpsertMenuItemModifierGroupDto => ({
   allowDuplicates: false,
   displayOrder,
   isActive: true,
-  options: [emptyOption(0)],
+  options: [emptyOption(1)],
 });
+
+const nextDisplayOrder = (items: { displayOrder: number }[]) =>
+  items.length === 0 ? 1 : Math.max(...items.map(item => item.displayOrder ?? 0)) + 1;
 
 export default function ModifierEditor({ itemId, itemName, open, onClose }: Props) {
   const { message } = AntApp.useApp();
@@ -65,7 +68,7 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
           maxSelections: g.maxSelections,
           isRequired: g.isRequired,
           allowDuplicates: g.allowDuplicates,
-          displayOrder: g.displayOrder,
+          displayOrder: g.displayOrder ?? 1,
           isActive: g.isActive,
           options: g.options.map(o => ({
             id: o.id,
@@ -74,7 +77,7 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
             unitId: o.unitId,
             quantity: o.quantity,
             priceDelta: o.priceDelta,
-            displayOrder: o.displayOrder,
+            displayOrder: o.displayOrder ?? 1,
             isActive: o.isActive,
           })),
         })));
@@ -142,7 +145,7 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
       title={`Modificadores - ${itemName}`}
       open={open}
       onCancel={onClose}
-      width={820}
+      width={960}
       footer={[
         <Button key="cancel" onClick={onClose}>Cancelar</Button>,
         <Button key="save" type="primary" icon={<SaveOutlined />} loading={saving} onClick={save}>Guardar modificadores</Button>,
@@ -158,7 +161,7 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'minmax(170px, 1fr) 104px 104px 120px 96px 34px',
+                gridTemplateColumns: 'minmax(170px, 1fr) 92px 104px 104px 120px 96px 34px',
                 gap: 8,
                 alignItems: 'center',
                 marginBottom: 10,
@@ -168,6 +171,13 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
                 placeholder="Nombre del grupo"
                 value={group.name}
                 onChange={e => updateGroup(groupIdx, { name: e.target.value })}
+                style={{ width: '100%' }}
+              />
+              <InputNumber
+                min={0}
+                value={group.displayOrder}
+                onChange={v => updateGroup(groupIdx, { displayOrder: v ?? 0 })}
+                addonBefore="Orden"
                 style={{ width: '100%' }}
               />
               <InputNumber min={0} value={group.minSelections} onChange={v => updateGroup(groupIdx, { minSelections: v ?? 0 })} addonBefore="Min" style={{ width: '100%' }} />
@@ -190,13 +200,19 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
                     key={optionIdx}
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '34px minmax(130px, 1fr) 110px minmax(180px, 1.4fr) 86px 118px 34px',
+                      gridTemplateColumns: '92px minmax(130px, 1fr) 110px minmax(180px, 1.4fr) 86px 118px 34px',
                       gap: 8,
                       alignItems: 'center',
                       width: '100%',
                     }}
                   >
-                    <Tag color="blue" style={{ marginInlineEnd: 0, textAlign: 'center' }}>{optionIdx + 1}</Tag>
+                    <InputNumber
+                      min={0}
+                      value={option.displayOrder}
+                      onChange={v => updateOption(groupIdx, optionIdx, { displayOrder: v ?? 0 })}
+                      addonBefore="Orden"
+                      style={{ width: '100%' }}
+                    />
                     <Input
                       placeholder="Opción"
                       value={option.name}
@@ -250,7 +266,7 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
               type="dashed"
               icon={<PlusOutlined />}
               style={{ marginTop: 10 }}
-              onClick={() => updateGroup(groupIdx, { options: [...group.options, emptyOption(group.options.length)] })}
+              onClick={() => updateGroup(groupIdx, { options: [...group.options, emptyOption(nextDisplayOrder(group.options))] })}
             >
               Agregar opción
             </Button>
@@ -263,7 +279,7 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
         block
         icon={<PlusOutlined />}
         style={{ marginTop: 14 }}
-        onClick={() => setGroups(prev => [...prev, emptyGroup(prev.length)])}
+        onClick={() => setGroups(prev => [...prev, emptyGroup(nextDisplayOrder(prev))])}
       >
         Agregar grupo
       </Button>
