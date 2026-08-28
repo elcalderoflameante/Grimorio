@@ -185,18 +185,25 @@ public class PosController : ControllerBase
         }
         TryGetUserId(out var userId);
 
-        var result = await _mediator.Send(new CreateOrderCommand
+        try
         {
-            BranchId = branchId,
-            WaiterId = userId == Guid.Empty ? null : userId,
-            Type = dto.Type,
-            TableId = dto.TableId,
-            CustomerName = dto.CustomerName,
-            DeliveryAddress = dto.DeliveryAddress,
-            Notes = dto.Notes,
-            Items = dto.Items,
-        });
-        return Ok(result);
+            var result = await _mediator.Send(new CreateOrderCommand
+            {
+                BranchId = branchId,
+                WaiterId = userId == Guid.Empty ? null : userId,
+                Type = dto.Type,
+                TableId = dto.TableId,
+                CustomerName = dto.CustomerName,
+                DeliveryAddress = dto.DeliveryAddress,
+                Notes = dto.Notes,
+                Items = dto.Items,
+            });
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [Authorize(Policy = "POS.DirectSale.Create")]
@@ -206,14 +213,22 @@ public class PosController : ControllerBase
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
         TryGetUserId(out var userId);
 
-        var result = await _mediator.Send(new CreateDirectSaleCommand
+        OrderDto result;
+        try
         {
-            BranchId = branchId,
-            CashierId = userId == Guid.Empty ? null : userId,
-            CustomerName = dto.CustomerName,
-            Notes = dto.Notes,
-            Items = dto.Items,
-        });
+            result = await _mediator.Send(new CreateDirectSaleCommand
+            {
+                BranchId = branchId,
+                CashierId = userId == Guid.Empty ? null : userId,
+                CustomerName = dto.CustomerName,
+                Notes = dto.Notes,
+                Items = dto.Items,
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
 
         var confirmedAt = result.ConfirmedAt ?? result.CreatedAt;
         var itemsByStation = result.Items
@@ -256,12 +271,20 @@ public class PosController : ControllerBase
     public async Task<IActionResult> UpdateItems(Guid id, [FromBody] UpdateOrderItemsDto dto)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
-        var result = await _mediator.Send(new UpdateOrderItemsCommand
+        OrderDto result;
+        try
         {
-            OrderId = id,
-            BranchId = branchId,
-            Items = dto.Items,
-        });
+            result = await _mediator.Send(new UpdateOrderItemsCommand
+            {
+                OrderId = id,
+                BranchId = branchId,
+                Items = dto.Items,
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
 
         // Los borradores solo se persisten. Cocina recibe los ítems al confirmar la orden.
         if (!string.Equals(result.Status, "Draft", StringComparison.OrdinalIgnoreCase))

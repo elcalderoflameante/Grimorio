@@ -1,19 +1,26 @@
 class ModifierSelection {
+  final String groupName;
   final String optionName;
   final int quantity;
 
   const ModifierSelection({
+    this.groupName = '',
     required this.optionName,
     required this.quantity,
   });
 
   factory ModifierSelection.fromJson(Map<String, dynamic> json) =>
       ModifierSelection(
-        optionName: json['optionName'] as String,
+        groupName: json['groupName'] as String? ?? '',
+        optionName: json['optionName'] as String? ?? '',
         quantity: (json['quantity'] as num?)?.toInt() ?? 1,
       );
 
-  String get label => quantity > 1 ? '$optionName x$quantity' : optionName;
+  String get label {
+    final name = optionName.trim();
+    if (name.isEmpty) return '';
+    return quantity > 1 ? '$name x$quantity' : name;
+  }
 }
 
 class StationItem {
@@ -54,20 +61,19 @@ class StationItem {
   factory StationItem.fromJson(Map<String, dynamic> json) => StationItem(
         orderItemId: json['orderItemId'] as String,
         orderId: json['orderId'] as String,
-        orderNumber: json['orderNumber'] as int,
-        orderType: json['orderType'] as String,
+        orderNumber: (json['orderNumber'] as num?)?.toInt() ?? 0,
+        orderType: json['orderType'] as String? ?? '',
         tableCode: json['tableCode'] as String?,
         customerName: json['customerName'] as String?,
         orderNotes: json['orderNotes'] as String?,
-        itemName: json['itemName'] as String,
-        quantity: json['quantity'] as int,
+        itemName: json['itemName'] as String? ?? '',
+        quantity: (json['quantity'] as num?)?.toInt() ?? 0,
         notes: json['notes'] as String?,
         isTakeout: json['isTakeout'] as bool? ?? false,
-        status: json['status'] as String,
-        confirmedAt: DateTime.parse(json['confirmedAt'] as String),
-        updatedAt: json['updatedAt'] != null
-            ? DateTime.parse(json['updatedAt'] as String)
-            : null,
+        status: json['status'] as String? ?? 'Pending',
+        confirmedAt: DateTime.tryParse(json['confirmedAt'] as String? ?? '') ??
+            DateTime.now(),
+        updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? ''),
         modifierSelections: (json['modifierSelections'] as List<dynamic>? ?? [])
             .map((e) => ModifierSelection.fromJson(e as Map<String, dynamic>))
             .toList(),

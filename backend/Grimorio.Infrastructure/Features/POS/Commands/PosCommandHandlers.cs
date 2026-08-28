@@ -1,5 +1,6 @@
 using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.POS.Commands;
+using Grimorio.Domain.Entities.Billing;
 using Grimorio.Domain.Entities.POS;
 using Grimorio.Infrastructure.Features.Inventory;
 using Grimorio.Infrastructure.Features.POS;
@@ -12,6 +13,21 @@ using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Grimorio.Infrastructure.Features.POS.Commands;
+
+internal static class PosCashSessionGuard
+{
+    public static async Task EnsureOpenAsync(GrimorioDbContext db, Guid branchId, CancellationToken ct)
+    {
+        var hasOpenSession = await db.CashSessions.AnyAsync(session =>
+            session.BranchId == branchId &&
+            session.Status == CashSessionStatus.Open &&
+            !session.IsDeleted,
+            ct);
+
+        if (!hasOpenSession)
+            throw new InvalidOperationException("No se pueden ingresar pedidos porque no hay una caja abierta en la sucursal.");
+    }
+}
 
 // ── Estaciones ────────────────────────────────────────────────────────────────
 
@@ -162,6 +178,8 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
 
     public async Task<OrderDto> Handle(CreateOrderCommand req, CancellationToken ct)
     {
+        await PosCashSessionGuard.EnsureOpenAsync(_db, req.BranchId, ct);
+
         if (!Enum.TryParse<OrderType>(req.Type, out var orderType))
             throw new InvalidOperationException($"Type de orden no válido: {req.Type}");
 
@@ -284,6 +302,8 @@ public class CreateDirectSaleCommandHandler : IRequestHandler<CreateDirectSaleCo
 
     public async Task<OrderDto> Handle(CreateDirectSaleCommand req, CancellationToken ct)
     {
+        await PosCashSessionGuard.EnsureOpenAsync(_db, req.BranchId, ct);
+
         if (req.Items.Count == 0)
             throw new InvalidOperationException("La venta directa no tiene items.");
 
@@ -392,6 +412,8 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
 
     public async Task<OrderDto> Handle(UpdateOrderItemsCommand req, CancellationToken ct)
     {
+        await PosCashSessionGuard.EnsureOpenAsync(_db, req.BranchId, ct);
+
         var order = await _db.Orders
             .Include(o => o.Items)
             .Include(o => o.Payments)
@@ -517,6 +539,8 @@ public class ConfirmOrderCommandHandler : IRequestHandler<ConfirmOrderCommand, O
 
     public async Task<OrderDto> Handle(ConfirmOrderCommand req, CancellationToken ct)
     {
+        await PosCashSessionGuard.EnsureOpenAsync(_db, req.BranchId, ct);
+
         var order = await _db.Orders
             .Include(o => o.Table)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)

@@ -245,6 +245,11 @@ class _ItemDetail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final modifierLabels = item.modifierSelections
+        .map((c) => c.label)
+        .where((label) => label.isNotEmpty)
+        .toList();
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 5),
       child: Row(
@@ -266,11 +271,9 @@ class _ItemDetail extends StatelessWidget {
                   item.itemName,
                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
-                if (item.modifierSelections.isNotEmpty)
+                if (modifierLabels.isNotEmpty)
                   Text(
-                    item.modifierSelections
-                        .map((c) => c.label)
-                        .join(', '),
+                    modifierLabels.join(', '),
                     style: const TextStyle(color: Color(0xFFBB86FC), fontSize: 11),
                   ),
                 if (item.notes != null && item.notes!.isNotEmpty)

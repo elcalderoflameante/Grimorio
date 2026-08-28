@@ -200,6 +200,10 @@ class _ItemRow extends StatelessWidget {
     final bg = _bg(item.status);
     final fg = _fg(item.status);
     final canAdvance = item.status == 'Pending' || item.status == 'InPreparation';
+    final modifierLabels = item.modifierSelections
+        .map((c) => c.label)
+        .where((label) => label.isNotEmpty)
+        .toList();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
@@ -252,16 +256,16 @@ class _ItemRow extends StatelessWidget {
                       Icon(Icons.touch_app_rounded, color: fg.withValues(alpha: 0.5), size: 14),
                   ],
                 ),
-                // Ingredientes variables (ej: salsa bbq, mostaza miel…)
-                if (item.modifierSelections.isNotEmpty) ...[
+                // Modificadores (ej: salsa bbq, mostaza miel...)
+                if (modifierLabels.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Padding(
                     padding: const EdgeInsets.only(left: 22),
                     child: Wrap(
                       spacing: 4,
                       runSpacing: 4,
-                      children: item.modifierSelections
-                          .map((c) => Container(
+                      children: modifierLabels
+                          .map((label) => Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
@@ -271,7 +275,7 @@ class _ItemRow extends StatelessWidget {
                                       color: const Color(0xFF7C3AED).withValues(alpha: 0.5)),
                                 ),
                                 child: Text(
-                                  c.label,
+                                  label,
                                   style: const TextStyle(
                                       color: Color(0xFFBB86FC),
                                       fontSize: 11,
