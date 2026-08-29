@@ -55,6 +55,10 @@ public class GenerateElectronicInvoiceCommand : IRequest<ElectronicDocumentDto>
 {
     public Guid OrderPaymentId { get; set; }
     public Guid BranchId { get; set; }
+    public Guid? UserId { get; set; }
+    public string? UserName { get; set; }
+    public DateTime? EmissionDate { get; set; }
+    public string? ContingencyReason { get; set; }
 }
 
 public class RetryElectronicInvoiceCommand : IRequest<ElectronicDocumentDto>

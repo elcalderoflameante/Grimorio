@@ -282,6 +282,7 @@ export default function SalesHistory() {
                 <GenerateInvoiceButton
                   orderPaymentId={r.id}
                   documentType={r.documentType}
+                  paidAt={r.paidAt}
                   electronicDocumentId={r.electronicDocumentId}
                   electronicDocumentStatus={r.electronicDocumentStatus}
                   onSuccess={load}

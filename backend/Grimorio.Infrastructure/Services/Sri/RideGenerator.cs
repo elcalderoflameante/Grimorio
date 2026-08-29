@@ -26,7 +26,7 @@ public static class RideGenerator
         InvoiceTemplateDto? template = null)
     {
         var logoBytes = ParseLogo(template?.LogoBase64);
-        var fechaEc = EcuadorTime.FromUtc(payment.PaidAt);
+        var fechaEc = EcuadorTime.FromUtc(doc.EmissionDate == default ? payment.PaidAt : doc.EmissionDate);
         var ambiente = config.Ambiente == "2" ? "PRODUCCION" : "PRUEBAS";
 
         return Build(container =>

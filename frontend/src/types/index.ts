@@ -2212,9 +2212,19 @@ export interface ElectronicDocumentDto {
   sentAt?: string;
   retryCount: number;
   createdAt: string;
+  emissionDate: string;
+  originalEmissionDate: string;
+  isContingencyEmission: boolean;
+  contingencyReason?: string;
+  contingencyUserName?: string;
   hasRide: boolean;
   hasXml: boolean;
   hasXmlResponse: boolean;
+}
+
+export interface GenerateElectronicInvoiceDto {
+  emissionDate?: string;
+  contingencyReason?: string;
 }
 
 // ── Invoice Template ──────────────────────────────────────────────────────────

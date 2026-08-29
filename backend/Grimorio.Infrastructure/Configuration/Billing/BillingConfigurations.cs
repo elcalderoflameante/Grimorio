@@ -109,6 +109,8 @@ public class ElectronicDocumentConfiguration : BaseEntityConfiguration<Electroni
         builder.Property(x => x.NumeroFactura).IsRequired().HasMaxLength(17);
         builder.Property(x => x.Environment).IsRequired().HasMaxLength(1);
         builder.Property(x => x.NumeroAutorizacion).HasMaxLength(49);
+        builder.Property(x => x.ContingencyReason).HasMaxLength(500);
+        builder.Property(x => x.ContingencyUserName).HasMaxLength(150);
         builder.Property(x => x.ErrorMessage).HasMaxLength(2000);
 
         builder.Property(x => x.TotalSinImpuestos).HasColumnType("numeric(18,2)");

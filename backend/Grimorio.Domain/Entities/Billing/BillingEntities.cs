@@ -84,6 +84,12 @@ public class ElectronicDocument : BaseEntity
     public string? XmlResponseSri { get; set; }     // respuesta XML cruda del SRI al rechazar
     public string? NumeroAutorizacion { get; set; }
     public DateTime? FechaAutorizacion { get; set; }
+    public DateTime EmissionDate { get; set; }
+    public DateTime OriginalEmissionDate { get; set; }
+    public bool IsContingencyEmission { get; set; }
+    public string? ContingencyReason { get; set; }
+    public Guid? ContingencyUserId { get; set; }
+    public string? ContingencyUserName { get; set; }
     public byte[]? RidePdf { get; set; }
 
     public string? ErrorMessage { get; set; }

@@ -129,6 +129,7 @@ import type {
   ExpenseReportDto,
   IncomeStatementDto,
   CostCenterProfitabilityReportDto,
+  GenerateElectronicInvoiceDto,
 } from '../types';
 import { getDetailedError } from '../utils/errorHandler';
 
@@ -893,8 +894,8 @@ export const sriApi = {
     apiClient.get<ElectronicDocumentDto[]>('/sri/documentos', { params }),
   getDocument: (id: string): Promise<AxiosResponse<ElectronicDocumentDto>> =>
     apiClient.get<ElectronicDocumentDto>(`/sri/documentos/${id}`),
-  generateInvoice: (orderPaymentId: string): Promise<AxiosResponse<ElectronicDocumentDto>> =>
-    apiClient.post<ElectronicDocumentDto>(`/sri/documentos/generar/${orderPaymentId}`),
+  generateInvoice: (orderPaymentId: string, dto?: GenerateElectronicInvoiceDto): Promise<AxiosResponse<ElectronicDocumentDto>> =>
+    apiClient.post<ElectronicDocumentDto>(`/sri/documentos/generar/${orderPaymentId}`, dto ?? {}),
   retryInvoice: (id: string): Promise<AxiosResponse<ElectronicDocumentDto>> =>
     apiClient.post<ElectronicDocumentDto>(`/sri/documentos/${id}/reintentar`),
   downloadRideUrl: (id: string): string =>

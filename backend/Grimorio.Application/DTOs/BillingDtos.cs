@@ -83,6 +83,11 @@ public class ElectronicDocumentDto
     public DateTime? SentAt { get; set; }
     public int RetryCount { get; set; }
     public DateTime CreatedAt { get; set; }
+    public DateTime EmissionDate { get; set; }
+    public DateTime OriginalEmissionDate { get; set; }
+    public bool IsContingencyEmission { get; set; }
+    public string? ContingencyReason { get; set; }
+    public string? ContingencyUserName { get; set; }
 
     public bool HasRide { get; set; }
     public bool HasXml { get; set; }
@@ -482,6 +487,12 @@ public class AddOrderPaymentItemDto
 }
 
 // ── InvoiceTemplate ───────────────────────────────────────────────────────────
+
+public class GenerateElectronicInvoiceDto
+{
+    public DateTime? EmissionDate { get; set; }
+    public string? ContingencyReason { get; set; }
+}
 
 public class PdfBlockDto
 {

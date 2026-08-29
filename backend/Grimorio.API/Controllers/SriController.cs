@@ -138,15 +138,20 @@ public class SriController : ControllerBase
 
     [Authorize(Policy = "Billing.Sri.Generate")]
     [HttpPost("documentos/generar/{orderPaymentId:guid}")]
-    public async Task<IActionResult> GenerateInvoice(Guid orderPaymentId)
+    public async Task<IActionResult> GenerateInvoice(Guid orderPaymentId, [FromBody] GenerateElectronicInvoiceDto? dto = null)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        if (!TryGetUserId(out var userId)) return Unauthorized();
         try
         {
             var result = await _mediator.Send(new GenerateElectronicInvoiceCommand
             {
                 OrderPaymentId = orderPaymentId,
                 BranchId = branchId,
+                UserId = userId,
+                UserName = BuildUserName(),
+                EmissionDate = dto?.EmissionDate,
+                ContingencyReason = dto?.ContingencyReason,
             });
             return Ok(result);
         }
@@ -349,5 +354,13 @@ public class SriController : ControllerBase
     {
         var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(claim, out userId);
+    }
+
+    private string BuildUserName()
+    {
+        var firstName = User.FindFirst("FirstName")?.Value ?? string.Empty;
+        var lastName = User.FindFirst("LastName")?.Value ?? string.Empty;
+        var full = $"{firstName} {lastName}".Trim();
+        return string.IsNullOrEmpty(full) ? "Usuario" : full;
     }
 }

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { App as AntApp, Table, Tag, Space, Typography, Button, DatePicker, Select, Tooltip, Modal, Descriptions, Alert, Spin } from 'antd';
+import { App as AntApp, Table, Tag, Space, Typography, Button, DatePicker, Select, Tooltip, Modal, Descriptions, Alert, Spin, Form, Switch, Input } from 'antd';
 import { ReloadOutlined, FilePdfOutlined, FileTextOutlined,
   RedoOutlined, ThunderboltOutlined, CodeOutlined } from '@ant-design/icons';
-import type { ElectronicDocumentDto } from '../../types';
+import type { ElectronicDocumentDto, GenerateElectronicInvoiceDto } from '../../types';
 import { sriApi } from '../../services/api';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useAuth } from '../../context/useAuth';
@@ -61,6 +61,20 @@ function DocDetail({ doc }: { doc: ElectronicDocumentDto }) {
       {doc.fechaAutorizacion && (
         <Descriptions.Item label="Fecha autorización">
           {dayjs(doc.fechaAutorizacion).format('DD/MM/YYYY HH:mm:ss')}
+        </Descriptions.Item>
+      )}
+      <Descriptions.Item label="Fecha emisión">
+        {doc.emissionDate ? dayjs(doc.emissionDate).format('DD/MM/YYYY') : '—'}
+      </Descriptions.Item>
+      {doc.isContingencyEmission && (
+        <Descriptions.Item label="Contingencia" span={2}>
+          <Alert
+            type="warning"
+            showIcon
+            message={`Emitida con fecha modificada por ${doc.contingencyUserName ?? 'Usuario'}`}
+            description={doc.contingencyReason}
+            style={{ padding: '6px 10px' }}
+          />
         </Descriptions.Item>
       )}
       <Descriptions.Item label="Subtotal sin IVA">{fmt(doc.totalSinImpuestos)}</Descriptions.Item>
@@ -347,21 +361,31 @@ export default function ElectronicInvoices() {
 interface GenerateInvoiceButtonProps {
   orderPaymentId: string;
   documentType: string;
+  paidAt?: string;
   electronicDocumentId?: string;
   electronicDocumentStatus?: string;
   onSuccess?: (doc: ElectronicDocumentDto) => void;
 }
 
+interface GenerateInvoiceFormValues {
+  useContingency: boolean;
+  emissionDate?: Dayjs;
+  contingencyReason?: string;
+}
+
 export function GenerateInvoiceButton({
   orderPaymentId,
   documentType,
+  paidAt,
   electronicDocumentId,
   electronicDocumentStatus,
   onSuccess,
 }: GenerateInvoiceButtonProps) {
   const { message } = AntApp.useApp();
   const { hasPermission } = useAuth();
+  const [form] = Form.useForm<GenerateInvoiceFormValues>();
   const [loading, setLoading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const canGenerateSri = hasPermission(PERMISSIONS.billing.sriGenerate);
 
   if (documentType !== 'Factura' || !canGenerateSri) return null;
@@ -401,12 +425,28 @@ export function GenerateInvoiceButton({
   }
 
   // Sin documento — generar por primera vez
-  const handleGenerate = async () => {
+  const openGenerateModal = () => {
+    form.setFieldsValue({
+      useContingency: false,
+      emissionDate: paidAt ? dayjs(paidAt) : undefined,
+      contingencyReason: '',
+    });
+    setModalOpen(true);
+  };
+
+  const handleGenerate = async (values: GenerateInvoiceFormValues) => {
     setLoading(true);
     try {
-      const res = await sriApi.generateInvoice(orderPaymentId);
+      const dto: GenerateElectronicInvoiceDto | undefined = values.useContingency
+        ? {
+            emissionDate: values.emissionDate?.format('YYYY-MM-DDT00:00:00'),
+            contingencyReason: values.contingencyReason?.trim(),
+          }
+        : undefined;
+      const res = await sriApi.generateInvoice(orderPaymentId, dto);
       const status = STATUS_LABELS[res.data.status]?.label ?? res.data.status;
       message.success(`Factura ${res.data.numeroFactura}: ${status}`);
+      setModalOpen(false);
       onSuccess?.(res.data);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: string } })?.response?.data ?? 'Error al generar factura';
@@ -418,9 +458,67 @@ export function GenerateInvoiceButton({
 
   return (
     <Tooltip title="Generar factura electrónica SRI">
-      <Button size="small" icon={<ThunderboltOutlined />} loading={loading} onClick={handleGenerate}>
+      <span>
+      <Button size="small" icon={<ThunderboltOutlined />} loading={loading} onClick={openGenerateModal}>
         Factura electrónica
       </Button>
+      <Modal
+        title="Generar factura electrónica"
+        open={modalOpen}
+        onCancel={() => setModalOpen(false)}
+        onOk={() => form.submit()}
+        okText="Generar y enviar"
+        confirmLoading={loading}
+        destroyOnHidden
+      >
+        <Form form={form} layout="vertical" onFinish={handleGenerate}>
+          <Alert
+            type="info"
+            showIcon
+            message="Por defecto se usará la fecha del cobro."
+            style={{ marginBottom: 16 }}
+          />
+          <Form.Item name="useContingency" label="Usar fecha de contingencia" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item noStyle shouldUpdate={(prev, next) => prev.useContingency !== next.useContingency}>
+            {({ getFieldValue }) => {
+              const useContingency = getFieldValue('useContingency');
+              return useContingency ? (
+                <>
+                  <Form.Item
+                    name="emissionDate"
+                    label="Fecha de emisión"
+                    rules={[{ required: true, message: 'Selecciona la fecha de emisión' }]}
+                  >
+                    <DatePicker
+                      format="DD/MM/YYYY"
+                      style={{ width: '100%' }}
+                      disabledDate={current => !!current && current.isAfter(dayjs(), 'day')}
+                    />
+                  </Form.Item>
+                  <Form.Item
+                    name="contingencyReason"
+                    label="Motivo de contingencia"
+                    rules={[
+                      { required: true, message: 'Ingresa el motivo de contingencia' },
+                      { max: 500, message: 'Máximo 500 caracteres' },
+                    ]}
+                  >
+                    <Input.TextArea
+                      rows={3}
+                      maxLength={500}
+                      showCount
+                      placeholder="Ej: Facturas no enviadas por cierre inesperado o falta de conexión."
+                    />
+                  </Form.Item>
+                </>
+              ) : null;
+            }}
+          </Form.Item>
+        </Form>
+      </Modal>
+      </span>
     </Tooltip>
   );
 }

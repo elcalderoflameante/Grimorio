@@ -13,7 +13,8 @@ public record SriInvoiceData(
     List<OrderItem> Items,
     string ClaveAcceso,
     long Secuencial,
-    Customer? Customer);
+    Customer? Customer,
+    DateTime? EmissionDate = null);
 
 // Construye el XML de Factura v2.1.0 sin firma
 public static class SriXmlBuilder
@@ -93,7 +94,8 @@ public static class SriXmlBuilder
         }
 
         w.WriteStartElement("infoFactura");
-        w.WriteElementString("fechaEmision", EcuadorTime.FromUtc(payment.PaidAt).ToString("dd/MM/yyyy"));
+        var emissionDate = d.EmissionDate ?? payment.PaidAt;
+        w.WriteElementString("fechaEmision", EcuadorTime.FromUtc(emissionDate).ToString("dd/MM/yyyy"));
         w.WriteElementString("dirEstablecimiento", c.Direccion);
         if (!string.IsNullOrEmpty(c.ContribuyenteEspecial))
             w.WriteElementString("contribuyenteEspecial", c.ContribuyenteEspecial);

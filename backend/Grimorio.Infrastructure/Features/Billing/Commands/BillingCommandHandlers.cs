@@ -1208,6 +1208,32 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
             .FirstOrDefaultAsync(t => t.BranchId == req.BranchId && !t.IsDeleted, ct);
         var invoiceTemplate = GetInvoiceTemplateHandler.BuildDto(invoiceTemplateEntity ?? new InvoiceTemplate());
 
+        var originalEmissionDate = payment.PaidAt;
+        var paymentEmissionLocal = EcuadorTime.FromUtc(payment.PaidAt);
+        var emissionDate = payment.PaidAt;
+        var contingencyReason = req.ContingencyReason?.Trim();
+        var isContingencyEmission = false;
+
+        if (req.EmissionDate.HasValue)
+        {
+            var selectedLocalDate = req.EmissionDate.Value.Date;
+            var todayLocalDate = EcuadorTime.FromUtc(DateTime.UtcNow).Date;
+            if (selectedLocalDate > todayLocalDate)
+                throw new InvalidOperationException("La fecha de emisión no puede ser futura.");
+
+            isContingencyEmission = selectedLocalDate != paymentEmissionLocal.Date;
+            if (isContingencyEmission)
+            {
+                if (string.IsNullOrWhiteSpace(contingencyReason))
+                    throw new InvalidOperationException("Ingresa el motivo de contingencia para cambiar la fecha de emisión.");
+                if (contingencyReason.Length > 500)
+                    throw new InvalidOperationException("El motivo de contingencia no puede superar 500 caracteres.");
+            }
+
+            var selectedLocalDateTime = selectedLocalDate.Add(paymentEmissionLocal.TimeOfDay);
+            emissionDate = EcuadorTime.ToUtc(selectedLocalDateTime);
+        }
+
         // ── Incrementar secuencial de forma atómica ────────────────────────
         config.Secuencial += 1;
         await _db.SaveChangesAsync(ct);
@@ -1215,7 +1241,7 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
 
         // ── Generar clave de acceso ────────────────────────────────────────
         var claveAcceso = SriKeyGenerator.Build(
-            EcuadorTime.FromUtc(payment.PaidAt),
+            EcuadorTime.FromUtc(emissionDate),
             config.Ruc, config.Ambiente,
             config.CodigoEstablecimiento, config.PuntoEmision,
             secuencial);
@@ -1236,6 +1262,12 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
             TotalDescuento = 0m,
             TotalIva = order.Iva15,
             ImporteTotal = order.Total,
+            EmissionDate = emissionDate,
+            OriginalEmissionDate = originalEmissionDate,
+            IsContingencyEmission = isContingencyEmission,
+            ContingencyReason = isContingencyEmission ? contingencyReason : null,
+            ContingencyUserId = isContingencyEmission ? req.UserId : null,
+            ContingencyUserName = isContingencyEmission ? req.UserName?.Trim() : null,
         };
         _db.ElectronicDocuments.Add(doc);
         await _db.SaveChangesAsync(ct);
@@ -1248,7 +1280,7 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
             var certPass = protector.Unprotect(sriCert.PasswordEncrypted);
 
             var invoiceData = new SriInvoiceData(
-                config, payment, order, items, claveAcceso, secuencial, payment.Customer);
+                config, payment, order, items, claveAcceso, secuencial, payment.Customer, emissionDate);
 
             var unsignedXml = SriXmlBuilder.Build(invoiceData);
             var signedXml = SriXmlSigner.Sign(unsignedXml, certBytes, certPass);
@@ -1354,6 +1386,11 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
         NumeroAutorizacion = d.NumeroAutorizacion, FechaAutorizacion = d.FechaAutorizacion,
         ErrorMessage = d.ErrorMessage, SentAt = d.SentAt, RetryCount = d.RetryCount,
         CreatedAt = d.CreatedAt,
+        EmissionDate = d.EmissionDate,
+        OriginalEmissionDate = d.OriginalEmissionDate,
+        IsContingencyEmission = d.IsContingencyEmission,
+        ContingencyReason = d.ContingencyReason,
+        ContingencyUserName = d.ContingencyUserName,
         HasRide = d.RidePdf != null && d.RidePdf.Length > 0,
         HasXml = !string.IsNullOrEmpty(d.XmlAuthorized ?? d.XmlSigned),
         HasXmlResponse = !string.IsNullOrEmpty(d.XmlResponseSri),
@@ -1421,7 +1458,8 @@ public class RetryElectronicInvoiceHandler : IRequestHandler<RetryElectronicInvo
                 var certBytes = protector.Unprotect(sriCert.CertificateEncrypted);
                 var certPass = protector.Unprotect(sriCert.PasswordEncrypted);
 
-                var invoiceData = new SriInvoiceData(config, payment, order, items, doc.ClaveAcceso, doc.Secuencial, payment.Customer);
+                var emissionDate = doc.EmissionDate == default ? payment.PaidAt : doc.EmissionDate;
+                var invoiceData = new SriInvoiceData(config, payment, order, items, doc.ClaveAcceso, doc.Secuencial, payment.Customer, emissionDate);
                 var unsignedXml = SriXmlBuilder.Build(invoiceData);
                 doc.XmlSigned = SriXmlSigner.Sign(unsignedXml, certBytes, certPass);
                 await _db.SaveChangesAsync(ct);

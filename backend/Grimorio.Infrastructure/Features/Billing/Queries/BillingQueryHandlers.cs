@@ -785,6 +785,11 @@ public class GetElectronicDocumentsHandler : IRequestHandler<GetElectronicDocume
         NumeroAutorizacion = d.NumeroAutorizacion, FechaAutorizacion = d.FechaAutorizacion,
         ErrorMessage = d.ErrorMessage, SentAt = d.SentAt, RetryCount = d.RetryCount,
         CreatedAt = d.CreatedAt,
+        EmissionDate = d.EmissionDate,
+        OriginalEmissionDate = d.OriginalEmissionDate,
+        IsContingencyEmission = d.IsContingencyEmission,
+        ContingencyReason = d.ContingencyReason,
+        ContingencyUserName = d.ContingencyUserName,
         HasRide = d.RidePdf != null && d.RidePdf.Length > 0,
         HasXml = !string.IsNullOrEmpty(d.XmlAuthorized ?? d.XmlSigned),
         HasXmlResponse = !string.IsNullOrEmpty(d.XmlResponseSri),
@@ -834,8 +839,14 @@ public class GetElectronicDocumentDetailHandler : IRequestHandler<GetElectronicD
             NumeroAutorizacion = d.NumeroAutorizacion, FechaAutorizacion = d.FechaAutorizacion,
             ErrorMessage = d.ErrorMessage, SentAt = d.SentAt, RetryCount = d.RetryCount,
             CreatedAt = d.CreatedAt,
+            EmissionDate = d.EmissionDate,
+            OriginalEmissionDate = d.OriginalEmissionDate,
+            IsContingencyEmission = d.IsContingencyEmission,
+            ContingencyReason = d.ContingencyReason,
+            ContingencyUserName = d.ContingencyUserName,
             HasRide = d.RidePdf != null && d.RidePdf.Length > 0,
             HasXml = !string.IsNullOrEmpty(d.XmlAuthorized ?? d.XmlSigned),
+            HasXmlResponse = !string.IsNullOrEmpty(d.XmlResponseSri),
         };
     }
 }

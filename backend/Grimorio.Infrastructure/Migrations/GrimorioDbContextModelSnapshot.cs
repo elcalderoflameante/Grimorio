@@ -840,6 +840,17 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasMaxLength(49)
                         .HasColumnType("character varying(49)");
 
+                    b.Property<string>("ContingencyReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("ContingencyUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContingencyUserName")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -859,6 +870,9 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasMaxLength(1)
                         .HasColumnType("character varying(1)");
 
+                    b.Property<DateTime>("EmissionDate")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("ErrorMessage")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
@@ -868,6 +882,9 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.Property<decimal>("ImporteTotal")
                         .HasColumnType("numeric(18,2)");
+
+                    b.Property<bool>("IsContingencyEmission")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
@@ -885,6 +902,9 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.Property<Guid>("OrderPaymentId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime>("OriginalEmissionDate")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("RetryCount")
                         .HasColumnType("integer");
