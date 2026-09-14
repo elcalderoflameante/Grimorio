@@ -17,40 +17,57 @@ public class Supplier : BaseEntity
 
 public enum PurchaseDocumentType
 {
-    Factura          = 1,
-    NotaDeVenta      = 2,
-    Comprobante      = 3,   // Comprobante de venta sin valor tributario
-    LiquidacionCompra = 4,  // Para proveedores no obligados a llevar contabilidad
-    Otro             = 5,
+    Factura = 1,
+    NotaDeVenta = 2,
+    Comprobante = 3,
+    LiquidacionCompra = 4,
+    Otro = 5,
 }
 
 public enum PurchaseStatus
 {
     Registrada = 1,
-    Anulada    = 2,
+    Anulada = 2,
 }
 
 public class Purchase : BaseEntity
 {
-    public Guid? SupplierId { get; set; }          // Nullable: proveedor informal o sin registro
+    public Guid? SupplierId { get; set; }
 
     public PurchaseDocumentType DocumentType { get; set; }
-    public string? DocumentNumber { get; set; }    // Número del comprobante del proveedor
-    public DateTime DocumentDate { get; set; }     // Fecha que figura en el comprobante
+    public string? DocumentNumber { get; set; }
+    public DateTime DocumentDate { get; set; }
+    public string? AccessKey { get; set; }
+    public string? AuthorizationNumber { get; set; }
+    public DateTime? AuthorizationDate { get; set; }
+    public string? Environment { get; set; }
+    public string? EmissionType { get; set; }
+    public string? SupplierCommercialName { get; set; }
+    public string? SupplierMatrixAddress { get; set; }
+    public string? SupplierBranchAddress { get; set; }
+    public string? SupplierSpecialTaxpayerNumber { get; set; }
+    public bool? SupplierObligatedAccounting { get; set; }
+    public string? PaymentMethodSriCode { get; set; }
+    public string? PaymentMethodName { get; set; }
+    public decimal? PaymentAmount { get; set; }
+    public string? XmlFileUrl { get; set; }
+    public string? PdfFileUrl { get; set; }
 
     public PurchaseStatus Status { get; set; } = PurchaseStatus.Registrada;
     public string? Notes { get; set; }
 
     public Guid? DestinationWarehouseId { get; set; }
 
-    // Desglose fiscal (pre-calculado para informes rápidos)
-    public decimal Subtotal { get; set; }              // Suma bruta antes de descuentos
-    public decimal DiscountTotal { get; set; }         // Total descuentos
-    public decimal TaxableBase15 { get; set; }         // Base imponible IVA 15%
-    public decimal TaxableBase0 { get; set; }          // Base IVA 0%
-    public decimal TaxableBaseExempt { get; set; }     // No objeto / exento de IVA
-    public decimal Iva15 { get; set; }                 // IVA 15%
-    public decimal Ice { get; set; }                   // ICE (reservado, 0 por ahora)
+    public decimal Subtotal { get; set; }
+    public decimal DiscountTotal { get; set; }
+    public decimal TaxableBase15 { get; set; }
+    public decimal TaxableBase0 { get; set; }
+    public decimal TaxableBaseExempt { get; set; }
+    public decimal TaxableBaseNotSubject { get; set; }
+    public decimal Iva15 { get; set; }
+    public decimal Ice { get; set; }
+    public decimal Irbpnr { get; set; }
+    public decimal Tip { get; set; }
     public decimal Total { get; set; }
 
     public virtual Supplier? Supplier { get; set; }
@@ -61,7 +78,13 @@ public class PurchaseItem : BaseEntity
 {
     public Guid PurchaseId { get; set; }
     public Guid ArticleId { get; set; }
+    public string? SupplierMainCode { get; set; }
+    public string? SupplierAuxCode { get; set; }
+    public string? SupplierDescription { get; set; }
+    public string? AdditionalDetail { get; set; }
     public Guid UnitId { get; set; }
+    public decimal? InventoryQuantity { get; set; }
+    public Guid? InventoryUnitId { get; set; }
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal DiscountPct { get; set; }
@@ -74,5 +97,6 @@ public class PurchaseItem : BaseEntity
     public virtual Purchase? Purchase { get; set; }
     public virtual Inventory.InventoryArticle? Article { get; set; }
     public virtual Inventory.MeasurementUnit? Unit { get; set; }
+    public virtual Inventory.MeasurementUnit? InventoryUnit { get; set; }
     public virtual Billing.TaxRate? TaxRate { get; set; }
 }

@@ -1575,8 +1575,15 @@ export interface PurchaseItemDto {
   articleId: string;
   articleName: string;
   internalCode?: string;
+  supplierMainCode?: string;
+  supplierAuxCode?: string;
+  supplierDescription?: string;
+  additionalDetail?: string;
   unitId: string;
   unitSymbol: string;
+  inventoryQuantity?: number;
+  inventoryUnitId?: string;
+  inventoryUnitSymbol?: string;
   quantity: number;
   unitPrice: number;
   discountPct: number;
@@ -1594,6 +1601,21 @@ export interface PurchaseDto {
   documentType: string;
   documentNumber?: string;
   documentDate: string;
+  accessKey?: string;
+  authorizationNumber?: string;
+  authorizationDate?: string;
+  environment?: string;
+  emissionType?: string;
+  supplierCommercialName?: string;
+  supplierMatrixAddress?: string;
+  supplierBranchAddress?: string;
+  supplierSpecialTaxpayerNumber?: string;
+  supplierObligatedAccounting?: boolean;
+  paymentMethodSriCode?: string;
+  paymentMethodName?: string;
+  paymentAmount?: number;
+  xmlFileUrl?: string;
+  pdfFileUrl?: string;
   status: PurchaseStatus;
   supplierId?: string;
   supplierName?: string;
@@ -1605,8 +1627,11 @@ export interface PurchaseDto {
   taxableBase15: number;
   taxableBase0: number;
   taxableBaseExempt: number;
+  taxableBaseNotSubject: number;
   iva15: number;
   ice: number;
+  irbpnr: number;
+  tip: number;
   total: number;
   totalItems: number;
   items: PurchaseItemDto[];
@@ -1615,9 +1640,16 @@ export interface PurchaseDto {
 export interface PurchaseItemInputDto {
   articleId: string;
   unitId: string;
+  supplierMainCode?: string;
+  supplierAuxCode?: string;
+  supplierDescription?: string;
+  additionalDetail?: string;
   quantity: number;
+  inventoryQuantity?: number;
+  inventoryUnitId?: string;
   unitPrice: number;
   discountPct: number;
+  discountAmount?: number;
   taxRateId?: string;
   notes?: string;
 }
@@ -1626,6 +1658,24 @@ export interface CreatePurchaseDto {
   documentType: number;
   documentNumber?: string;
   documentDate: string;
+  accessKey?: string;
+  authorizationNumber?: string;
+  authorizationDate?: string;
+  environment?: string;
+  emissionType?: string;
+  supplierCommercialName?: string;
+  supplierMatrixAddress?: string;
+  supplierBranchAddress?: string;
+  supplierSpecialTaxpayerNumber?: string;
+  supplierObligatedAccounting?: boolean;
+  paymentMethodSriCode?: string;
+  paymentMethodName?: string;
+  paymentAmount?: number;
+  ice?: number;
+  irbpnr?: number;
+  tip?: number;
+  xmlFileUrl?: string;
+  pdfFileUrl?: string;
   supplierId?: string;
   notes?: string;
   destinationWarehouseId?: string;
@@ -1633,6 +1683,59 @@ export interface CreatePurchaseDto {
 }
 
 export type UpdatePurchaseDto = CreatePurchaseDto;
+
+export interface PurchaseAttachmentDto {
+  fileUrl: string;
+  fileName: string;
+  contentType: string;
+}
+
+export interface PurchaseInvoiceImportItemDto {
+  supplierMainCode?: string;
+  supplierAuxCode?: string;
+  supplierDescription: string;
+  additionalDetail?: string;
+  quantity: number;
+  unitPrice: number;
+  discountAmount: number;
+  taxPercentage: number;
+  taxAmount: number;
+  totalPrice: number;
+}
+
+export interface PurchaseInvoiceImportDto {
+  documentType: number;
+  documentNumber?: string;
+  documentDate?: string;
+  accessKey?: string;
+  authorizationNumber?: string;
+  authorizationDate?: string;
+  environment?: string;
+  emissionType?: string;
+  supplierTaxId?: string;
+  supplierName?: string;
+  supplierCommercialName?: string;
+  supplierMatrixAddress?: string;
+  supplierBranchAddress?: string;
+  supplierSpecialTaxpayerNumber?: string;
+  supplierObligatedAccounting?: boolean;
+  paymentMethodSriCode?: string;
+  paymentMethodName?: string;
+  paymentAmount?: number;
+  subtotal: number;
+  discountTotal: number;
+  taxableBase15: number;
+  taxableBase0: number;
+  taxableBaseExempt: number;
+  taxableBaseNotSubject: number;
+  iva15: number;
+  ice: number;
+  irbpnr: number;
+  tip: number;
+  total: number;
+  xmlFileUrl?: string;
+  items: PurchaseInvoiceImportItemDto[];
+}
 
 // -- Finance -----------------------------------------------------------------
 

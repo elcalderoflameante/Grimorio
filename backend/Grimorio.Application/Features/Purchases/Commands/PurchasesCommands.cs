@@ -43,6 +43,24 @@ public class CreatePurchaseCommand : IRequest<PurchaseDto>
     public int DocumentType { get; set; }
     public string? DocumentNumber { get; set; }
     public DateTime DocumentDate { get; set; }
+    public string? AccessKey { get; set; }
+    public string? AuthorizationNumber { get; set; }
+    public DateTime? AuthorizationDate { get; set; }
+    public string? Environment { get; set; }
+    public string? EmissionType { get; set; }
+    public string? SupplierCommercialName { get; set; }
+    public string? SupplierMatrixAddress { get; set; }
+    public string? SupplierBranchAddress { get; set; }
+    public string? SupplierSpecialTaxpayerNumber { get; set; }
+    public bool? SupplierObligatedAccounting { get; set; }
+    public string? PaymentMethodSriCode { get; set; }
+    public string? PaymentMethodName { get; set; }
+    public decimal? PaymentAmount { get; set; }
+    public decimal? Ice { get; set; }
+    public decimal? Irbpnr { get; set; }
+    public decimal? Tip { get; set; }
+    public string? XmlFileUrl { get; set; }
+    public string? PdfFileUrl { get; set; }
     public Guid? SupplierId { get; set; }
     public string? Notes { get; set; }
     public Guid? DestinationWarehouseId { get; set; }
@@ -56,6 +74,24 @@ public class UpdatePurchaseCommand : IRequest<PurchaseDto>
     public int DocumentType { get; set; }
     public string? DocumentNumber { get; set; }
     public DateTime DocumentDate { get; set; }
+    public string? AccessKey { get; set; }
+    public string? AuthorizationNumber { get; set; }
+    public DateTime? AuthorizationDate { get; set; }
+    public string? Environment { get; set; }
+    public string? EmissionType { get; set; }
+    public string? SupplierCommercialName { get; set; }
+    public string? SupplierMatrixAddress { get; set; }
+    public string? SupplierBranchAddress { get; set; }
+    public string? SupplierSpecialTaxpayerNumber { get; set; }
+    public bool? SupplierObligatedAccounting { get; set; }
+    public string? PaymentMethodSriCode { get; set; }
+    public string? PaymentMethodName { get; set; }
+    public decimal? PaymentAmount { get; set; }
+    public decimal? Ice { get; set; }
+    public decimal? Irbpnr { get; set; }
+    public decimal? Tip { get; set; }
+    public string? XmlFileUrl { get; set; }
+    public string? PdfFileUrl { get; set; }
     public Guid? SupplierId { get; set; }
     public string? Notes { get; set; }
     public Guid? DestinationWarehouseId { get; set; }

@@ -29,6 +29,8 @@ import { UserOutlined,
   PercentageOutlined,
   FileImageOutlined,
   BarChartOutlined,
+  CalculatorOutlined,
+  ReadOutlined,
   TabletOutlined,
   CameraOutlined,
   ClockCircleOutlined } from '@ant-design/icons';
@@ -283,7 +285,7 @@ export default function Dashboard() {
       {
         key: 'pos',
         label: 'POS',
-        icon: <ShopOutlined />,
+        icon: <CalculatorOutlined />,
         children: [
           { key: 'pos-ordenes', label: 'Pedidos', icon: <ShoppingCartOutlined />, permission: PERMISSIONS.pos.ordersView },
           { key: 'pos-promociones', label: 'Promociones', icon: <PercentageOutlined />, permission: PERMISSIONS.pos.ordersUpdate },
@@ -294,7 +296,7 @@ export default function Dashboard() {
       {
         key: 'menu',
         label: 'Menú',
-        icon: <ShopOutlined />,
+        icon: <ReadOutlined />,
         children: [
           { key: 'menu-categorias', label: 'Categorías', icon: <AppstoreOutlined />, permission: PERMISSIONS.menu.categoriesView },
           { key: 'menu-items', label: 'Ítems y recetas', icon: <UnorderedListOutlined />, permission: PERMISSIONS.menu.itemsView },

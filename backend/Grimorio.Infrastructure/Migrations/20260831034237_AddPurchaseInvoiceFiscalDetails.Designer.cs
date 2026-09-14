@@ -3,6 +3,7 @@ using System;
 using Grimorio.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Grimorio.Infrastructure.Migrations
 {
     [DbContext(typeof(GrimorioDbContext))]
-    partial class GrimorioDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260831034237_AddPurchaseInvoiceFiscalDetails")]
+    partial class AddPurchaseInvoiceFiscalDetails
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -5566,10 +5569,6 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
 
-                    b.Property<string>("PdfFileUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -5622,10 +5621,6 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid?>("UpdatedBy")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("XmlFileUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
                     b.HasKey("Id");
 
                     b.HasIndex("SupplierId");
@@ -5677,12 +5672,6 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<decimal>("DiscountPct")
                         .HasColumnType("numeric(5,2)");
 
-                    b.Property<decimal?>("InventoryQuantity")
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<Guid?>("InventoryUnitId")
-                        .HasColumnType("uuid");
-
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
@@ -5732,8 +5721,6 @@ namespace Grimorio.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ArticleId");
-
-                    b.HasIndex("InventoryUnitId");
 
                     b.HasIndex("PurchaseId");
 
@@ -7232,11 +7219,6 @@ namespace Grimorio.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Grimorio.Domain.Entities.Inventory.MeasurementUnit", "InventoryUnit")
-                        .WithMany()
-                        .HasForeignKey("InventoryUnitId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("Grimorio.Domain.Entities.Purchases.Purchase", "Purchase")
                         .WithMany("Items")
                         .HasForeignKey("PurchaseId")
@@ -7255,8 +7237,6 @@ namespace Grimorio.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Article");
-
-                    b.Navigation("InventoryUnit");
 
                     b.Navigation("Purchase");
 

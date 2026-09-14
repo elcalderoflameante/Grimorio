@@ -42,6 +42,7 @@ public class GetPurchasesHandler : IRequestHandler<GetPurchasesQuery, List<Purch
             .Include(p => p.Supplier)
             .Include(p => p.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Article)
             .Include(p => p.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Unit)
+            .Include(p => p.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.InventoryUnit)
             .Where(p => p.BranchId == req.BranchId && !p.IsDeleted);
 
         if (!string.IsNullOrWhiteSpace(req.Status) &&
@@ -86,6 +87,7 @@ public class GetPurchaseDetailHandler : IRequestHandler<GetPurchaseDetailQuery, 
             .Include(p => p.Supplier)
             .Include(p => p.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Article)
             .Include(p => p.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Unit)
+            .Include(p => p.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.InventoryUnit)
             .Include(p => p.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.TaxRate)
             .FirstOrDefaultAsync(p => p.Id == req.Id && p.BranchId == req.BranchId && !p.IsDeleted, ct);
 

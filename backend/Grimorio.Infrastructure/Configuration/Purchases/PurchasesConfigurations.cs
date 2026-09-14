@@ -31,6 +31,18 @@ public class PurchaseConfiguration : IEntityTypeConfiguration<Purchase>
         builder.Property(x => x.DocumentType).HasConversion<int>().IsRequired();
         builder.Property(x => x.Status).HasConversion<int>().IsRequired();
         builder.Property(x => x.DocumentNumber).HasMaxLength(50);
+        builder.Property(x => x.AccessKey).HasMaxLength(49);
+        builder.Property(x => x.AuthorizationNumber).HasMaxLength(60);
+        builder.Property(x => x.Environment).HasMaxLength(30);
+        builder.Property(x => x.EmissionType).HasMaxLength(30);
+        builder.Property(x => x.SupplierCommercialName).HasMaxLength(200);
+        builder.Property(x => x.SupplierMatrixAddress).HasMaxLength(400);
+        builder.Property(x => x.SupplierBranchAddress).HasMaxLength(400);
+        builder.Property(x => x.SupplierSpecialTaxpayerNumber).HasMaxLength(30);
+        builder.Property(x => x.PaymentMethodSriCode).HasMaxLength(10);
+        builder.Property(x => x.PaymentMethodName).HasMaxLength(120);
+        builder.Property(x => x.XmlFileUrl).HasMaxLength(500);
+        builder.Property(x => x.PdfFileUrl).HasMaxLength(500);
         builder.Property(x => x.Notes).HasMaxLength(500);
 
         builder.Property(x => x.Subtotal).HasColumnType("numeric(18,2)");
@@ -38,8 +50,12 @@ public class PurchaseConfiguration : IEntityTypeConfiguration<Purchase>
         builder.Property(x => x.TaxableBase15).HasColumnType("numeric(18,2)");
         builder.Property(x => x.TaxableBase0).HasColumnType("numeric(18,2)");
         builder.Property(x => x.TaxableBaseExempt).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.TaxableBaseNotSubject).HasColumnType("numeric(18,2)");
         builder.Property(x => x.Iva15).HasColumnType("numeric(18,2)");
         builder.Property(x => x.Ice).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Irbpnr).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Tip).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.PaymentAmount).HasColumnType("numeric(18,2)");
         builder.Property(x => x.Total).HasColumnType("numeric(18,2)");
 
         builder.HasOne(x => x.Supplier)
@@ -51,6 +67,9 @@ public class PurchaseConfiguration : IEntityTypeConfiguration<Purchase>
         builder.HasIndex(x => new { x.BranchId, x.DocumentDate });
         builder.HasIndex(x => new { x.BranchId, x.Status });
         builder.HasIndex(x => new { x.BranchId, x.SupplierId });
+        builder.HasIndex(x => new { x.BranchId, x.AccessKey })
+            .IsUnique()
+            .HasFilter("\"AccessKey\" IS NOT NULL AND \"IsDeleted\" = false");
     }
 }
 
@@ -60,7 +79,12 @@ public class PurchaseItemConfiguration : IEntityTypeConfiguration<PurchaseItem>
     {
         builder.ToTable("PurchaseItems", "purchases");
 
+        builder.Property(x => x.SupplierMainCode).HasMaxLength(80);
+        builder.Property(x => x.SupplierAuxCode).HasMaxLength(80);
+        builder.Property(x => x.SupplierDescription).HasMaxLength(300);
+        builder.Property(x => x.AdditionalDetail).HasMaxLength(300);
         builder.Property(x => x.Quantity).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.InventoryQuantity).HasColumnType("numeric(18,4)");
         builder.Property(x => x.UnitPrice).HasColumnType("numeric(18,4)");
         builder.Property(x => x.DiscountPct).HasColumnType("numeric(5,2)");
         builder.Property(x => x.DiscountAmount).HasColumnType("numeric(18,2)");
@@ -81,6 +105,11 @@ public class PurchaseItemConfiguration : IEntityTypeConfiguration<PurchaseItem>
         builder.HasOne(x => x.Unit)
             .WithMany()
             .HasForeignKey(x => x.UnitId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.InventoryUnit)
+            .WithMany()
+            .HasForeignKey(x => x.InventoryUnitId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.TaxRate)

@@ -82,6 +82,21 @@ public class CreatePurchaseHandler : IRequestHandler<CreatePurchaseCommand, Purc
             DocumentType = (PurchaseDocumentType)req.DocumentType,
             DocumentNumber = req.DocumentNumber?.Trim(),
             DocumentDate = req.DocumentDate,
+            AccessKey = PurchasesHelper.NormalizeAccessKey(req.AccessKey),
+            AuthorizationNumber = req.AuthorizationNumber?.Trim(),
+            AuthorizationDate = req.AuthorizationDate,
+            Environment = req.Environment?.Trim(),
+            EmissionType = req.EmissionType?.Trim(),
+            SupplierCommercialName = req.SupplierCommercialName?.Trim(),
+            SupplierMatrixAddress = req.SupplierMatrixAddress?.Trim(),
+            SupplierBranchAddress = req.SupplierBranchAddress?.Trim(),
+            SupplierSpecialTaxpayerNumber = req.SupplierSpecialTaxpayerNumber?.Trim(),
+            SupplierObligatedAccounting = req.SupplierObligatedAccounting,
+            PaymentMethodSriCode = req.PaymentMethodSriCode?.Trim(),
+            PaymentMethodName = req.PaymentMethodName?.Trim(),
+            PaymentAmount = req.PaymentAmount,
+            XmlFileUrl = req.XmlFileUrl?.Trim(),
+            PdfFileUrl = req.PdfFileUrl?.Trim(),
             SupplierId = req.SupplierId,
             Status = PurchaseStatus.Registrada,
             Notes = req.Notes?.Trim(),
@@ -93,6 +108,7 @@ public class CreatePurchaseHandler : IRequestHandler<CreatePurchaseCommand, Purc
 
         var newItems = PurchasesHelper.BuildItems(purchase.Id, req.BranchId, req.Items, taxInfo);
         PurchasesHelper.ApplyTotalsWithInfo(purchase, newItems, req.Items, taxInfo);
+        PurchasesHelper.ApplyFiscalExtras(purchase, req.Ice, req.Irbpnr, req.Tip);
         foreach (var item in newItems) purchase.Items.Add(item);
 
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
@@ -117,7 +133,8 @@ public class CreatePurchaseHandler : IRequestHandler<CreatePurchaseCommand, Purc
             {
                 BranchId = branchId, ArticleId = item.ArticleId,
                 WarehouseId = warehouseId, Type = type,
-                Quantity = item.Quantity, UnitId = item.UnitId,
+                Quantity = item.InventoryQuantity ?? item.Quantity,
+                UnitId = item.InventoryUnitId ?? item.UnitId,
                 Reference = reference,
             }, ct);
         }
@@ -132,6 +149,7 @@ public class CreatePurchaseHandler : IRequestHandler<CreatePurchaseCommand, Purc
             .Include(x => x.Supplier)
             .Include(x => x.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Article)
             .Include(x => x.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Unit)
+            .Include(x => x.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.InventoryUnit)
             .Include(x => x.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.TaxRate)
             .FirstAsync(x => x.Id == id, ct);
 
@@ -172,7 +190,8 @@ public class UpdatePurchaseHandler : IRequestHandler<UpdatePurchaseCommand, Purc
                     BranchId = req.BranchId, ArticleId = item.ArticleId,
                     WarehouseId = purchase.DestinationWarehouseId.Value,
                     Type = MovementType.NegativeAdjustment,
-                    Quantity = item.Quantity, UnitId = item.UnitId,
+                    Quantity = item.InventoryQuantity ?? item.Quantity,
+                    UnitId = item.InventoryUnitId ?? item.UnitId,
                     Reference = oldRef,
                 }, ct);
             }
@@ -185,6 +204,21 @@ public class UpdatePurchaseHandler : IRequestHandler<UpdatePurchaseCommand, Purc
         purchase.DocumentType = (PurchaseDocumentType)req.DocumentType;
         purchase.DocumentNumber = req.DocumentNumber?.Trim();
         purchase.DocumentDate = req.DocumentDate;
+        purchase.AccessKey = PurchasesHelper.NormalizeAccessKey(req.AccessKey);
+        purchase.AuthorizationNumber = req.AuthorizationNumber?.Trim();
+        purchase.AuthorizationDate = req.AuthorizationDate;
+        purchase.Environment = req.Environment?.Trim();
+        purchase.EmissionType = req.EmissionType?.Trim();
+        purchase.SupplierCommercialName = req.SupplierCommercialName?.Trim();
+        purchase.SupplierMatrixAddress = req.SupplierMatrixAddress?.Trim();
+        purchase.SupplierBranchAddress = req.SupplierBranchAddress?.Trim();
+        purchase.SupplierSpecialTaxpayerNumber = req.SupplierSpecialTaxpayerNumber?.Trim();
+        purchase.SupplierObligatedAccounting = req.SupplierObligatedAccounting;
+        purchase.PaymentMethodSriCode = req.PaymentMethodSriCode?.Trim();
+        purchase.PaymentMethodName = req.PaymentMethodName?.Trim();
+        purchase.PaymentAmount = req.PaymentAmount;
+        purchase.XmlFileUrl = req.XmlFileUrl?.Trim();
+        purchase.PdfFileUrl = req.PdfFileUrl?.Trim();
         purchase.SupplierId = req.SupplierId;
         purchase.Notes = req.Notes?.Trim();
         purchase.DestinationWarehouseId = req.DestinationWarehouseId;
@@ -195,6 +229,7 @@ public class UpdatePurchaseHandler : IRequestHandler<UpdatePurchaseCommand, Purc
 
         var newItems = PurchasesHelper.BuildItems(purchase.Id, req.BranchId, req.Items, taxInfo);
         PurchasesHelper.ApplyTotalsWithInfo(purchase, newItems, req.Items, taxInfo);
+        PurchasesHelper.ApplyFiscalExtras(purchase, req.Ice, req.Irbpnr, req.Tip);
         foreach (var item in newItems) _db.PurchaseItems.Add(item);
 
         await _db.SaveChangesAsync(ct);
@@ -210,7 +245,8 @@ public class UpdatePurchaseHandler : IRequestHandler<UpdatePurchaseCommand, Purc
                     BranchId = req.BranchId, ArticleId = item.ArticleId,
                     WarehouseId = req.DestinationWarehouseId.Value,
                     Type = MovementType.PurchaseEntry,
-                    Quantity = item.Quantity, UnitId = item.UnitId,
+                    Quantity = item.InventoryQuantity ?? item.Quantity,
+                    UnitId = item.InventoryUnitId ?? item.UnitId,
                     Reference = newRef,
                 }, ct);
             }
@@ -222,6 +258,7 @@ public class UpdatePurchaseHandler : IRequestHandler<UpdatePurchaseCommand, Purc
             .Include(x => x.Supplier)
             .Include(x => x.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Article)
             .Include(x => x.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Unit)
+            .Include(x => x.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.InventoryUnit)
             .Include(x => x.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.TaxRate)
             .FirstAsync(x => x.Id == purchase.Id, ct);
 
@@ -245,6 +282,7 @@ public class AnularPurchaseHandler : IRequestHandler<AnularPurchaseCommand, Purc
             .Include(x => x.Supplier)
             .Include(x => x.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Article)
             .Include(x => x.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Unit)
+            .Include(x => x.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.InventoryUnit)
             .Include(x => x.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.TaxRate)
             .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId && !x.IsDeleted, ct)
             ?? throw new KeyNotFoundException("Compra no encontrada.");
@@ -265,7 +303,8 @@ public class AnularPurchaseHandler : IRequestHandler<AnularPurchaseCommand, Purc
                     BranchId = req.BranchId, ArticleId = item.ArticleId,
                     WarehouseId = purchase.DestinationWarehouseId.Value,
                     Type = MovementType.NegativeAdjustment,
-                    Quantity = item.Quantity, UnitId = item.UnitId,
+                    Quantity = item.InventoryQuantity ?? item.Quantity,
+                    UnitId = item.InventoryUnitId ?? item.UnitId,
                     Reference = docRef,
                 }, ct);
             }
@@ -312,7 +351,24 @@ internal static class PurchasesHelper
     internal record PurchaseTotals(
         decimal Subtotal, decimal DiscountTotal,
         decimal TaxableBase15, decimal TaxableBase0, decimal TaxableBaseExempt,
+        decimal TaxableBaseNotSubject,
         decimal Iva15);
+
+    internal static string? NormalizeAccessKey(string? accessKey)
+    {
+        var normalized = string.IsNullOrWhiteSpace(accessKey)
+            ? null
+            : new string(accessKey.Where(char.IsDigit).ToArray());
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
+    internal static void ApplyFiscalExtras(Purchase purchase, decimal? ice, decimal? irbpnr, decimal? tip)
+    {
+        purchase.Ice = Math.Round(Math.Max(ice ?? 0m, 0m), 2);
+        purchase.Irbpnr = Math.Round(Math.Max(irbpnr ?? 0m, 0m), 2);
+        purchase.Tip = Math.Round(Math.Max(tip ?? 0m, 0m), 2);
+        purchase.Total += purchase.Ice + purchase.Irbpnr + purchase.Tip;
+    }
 
     internal static async Task<Dictionary<Guid, TaxInfo>> LoadTaxRateInfo(
         IEnumerable<Guid> taxRateIds, GrimorioDbContext db, CancellationToken ct)
@@ -333,17 +389,29 @@ internal static class PurchasesHelper
         foreach (var item in items)
         {
             var gross = item.UnitPrice * item.Quantity;
-            var discountAmt = Math.Round(gross * (item.DiscountPct / 100m), 2);
+            var discountAmt = item.DiscountAmount.HasValue
+                ? Math.Round(Math.Min(Math.Max(item.DiscountAmount.Value, 0m), gross), 2)
+                : Math.Round(gross * (item.DiscountPct / 100m), 2);
+            var discountPct = gross > 0 ? Math.Round(discountAmt / gross * 100m, 2) : 0m;
             var taxableBase = gross - discountAmt;
             var info = item.TaxRateId.HasValue ? taxInfo.GetValueOrDefault(item.TaxRateId.Value) : null;
             var taxAmt = info != null ? Math.Round(taxableBase * (info.Percentage / 100m), 2) : 0m;
+            var inventoryQuantity = item.InventoryQuantity.HasValue && item.InventoryQuantity.Value > 0
+                ? item.InventoryQuantity.Value
+                : (decimal?)null;
 
             result.Add(new PurchaseItem
             {
                 Id = Guid.NewGuid(), BranchId = branchId, PurchaseId = purchaseId,
                 ArticleId = item.ArticleId, UnitId = item.UnitId,
+                InventoryQuantity = inventoryQuantity,
+                InventoryUnitId = inventoryQuantity.HasValue ? (item.InventoryUnitId ?? item.UnitId) : null,
+                SupplierMainCode = item.SupplierMainCode?.Trim(),
+                SupplierAuxCode = item.SupplierAuxCode?.Trim(),
+                SupplierDescription = item.SupplierDescription?.Trim(),
+                AdditionalDetail = item.AdditionalDetail?.Trim(),
                 Quantity = item.Quantity, UnitPrice = item.UnitPrice,
-                DiscountPct = item.DiscountPct, DiscountAmount = discountAmt,
+                DiscountPct = discountPct, DiscountAmount = discountAmt,
                 TaxRateId = item.TaxRateId, TaxAmount = taxAmt,
                 TotalPrice = taxableBase + taxAmt, Notes = item.Notes?.Trim(),
             });
@@ -354,7 +422,7 @@ internal static class PurchasesHelper
     internal static void ApplyTotals(Purchase purchase, List<PurchaseItem> items)
     {
         decimal subtotal = 0, discountTotal = 0;
-        decimal taxableBase15 = 0, taxableBase0 = 0, taxableBaseExempt = 0, iva15 = 0;
+        decimal taxableBase15 = 0, taxableBase0 = 0, taxableBaseExempt = 0, taxableBaseNotSubject = 0, iva15 = 0;
 
         // Para el desglose fiscal necesitamos el SriCode; lo derivamos de los ítems ya calculados
         // (TaxAmount > 0 && DiscountPct contribuye a la base; clasificamos por TaxRateId si lo tenemos)
@@ -398,9 +466,12 @@ internal static class PurchasesHelper
         purchase.TaxableBase15 = taxableBase15;
         purchase.TaxableBase0 = taxableBase0;
         purchase.TaxableBaseExempt = taxableBaseExempt;
+        purchase.TaxableBaseNotSubject = taxableBaseNotSubject;
         purchase.Iva15 = iva15;
         purchase.Ice = 0;
-        purchase.Total = taxableBase15 + taxableBase0 + taxableBaseExempt + iva15;
+        purchase.Irbpnr = 0;
+        purchase.Tip = 0;
+        purchase.Total = taxableBase15 + taxableBase0 + taxableBaseExempt + taxableBaseNotSubject + iva15;
     }
 
     // Versión con TaxInfo disponible para clasificación fiscal precisa (usada en Create/Update)
@@ -410,7 +481,7 @@ internal static class PurchasesHelper
         Dictionary<Guid, TaxInfo> taxInfo)
     {
         decimal subtotal = 0, discountTotal = 0;
-        decimal taxableBase15 = 0, taxableBase0 = 0, taxableBaseExempt = 0, iva15 = 0;
+        decimal taxableBase15 = 0, taxableBase0 = 0, taxableBaseExempt = 0, taxableBaseNotSubject = 0, iva15 = 0;
 
         for (var i = 0; i < items.Count; i++)
         {
@@ -423,8 +494,10 @@ internal static class PurchasesHelper
             subtotal += gross;
             discountTotal += item.DiscountAmount;
 
-            if (info == null || info.SriCode is "5" or "6" or "7")
+            if (info == null || info.SriCode is "6" or "7")
                 taxableBaseExempt += taxableBase;
+            else if (info.SriCode == "5")
+                taxableBaseNotSubject += taxableBase;
             else if (info.Percentage > 0) { taxableBase15 += taxableBase; iva15 += item.TaxAmount; }
             else taxableBase0 += taxableBase; // "0"
         }
@@ -434,9 +507,12 @@ internal static class PurchasesHelper
         purchase.TaxableBase15 = taxableBase15;
         purchase.TaxableBase0 = taxableBase0;
         purchase.TaxableBaseExempt = taxableBaseExempt;
+        purchase.TaxableBaseNotSubject = taxableBaseNotSubject;
         purchase.Iva15 = iva15;
         purchase.Ice = 0;
-        purchase.Total = taxableBase15 + taxableBase0 + taxableBaseExempt + iva15;
+        purchase.Irbpnr = 0;
+        purchase.Tip = 0;
+        purchase.Total = taxableBase15 + taxableBase0 + taxableBaseExempt + taxableBaseNotSubject + iva15;
     }
 }
 
@@ -458,6 +534,21 @@ internal static class PurchasesMapper
         DocumentType = p.DocumentType.ToString(),
         DocumentNumber = p.DocumentNumber,
         DocumentDate = p.DocumentDate,
+        AccessKey = p.AccessKey,
+        AuthorizationNumber = p.AuthorizationNumber,
+        AuthorizationDate = p.AuthorizationDate,
+        Environment = p.Environment,
+        EmissionType = p.EmissionType,
+        SupplierCommercialName = p.SupplierCommercialName,
+        SupplierMatrixAddress = p.SupplierMatrixAddress,
+        SupplierBranchAddress = p.SupplierBranchAddress,
+        SupplierSpecialTaxpayerNumber = p.SupplierSpecialTaxpayerNumber,
+        SupplierObligatedAccounting = p.SupplierObligatedAccounting,
+        PaymentMethodSriCode = p.PaymentMethodSriCode,
+        PaymentMethodName = p.PaymentMethodName,
+        PaymentAmount = p.PaymentAmount,
+        XmlFileUrl = p.XmlFileUrl,
+        PdfFileUrl = p.PdfFileUrl,
         Status = p.Status.ToString(),
         SupplierId = p.SupplierId,
         SupplierName = p.Supplier?.Name,
@@ -469,8 +560,11 @@ internal static class PurchasesMapper
         TaxableBase15 = p.TaxableBase15,
         TaxableBase0 = p.TaxableBase0,
         TaxableBaseExempt = p.TaxableBaseExempt,
+        TaxableBaseNotSubject = p.TaxableBaseNotSubject,
         Iva15 = p.Iva15,
         Ice = p.Ice,
+        Irbpnr = p.Irbpnr,
+        Tip = p.Tip,
         Total = p.Total,
         TotalItems = p.Items.Count(i => !i.IsDeleted),
         Items = p.Items.Where(i => !i.IsDeleted).Select(i => new PurchaseItemDto
@@ -478,7 +572,14 @@ internal static class PurchasesMapper
             Id = i.Id, ArticleId = i.ArticleId,
             ArticleName = i.Article?.Name ?? string.Empty,
             InternalCode = i.Article?.InternalCode,
+            SupplierMainCode = i.SupplierMainCode,
+            SupplierAuxCode = i.SupplierAuxCode,
+            SupplierDescription = i.SupplierDescription,
+            AdditionalDetail = i.AdditionalDetail,
             UnitId = i.UnitId, UnitSymbol = i.Unit?.Symbol ?? string.Empty,
+            InventoryQuantity = i.InventoryQuantity,
+            InventoryUnitId = i.InventoryUnitId,
+            InventoryUnitSymbol = i.InventoryUnit?.Symbol,
             Quantity = i.Quantity, UnitPrice = i.UnitPrice,
             DiscountPct = i.DiscountPct, DiscountAmount = i.DiscountAmount,
             TaxRateId = i.TaxRateId, TaxRateName = i.TaxRate?.Name,

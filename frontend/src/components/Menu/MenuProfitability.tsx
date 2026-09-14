@@ -25,6 +25,7 @@ const { Text, Title } = Typography;
 
 const money = (value?: number) => `$${(value ?? 0).toFixed(2)}`;
 const pct = (value?: number) => `${(value ?? 0).toFixed(2)}%`;
+const centeredTitle = (label: string) => <div style={{ textAlign: 'center' }}>{label}</div>;
 
 const statusColor: Record<string, string> = {
   Healthy: 'green',
@@ -97,21 +98,21 @@ export default function MenuProfitability() {
     },
     {
       title: 'Cantidad receta',
-      width: 140,
+      width: 115,
       render: (_: unknown, row: MenuItemProfitabilityIngredientDto) => (
         <Text>{row.quantity} {row.unitSymbol}</Text>
       ),
     },
     {
       title: 'Cantidad base',
-      width: 140,
+      width: 115,
       render: (_: unknown, row: MenuItemProfitabilityIngredientDto) => (
         <Text>{row.baseQuantity.toFixed(4)} {row.baseUnitSymbol}</Text>
       ),
     },
     {
       title: 'Costo prom.',
-      width: 120,
+      width: 95,
       align: 'right' as const,
       render: (_: unknown, row: MenuItemProfitabilityIngredientDto) => (
         <Text>{money(row.averageUnitCost)}</Text>
@@ -119,7 +120,7 @@ export default function MenuProfitability() {
     },
     {
       title: 'Ultimo costo',
-      width: 120,
+      width: 95,
       align: 'right' as const,
       render: (_: unknown, row: MenuItemProfitabilityIngredientDto) => (
         <Text type="secondary">{row.lastUnitCost === undefined ? '-' : money(row.lastUnitCost)}</Text>
@@ -127,7 +128,7 @@ export default function MenuProfitability() {
     },
     {
       title: 'Total',
-      width: 120,
+      width: 85,
       align: 'right' as const,
       render: (_: unknown, row: MenuItemProfitabilityIngredientDto) => (
         <Text strong>{money(row.totalCost)}</Text>
@@ -135,16 +136,16 @@ export default function MenuProfitability() {
     },
     {
       title: 'Peso',
-      width: 90,
+      width: 75,
       align: 'right' as const,
       render: (_: unknown, row: MenuItemProfitabilityIngredientDto) => pct(row.costSharePercentage),
     },
     {
       title: 'Estado',
-      width: 180,
+      width: 105,
       render: (_: unknown, row: MenuItemProfitabilityIngredientDto) => (
         row.warning
-          ? <Tooltip title={row.warning}><Tag color="gold" icon={<WarningOutlined />}>Revisar</Tag></Tooltip>
+          ? <Tooltip title={row.warning}><Tag color="gold" icon={<WarningOutlined />} style={{ margin: 0 }}>Revisar</Tag></Tooltip>
           : <Tag color="green">OK</Tag>
       ),
     },
@@ -206,9 +207,11 @@ export default function MenuProfitability() {
         loading={loading}
         size="small"
         tableLayout="fixed"
-        scroll={{ x: 1280 }}
+        sticky
+        scroll={{ x: 995, y: 'calc(100vh - 380px)' }}
         pagination={{ defaultPageSize: 15, showSizeChanger: true, pageSizeOptions: ['15', '30', '50', '100'] }}
         expandable={{
+          fixed: 'left',
           expandedRowRender: item => (
             <Table
               dataSource={item.ingredients}
@@ -216,6 +219,7 @@ export default function MenuProfitability() {
               columns={ingredientColumns}
               size="small"
               pagination={false}
+              tableLayout="fixed"
             />
           ),
           rowExpandable: item => item.ingredients.length > 0,
@@ -224,94 +228,107 @@ export default function MenuProfitability() {
           {
             title: 'Plato',
             key: 'item',
-            width: 280,
+            width: 245,
+            fixed: 'left',
             render: (_: unknown, item: MenuItemProfitabilityDto) => (
-              <div style={{ maxWidth: 260, minWidth: 0 }}>
-                <Space size={6} style={{ maxWidth: '100%', minWidth: 0, display: 'flex' }}>
-                  <Text
-                    strong
-                    ellipsis={{ tooltip: item.menuItemName }}
-                    style={{ minWidth: 0, maxWidth: item.hasRecipe ? 180 : 150 }}
-                  >
-                    {item.menuItemName}
-                  </Text>
+              <div style={{ maxWidth: 225, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, minWidth: 0 }}>
+                  <Tooltip title={item.menuItemName}>
+                    <Text
+                      strong
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        whiteSpace: 'normal',
+                        overflowWrap: 'anywhere',
+                        lineHeight: 1.25,
+                      }}
+                    >
+                      {item.menuItemName}
+                    </Text>
+                  </Tooltip>
                   {!item.hasRecipe && <Tag>Sin receta</Tag>}
-                </Space>
-                <Space size={6} style={{ maxWidth: '100%', minWidth: 0, display: 'flex', marginTop: 2 }}>
-                  {item.categoryColor && <span style={{ width: 10, height: 10, borderRadius: 2, background: item.categoryColor, display: 'inline-block' }} />}
-                  <Text type="secondary" ellipsis={{ tooltip: item.categoryName }} style={{ fontSize: 12, minWidth: 0, maxWidth: 150 }}>{item.categoryName}</Text>
-                  {item.internalCode && <Text type="secondary" style={{ fontSize: 12, flexShrink: 0 }}>#{item.internalCode}</Text>}
-                </Space>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, minWidth: 0 }}>
+                  {item.categoryColor && <span style={{ width: 10, height: 10, borderRadius: 2, background: item.categoryColor, display: 'inline-block', flexShrink: 0 }} />}
+                  <Text type="secondary" ellipsis={{ tooltip: item.categoryName }} style={{ fontSize: 12, minWidth: 0 }}>{item.categoryName}</Text>
+                </div>
+                {item.internalCode && (
+                  <Text type="secondary" style={{ display: 'block', fontSize: 12, marginTop: 1 }}>
+                    #{item.internalCode}
+                  </Text>
+                )}
               </div>
             ),
           },
           {
-            title: 'Tacometro',
-            width: 130,
+            title: centeredTitle('Tacometro'),
+            width: 105,
             align: 'center',
             render: (_: unknown, item: MenuItemProfitabilityDto) => (
               <Progress
                 type="dashboard"
                 percent={Math.min(item.foodCostPercentage, 100)}
-                size={72}
+                size={60}
                 strokeColor={gaugeColor(item.foodCostPercentage)}
                 format={() => pct(item.foodCostPercentage)}
               />
             ),
           },
           {
-            title: 'Estado',
-            width: 130,
+            title: centeredTitle('Estado'),
+            width: 120,
+            align: 'center',
             render: (_: unknown, item: MenuItemProfitabilityDto) => (
-              <Tag color={statusColor[item.status] ?? 'default'}>{item.statusLabel}</Tag>
+              <Tag color={statusColor[item.status] ?? 'default'} style={{ margin: 0 }}>{item.statusLabel}</Tag>
             ),
           },
           {
-            title: 'Precio cliente',
+            title: centeredTitle('Precio cliente'),
             dataIndex: 'grossSalePrice',
-            width: 120,
+            width: 90,
             align: 'right',
             render: money,
           },
           {
-            title: 'Precio sin IVA',
+            title: centeredTitle('Precio sin IVA'),
             dataIndex: 'netSalePrice',
-            width: 130,
+            width: 95,
             align: 'right',
             render: money,
           },
           {
-            title: 'IVA',
-            width: 100,
+            title: centeredTitle('IVA'),
+            width: 65,
             align: 'right',
             render: (_: unknown, item: MenuItemProfitabilityDto) => (
               <Text type="secondary">{money(item.taxAmount)}</Text>
             ),
           },
           {
-            title: 'Costo receta',
+            title: centeredTitle('Costo receta'),
             dataIndex: 'recipeCost',
-            width: 120,
+            width: 90,
             align: 'right',
             render: (value: number) => <Text strong>{money(value)}</Text>,
           },
           {
-            title: 'Utilidad bruta',
+            title: centeredTitle('Utilidad bruta'),
             dataIndex: 'grossProfit',
-            width: 130,
+            width: 95,
             align: 'right',
             render: (value: number) => <Text type={value < 0 ? 'danger' : undefined} strong>{money(value)}</Text>,
           },
           {
-            title: 'Margen',
+            title: centeredTitle('Margen'),
             dataIndex: 'grossMarginPercentage',
-            width: 100,
+            width: 85,
             align: 'right',
             render: pct,
           },
           {
-            title: 'Alertas',
-            width: 130,
+            title: centeredTitle('Alertas'),
+            width: 115,
             render: (_: unknown, item: MenuItemProfitabilityDto) => (
               <Space size={4} wrap>
                 {item.hasMissingCosts && <Tooltip title="Hay ingredientes sin compras registradas"><Tag color="gold" icon={<WarningOutlined />}>Costos</Tag></Tooltip>}

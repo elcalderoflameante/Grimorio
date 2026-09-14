@@ -5,6 +5,8 @@ using Grimorio.SharedKernel.Constants;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Globalization;
+using System.Xml.Linq;
 
 namespace Grimorio.API.Controllers;
 
@@ -110,6 +112,24 @@ public class PurchasesController : ControllerBase
             DocumentType = dto.DocumentType,
             DocumentNumber = dto.DocumentNumber,
             DocumentDate = dto.DocumentDate,
+            AccessKey = dto.AccessKey,
+            AuthorizationNumber = dto.AuthorizationNumber,
+            AuthorizationDate = dto.AuthorizationDate,
+            Environment = dto.Environment,
+            EmissionType = dto.EmissionType,
+            SupplierCommercialName = dto.SupplierCommercialName,
+            SupplierMatrixAddress = dto.SupplierMatrixAddress,
+            SupplierBranchAddress = dto.SupplierBranchAddress,
+            SupplierSpecialTaxpayerNumber = dto.SupplierSpecialTaxpayerNumber,
+            SupplierObligatedAccounting = dto.SupplierObligatedAccounting,
+            PaymentMethodSriCode = dto.PaymentMethodSriCode,
+            PaymentMethodName = dto.PaymentMethodName,
+            PaymentAmount = dto.PaymentAmount,
+            Ice = dto.Ice,
+            Irbpnr = dto.Irbpnr,
+            Tip = dto.Tip,
+            XmlFileUrl = dto.XmlFileUrl,
+            PdfFileUrl = dto.PdfFileUrl,
             SupplierId = dto.SupplierId,
             Notes = dto.Notes,
             DestinationWarehouseId = dto.DestinationWarehouseId,
@@ -130,6 +150,24 @@ public class PurchasesController : ControllerBase
             DocumentType = dto.DocumentType,
             DocumentNumber = dto.DocumentNumber,
             DocumentDate = dto.DocumentDate,
+            AccessKey = dto.AccessKey,
+            AuthorizationNumber = dto.AuthorizationNumber,
+            AuthorizationDate = dto.AuthorizationDate,
+            Environment = dto.Environment,
+            EmissionType = dto.EmissionType,
+            SupplierCommercialName = dto.SupplierCommercialName,
+            SupplierMatrixAddress = dto.SupplierMatrixAddress,
+            SupplierBranchAddress = dto.SupplierBranchAddress,
+            SupplierSpecialTaxpayerNumber = dto.SupplierSpecialTaxpayerNumber,
+            SupplierObligatedAccounting = dto.SupplierObligatedAccounting,
+            PaymentMethodSriCode = dto.PaymentMethodSriCode,
+            PaymentMethodName = dto.PaymentMethodName,
+            PaymentAmount = dto.PaymentAmount,
+            Ice = dto.Ice,
+            Irbpnr = dto.Irbpnr,
+            Tip = dto.Tip,
+            XmlFileUrl = dto.XmlFileUrl,
+            PdfFileUrl = dto.PdfFileUrl,
             SupplierId = dto.SupplierId,
             Notes = dto.Notes,
             DestinationWarehouseId = dto.DestinationWarehouseId,
@@ -158,9 +196,228 @@ public class PurchasesController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Policy = "Purchases.Orders.Create")]
+    [HttpPost("compras/importar-xml")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> ImportPurchaseXml([FromForm] IFormFile file, CancellationToken ct)
+    {
+        if (!TryGetBranchId(out _)) return Unauthorized("BranchId no valido en el token.");
+        if (file.Length == 0) return BadRequest("Archivo XML vacio.");
+
+        var extension = Path.GetExtension(file.FileName);
+        if (!string.Equals(extension, ".xml", StringComparison.OrdinalIgnoreCase))
+            return BadRequest("Solo se permiten archivos XML.");
+
+        await using var stream = file.OpenReadStream();
+        using var reader = new StreamReader(stream);
+        var xml = await reader.ReadToEndAsync(ct);
+        var preview = PurchaseInvoiceXmlParser.Parse(xml);
+        preview.XmlFileUrl = await SavePurchaseDocumentAsync(file.FileName, "xml", xml, ct);
+        return Ok(preview);
+    }
+
+    [Authorize(Policy = "Purchases.Orders.Create")]
+    [HttpPost("compras/adjuntos")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadPurchaseAttachment([FromForm] IFormFile file, CancellationToken ct)
+    {
+        if (!TryGetBranchId(out _)) return Unauthorized("BranchId no valido en el token.");
+        if (file.Length == 0) return BadRequest("Archivo vacio.");
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (extension is not ".pdf" and not ".xml")
+            return BadRequest("Solo se permiten archivos PDF o XML.");
+
+        var fileUrl = await SavePurchaseDocumentAsync(file.FileName, extension.TrimStart('.'), file, ct);
+        return Ok(new PurchaseAttachmentDto
+        {
+            FileUrl = fileUrl,
+            FileName = Path.GetFileName(file.FileName),
+            ContentType = file.ContentType,
+        });
+    }
+
     private bool TryGetBranchId(out Guid branchId)
     {
         var claim = User.FindFirst(AppConstants.Claims.BranchId)?.Value;
         return Guid.TryParse(claim, out branchId) && branchId != Guid.Empty;
     }
+
+    private async Task<string> SavePurchaseDocumentAsync(string originalFileName, string type, IFormFile file, CancellationToken ct)
+    {
+        var env = HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>();
+        var webRoot = env.WebRootPath ?? Path.Combine(env.ContentRootPath, "wwwroot");
+        var relativeFolder = Path.Combine("uploads", "purchase-documents", DateTime.UtcNow.ToString("yyyyMMdd"));
+        var folder = Path.Combine(webRoot, relativeFolder);
+        Directory.CreateDirectory(folder);
+
+        var safeName = BuildSafeFileName(originalFileName, type);
+        var path = Path.Combine(folder, safeName);
+        await using var fs = System.IO.File.Create(path);
+        await file.CopyToAsync(fs, ct);
+        return "/" + Path.Combine(relativeFolder, safeName).Replace('\\', '/');
+    }
+
+    private async Task<string> SavePurchaseDocumentAsync(string originalFileName, string type, string content, CancellationToken ct)
+    {
+        var env = HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>();
+        var webRoot = env.WebRootPath ?? Path.Combine(env.ContentRootPath, "wwwroot");
+        var relativeFolder = Path.Combine("uploads", "purchase-documents", DateTime.UtcNow.ToString("yyyyMMdd"));
+        var folder = Path.Combine(webRoot, relativeFolder);
+        Directory.CreateDirectory(folder);
+
+        var safeName = BuildSafeFileName(originalFileName, type);
+        var path = Path.Combine(folder, safeName);
+        await System.IO.File.WriteAllTextAsync(path, content, ct);
+        return "/" + Path.Combine(relativeFolder, safeName).Replace('\\', '/');
+    }
+
+    private static string BuildSafeFileName(string originalFileName, string extension)
+    {
+        var baseName = Path.GetFileNameWithoutExtension(originalFileName);
+        var safeBase = new string(baseName.Select(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' ? ch : '-').ToArray());
+        safeBase = string.IsNullOrWhiteSpace(safeBase) ? "documento" : safeBase[..Math.Min(safeBase.Length, 80)];
+        return $"{Guid.NewGuid():N}-{safeBase}.{extension}";
+    }
+}
+
+internal static class PurchaseInvoiceXmlParser
+{
+    public static PurchaseInvoiceImportDto Parse(string xml)
+    {
+        var outer = XDocument.Parse(xml, LoadOptions.PreserveWhitespace);
+        var authorization = outer.Descendants("autorizacion").FirstOrDefault();
+        var authorizationNumber = authorization?.Element("numeroAutorizacion")?.Value.Trim();
+        var authorizationDate = ParseDate(authorization?.Element("fechaAutorizacion")?.Value);
+        var voucherXml = authorization?.Element("comprobante")?.Value;
+
+        var doc = string.IsNullOrWhiteSpace(voucherXml)
+            ? outer
+            : XDocument.Parse(voucherXml, LoadOptions.PreserveWhitespace);
+
+        var infoTrib = doc.Descendants("infoTributaria").FirstOrDefault()
+            ?? throw new InvalidOperationException("El XML no contiene infoTributaria.");
+        var infoFactura = doc.Descendants("infoFactura").FirstOrDefault()
+            ?? throw new InvalidOperationException("El XML no contiene infoFactura.");
+
+        var establishment = Value(infoTrib, "estab");
+        var emissionPoint = Value(infoTrib, "ptoEmi");
+        var sequential = Value(infoTrib, "secuencial");
+
+        var result = new PurchaseInvoiceImportDto
+        {
+            DocumentType = 1,
+            DocumentNumber = string.Join("-", new[] { establishment, emissionPoint, sequential }.Where(x => !string.IsNullOrWhiteSpace(x))),
+            DocumentDate = ParseDate(Value(infoFactura, "fechaEmision")),
+            AccessKey = Value(infoTrib, "claveAcceso"),
+            AuthorizationNumber = authorizationNumber,
+            AuthorizationDate = authorizationDate,
+            Environment = MapEnvironment(Value(infoTrib, "ambiente")),
+            EmissionType = MapEmissionType(Value(infoTrib, "tipoEmision")),
+            SupplierTaxId = Value(infoTrib, "ruc"),
+            SupplierName = Value(infoTrib, "razonSocial"),
+            SupplierCommercialName = Value(infoTrib, "nombreComercial"),
+            SupplierMatrixAddress = Value(infoTrib, "dirMatriz"),
+            SupplierBranchAddress = Value(infoFactura, "dirEstablecimiento"),
+            SupplierSpecialTaxpayerNumber = Value(infoFactura, "contribuyenteEspecial"),
+            SupplierObligatedAccounting = ParseBool(Value(infoFactura, "obligadoContabilidad")),
+            PaymentMethodSriCode = infoFactura.Descendants("pago").Select(x => Value(x, "formaPago")).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
+            PaymentAmount = infoFactura.Descendants("pago").Select(x => ParseDecimal(Value(x, "total"))).FirstOrDefault(x => x > 0),
+            Subtotal = ParseDecimal(Value(infoFactura, "totalSinImpuestos")),
+            DiscountTotal = ParseDecimal(Value(infoFactura, "totalDescuento")),
+            Tip = ParseDecimal(Value(infoFactura, "propina")),
+            Total = ParseDecimal(Value(infoFactura, "importeTotal")),
+        };
+
+        result.PaymentMethodName = MapPaymentMethod(result.PaymentMethodSriCode);
+
+        foreach (var tax in infoFactura.Descendants("totalImpuesto"))
+        {
+            var code = Value(tax, "codigo");
+            var percentageCode = Value(tax, "codigoPorcentaje");
+            var taxableBase = ParseDecimal(Value(tax, "baseImponible"));
+            var amount = ParseDecimal(Value(tax, "valor"));
+
+            if (code == "2")
+            {
+                if (amount > 0) { result.TaxableBase15 += taxableBase; result.Iva15 += amount; }
+                else if (percentageCode == "0") result.TaxableBase0 += taxableBase;
+                else if (percentageCode == "6" || percentageCode == "7") result.TaxableBaseExempt += taxableBase;
+                else if (percentageCode == "5") result.TaxableBaseNotSubject += taxableBase;
+            }
+            else if (code == "3") result.Ice += amount;
+            else if (code == "5") result.Irbpnr += amount;
+        }
+
+        result.Items = doc.Descendants("detalle").Select(detail =>
+        {
+            var tax = detail.Descendants("impuesto").FirstOrDefault();
+            return new PurchaseInvoiceImportItemDto
+            {
+                SupplierMainCode = Value(detail, "codigoPrincipal"),
+                SupplierAuxCode = Value(detail, "codigoAuxiliar"),
+                SupplierDescription = Value(detail, "descripcion") ?? string.Empty,
+                AdditionalDetail = string.Join(" | ", detail.Descendants("detAdicional")
+                    .Select(x => $"{x.Attribute("nombre")?.Value}: {x.Attribute("valor")?.Value}")
+                    .Where(x => !string.IsNullOrWhiteSpace(x))),
+                Quantity = ParseDecimal(Value(detail, "cantidad")),
+                UnitPrice = ParseDecimal(Value(detail, "precioUnitario")),
+                DiscountAmount = ParseDecimal(Value(detail, "descuento")),
+                TaxPercentage = ParseDecimal(Value(tax, "tarifa")),
+                TaxAmount = ParseDecimal(Value(tax, "valor")),
+                TotalPrice = ParseDecimal(Value(detail, "precioTotalSinImpuesto")) + ParseDecimal(Value(tax, "valor")),
+            };
+        }).ToList();
+
+        return result;
+    }
+
+    private static string? Value(XElement? parent, string name) =>
+        parent?.Elements().FirstOrDefault(x => x.Name.LocalName == name)?.Value.Trim();
+
+    private static decimal ParseDecimal(string? value) =>
+        decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var result) ? result : 0m;
+
+    private static DateTime? ParseDate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        string[] formats = ["dd/MM/yyyy", "dd/MM/yyyy HH:mm:ss", "dd/MM/yyyy H:mm:ss", "yyyy-MM-ddTHH:mm:ssK"];
+        return DateTime.TryParseExact(value.Trim(), formats, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var result)
+            || DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out result)
+            ? result
+            : null;
+    }
+
+    private static bool? ParseBool(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return value.Trim().Equals("SI", StringComparison.OrdinalIgnoreCase)
+            || value.Trim().Equals("SÍ", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? MapEnvironment(string? value) => value switch
+    {
+        "1" => "PRUEBAS",
+        "2" => "PRODUCCION",
+        _ => value,
+    };
+
+    private static string? MapEmissionType(string? value) => value switch
+    {
+        "1" => "NORMAL",
+        _ => value,
+    };
+
+    private static string? MapPaymentMethod(string? code) => code switch
+    {
+        "01" => "SIN UTILIZACION DEL SISTEMA FINANCIERO",
+        "15" => "COMPENSACION DE DEUDAS",
+        "16" => "TARJETA DE DEBITO",
+        "17" => "DINERO ELECTRONICO",
+        "18" => "TARJETA PREPAGO",
+        "19" => "TARJETA DE CREDITO",
+        "20" => "OTROS CON UTILIZACION DEL SISTEMA FINANCIERO",
+        "21" => "ENDOSO DE TITULOS",
+        _ => null,
+    };
 }

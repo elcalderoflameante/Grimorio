@@ -120,6 +120,8 @@ import type {
   PurchaseDto,
   CreatePurchaseDto,
   UpdatePurchaseDto,
+  PurchaseAttachmentDto,
+  PurchaseInvoiceImportDto,
   CostCenterDto,
   UpsertCostCenterDto,
   ExpenseCategoryDto,
@@ -735,6 +737,14 @@ export const purchasesApi = {
     apiClient.post<PurchaseDto>('/purchases/compras', data),
   updatePurchase: (id: string, data: UpdatePurchaseDto): Promise<AxiosResponse<PurchaseDto>> =>
     apiClient.put<PurchaseDto>(`/purchases/compras/${id}`, data),
+  importPurchaseXml: (data: FormData): Promise<AxiosResponse<PurchaseInvoiceImportDto>> =>
+    apiClient.post<PurchaseInvoiceImportDto>('/purchases/compras/importar-xml', data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  uploadPurchaseAttachment: (data: FormData): Promise<AxiosResponse<PurchaseAttachmentDto>> =>
+    apiClient.post<PurchaseAttachmentDto>('/purchases/compras/adjuntos', data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
   anularPurchase: (id: string): Promise<AxiosResponse<PurchaseDto>> =>
     apiClient.post<PurchaseDto>(`/purchases/compras/${id}/anular`),
   deletePurchase: (id: string): Promise<AxiosResponse<void>> =>
