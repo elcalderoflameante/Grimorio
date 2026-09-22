@@ -21,7 +21,7 @@ public static class RideGenerator
         ElectronicDocument doc,
         OrderPayment payment,
         Order order,
-        List<OrderItem> items,
+        List<SriInvoiceLine> items,
         Customer? customer,
         InvoiceTemplateDto? template = null)
     {
@@ -75,20 +75,10 @@ public static class RideGenerator
         };
 
         var fakeTaxRate = new TaxRate { Percentage = 15m, SriCode = "4" };
-        var fakeItems = new List<OrderItem>
+        var fakeItems = new List<SriInvoiceLine>
         {
-            new()
-            {
-                UnitPrice = 18.83m,
-                Quantity = 1,
-                DiscountPct = 0,
-                MenuItem = new MenuItem
-                {
-                    Name = "LATEX DURATEX-40ANIV BASE-T 3.785LT WESCO",
-                    InternalCode = "77215",
-                    TaxRate = fakeTaxRate
-                }
-            },
+            new("77215", "LATEX DURATEX-40ANIV BASE-T 3.785LT WESCO", 1, 18.83m,
+                fakeTaxRate.SriCode, fakeTaxRate.Percentage),
         };
 
         return Build(container =>
@@ -116,7 +106,7 @@ public static class RideGenerator
         ElectronicDocument doc,
         OrderPayment payment,
         Order order,
-        List<OrderItem> items,
+        List<SriInvoiceLine> items,
         Customer? customer,
         byte[]? logoBytes,
         DateTime fechaEc,
@@ -149,10 +139,10 @@ public static class RideGenerator
             {
                 row.RelativeItem(1.35f).Element(c => AdditionalInfoBox(c, order, customer, template));
                 row.ConstantItem(10);
-                row.RelativeItem(1.0f).Element(c => TotalsTable(c, order, items));
+                row.RelativeItem(1.0f).Element(c => TotalsTable(c, doc, items));
             });
 
-            col.Item().Width(310).Element(c => PaymentTable(c, payment, order));
+            col.Item().Width(310).Element(c => PaymentTable(c, payment));
         });
     }
 
@@ -240,10 +230,8 @@ public static class RideGenerator
         });
     }
 
-    private static void ItemsTable(IContainer container, List<OrderItem> items)
+    private static void ItemsTable(IContainer container, List<SriInvoiceLine> items)
     {
-        var showDiscount = items.Any(i => i.DiscountPct > 0);
-
         container.Table(table =>
         {
             table.ColumnsDefinition(cols =>
@@ -252,7 +240,6 @@ public static class RideGenerator
                 cols.ConstantColumn(62);
                 cols.RelativeColumn();
                 cols.ConstantColumn(84);
-                if (showDiscount) cols.ConstantColumn(62);
                 cols.ConstantColumn(78);
             });
 
@@ -262,16 +249,14 @@ public static class RideGenerator
                 HeaderCell(h.Cell(), "Cant", center: true);
                 HeaderCell(h.Cell(), "Descripcion", center: true);
                 HeaderCell(h.Cell(), "Precio Unitario", center: true);
-                if (showDiscount) HeaderCell(h.Cell(), "Descuento", center: true);
                 HeaderCell(h.Cell(), "Precio Total", center: true);
             });
 
             foreach (var item in items)
             {
-                var taxPct = item.MenuItem?.TaxRate?.Percentage ?? 0m;
+                var taxPct = item.TaxRatePercentage;
                 var gross = item.UnitPrice * item.Quantity;
-                var discount = Math.Round(gross * (item.DiscountPct / 100m), 2);
-                var netInclusive = gross - discount;
+                var netInclusive = gross;
                 var taxableBase = taxPct > 0
                     ? Math.Round(netInclusive / (1m + taxPct / 100m), 3)
                     : netInclusive;
@@ -279,11 +264,10 @@ public static class RideGenerator
                     ? item.UnitPrice / (1m + taxPct / 100m)
                     : item.UnitPrice;
 
-                BodyCell(table.Cell(), item.MenuItem?.InternalCode ?? "-", fontSize: 8);
+                BodyCell(table.Cell(), item.Code, fontSize: 8);
                 BodyCell(table.Cell(), Fmt(item.Quantity, 2), right: true, fontSize: 8);
-                BodyCell(table.Cell(), item.MenuItem?.Name ?? "-", fontSize: 8);
+                BodyCell(table.Cell(), item.Description, fontSize: 8);
                 BodyCell(table.Cell(), Fmt(unitSinIva, 6), right: true, fontSize: 8);
-                if (showDiscount) BodyCell(table.Cell(), Fmt(discount, 2), right: true, fontSize: 8);
                 BodyCell(table.Cell(), Fmt(taxableBase, 3), right: true, fontSize: 8);
             }
         });
@@ -318,10 +302,14 @@ public static class RideGenerator
         });
     }
 
-    private static void TotalsTable(IContainer container, Order order, List<OrderItem> items)
+    private static void TotalsTable(IContainer container, ElectronicDocument doc, List<SriInvoiceLine> items)
     {
-        var discount = items.Sum(i => Math.Round(i.UnitPrice * i.Quantity * (i.DiscountPct / 100m), 2));
-        var subtotal = order.TaxableBase15 + order.TaxableBase0 + order.TaxableBaseExempt;
+        var taxableSubtotal = items
+            .Where(i => i.TaxRatePercentage > 0)
+            .Sum(i => Math.Round(i.UnitPrice * i.Quantity / (1m + i.TaxRatePercentage / 100m), 2));
+        var zeroSubtotal = items
+            .Where(i => i.TaxRatePercentage <= 0)
+            .Sum(i => i.UnitPrice * i.Quantity);
 
         container.Table(table =>
         {
@@ -331,18 +319,36 @@ public static class RideGenerator
                 cols.ConstantColumn(78);
             });
 
-            TotalRow(table, "SUBTOTAL IVA 15%", order.TaxableBase15);
-            TotalRow(table, "SUBTOTAL 0%", order.TaxableBase0);
-            TotalRow(table, "SUBTOTAL SIN IMPUESTOS", subtotal);
-            if (discount > 0) TotalRow(table, "DESCUENTO", discount);
-            TotalRow(table, "ICE", order.Ice);
-            TotalRow(table, "IVA 15%", order.Iva15);
-            TotalRow(table, "VALOR TOTAL", order.Total);
+            TotalRow(table, "SUBTOTAL CON IVA", taxableSubtotal);
+            TotalRow(table, "SUBTOTAL 0%", zeroSubtotal);
+            TotalRow(table, "SUBTOTAL SIN IMPUESTOS", doc.TotalSinImpuestos);
+            if (doc.TotalDescuento > 0) TotalRow(table, "DESCUENTO", doc.TotalDescuento);
+            TotalRow(table, "IVA", doc.TotalIva);
+            TotalRow(table, "VALOR TOTAL", doc.ImporteTotal);
         });
     }
 
-    private static void PaymentTable(IContainer container, OrderPayment payment, Order order)
+    private static void PaymentTable(IContainer container, OrderPayment payment)
     {
+        var paymentGroups = payment.Lines?
+            .GroupBy(GetPaymentMethodLabel)
+            .Select(group => new
+            {
+                Label = group.Key,
+                Amount = group.Sum(line => line.AmountTendered - line.Change)
+            })
+            .Where(group => group.Amount > 0)
+            .ToList() ?? [];
+
+        if (paymentGroups.Count == 0)
+        {
+            paymentGroups.Add(new
+            {
+                Label = "SIN UTILIZACION DEL SISTEMA FINANCIERO",
+                Amount = payment.OrderAmount
+            });
+        }
+
         container.Table(table =>
         {
             table.ColumnsDefinition(cols =>
@@ -353,8 +359,11 @@ public static class RideGenerator
 
             HeaderCell(table.Cell(), "Forma de pago", center: true);
             HeaderCell(table.Cell(), "Valor", center: true);
-            BodyCell(table.Cell(), GetPaymentMethodLabel(payment), fontSize: 8);
-            BodyCell(table.Cell(), Fmt(order.Total, 2), right: true, fontSize: 8);
+            foreach (var group in paymentGroups)
+            {
+                BodyCell(table.Cell(), group.Label, fontSize: 8);
+                BodyCell(table.Cell(), Fmt(group.Amount, 2), right: true, fontSize: 8);
+            }
         });
     }
 
@@ -429,16 +438,12 @@ public static class RideGenerator
         }
     }
 
-    private static string GetPaymentMethodLabel(OrderPayment payment)
+    private static string GetPaymentMethodLabel(PaymentLine line)
     {
-        var lines = payment.Lines?.ToList();
-        if (lines == null || lines.Count == 0) return "SIN UTILIZACION DEL SISTEMA FINANCIERO";
-
-        var first = lines[0];
-        if (first.Config?.IsCash == true) return "SIN UTILIZACION DEL SISTEMA FINANCIERO";
-        if (first.Config?.Name?.Contains("debito", StringComparison.OrdinalIgnoreCase) == true) return "TARJETA DE DEBITO";
-        if (first.Config?.Name?.Contains("credito", StringComparison.OrdinalIgnoreCase) == true) return "TARJETA DE CREDITO";
-        if (first.Config?.Name?.Contains("transfer", StringComparison.OrdinalIgnoreCase) == true) return "TRANSFERENCIA";
-        return first.Config?.Name?.ToUpperInvariant() ?? "OTROS CON UTILIZACION DEL SISTEMA FINANCIERO";
+        if (line.Config?.IsCash == true) return "SIN UTILIZACION DEL SISTEMA FINANCIERO";
+        if (line.Config?.Name?.Contains("debito", StringComparison.OrdinalIgnoreCase) == true) return "TARJETA DE DEBITO";
+        if (line.Config?.Name?.Contains("credito", StringComparison.OrdinalIgnoreCase) == true) return "TARJETA DE CREDITO";
+        if (line.Config?.Name?.Contains("transfer", StringComparison.OrdinalIgnoreCase) == true) return "TRANSFERENCIA";
+        return line.Config?.Name?.ToUpperInvariant() ?? "OTROS CON UTILIZACION DEL SISTEMA FINANCIERO";
     }
 }

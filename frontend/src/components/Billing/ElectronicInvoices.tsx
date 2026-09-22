@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { App as AntApp, Table, Tag, Space, Typography, Button, DatePicker, Select, Tooltip, Modal, Descriptions, Alert, Spin, Form, Switch, Input } from 'antd';
 import { ReloadOutlined, FilePdfOutlined, FileTextOutlined,
-  RedoOutlined, ThunderboltOutlined, CodeOutlined } from '@ant-design/icons';
+  RedoOutlined, ThunderboltOutlined, CodeOutlined, MailOutlined } from '@ant-design/icons';
 import type { ElectronicDocumentDto, GenerateElectronicInvoiceDto } from '../../types';
 import { sriApi } from '../../services/api';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -45,11 +45,20 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   Cancelled:  { label: 'Anulado',     color: 'warning' },
 };
 
+const EMAIL_STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  Unknown: { label: 'Sin información', color: 'default' },
+  Pending: { label: 'Pendiente', color: 'processing' },
+  Sent: { label: 'Enviado', color: 'success' },
+  Failed: { label: 'Fallido', color: 'error' },
+  Skipped: { label: 'Omitido', color: 'warning' },
+};
+
 const fmt = (v: number) => `$${v.toFixed(2)}`;
 
 function DocDetail({ doc }: { doc: ElectronicDocumentDto }) {
   return (
     <Descriptions size="small" column={{ xs: 1, sm: 2 }} style={{ padding: '8px 16px' }}>
+      <Descriptions.Item label="Orden">#{doc.orderNumber}</Descriptions.Item>
       <Descriptions.Item label="Clave de acceso">
         <Text code style={{ fontSize: 10 }}>{doc.claveAcceso}</Text>
       </Descriptions.Item>
@@ -86,6 +95,21 @@ function DocDetail({ doc }: { doc: ElectronicDocumentDto }) {
         </Tag>
       </Descriptions.Item>
       <Descriptions.Item label="Reintentos">{doc.retryCount}</Descriptions.Item>
+      <Descriptions.Item label="Estado del correo">
+        <Tag color={(EMAIL_STATUS_LABELS[doc.emailStatus] ?? EMAIL_STATUS_LABELS.Unknown).color}>
+          {(EMAIL_STATUS_LABELS[doc.emailStatus] ?? EMAIL_STATUS_LABELS.Unknown).label}
+        </Tag>
+      </Descriptions.Item>
+      <Descriptions.Item label="Destinatario">{doc.emailRecipient ?? 'No registrado'}</Descriptions.Item>
+      <Descriptions.Item label="Intentos de correo">{doc.emailRetryCount}</Descriptions.Item>
+      <Descriptions.Item label="Fecha de envío">
+        {doc.emailSentAt ? dayjs(doc.emailSentAt).format('DD/MM/YYYY HH:mm:ss') : 'No enviada'}
+      </Descriptions.Item>
+      {doc.emailErrorMessage && (
+        <Descriptions.Item label="Error de correo" span={2}>
+          <Alert type="error" title={doc.emailErrorMessage} style={{ padding: '2px 8px' }} />
+        </Descriptions.Item>
+      )}
       {doc.errorMessage && (
         <Descriptions.Item label="Error" span={2}>
           <Alert type="error" title={doc.errorMessage} style={{ padding: '2px 8px' }} />
@@ -102,6 +126,7 @@ export default function ElectronicInvoices() {
   const [docs, setDocs] = useState<ElectronicDocumentDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [retrying, setRetrying] = useState<string | null>(null);
+  const [emailing, setEmailing] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([
     dayjs().startOf('month'),
     dayjs().endOf('day'),
@@ -143,6 +168,24 @@ export default function ElectronicInvoices() {
       message.error(String(msg));
     } finally {
       setRetrying(null);
+    }
+  };
+
+  const handleResendEmail = async (doc: ElectronicDocumentDto) => {
+    setEmailing(doc.id);
+    try {
+      const res = await sriApi.resendInvoiceEmail(doc.id);
+      if (res.data.emailStatus === 'Sent') {
+        message.success(`Factura enviada a ${res.data.emailRecipient}`);
+      } else {
+        message.warning(res.data.emailErrorMessage ?? 'No se pudo enviar el correo');
+      }
+      await load();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: string } })?.response?.data ?? 'Error al enviar el correo';
+      message.error(String(msg));
+    } finally {
+      setEmailing(null);
     }
   };
 
@@ -206,6 +249,12 @@ export default function ElectronicInvoices() {
             render: (v: string) => dayjs(v).format('DD/MM/YYYY HH:mm'),
           },
           {
+            title: 'Orden',
+            dataIndex: 'orderNumber',
+            width: 80,
+            render: (v: number) => <Text strong>#{v}</Text>,
+          },
+          {
             title: 'N° Factura',
             dataIndex: 'numeroFactura',
             width: 140,
@@ -234,6 +283,20 @@ export default function ElectronicInvoices() {
             render: (v: string) => (
               <Tag color={v === '2' ? 'red' : 'orange'}>{v === '2' ? 'Producción' : 'Pruebas'}</Tag>
             ),
+          },
+          {
+            title: 'Correo',
+            dataIndex: 'emailStatus',
+            width: 125,
+            render: (value: string, record: ElectronicDocumentDto) => {
+              const status = EMAIL_STATUS_LABELS[value] ?? EMAIL_STATUS_LABELS.Unknown;
+              const detail = [record.emailRecipient, record.emailErrorMessage].filter(Boolean).join(' - ');
+              return (
+                <Tooltip title={detail || undefined}>
+                  <Tag color={status.color}>{status.label}</Tag>
+                </Tooltip>
+              );
+            },
           },
           {
             title: 'Error',
@@ -289,6 +352,16 @@ export default function ElectronicInvoices() {
                       icon={<RedoOutlined />}
                       loading={retrying === r.id}
                       onClick={() => handleRetry(r)}
+                    />
+                  </Tooltip>
+                )}
+                {canGenerateSri && r.status === 'Authorized' && r.hasRide && (
+                  <Tooltip title={r.emailStatus === 'Sent' ? 'Reenviar factura por correo' : 'Enviar factura por correo'}>
+                    <Button
+                      size="small"
+                      icon={<MailOutlined />}
+                      loading={emailing === r.id}
+                      onClick={() => handleResendEmail(r)}
                     />
                   </Tooltip>
                 )}

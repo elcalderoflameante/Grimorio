@@ -19,7 +19,12 @@ const DOC_TYPE_LABEL: Record<string, string> = {
 
 const STATUS_COLOR: Record<string, string> = { Registrada: 'green', Anulada: 'red' };
 
-export default function PurchasesList() {
+interface PurchasesListProps {
+  onCreatePurchase: (suppliers: SupplierDto[]) => void;
+  onEditPurchase: (purchase: PurchaseDto, suppliers: SupplierDto[]) => void;
+}
+
+export default function PurchasesList({ onCreatePurchase, onEditPurchase }: PurchasesListProps) {
   const { message } = AntApp.useApp();
 
   const { hasPermission } = useAuth();
@@ -31,8 +36,6 @@ export default function PurchasesList() {
   const [filtroProveedor, setFiltroProveedor] = useState<string | undefined>();
   const [filtroFechas, setFiltroFechas] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
 
-  const [formOpen, setFormOpen] = useState(false);
-  const [editando, setEditando] = useState<PurchaseDto | null>(null);
   const [viendo, setViendo] = useState<PurchaseDto | null>(null);
   const canCreate = hasPermission(PERMISSIONS.purchases.ordersCreate);
   const canUpdate = hasPermission(PERMISSIONS.purchases.ordersUpdate);
@@ -134,7 +137,7 @@ export default function PurchasesList() {
           {r.status === 'Registrada' && (
             <>
               {canUpdate && <Tooltip title="Editar">
-                <Button size="small" icon={<EditOutlined />} onClick={() => { setEditando(r); setFormOpen(true); }} />
+                <Button size="small" icon={<EditOutlined />} onClick={() => onEditPurchase(r, proveedores)} />
               </Tooltip>}
               {canCancel && <Tooltip title="Anular">
                 <Popconfirm
@@ -196,7 +199,7 @@ export default function PurchasesList() {
           {canCreate && <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => { setEditando(null); setFormOpen(true); }}
+            onClick={() => onCreatePurchase(proveedores)}
           >
             Nueva compra
           </Button>}
@@ -224,16 +227,6 @@ export default function PurchasesList() {
         />
       )}
 
-      {/* Crear / Editar */}
-      {formOpen && (
-        <PurchaseForm
-          open={formOpen}
-          compra={editando}
-          proveedores={proveedores}
-          onClose={() => setFormOpen(false)}
-          onSaved={() => { setFormOpen(false); load(); }}
-        />
-      )}
     </div>
   );
 }

@@ -253,7 +253,19 @@ public class GetOrderPaymentsHandler : IRequestHandler<GetOrderPaymentsQuery, Li
             .OrderBy(p => p.PaidAt)
             .ToListAsync(ct);
 
-        return payments.Select(p => BillingMapper.MapPayment(p, order.Number, p.Customer)).ToList();
+        var paymentIds = payments.Select(p => p.Id).ToList();
+        var electronicDocuments = await _db.ElectronicDocuments
+            .AsNoTracking()
+            .Where(d => d.BranchId == req.BranchId
+                && paymentIds.Contains(d.OrderPaymentId)
+                && !d.IsDeleted)
+            .ToDictionaryAsync(d => d.OrderPaymentId, ct);
+
+        return payments.Select(p => BillingMapper.MapPayment(
+            p,
+            order.Number,
+            p.Customer,
+            elDoc: electronicDocuments.GetValueOrDefault(p.Id))).ToList();
     }
 }
 
@@ -431,6 +443,7 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
         var query = _db.OrderPayments
             .AsNoTracking()
             .Include(p => p.CashSession).ThenInclude(s => s!.CashRegister)
+            .Include(p => p.Items.Where(i => !i.IsDeleted))
             .Include(p => p.Order)!.ThenInclude(o => o!.Items.Where(i => !i.IsDeleted))
                 .ThenInclude(i => i.TaxRate)
             .Include(p => p.Order)!.ThenInclude(o => o!.Items.Where(i => !i.IsDeleted))
@@ -487,6 +500,40 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
             var order = payment.Order;
             if (order is null) continue;
 
+            var paidItems = payment.Items.Where(i => !i.IsDeleted && i.Quantity > 0).ToList();
+            if (paidItems.Count > 0)
+            {
+                foreach (var paidItem in paidItems)
+                {
+                    var item = order.Items.FirstOrDefault(i => i.Id == paidItem.OrderItemId);
+                    if (item is null || item.IsDeleted || item.Status == Domain.Entities.POS.OrderItemStatus.Cancelled)
+                        continue;
+
+                    var gross = paidItem.Total;
+                    var taxPct = paidItem.TaxRatePercentage
+                        ?? item.TaxRate?.Percentage
+                        ?? item.MenuItem?.TaxRate?.Percentage
+                        ?? 0m;
+                    var net = taxPct > 0 ? gross / (1m + taxPct / 100m) : gross;
+                    var recipeCost = CalculateRecipeUnitCost(item, baseUnitByArticle, unitCosts, conversions, out var missingCosts, out var conversionWarnings);
+                    var totalCost = recipeCost * paidItem.Quantity;
+
+                    rows.Add(CreateProfitabilityLine(
+                        payment,
+                        item,
+                        paidItem.Quantity,
+                        gross,
+                        net,
+                        recipeCost,
+                        totalCost,
+                        missingCosts,
+                        conversionWarnings));
+                }
+
+                continue;
+            }
+
+            // Compatibilidad con cobros anteriores al detalle por item.
             var ratio = order.Total > 0 ? payment.OrderAmount / order.Total : 1m;
             if (ratio <= 0) continue;
             if (ratio > 1m) ratio = 1m;
@@ -499,29 +546,49 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
                 var recipeCost = CalculateRecipeUnitCost(item, baseUnitByArticle, unitCosts, conversions, out var missingCosts, out var conversionWarnings);
                 var totalCost = recipeCost * item.Quantity * ratio;
 
-                rows.Add(new SalesProfitabilityLine(
-                    item.MenuItemId,
-                    item.MenuItem?.Name ?? item.MenuItemId.ToString(),
-                    item.MenuItem?.InternalCode,
-                    item.MenuItem?.Category?.Name ?? string.Empty,
-                    item.MenuItem?.Category?.CostCenterId,
-                    item.MenuItem?.Category?.CostCenter?.Name,
+                rows.Add(CreateProfitabilityLine(
+                    payment,
+                    item,
                     item.Quantity * ratio,
                     gross,
                     net,
-                    gross - net,
                     recipeCost,
                     totalCost,
                     missingCosts,
-                    conversionWarnings,
-                    payment.OrderId,
-                    payment.CashSession?.CashRegisterId,
-                    payment.CashSession?.CashRegister?.Name ?? "Sin caja"));
+                    conversionWarnings));
             }
         }
 
         return BuildReport(req, payments, rows);
     }
+
+    private static SalesProfitabilityLine CreateProfitabilityLine(
+        OrderPayment payment,
+        Domain.Entities.POS.OrderItem item,
+        decimal quantity,
+        decimal gross,
+        decimal net,
+        decimal recipeCost,
+        decimal totalCost,
+        bool missingCosts,
+        bool conversionWarnings) => new(
+            item.MenuItemId,
+            item.MenuItem?.Name ?? item.MenuItemId.ToString(),
+            item.MenuItem?.InternalCode,
+            item.MenuItem?.Category?.Name ?? string.Empty,
+            item.MenuItem?.Category?.CostCenterId,
+            item.MenuItem?.Category?.CostCenter?.Name,
+            quantity,
+            gross,
+            net,
+            gross - net,
+            recipeCost,
+            totalCost,
+            missingCosts,
+            conversionWarnings,
+            payment.OrderId,
+            payment.CashSession?.CashRegisterId,
+            payment.CashSession?.CashRegister?.Name ?? "Sin caja");
 
     private static SalesProfitabilityReportDto BuildReport(
         GetSalesProfitabilityQuery req,
@@ -760,7 +827,9 @@ public class GetElectronicDocumentsHandler : IRequestHandler<GetElectronicDocume
 
     public async Task<List<ElectronicDocumentDto>> Handle(GetElectronicDocumentsQuery req, CancellationToken ct)
     {
-        var query = _db.ElectronicDocuments.Where(d => d.BranchId == req.BranchId && !d.IsDeleted);
+        var query = _db.ElectronicDocuments
+            .Include(d => d.OrderPayment).ThenInclude(p => p!.Order)
+            .Where(d => d.BranchId == req.BranchId && !d.IsDeleted);
         if (req.FromUtc.HasValue) query = query.Where(d => d.CreatedAt >= req.FromUtc.Value);
         if (req.ToUtc.HasValue) query = query.Where(d => d.CreatedAt <= req.ToUtc.Value);
         if (!string.IsNullOrEmpty(req.Status) && Enum.TryParse<ElectronicDocumentStatus>(req.Status, true, out var statusEnum))
@@ -777,6 +846,8 @@ public class GetElectronicDocumentsHandler : IRequestHandler<GetElectronicDocume
     private static ElectronicDocumentDto MapDoc(ElectronicDocument d) => new()
     {
         Id = d.Id, OrderPaymentId = d.OrderPaymentId,
+        OrderId = d.OrderPayment?.OrderId ?? Guid.Empty,
+        OrderNumber = d.OrderPayment?.Order?.Number ?? 0,
         ClaveAcceso = d.ClaveAcceso, NumeroFactura = d.NumeroFactura,
         Secuencial = d.Secuencial, Environment = d.Environment,
         Status = d.Status.ToString(),
@@ -793,6 +864,11 @@ public class GetElectronicDocumentsHandler : IRequestHandler<GetElectronicDocume
         HasRide = d.RidePdf != null && d.RidePdf.Length > 0,
         HasXml = !string.IsNullOrEmpty(d.XmlAuthorized ?? d.XmlSigned),
         HasXmlResponse = !string.IsNullOrEmpty(d.XmlResponseSri),
+        EmailStatus = d.EmailStatus.ToString(),
+        EmailRecipient = d.EmailRecipient,
+        EmailSentAt = d.EmailSentAt,
+        EmailErrorMessage = d.EmailErrorMessage,
+        EmailRetryCount = d.EmailRetryCount,
     };
 }
 
@@ -804,6 +880,7 @@ public class GetElectronicDocumentBytesHandler : IRequestHandler<GetElectronicDo
     public async Task<ElectronicDocumentBytesDto?> Handle(GetElectronicDocumentBytesQuery req, CancellationToken ct)
     {
         var d = await _db.ElectronicDocuments
+            .Include(x => x.OrderPayment).ThenInclude(p => p!.Order)
             .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId && !x.IsDeleted, ct);
         if (d == null) return null;
         return new ElectronicDocumentBytesDto
@@ -831,6 +908,8 @@ public class GetElectronicDocumentDetailHandler : IRequestHandler<GetElectronicD
         return new ElectronicDocumentDto
         {
             Id = d.Id, OrderPaymentId = d.OrderPaymentId,
+            OrderId = d.OrderPayment?.OrderId ?? Guid.Empty,
+            OrderNumber = d.OrderPayment?.Order?.Number ?? 0,
             ClaveAcceso = d.ClaveAcceso, NumeroFactura = d.NumeroFactura,
             Secuencial = d.Secuencial, Environment = d.Environment,
             Status = d.Status.ToString(),
@@ -847,6 +926,11 @@ public class GetElectronicDocumentDetailHandler : IRequestHandler<GetElectronicD
             HasRide = d.RidePdf != null && d.RidePdf.Length > 0,
             HasXml = !string.IsNullOrEmpty(d.XmlAuthorized ?? d.XmlSigned),
             HasXmlResponse = !string.IsNullOrEmpty(d.XmlResponseSri),
+            EmailStatus = d.EmailStatus.ToString(),
+            EmailRecipient = d.EmailRecipient,
+            EmailSentAt = d.EmailSentAt,
+            EmailErrorMessage = d.EmailErrorMessage,
+            EmailRetryCount = d.EmailRetryCount,
         };
     }
 }

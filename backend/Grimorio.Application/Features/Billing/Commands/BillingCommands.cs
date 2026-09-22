@@ -67,6 +67,12 @@ public class RetryElectronicInvoiceCommand : IRequest<ElectronicDocumentDto>
     public Guid BranchId { get; set; }
 }
 
+public class ResendElectronicInvoiceEmailCommand : IRequest<ElectronicDocumentDto>
+{
+    public Guid DocumentId { get; set; }
+    public Guid BranchId { get; set; }
+}
+
 // ── SRI Certificado ───────────────────────────────────────────────────────────
 
 public class UploadSriCertificateCommand : IRequest<SriCertificateStatusDto>
@@ -246,12 +252,24 @@ public class PayOrderCommand : IRequest<OrderPaymentDto>
     public Guid OrderId { get; set; }
     public Guid BranchId { get; set; }
     public Guid UserId { get; set; }
+    public Guid IdempotencyKey { get; set; }
     public decimal OrderAmount { get; set; }
     public string DocumentType { get; set; } = "NotaDeVenta";
     public Guid? CustomerId { get; set; }
     public Guid? CashSessionId { get; set; }
     public List<PaymentLineCommand> Lines { get; set; } = [];
     public List<PaymentItemCommand> Items { get; set; } = [];
+}
+
+public sealed class PaymentIdempotencyConflictException : InvalidOperationException
+{
+    public PaymentIdempotencyConflictException()
+        : base("La clave de cobro ya fue utilizada con otros datos. Revisa los pagos registrados antes de continuar.") { }
+}
+
+public sealed class PaymentRejectedException : InvalidOperationException
+{
+    public PaymentRejectedException(string message) : base(message) { }
 }
 
 public class PaymentItemCommand

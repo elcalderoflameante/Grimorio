@@ -840,6 +840,7 @@ export type MovementType =
   | 'Waste'
   | 'Spoilage'
   | 'SaleDeduction'
+  | 'SaleRestoration'
   | 'TransferIn'
   | 'TransferOut'
   | 'PositiveAdjustment'
@@ -2046,6 +2047,7 @@ export interface OrderPaymentDto {
   lines: PaymentLineDto[];
   items: OrderPaymentItemDto[];
   electronicDocumentId?: string;
+  electronicDocumentNumber?: string;
   electronicDocumentStatus?: string;
 }
 
@@ -2221,6 +2223,7 @@ export interface AddPaymentLineDto {
 }
 
 export interface AddOrderPaymentDto {
+  idempotencyKey: string;
   orderAmount: number;
   documentType: string;
   customerId?: string;
@@ -2300,6 +2303,8 @@ export interface SriCertificateStatusDto {
 export interface ElectronicDocumentDto {
   id: string;
   orderPaymentId: string;
+  orderId: string;
+  orderNumber: number;
   claveAcceso: string;
   numeroFactura: string;
   secuencial: number;
@@ -2323,6 +2328,11 @@ export interface ElectronicDocumentDto {
   hasRide: boolean;
   hasXml: boolean;
   hasXmlResponse: boolean;
+  emailStatus: 'Unknown' | 'Pending' | 'Sent' | 'Failed' | 'Skipped';
+  emailRecipient?: string;
+  emailSentAt?: string;
+  emailErrorMessage?: string;
+  emailRetryCount: number;
 }
 
 export interface GenerateElectronicInvoiceDto {

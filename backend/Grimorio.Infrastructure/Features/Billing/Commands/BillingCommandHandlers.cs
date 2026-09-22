@@ -659,11 +659,73 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
 
     public async Task<OrderPaymentDto> Handle(PayOrderCommand req, CancellationToken ct)
     {
+        if (req.IdempotencyKey == Guid.Empty)
+            throw new PaymentRejectedException("La solicitud de cobro no tiene una clave de idempotencia válida.");
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+
+        // Serializar cobros de la misma orden. El saldo y las cantidades pagadas deben
+        // calcularse después de obtener este bloqueo para impedir cobros concurrentes duplicados.
+        _ = await _db.Orders
+            .FromSqlInterpolated($"""
+                SELECT * FROM pos."Orders"
+                WHERE "Id" = {req.OrderId} AND "BranchId" = {req.BranchId} AND NOT "IsDeleted"
+                FOR UPDATE
+                """)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(ct)
+            ?? throw new KeyNotFoundException("Orden no encontrada.");
+
+        var order = await _db.Orders
+            .Include(o => o.Payments)
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.MenuItem)
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.Promotion)
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.TaxRate)
+            .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
+            ?? throw new KeyNotFoundException("Orden no encontrada.");
+
+        var existingPayment = await _db.OrderPayments
+            .Include(p => p.Lines).ThenInclude(l => l.Config)
+            .Include(p => p.Items).ThenInclude(i => i.OrderItem).ThenInclude(i => i!.MenuItem)
+            .Include(p => p.Customer)
+            .Include(p => p.CashSession).ThenInclude(s => s!.CashRegister)
+            .FirstOrDefaultAsync(p => p.BranchId == req.BranchId
+                && p.IdempotencyKey == req.IdempotencyKey
+                && !p.IsDeleted, ct);
+
+        if (existingPayment != null)
+        {
+            EnsureMatchingPayment(existingPayment, req);
+
+            var existingDocument = await _db.ElectronicDocuments
+                .FirstOrDefaultAsync(d => d.OrderPaymentId == existingPayment.Id && !d.IsDeleted, ct);
+
+            await transaction.CommitAsync(ct);
+            _logger.LogInformation(
+                "Se recuperó el cobro existente {PaymentId} para la clave idempotente {IdempotencyKey}.",
+                existingPayment.Id,
+                req.IdempotencyKey);
+            return BillingMapper.MapPayment(
+                existingPayment,
+                order.Number,
+                existingPayment.Customer,
+                elDoc: existingDocument);
+        }
+
+        if (order.Status == Domain.Entities.POS.OrderStatus.Cancelled)
+            throw new PaymentRejectedException("No se puede cobrar una orden cancelada.");
+
+        if (order.Status == Domain.Entities.POS.OrderStatus.Draft)
+            throw new PaymentRejectedException("La orden debe estar confirmada antes de cobrarla.");
+
         if (req.Lines.Count == 0)
-            throw new InvalidOperationException("Se requiere al menos un medio de pago.");
+            throw new PaymentRejectedException("Se requiere al menos un medio de pago.");
 
         if (req.OrderAmount <= 0)
-            throw new InvalidOperationException("El monto a cobrar debe ser mayor a cero.");
+            throw new PaymentRejectedException("El monto a cobrar debe ser mayor a cero.");
 
         // Cargar métodos de pago usados en este cobro
         var methodIds = req.Lines.Select(l => l.MethodId).Distinct().ToList();
@@ -672,7 +734,7 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
             .ToListAsync(ct);
 
         if (methods.Count != methodIds.Count)
-            throw new InvalidOperationException("Uno o más medios de pago no existen.");
+            throw new PaymentRejectedException("Uno o más medios de pago no existen.");
 
         var methodMap = methods.ToDictionary(m => m.Id);
         var cardLines = req.Lines.Where(l => methodMap[l.MethodId].IsCard).ToList();
@@ -691,63 +753,57 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
         foreach (var line in cardLines)
         {
             if (!Enum.TryParse<CardPaymentType>(line.CardPaymentType, true, out _))
-                throw new InvalidOperationException("Selecciona si la tarjeta es de credito o debito.");
+                throw new PaymentRejectedException("Selecciona si la tarjeta es de credito o debito.");
 
             if (!line.CardBankId.HasValue || !bankMap.ContainsKey(line.CardBankId.Value))
-                throw new InvalidOperationException("Selecciona un banco valido para el cobro con tarjeta.");
+                throw new PaymentRejectedException("Selecciona un banco valido para el cobro con tarjeta.");
 
             if (string.IsNullOrWhiteSpace(line.CardBrand))
-                throw new InvalidOperationException("Selecciona el tipo de tarjeta.");
+                throw new PaymentRejectedException("Selecciona el tipo de tarjeta.");
 
             if (string.IsNullOrWhiteSpace(line.AuthorizationNumber))
-                throw new InvalidOperationException("Ingresa el numero de autorizacion de la tarjeta.");
+                throw new PaymentRejectedException("Ingresa el numero de autorizacion de la tarjeta.");
         }
 
-        var order = await _db.Orders
-            .Include(o => o.Payments)
-            .Include(o => o.Items.Where(i => !i.IsDeleted))
-                .ThenInclude(i => i.MenuItem)
-            .Include(o => o.Items.Where(i => !i.IsDeleted))
-                .ThenInclude(i => i.Promotion)
-            .Include(o => o.Items.Where(i => !i.IsDeleted))
-                .ThenInclude(i => i.TaxRate)
-            .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
-            ?? throw new KeyNotFoundException("Orden no encontrada.");
-
-        if (order.Status == Domain.Entities.POS.OrderStatus.Cancelled)
-            throw new InvalidOperationException("No se puede cobrar una orden cancelada.");
-
-        if (order.Status == Domain.Entities.POS.OrderStatus.Draft)
-            throw new InvalidOperationException("La orden debe estar confirmada antes de cobrarla.");
-
-        ApplyPromotionPaymentPolicy(order, cardLines.Count > 0);
-
         var alreadyPaid = order.Payments.Where(p => !p.IsDeleted).Sum(p => p.OrderAmount);
-        var remaining = order.Total - alreadyPaid;
-
-        if (req.OrderAmount > remaining + 0.01m)
-            throw new InvalidOperationException($"El monto ({req.OrderAmount:F2}) supera el saldo pendiente ({remaining:F2}).");
 
         var totalTendered = req.Lines.Sum(l => l.AmountTendered);
         if (totalTendered < req.OrderAmount)
-            throw new InvalidOperationException("Los medios de pago no cubren el monto indicado.");
+            throw new PaymentRejectedException("Los medios de pago no cubren el monto indicado.");
 
         var totalChange = totalTendered - req.OrderAmount;
         var hasCashLine = req.Lines.Any(l => methodMap[l.MethodId].IsCash);
         if (totalChange > 0 && !hasCashLine)
-            throw new InvalidOperationException("Hay excedente pero no se indicó línea de efectivo para dar vuelto.");
+            throw new PaymentRejectedException("Hay excedente pero no se indicó línea de efectivo para dar vuelto.");
 
         if (!Enum.TryParse<DocumentType>(req.DocumentType, out var docType))
-            throw new InvalidOperationException($"Tipo de documento inválido: {req.DocumentType}");
+            throw new PaymentRejectedException($"Tipo de documento inválido: {req.DocumentType}");
 
         if (docType == DocumentType.Factura && !req.CustomerId.HasValue)
-            throw new InvalidOperationException("La factura requiere un cliente con RUC o cédula.");
+            throw new PaymentRejectedException("La factura requiere un cliente con RUC o cédula.");
 
+        Customer? customer = null;
         if (req.CustomerId.HasValue)
         {
-            var exists = await _db.Customers.AnyAsync(
-                c => c.Id == req.CustomerId.Value && c.BranchId == req.BranchId && !c.IsDeleted, ct);
-            if (!exists) throw new KeyNotFoundException("Cliente no encontrado.");
+            customer = await _db.Customers.FirstOrDefaultAsync(
+                c => c.Id == req.CustomerId.Value && c.BranchId == req.BranchId && !c.IsDeleted, ct)
+                ?? throw new KeyNotFoundException("Cliente no encontrado.");
+        }
+
+        BranchTaxConfig? invoiceConfig = null;
+        if (docType == DocumentType.Factura)
+        {
+            invoiceConfig = await _db.BranchTaxConfigs
+                .FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct)
+                ?? throw new PaymentRejectedException("Configure los datos del emisor antes de cobrar una factura.");
+
+            var certificate = await _db.SriCertificates
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct)
+                ?? throw new PaymentRejectedException("Cargue el certificado .p12 antes de cobrar una factura.");
+
+            if (certificate.ExpiresAt.HasValue && certificate.ExpiresAt.Value <= DateTime.UtcNow)
+                throw new PaymentRejectedException("El certificado de firma electronica esta vencido.");
         }
 
         var selectedItems = req.Items
@@ -756,59 +812,103 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
             .Select(g => new PaymentItemCommand { OrderItemId = g.Key, Quantity = g.Sum(i => i.Quantity) })
             .ToList();
 
+        var activeOrderItems = order.Items
+            .Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled)
+            .ToList();
+        var activeOrderItemIds = activeOrderItems.Select(i => i.Id).ToList();
+        var paidItems = await _db.OrderPaymentItems
+            .Where(i => i.BranchId == req.BranchId
+                && activeOrderItemIds.Contains(i.OrderItemId)
+                && !i.IsDeleted)
+            .AsNoTracking()
+            .ToListAsync(ct);
+        var paidQuantities = paidItems.GroupBy(i => i.OrderItemId)
+            .ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
+        var paidTotals = paidItems.GroupBy(i => i.OrderItemId)
+            .ToDictionary(g => g.Key, g => g.Sum(i => i.Total));
+        if (activeOrderItems.Any(i => i.Promotion != null)
+            && Math.Abs(paidItems.Sum(i => i.Total) - alreadyPaid) > 0.01m)
+            throw new PaymentRejectedException("Los cobros anteriores no tienen un detalle compatible. Revisa la orden antes de aplicar precios promocionales al saldo.");
+
+        // En un cobro no dividido, persistir igualmente el detalle exacto de todo lo pendiente.
+        // Ese snapshot es la fuente de la factura, el ticket y la trazabilidad del inventario.
+        if (selectedItems.Count == 0)
+        {
+            selectedItems = activeOrderItems
+                .Select(i => new PaymentItemCommand
+                {
+                    OrderItemId = i.Id,
+                    Quantity = i.Quantity - paidQuantities.GetValueOrDefault(i.Id),
+                })
+                .Where(i => i.Quantity > 0)
+                .ToList();
+        }
+
         var remainingQuantityBeforePayment = new Dictionary<Guid, decimal>();
         List<OrderPaymentItem> paymentItems = [];
         if (selectedItems.Count > 0)
         {
             var selectedItemIds = selectedItems.Select(i => i.OrderItemId).ToList();
-            var orderItemsById = order.Items
-                .Where(i => selectedItemIds.Contains(i.Id) && i.Status != OrderItemStatus.Cancelled)
+            var orderItemsById = activeOrderItems
+                .Where(i => selectedItemIds.Contains(i.Id))
                 .ToDictionary(i => i.Id);
 
             if (orderItemsById.Count != selectedItemIds.Distinct().Count())
-                throw new InvalidOperationException("Uno o mas items seleccionados no pertenecen a la orden o estan cancelados.");
-
-            var paidQuantities = await _db.OrderPaymentItems
-                .Where(i => i.BranchId == req.BranchId
-                    && selectedItemIds.Contains(i.OrderItemId)
-                    && !i.IsDeleted)
-                .GroupBy(i => i.OrderItemId)
-                .Select(g => new { OrderItemId = g.Key, Quantity = g.Sum(i => i.Quantity) })
-                .ToDictionaryAsync(x => x.OrderItemId, x => x.Quantity, ct);
+                throw new PaymentRejectedException("Uno o mas items seleccionados no pertenecen a la orden o estan cancelados.");
 
             foreach (var selected in selectedItems)
             {
                 var item = orderItemsById[selected.OrderItemId];
                 var paidQuantity = paidQuantities.GetValueOrDefault(item.Id);
                 var remainingQuantity = item.Quantity - paidQuantity;
-                if (selected.Quantity > remainingQuantity + 0.0001m)
-                    throw new InvalidOperationException($"La cantidad a cobrar de {item.MenuItem?.Name ?? "item"} supera lo pendiente.");
+                if (selected.Quantity > remainingQuantity)
+                    throw new PaymentRejectedException($"La cantidad a cobrar de {item.MenuItem?.Name ?? "item"} supera lo pendiente.");
 
                 remainingQuantityBeforePayment[item.Id] = remainingQuantity;
-                var netUnitPrice = item.Quantity > 0
-                    ? Math.Round(item.TotalPrice / item.Quantity, 4)
-                    : 0m;
+                var selectedTotal = OrderPaymentPricing.AllocateTotal(
+                    OrderPaymentPricing.GetLineTotal(item, cardLines.Count > 0),
+                    item.Quantity, paidQuantity, selected.Quantity);
+                var netUnitPrice = Math.Round(selectedTotal / selected.Quantity, 4);
+                var taxRate = item.TaxRate ?? item.MenuItem?.TaxRate;
                 paymentItems.Add(new OrderPaymentItem
                 {
                     Id = Guid.NewGuid(),
                     BranchId = req.BranchId,
                     OrderPaymentId = Guid.Empty,
                     OrderItemId = item.Id,
+                    ItemCode = item.MenuItem?.InternalCode ?? item.MenuItemId.ToString()[..8],
+                    ItemName = item.MenuItem?.Name ?? item.MenuItemId.ToString()[..8],
                     Quantity = selected.Quantity,
                     UnitPrice = netUnitPrice,
-                    Total = Math.Round(netUnitPrice * selected.Quantity, 2),
+                    Total = selectedTotal,
+                    TaxRateSriCode = taxRate?.SriCode ?? "6",
+                    TaxRatePercentage = taxRate?.Percentage ?? 0m,
                     OrderItem = item,
                 });
+
+                if (item.Promotion != null)
+                {
+                    var pendingTotal = OrderPaymentPricing.AllocateTotal(
+                        OrderPaymentPricing.GetLineTotal(item, false), item.Quantity,
+                        paidQuantity + selected.Quantity, remainingQuantity - selected.Quantity);
+                    OrderPaymentPricing.UpdateItemTotal(item, paidTotals.GetValueOrDefault(item.Id), selectedTotal, pendingTotal);
+                }
             }
 
             var itemsAmount = paymentItems.Sum(i => i.Total);
             if (Math.Abs(itemsAmount - req.OrderAmount) > 0.01m)
-                throw new InvalidOperationException($"El total de items seleccionados ({itemsAmount:F2}) no coincide con el monto a cobrar ({req.OrderAmount:F2}).");
+                throw new PaymentRejectedException($"El total de items seleccionados ({itemsAmount:F2}) no coincide con el monto a cobrar ({req.OrderAmount:F2}).");
         }
 
-        var paidAt = DateTime.UtcNow;
+        if (paymentItems.Count == 0)
+            throw new PaymentRejectedException("No existen items pendientes para asociar al cobro.");
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        PosMapper.RecalculateOrderTotals(order);
+        var remaining = order.Total - alreadyPaid;
+        if (req.OrderAmount > remaining + 0.01m)
+            throw new PaymentRejectedException($"El monto ({req.OrderAmount:F2}) supera el saldo pendiente ({remaining:F2}).");
+
+        var paidAt = DateTime.UtcNow;
 
         // Si el frontend no envió sesión, auto-asignar la activa del sucursal
         var session = req.CashSessionId.HasValue
@@ -824,10 +924,10 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
                 !s.IsDeleted, ct);
 
         if (session == null)
-            throw new InvalidOperationException("Debes abrir tu caja antes de cobrar.");
+            throw new PaymentRejectedException("Debes abrir tu caja antes de cobrar.");
 
         if (session.OpenedBy != req.UserId)
-            throw new InvalidOperationException("No puedes cobrar en una sesion de caja abierta por otro usuario.");
+            throw new PaymentRejectedException("No puedes cobrar en una sesion de caja abierta por otro usuario.");
 
         await _db.CashSessions
             .FromSqlInterpolated($"""
@@ -840,14 +940,16 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
         await _db.Entry(session).ReloadAsync(ct);
 
         if (session.Status != CashSessionStatus.Open)
-            throw new InvalidOperationException("La sesion de caja ya fue cerrada. Abre una nueva caja para cobrar.");
+            throw new PaymentRejectedException("La sesion de caja ya fue cerrada. Abre una nueva caja para cobrar.");
 
         var payment = new OrderPayment
         {
             Id = Guid.NewGuid(), BranchId = req.BranchId,
+            IdempotencyKey = req.IdempotencyKey,
             OrderId = order.Id, CashSessionId = session.Id,
             CustomerId = req.CustomerId, DocumentType = docType,
             OrderAmount = req.OrderAmount, PaidAt = paidAt,
+            Customer = customer,
         };
         foreach (var item in paymentItems)
             item.OrderPaymentId = payment.Id;
@@ -911,57 +1013,115 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
         if (paymentItems.Count > 0)
             await DeductInventoryForPaymentItemsAsync(paymentItems, remainingQuantityBeforePayment, order.Number, req.BranchId, ct);
 
-        if (isFullyPaid)
-            await DeductInventoryForOrderAsync(order.Id, order.Number, req.BranchId, ct);
+        ElectronicDocument? electronicDocument = null;
+        if (invoiceConfig != null)
+        {
+            await _db.BranchTaxConfigs
+                .FromSqlInterpolated($"""
+                    SELECT * FROM billing."BranchTaxConfigs"
+                    WHERE "Id" = {invoiceConfig.Id}
+                    FOR UPDATE
+                    """)
+                .AsNoTracking()
+                .FirstAsync(ct);
+            await _db.Entry(invoiceConfig).ReloadAsync(ct);
 
-        Customer? customer = req.CustomerId.HasValue
-            ? await _db.Customers.FindAsync([req.CustomerId.Value], ct)
-            : null;
+            invoiceConfig.Secuencial += 1;
+            var invoiceLines = SriInvoiceLineFactory.Build(payment, order);
+            var invoiceTotals = SriInvoiceLineFactory.CalculateTotals(invoiceLines, payment.OrderAmount);
+            var localEmissionDate = EcuadorTime.FromUtc(paidAt);
+            var accessKey = SriKeyGenerator.Build(
+                localEmissionDate,
+                invoiceConfig.Ruc,
+                invoiceConfig.Ambiente,
+                invoiceConfig.CodigoEstablecimiento,
+                invoiceConfig.PuntoEmision,
+                invoiceConfig.Secuencial);
+
+            electronicDocument = new ElectronicDocument
+            {
+                Id = Guid.NewGuid(),
+                BranchId = req.BranchId,
+                OrderPaymentId = payment.Id,
+                ClaveAcceso = accessKey,
+                NumeroFactura = $"{invoiceConfig.CodigoEstablecimiento.PadLeft(3, '0')}-{invoiceConfig.PuntoEmision.PadLeft(3, '0')}-{invoiceConfig.Secuencial.ToString().PadLeft(9, '0')}",
+                Secuencial = invoiceConfig.Secuencial,
+                Environment = invoiceConfig.Ambiente,
+                Status = ElectronicDocumentStatus.Pending,
+                TotalSinImpuestos = invoiceTotals.TotalWithoutTaxes,
+                TotalDescuento = 0m,
+                TotalIva = invoiceTotals.TotalTax,
+                ImporteTotal = invoiceTotals.Total,
+                EmissionDate = paidAt,
+                OriginalEmissionDate = paidAt,
+                EmailStatus = string.IsNullOrWhiteSpace(customer?.Email)
+                    ? ElectronicDocumentEmailStatus.Skipped
+                    : ElectronicDocumentEmailStatus.Pending,
+                EmailRecipient = customer?.Email?.Trim(),
+                EmailErrorMessage = string.IsNullOrWhiteSpace(customer?.Email)
+                    ? "El cliente no tiene un correo electrónico registrado."
+                    : null,
+            };
+            _db.ElectronicDocuments.Add(electronicDocument);
+            await _db.SaveChangesAsync(ct);
+        }
 
         await transaction.CommitAsync(ct);
 
-        return BillingMapper.MapPayment(payment, order.Number, customer);
-    }
-
-    private static void ApplyPromotionPaymentPolicy(Order order, bool hasCardPayment)
-    {
-        foreach (var item in order.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled && i.Promotion != null))
+        if (electronicDocument != null)
         {
-            var promotion = item.Promotion!;
-            var taxPct = item.TaxRate?.Percentage;
-
-            if (hasCardPayment && promotion.PaymentPolicy == PromotionPaymentPolicy.CashTransferOnly)
+            try
             {
-                var (_, _, taxAmount, totalPrice) = PosMapper.CalcItemFromDiscountAmount(
-                    item.UnitPrice,
-                    item.Quantity,
-                    0m,
-                    taxPct);
-                item.DiscountPct = 0m;
-                item.DiscountAmount = 0m;
-                item.TaxAmount = taxAmount;
-                item.TotalPrice = totalPrice;
-                item.PromotionId = null;
-                item.PromotionName = null;
-                continue;
+                var processed = await _mediator.Send(new RetryElectronicInvoiceCommand
+                {
+                    DocumentId = electronicDocument.Id,
+                    BranchId = req.BranchId,
+                }, ct);
+                electronicDocument.Status = Enum.Parse<ElectronicDocumentStatus>(processed.Status);
             }
-
-            var pricing = PosMapper.CalcItemWithPromotion(
-                item.UnitPrice,
-                item.Quantity,
-                item.DiscountPct,
-                taxPct,
-                promotion,
-                hasCardPayment);
-
-            item.DiscountPct = pricing.DiscountPct;
-            item.DiscountAmount = pricing.DiscountAmount;
-            item.TaxAmount = pricing.TaxAmount;
-            item.TotalPrice = pricing.TotalPrice;
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "El cobro {PaymentId} fue confirmado, pero la factura {DocumentId} quedo pendiente de procesamiento.",
+                    payment.Id, electronicDocument.Id);
+            }
         }
 
-        PosMapper.RecalculateOrderTotals(order);
+        return BillingMapper.MapPayment(payment, order.Number, customer, elDoc: electronicDocument);
     }
+
+    private static void EnsureMatchingPayment(OrderPayment payment, PayOrderCommand req)
+    {
+        if (payment.OrderId != req.OrderId || payment.OrderAmount != req.OrderAmount
+            || payment.CustomerId != req.CustomerId || payment.DocumentType.ToString() != req.DocumentType
+            || (req.CashSessionId.HasValue && payment.CashSessionId != req.CashSessionId))
+            throw new PaymentIdempotencyConflictException();
+
+        var unmatchedLines = payment.Lines.Where(l => !l.IsDeleted).ToList();
+        foreach (var line in req.Lines)
+        {
+            var match = unmatchedLines.FindIndex(l => l.PaymentMethodConfigId == line.MethodId
+                && l.AmountTendered == line.AmountTendered
+                && string.Equals(l.CardPaymentType?.ToString(), line.CardPaymentType, StringComparison.OrdinalIgnoreCase)
+                && l.CardBankId == line.CardBankId
+                && l.CardBrand == line.CardBrand?.Trim()
+                && l.AuthorizationNumber == line.AuthorizationNumber?.Trim());
+            if (match < 0) throw new PaymentIdempotencyConflictException();
+            unmatchedLines.RemoveAt(match);
+        }
+        if (unmatchedLines.Count > 0) throw new PaymentIdempotencyConflictException();
+
+        // Empty items represents the original full-balance request, not today's remaining items.
+        if (req.Items.Count == 0) return;
+        var requested = req.Items.GroupBy(i => i.OrderItemId)
+            .ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
+        var paid = payment.Items.Where(i => !i.IsDeleted).GroupBy(i => i.OrderItemId)
+            .ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
+        if (req.Items.Any(i => i.Quantity <= 0) || requested.Count != paid.Count
+            || requested.Any(i => !paid.TryGetValue(i.Key, out var quantity) || quantity != i.Value))
+            throw new PaymentIdempotencyConflictException();
+    }
+
 
     private async Task DeductInventoryForPaymentItemsAsync(
         IReadOnlyCollection<OrderPaymentItem> paymentItems,
@@ -1158,17 +1318,11 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
 public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectronicInvoiceCommand, ElectronicDocumentDto>
 {
     private readonly GrimorioDbContext _db;
-    private readonly IDataProtectionProvider _dp;
-    private readonly SriSoapClient _soap;
-    private readonly IEmailService _email;
-    private readonly ILogger<GenerateElectronicInvoiceHandler> _log;
+    private readonly IMediator _mediator;
 
-    public GenerateElectronicInvoiceHandler(
-        GrimorioDbContext db, IDataProtectionProvider dp,
-        SriSoapClient soap, IEmailService email,
-        ILogger<GenerateElectronicInvoiceHandler> log)
+    public GenerateElectronicInvoiceHandler(GrimorioDbContext db, IMediator mediator)
     {
-        _db = db; _dp = dp; _soap = soap; _email = email; _log = log;
+        _db = db; _mediator = mediator;
     }
 
     public async Task<ElectronicDocumentDto> Handle(GenerateElectronicInvoiceCommand req, CancellationToken ct)
@@ -1176,25 +1330,28 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
         // ── Cargar datos necesarios ───────────────────────────────────────────
         var payment = await _db.OrderPayments
             .Include(p => p.Lines).ThenInclude(l => l.Config)
+            .Include(p => p.Items).ThenInclude(i => i.OrderItem).ThenInclude(i => i!.MenuItem).ThenInclude(i => i!.TaxRate)
+            .Include(p => p.Items).ThenInclude(i => i.OrderItem).ThenInclude(i => i!.TaxRate)
             .Include(p => p.Customer)
             .FirstOrDefaultAsync(p => p.Id == req.OrderPaymentId && p.BranchId == req.BranchId && !p.IsDeleted, ct)
             ?? throw new KeyNotFoundException("Pago no encontrado.");
 
-        // Verificar que no tenga ya un documento autorizado
+        // Cada cobro puede originar un solo comprobante electrónico.
         var existing = await _db.ElectronicDocuments
-            .FirstOrDefaultAsync(d => d.OrderPaymentId == req.OrderPaymentId && !d.IsDeleted
-                && d.Status == ElectronicDocumentStatus.Authorized, ct);
+            .FirstOrDefaultAsync(d => d.OrderPaymentId == req.OrderPaymentId && !d.IsDeleted, ct);
         if (existing != null)
-            throw new InvalidOperationException("Este pago ya tiene una factura electrónica autorizada.");
+            throw new InvalidOperationException(existing.Status == ElectronicDocumentStatus.Authorized
+                ? "Este pago ya tiene una factura electrónica autorizada."
+                : "Este pago ya tiene una factura electrónica. Utiliza la opción de reintento.");
 
         var order = await _db.Orders
+            .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem).ThenInclude(i => i!.TaxRate)
+            .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.TaxRate)
             .FirstOrDefaultAsync(o => o.Id == payment.OrderId && !o.IsDeleted, ct)
             ?? throw new KeyNotFoundException("Orden no encontrada.");
 
-        var items = await _db.OrderItems
-            .Include(i => i.MenuItem).ThenInclude(m => m!.TaxRate)
-            .Where(i => i.OrderId == order.Id && !i.IsDeleted)
-            .ToListAsync(ct);
+        var invoiceLines = SriInvoiceLineFactory.Build(payment, order);
+        var invoiceTotals = SriInvoiceLineFactory.CalculateTotals(invoiceLines, payment.OrderAmount);
 
         var config = await _db.BranchTaxConfigs
             .FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct)
@@ -1203,10 +1360,6 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
         var sriCert = await _db.SriCertificates
             .FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct)
             ?? throw new InvalidOperationException("Cargue el certificado .p12 antes de emitir facturas.");
-
-        var invoiceTemplateEntity = await _db.InvoiceTemplates
-            .FirstOrDefaultAsync(t => t.BranchId == req.BranchId && !t.IsDeleted, ct);
-        var invoiceTemplate = GetInvoiceTemplateHandler.BuildDto(invoiceTemplateEntity ?? new InvoiceTemplate());
 
         var originalEmissionDate = payment.PaidAt;
         var paymentEmissionLocal = EcuadorTime.FromUtc(payment.PaidAt);
@@ -1235,8 +1388,23 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
         }
 
         // ── Incrementar secuencial de forma atómica ────────────────────────
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        await _db.BranchTaxConfigs
+            .FromSqlInterpolated($"""
+                SELECT * FROM billing."BranchTaxConfigs"
+                WHERE "Id" = {config.Id}
+                FOR UPDATE
+                """)
+            .AsNoTracking()
+            .FirstAsync(ct);
+        await _db.Entry(config).ReloadAsync(ct);
+
+        // Revalidar dentro del bloqueo por solicitudes concurrentes sobre el mismo pago.
+        if (await _db.ElectronicDocuments.AnyAsync(
+                d => d.OrderPaymentId == req.OrderPaymentId && !d.IsDeleted, ct))
+            throw new InvalidOperationException("Este pago ya tiene una factura electronica. Utiliza la opcion de reintento.");
+
         config.Secuencial += 1;
-        await _db.SaveChangesAsync(ct);
         var secuencial = config.Secuencial;
 
         // ── Generar clave de acceso ────────────────────────────────────────
@@ -1258,126 +1426,40 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
             Secuencial = secuencial,
             Environment = config.Ambiente,
             Status = ElectronicDocumentStatus.Pending,
-            TotalSinImpuestos = order.TaxableBase15 + order.TaxableBase0 + order.TaxableBaseExempt,
+            TotalSinImpuestos = invoiceTotals.TotalWithoutTaxes,
             TotalDescuento = 0m,
-            TotalIva = order.Iva15,
-            ImporteTotal = order.Total,
+            TotalIva = invoiceTotals.TotalTax,
+            ImporteTotal = invoiceTotals.Total,
             EmissionDate = emissionDate,
             OriginalEmissionDate = originalEmissionDate,
             IsContingencyEmission = isContingencyEmission,
             ContingencyReason = isContingencyEmission ? contingencyReason : null,
             ContingencyUserId = isContingencyEmission ? req.UserId : null,
             ContingencyUserName = isContingencyEmission ? req.UserName?.Trim() : null,
+            EmailStatus = string.IsNullOrWhiteSpace(payment.Customer?.Email)
+                ? ElectronicDocumentEmailStatus.Skipped
+                : ElectronicDocumentEmailStatus.Pending,
+            EmailRecipient = payment.Customer?.Email?.Trim(),
+            EmailErrorMessage = string.IsNullOrWhiteSpace(payment.Customer?.Email)
+                ? "El cliente no tiene un correo electrónico registrado."
+                : null,
         };
         _db.ElectronicDocuments.Add(doc);
         await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
-        // ── Construir y firmar el XML ──────────────────────────────────────
-        try
+        return await _mediator.Send(new RetryElectronicInvoiceCommand
         {
-            var protector = _dp.CreateProtector("SriCertificate");
-            var certBytes = protector.Unprotect(sriCert.CertificateEncrypted);
-            var certPass = protector.Unprotect(sriCert.PasswordEncrypted);
-
-            var invoiceData = new SriInvoiceData(
-                config, payment, order, items, claveAcceso, secuencial, payment.Customer, emissionDate);
-
-            var unsignedXml = SriXmlBuilder.Build(invoiceData);
-            var signedXml = SriXmlSigner.Sign(unsignedXml, certBytes, certPass);
-
-            doc.XmlSigned = signedXml;
-            await _db.SaveChangesAsync(ct);
-
-            // ── Enviar al SRI ──────────────────────────────────────────────
-            doc.SentAt = DateTime.UtcNow;
-            var validateResult = await _soap.ValidarComprobanteAsync(signedXml, config.Ambiente, ct);
-
-            doc.XmlResponseSri = validateResult.RawXml;
-
-            if (validateResult.Result == SriSubmitResult.Rejected)
-            {
-                doc.Status = ElectronicDocumentStatus.Rejected;
-                doc.ErrorMessage = string.Join("; ", validateResult.Messages);
-                await _db.SaveChangesAsync(ct);
-                return MapDoc(doc);
-            }
-
-            doc.Status = ElectronicDocumentStatus.Sent;
-            await _db.SaveChangesAsync(ct);
-
-            // ── Consultar autorización (hasta 3 reintentos con espera) ─────
-            SriAuthorizationResponse? authResult = null;
-            for (int attempt = 0; attempt < 3; attempt++)
-            {
-                if (attempt > 0) await Task.Delay(3000, ct);
-                authResult = await _soap.AutorizarComprobanteAsync(claveAcceso, config.Ambiente, ct);
-                if (authResult.IsAuthorized) break;
-            }
-
-            if (authResult != null) doc.XmlResponseSri = authResult.RawXml;
-
-            if (authResult?.IsAuthorized == true)
-            {
-                doc.Status = ElectronicDocumentStatus.Authorized;
-                doc.NumeroAutorizacion = authResult.NumeroAutorizacion;
-                doc.FechaAutorizacion = authResult.FechaAutorizacion;
-                doc.XmlAuthorized = authResult.XmlAuthorizado;
-
-                // Generar RIDE
-                try
-                {
-                    doc.RidePdf = RideGenerator.Generate(config, doc, payment, order, items, payment.Customer, invoiceTemplate);
-                }
-                catch (Exception ex)
-                {
-                    _log.LogWarning(ex, "No se pudo generar el RIDE para doc {Id}", doc.Id);
-                }
-
-                // Enviar correo al cliente (silencioso: el correo no afecta la factura)
-                if (doc.RidePdf != null && payment.Customer?.Email != null)
-                {
-                    try
-                    {
-                        await _email.SendInvoiceAsync(
-                            req.BranchId,
-                            payment.Customer.Email,
-                            payment.Customer.Name,
-                            doc.NumeroFactura,
-                            config.RazonSocial,
-                            doc.ImporteTotal,
-                            doc.RidePdf,
-                            doc.XmlAuthorized ?? doc.XmlSigned,
-                            ct);
-                    }
-                    catch (Exception ex)
-                    {
-                        _log.LogWarning(ex, "No se pudo enviar el correo para doc {Id}", doc.Id);
-                    }
-                }
-            }
-            else
-            {
-                doc.RetryCount++;
-                doc.Status = ElectronicDocumentStatus.Rejected;
-                doc.ErrorMessage = authResult != null
-                    ? string.Join("; ", authResult.Messages)
-                    : "No se recibió respuesta de autorización del SRI.";
-            }
-        }
-        catch (Exception ex) when (ex is not InvalidOperationException)
-        {
-            doc.Status = ElectronicDocumentStatus.Rejected;
-            doc.ErrorMessage = ex.Message;
-            _log.LogError(ex, "Error generando factura electrónica doc {Id}", doc.Id);
-        }
-
-        await _db.SaveChangesAsync(ct);
-        return MapDoc(doc);
+            DocumentId = doc.Id,
+            BranchId = req.BranchId,
+        }, ct);
     }
 
     internal static ElectronicDocumentDto MapDoc(ElectronicDocument d) => new()
     {
         Id = d.Id, OrderPaymentId = d.OrderPaymentId,
+        OrderId = d.OrderPayment?.OrderId ?? Guid.Empty,
+        OrderNumber = d.OrderPayment?.Order?.Number ?? 0,
         ClaveAcceso = d.ClaveAcceso, NumeroFactura = d.NumeroFactura,
         Secuencial = d.Secuencial, Environment = d.Environment,
         Status = d.Status.ToString(),
@@ -1394,6 +1476,11 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
         HasRide = d.RidePdf != null && d.RidePdf.Length > 0,
         HasXml = !string.IsNullOrEmpty(d.XmlAuthorized ?? d.XmlSigned),
         HasXmlResponse = !string.IsNullOrEmpty(d.XmlResponseSri),
+        EmailStatus = d.EmailStatus.ToString(),
+        EmailRecipient = d.EmailRecipient,
+        EmailSentAt = d.EmailSentAt,
+        EmailErrorMessage = d.EmailErrorMessage,
+        EmailRetryCount = d.EmailRetryCount,
     };
 }
 
@@ -1415,166 +1502,271 @@ public class RetryElectronicInvoiceHandler : IRequestHandler<RetryElectronicInvo
 
     public async Task<ElectronicDocumentDto> Handle(RetryElectronicInvoiceCommand req, CancellationToken ct)
     {
-        var doc = await _db.ElectronicDocuments
-            .Include(d => d.OrderPayment).ThenInclude(p => p!.Customer)
-            .FirstOrDefaultAsync(d => d.Id == req.DocumentId && d.BranchId == req.BranchId && !d.IsDeleted, ct)
-            ?? throw new KeyNotFoundException("Documento no encontrado.");
-
-        if (doc.Status == ElectronicDocumentStatus.Authorized)
-            throw new InvalidOperationException("Este comprobante ya está autorizado.");
-
-        var config = await _db.BranchTaxConfigs
-            .FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct)
-            ?? throw new InvalidOperationException("Configure los datos del emisor.");
-
-        var retryTemplateEntity = await _db.InvoiceTemplates
-            .FirstOrDefaultAsync(t => t.BranchId == req.BranchId && !t.IsDeleted, ct);
-        var retryTemplate = GetInvoiceTemplateHandler.BuildDto(retryTemplateEntity ?? new InvoiceTemplate());
-
-        // Regenerar la firma usando el MISMO secuencial y clave de acceso.
-        // Esto permite que un reintento corrija XML firmado con una version anterior del firmador.
+        var processingStartedAt = DateTime.UtcNow;
+        var staleProcessingBefore = processingStartedAt.AddMinutes(-5);
+        var claimed = await _db.ElectronicDocuments
+            .Where(d => d.Id == req.DocumentId && d.BranchId == req.BranchId && !d.IsDeleted
+                && d.Status != ElectronicDocumentStatus.Authorized
+                && (d.ProcessingStartedAt == null || d.ProcessingStartedAt <= staleProcessingBefore))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(d => d.ProcessingStartedAt, processingStartedAt), ct);
+        if (claimed == 0)
         {
-            var sriCert = await _db.SriCertificates
-                .FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct)
-                ?? throw new InvalidOperationException("Cargue el certificado .p12.");
-
-            var payment = doc.OrderPayment
-                ?? await _db.OrderPayments.Include(p => p.Lines).ThenInclude(l => l.Config)
-                    .Include(p => p.Customer)
-                    .FirstOrDefaultAsync(p => p.Id == doc.OrderPaymentId, ct)
-                ?? throw new KeyNotFoundException("Pago no encontrado.");
-
-            var order = await _db.Orders.FirstOrDefaultAsync(o => o.Id == payment.OrderId && !o.IsDeleted, ct)
-                ?? throw new KeyNotFoundException("Orden no encontrada.");
-
-            var items = await _db.OrderItems
-                .Include(i => i.MenuItem).ThenInclude(m => m!.TaxRate)
-                .Where(i => i.OrderId == order.Id && !i.IsDeleted)
-                .ToListAsync(ct);
-
-            try
-            {
-                var protector = _dp.CreateProtector("SriCertificate");
-                var certBytes = protector.Unprotect(sriCert.CertificateEncrypted);
-                var certPass = protector.Unprotect(sriCert.PasswordEncrypted);
-
-                var emissionDate = doc.EmissionDate == default ? payment.PaidAt : doc.EmissionDate;
-                var invoiceData = new SriInvoiceData(config, payment, order, items, doc.ClaveAcceso, doc.Secuencial, payment.Customer, emissionDate);
-                var unsignedXml = SriXmlBuilder.Build(invoiceData);
-                doc.XmlSigned = SriXmlSigner.Sign(unsignedXml, certBytes, certPass);
-                await _db.SaveChangesAsync(ct);
-            }
-            catch (Exception ex)
-            {
-                doc.Status = ElectronicDocumentStatus.Rejected;
-                doc.ErrorMessage = ex.Message;
-                _log.LogError(ex, "Error al re-firmar factura electrónica doc {Id}", doc.Id);
-                await _db.SaveChangesAsync(ct);
-                return GenerateElectronicInvoiceHandler.MapDoc(doc);
-            }
+            var current = await _db.ElectronicDocuments.AsNoTracking()
+                .FirstOrDefaultAsync(d => d.Id == req.DocumentId && d.BranchId == req.BranchId && !d.IsDeleted, ct)
+                ?? throw new KeyNotFoundException("Documento no encontrado.");
+            return GenerateElectronicInvoiceHandler.MapDoc(current);
         }
 
-        // Reenviar al SRI el mismo XML firmado con la misma clave de acceso
-        doc.SentAt = DateTime.UtcNow;
-        doc.RetryCount++;
-        doc.Status = ElectronicDocumentStatus.Pending;
-        doc.ErrorMessage = null;
-        doc.XmlResponseSri = null;
-        await _db.SaveChangesAsync(ct);
-
+        ElectronicDocument? doc = null;
         try
         {
-            var validateResult = await _soap.ValidarComprobanteAsync(doc.XmlSigned!, config.Ambiente, ct);
-            doc.XmlResponseSri = validateResult.RawXml;
+            doc = await _db.ElectronicDocuments
+                .Include(d => d.OrderPayment).ThenInclude(p => p!.Customer)
+                .Include(d => d.OrderPayment).ThenInclude(p => p!.Lines).ThenInclude(l => l.Config)
+                .Include(d => d.OrderPayment).ThenInclude(p => p!.Items).ThenInclude(i => i.OrderItem).ThenInclude(i => i!.MenuItem).ThenInclude(i => i!.TaxRate)
+                .Include(d => d.OrderPayment).ThenInclude(p => p!.Items).ThenInclude(i => i.OrderItem).ThenInclude(i => i!.TaxRate)
+                .FirstAsync(d => d.Id == req.DocumentId && d.BranchId == req.BranchId && !d.IsDeleted, ct);
+            await _db.Entry(doc).ReloadAsync(ct);
 
-            if (validateResult.Result == SriSubmitResult.Rejected)
-            {
-                doc.Status = ElectronicDocumentStatus.Rejected;
-                doc.ErrorMessage = string.Join("; ", validateResult.Messages);
-                await _db.SaveChangesAsync(ct);
-                return GenerateElectronicInvoiceHandler.MapDoc(doc);
-            }
-
-            doc.Status = ElectronicDocumentStatus.Sent;
+            var wasRejected = doc.Status == ElectronicDocumentStatus.Rejected;
+            var received = doc.Status == ElectronicDocumentStatus.Sent;
+            doc.RetryCount++;
+            doc.SentAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(ct);
 
-            SriAuthorizationResponse? authResult = null;
-            for (int attempt = 0; attempt < 3; attempt++)
-            {
-                if (attempt > 0) await Task.Delay(3000, ct);
-                authResult = await _soap.AutorizarComprobanteAsync(doc.ClaveAcceso, config.Ambiente, ct);
-                if (authResult.IsAuthorized) break;
-            }
-
-            if (authResult != null) doc.XmlResponseSri = authResult.RawXml;
-
-            if (authResult?.IsAuthorized == true)
-            {
-                doc.Status = ElectronicDocumentStatus.Authorized;
-                doc.NumeroAutorizacion = authResult.NumeroAutorizacion;
-                doc.FechaAutorizacion = authResult.FechaAutorizacion;
-                doc.XmlAuthorized = authResult.XmlAuthorizado;
-
-                try
+            var result = await SriInvoiceRecovery.ProcessAsync(
+                () => _soap.AutorizarComprobanteAsync(doc.ClaveAcceso, doc.Environment, ct),
+                async () =>
                 {
-                    var payment = doc.OrderPayment
-                        ?? await _db.OrderPayments.Include(p => p.Customer)
-                            .FirstOrDefaultAsync(p => p.Id == doc.OrderPaymentId, ct);
-                    var order = await _db.Orders.FirstOrDefaultAsync(o => o.Id == payment!.OrderId, ct);
-                    var items = await _db.OrderItems
-                        .Include(i => i.MenuItem).ThenInclude(m => m!.TaxRate)
-                        .Where(i => i.OrderId == order!.Id && !i.IsDeleted).ToListAsync(ct);
-
-                    doc.RidePdf = RideGenerator.Generate(config, doc, payment!, order!, items, payment!.Customer, retryTemplate);
-
-                    // Enviar correo al cliente tras autorización en reintento
-                    if (doc.RidePdf != null && payment.Customer?.Email != null)
-                    {
-                        try
-                        {
-                            await _email.SendInvoiceAsync(
-                                doc.BranchId,
-                                payment.Customer.Email,
-                                payment.Customer.Name,
-                                doc.NumeroFactura,
-                                config.RazonSocial,
-                                doc.ImporteTotal,
-                                doc.RidePdf,
-                                doc.XmlAuthorized ?? doc.XmlSigned,
-                                ct);
-                        }
-                        catch (Exception ex)
-                        {
-                            _log.LogWarning(ex, "No se pudo enviar el correo en reintento para doc {Id}", doc.Id);
-                        }
-                    }
-                }
-                catch (Exception ex) when (!(ex.Message.Contains("correo")))
+                    // Uncertain transmissions reuse the exact persisted XML, not current customer/config data.
+                    if (string.IsNullOrWhiteSpace(doc.XmlSigned) || wasRejected)
+                        await SignAsync(doc, ct);
+                    doc.Status = ElectronicDocumentStatus.Pending;
+                    doc.ErrorMessage = null;
+                    await _db.SaveChangesAsync(ct);
+                    var reception = await _soap.ValidarComprobanteAsync(doc.XmlSigned!, doc.Environment, ct);
+                    doc.XmlResponseSri = reception.RawXml;
+                    return reception;
+                },
+                async () =>
                 {
-                    _log.LogWarning(ex, "No se pudo generar el RIDE en reintento para doc {Id}", doc.Id);
-                }
-            }
-            else
+                    doc.Status = ElectronicDocumentStatus.Sent;
+                    await _db.SaveChangesAsync(ct);
+                },
+                received, wasRejected, ct);
+
+            doc.XmlResponseSri = result.RawXml;
+            doc.ErrorMessage = result.Error;
+            doc.Status = result.Status switch
             {
-                doc.Status = ElectronicDocumentStatus.Rejected;
-                doc.ErrorMessage = authResult != null
-                    ? string.Join("; ", authResult.Messages)
-                    : "No se recibió respuesta de autorización del SRI.";
+                SriRecoveryStatus.Authorized => ElectronicDocumentStatus.Authorized,
+                SriRecoveryStatus.Rejected => ElectronicDocumentStatus.Rejected,
+                SriRecoveryStatus.Sent => ElectronicDocumentStatus.Sent,
+                _ => ElectronicDocumentStatus.Pending,
+            };
+            if (result.Authorization?.IsAuthorized == true)
+            {
+                doc.NumeroAutorizacion = result.Authorization.NumeroAutorizacion;
+                doc.FechaAutorizacion = result.Authorization.FechaAutorizacion;
+                doc.XmlAuthorized = result.Authorization.XmlAuthorizado;
             }
+            // Authorization is durable before optional PDF/email side effects.
+            await _db.SaveChangesAsync(ct);
+            if (doc.Status == ElectronicDocumentStatus.Authorized)
+                await CompleteAuthorizedAsync(doc, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            doc.Status = ElectronicDocumentStatus.Rejected;
-            doc.ErrorMessage = ex.Message;
-            _log.LogError(ex, "Error en reintento de factura electrónica doc {Id}", doc.Id);
+            if (doc == null) throw;
+            if (doc.Status != ElectronicDocumentStatus.Authorized)
+            {
+                if (doc.Status != ElectronicDocumentStatus.Sent)
+                    doc.Status = ElectronicDocumentStatus.Pending;
+                doc.ErrorMessage = $"Error tecnico; resultado pendiente de verificar: {ex.Message}";
+                await _db.SaveChangesAsync(ct);
+            }
+            _log.LogError(ex, "Error tecnico al procesar factura {DocumentId}; no implica rechazo del SRI.", doc.Id);
         }
+        finally
+        {
+            // Only release our own processing claim, including failures before signing/querying.
+            await _db.ElectronicDocuments
+                .Where(d => d.Id == req.DocumentId && d.BranchId == req.BranchId
+                    && d.ProcessingStartedAt == processingStartedAt)
+                .ExecuteUpdateAsync(s => s.SetProperty(d => d.ProcessingStartedAt, (DateTime?)null), CancellationToken.None);
+            if (doc != null)
+            {
+                doc.ProcessingStartedAt = null;
+                _db.Entry(doc).Property(d => d.ProcessingStartedAt).OriginalValue = null;
+                _db.Entry(doc).Property(d => d.ProcessingStartedAt).IsModified = false;
+            }
+        }
+        return GenerateElectronicInvoiceHandler.MapDoc(doc!);
+    }
 
+    private async Task SignAsync(ElectronicDocument doc, CancellationToken ct)
+    {
+        var config = await _db.BranchTaxConfigs
+            .FirstOrDefaultAsync(c => c.BranchId == doc.BranchId && !c.IsDeleted, ct)
+            ?? throw new InvalidOperationException("Configure los datos del emisor.");
+        var numberPrefix = $"{config.CodigoEstablecimiento.PadLeft(3, '0')}-{config.PuntoEmision.PadLeft(3, '0')}-";
+        if (config.Ambiente != doc.Environment || !doc.NumeroFactura.StartsWith(numberPrefix, StringComparison.Ordinal)
+            || (doc.ClaveAcceso.Length == 49 && doc.ClaveAcceso.Substring(10, 13) != config.Ruc))
+            throw new InvalidOperationException("La configuracion fiscal no coincide con el comprobante original. No se modificara su clave ni su secuencial.");
+
+        var certificate = await _db.SriCertificates
+            .FirstOrDefaultAsync(c => c.BranchId == doc.BranchId && !c.IsDeleted, ct)
+            ?? throw new InvalidOperationException("Cargue el certificado .p12.");
+        var payment = doc.OrderPayment ?? throw new InvalidOperationException("Pago no encontrado.");
+        var order = await LoadOrderAsync(payment.OrderId, doc.BranchId, ct);
+        var lines = SriInvoiceLineFactory.Build(payment, order);
+        var totals = SriInvoiceLineFactory.CalculateTotals(lines, payment.OrderAmount);
+        doc.TotalSinImpuestos = totals.TotalWithoutTaxes;
+        doc.TotalIva = totals.TotalTax;
+        doc.ImporteTotal = totals.Total;
+        var protector = _dp.CreateProtector("SriCertificate");
+        var emissionDate = doc.EmissionDate == default ? payment.PaidAt : doc.EmissionDate;
+        var unsignedXml = SriXmlBuilder.Build(new SriInvoiceData(config, payment, order, lines,
+            doc.ClaveAcceso, doc.Secuencial, payment.Customer, emissionDate));
+        doc.XmlSigned = SriXmlSigner.Sign(unsignedXml,
+            protector.Unprotect(certificate.CertificateEncrypted), protector.Unprotect(certificate.PasswordEncrypted));
         await _db.SaveChangesAsync(ct);
+    }
+
+    private Task<Order> LoadOrderAsync(Guid orderId, Guid branchId, CancellationToken ct) =>
+        _db.Orders
+            .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem).ThenInclude(i => i!.TaxRate)
+            .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.TaxRate)
+            .FirstAsync(o => o.Id == orderId && o.BranchId == branchId && !o.IsDeleted, ct);
+
+    private async Task CompleteAuthorizedAsync(ElectronicDocument doc, CancellationToken ct)
+    {
+        try
+        {
+            var config = await _db.BranchTaxConfigs.FirstAsync(c => c.BranchId == doc.BranchId && !c.IsDeleted, ct);
+            var template = await _db.InvoiceTemplates.FirstOrDefaultAsync(t => t.BranchId == doc.BranchId && !t.IsDeleted, ct);
+            var payment = doc.OrderPayment!;
+            var order = await LoadOrderAsync(payment.OrderId, doc.BranchId, ct);
+            var lines = SriInvoiceLineFactory.Build(payment, order);
+            doc.RidePdf = RideGenerator.Generate(config, doc, payment, order, lines, payment.Customer,
+                GetInvoiceTemplateHandler.BuildDto(template ?? new InvoiceTemplate()));
+            await _db.SaveChangesAsync(ct);
+            await ElectronicInvoiceEmailDelivery.SendAsync(doc, payment, config, _email, _log, ct);
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Factura {DocumentId} autorizada; no se pudo completar el RIDE o correo.", doc.Id);
+        }
+    }
+}
+
+public class ResendElectronicInvoiceEmailHandler : IRequestHandler<ResendElectronicInvoiceEmailCommand, ElectronicDocumentDto>
+{
+    private readonly GrimorioDbContext _db;
+    private readonly IEmailService _email;
+    private readonly ILogger<ResendElectronicInvoiceEmailHandler> _log;
+
+    public ResendElectronicInvoiceEmailHandler(
+        GrimorioDbContext db,
+        IEmailService email,
+        ILogger<ResendElectronicInvoiceEmailHandler> log)
+    {
+        _db = db;
+        _email = email;
+        _log = log;
+    }
+
+    public async Task<ElectronicDocumentDto> Handle(ResendElectronicInvoiceEmailCommand req, CancellationToken ct)
+    {
+        var doc = await _db.ElectronicDocuments
+            .Include(d => d.OrderPayment).ThenInclude(p => p!.Customer)
+            .FirstOrDefaultAsync(d => d.Id == req.DocumentId
+                && d.BranchId == req.BranchId
+                && !d.IsDeleted, ct)
+            ?? throw new KeyNotFoundException("Documento no encontrado.");
+
+        if (doc.Status != ElectronicDocumentStatus.Authorized)
+            throw new InvalidOperationException("Solo se pueden enviar por correo facturas autorizadas.");
+        if (doc.RidePdf == null || doc.RidePdf.Length == 0)
+            throw new InvalidOperationException("El RIDE de la factura no está disponible.");
+        if (doc.OrderPayment == null)
+            throw new InvalidOperationException("No se encontró el cobro asociado a la factura.");
+
+        var config = await _db.BranchTaxConfigs
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct)
+            ?? throw new InvalidOperationException("Configure los datos del emisor.");
+
+        await ElectronicInvoiceEmailDelivery.SendAsync(
+            doc, doc.OrderPayment, config, _email, _log, ct);
+        await _db.SaveChangesAsync(ct);
+
         return GenerateElectronicInvoiceHandler.MapDoc(doc);
     }
 }
 
-// ── Mapper ────────────────────────────────────────────────────────────────────
+internal static class ElectronicInvoiceEmailDelivery
+{
+    internal static async Task SendAsync(
+        ElectronicDocument doc,
+        OrderPayment payment,
+        BranchTaxConfig config,
+        IEmailService email,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        var recipient = payment.Customer?.Email?.Trim();
+        doc.EmailRecipient = recipient;
+
+        if (string.IsNullOrWhiteSpace(recipient))
+        {
+            doc.EmailStatus = ElectronicDocumentEmailStatus.Skipped;
+            doc.EmailSentAt = null;
+            doc.EmailErrorMessage = "El cliente no tiene un correo electrónico registrado.";
+            return;
+        }
+
+        doc.EmailStatus = ElectronicDocumentEmailStatus.Pending;
+        doc.EmailErrorMessage = null;
+        doc.EmailRetryCount++;
+
+        try
+        {
+            if (doc.RidePdf == null || doc.RidePdf.Length == 0)
+                throw new InvalidOperationException("El RIDE de la factura no está disponible.");
+
+            await email.SendInvoiceAsync(
+                doc.BranchId,
+                recipient,
+                payment.Customer?.Name ?? "Cliente",
+                doc.NumeroFactura,
+                config.RazonSocial,
+                doc.ImporteTotal,
+                doc.RidePdf,
+                doc.XmlAuthorized ?? doc.XmlSigned,
+                ct);
+
+            doc.EmailStatus = ElectronicDocumentEmailStatus.Sent;
+            doc.EmailSentAt = DateTime.UtcNow;
+            doc.EmailErrorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            doc.EmailStatus = ElectronicDocumentEmailStatus.Failed;
+            doc.EmailSentAt = null;
+            doc.EmailErrorMessage = ex.Message.Length > 2000 ? ex.Message[..2000] : ex.Message;
+            logger.LogWarning(ex,
+                "No se pudo enviar por correo la factura {NumeroFactura} al destinatario {Email}",
+                doc.NumeroFactura,
+                recipient);
+        }
+    }
+}
 
 internal static class BillingMapper
 {
@@ -1711,12 +1903,13 @@ internal static class BillingMapper
         {
             Id = i.Id,
             OrderItemId = i.OrderItemId,
-            ItemName = i.OrderItem?.MenuItem?.Name ?? string.Empty,
+            ItemName = i.ItemName ?? i.OrderItem?.MenuItem?.Name ?? string.Empty,
             Quantity = i.Quantity,
             UnitPrice = i.UnitPrice,
             Total = i.Total,
         }).ToList(),
         ElectronicDocumentId = elDoc?.Id,
+        ElectronicDocumentNumber = elDoc?.NumeroFactura,
         ElectronicDocumentStatus = elDoc?.Status.ToString(),
     };
 }

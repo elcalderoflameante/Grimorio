@@ -908,6 +908,8 @@ export const sriApi = {
     apiClient.post<ElectronicDocumentDto>(`/sri/documentos/generar/${orderPaymentId}`, dto ?? {}),
   retryInvoice: (id: string): Promise<AxiosResponse<ElectronicDocumentDto>> =>
     apiClient.post<ElectronicDocumentDto>(`/sri/documentos/${id}/reintentar`),
+  resendInvoiceEmail: (id: string): Promise<AxiosResponse<ElectronicDocumentDto>> =>
+    apiClient.post<ElectronicDocumentDto>(`/sri/documentos/${id}/correo/reintentar`),
   downloadRideUrl: (id: string): string =>
     `${apiClient.defaults.baseURL}/sri/documentos/${id}/ride`,
   downloadXmlUrl: (id: string): string =>

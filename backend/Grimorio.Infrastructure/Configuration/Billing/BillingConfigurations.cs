@@ -112,6 +112,9 @@ public class ElectronicDocumentConfiguration : BaseEntityConfiguration<Electroni
         builder.Property(x => x.ContingencyReason).HasMaxLength(500);
         builder.Property(x => x.ContingencyUserName).HasMaxLength(150);
         builder.Property(x => x.ErrorMessage).HasMaxLength(2000);
+        builder.Property(x => x.EmailStatus).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(x => x.EmailRecipient).HasMaxLength(320);
+        builder.Property(x => x.EmailErrorMessage).HasMaxLength(2000);
 
         builder.Property(x => x.TotalSinImpuestos).HasColumnType("numeric(18,2)");
         builder.Property(x => x.TotalDescuento).HasColumnType("numeric(18,2)");
@@ -125,7 +128,10 @@ public class ElectronicDocumentConfiguration : BaseEntityConfiguration<Electroni
 
         builder.HasIndex(x => x.ClaveAcceso).IsUnique();
         builder.HasIndex(x => new { x.BranchId, x.Status });
-        builder.HasIndex(x => x.OrderPaymentId);
+        builder.HasIndex(x => new { x.Status, x.ProcessingStartedAt });
+        builder.HasIndex(x => x.OrderPaymentId)
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = false");
     }
 }
 
@@ -245,6 +251,9 @@ public class OrderPaymentConfiguration : BaseEntityConfiguration<OrderPayment>
 
         builder.HasIndex(x => x.OrderId);
         builder.HasIndex(x => new { x.BranchId, x.PaidAt });
+        builder.HasIndex(x => new { x.BranchId, x.IdempotencyKey })
+            .IsUnique()
+            .HasFilter("\"IdempotencyKey\" IS NOT NULL AND \"IsDeleted\" = false");
     }
 }
 
@@ -286,9 +295,13 @@ public class OrderPaymentItemConfiguration : BaseEntityConfiguration<OrderPaymen
         base.Configure(builder);
         builder.ToTable("OrderPaymentItems", "billing");
 
+        builder.Property(x => x.ItemCode).HasMaxLength(50);
+        builder.Property(x => x.ItemName).HasMaxLength(300);
         builder.Property(x => x.Quantity).HasColumnType("numeric(18,4)");
-        builder.Property(x => x.UnitPrice).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.UnitPrice).HasColumnType("numeric(18,6)");
         builder.Property(x => x.Total).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.TaxRateSriCode).HasMaxLength(10);
+        builder.Property(x => x.TaxRatePercentage).HasColumnType("numeric(8,4)");
 
         builder.HasOne(x => x.Payment)
             .WithMany(p => p.Items)

@@ -15,6 +15,18 @@ const formatMoney = (v: number) => `$${v.toFixed(2)}`;
 
 const docLabel = (d: string) => d === 'Factura' ? 'Factura' : 'Nota de venta';
 const docColor = (d: string) => d === 'Factura' ? 'blue' : 'default';
+const electronicStatusLabel = (status?: string) => ({
+  Pending: 'Pendiente',
+  Sent: 'Enviada',
+  Authorized: 'Autorizada',
+  Rejected: 'Rechazada',
+  Cancelled: 'Anulada',
+}[status ?? ''] ?? status);
+
+const formatQuantity = (value: number) => value.toLocaleString('es-EC', {
+  minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+  maximumFractionDigits: 2,
+});
 
 const orderTypeLabel = (t?: string) => {
   if (t === 'DineIn') return 'Mesa';
@@ -25,30 +37,58 @@ const orderTypeLabel = (t?: string) => {
 
 function PaymentDetail({ payment }: { payment: OrderPaymentDto }) {
   return (
-    <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }} style={{ padding: '8px 16px' }}>
-      <Descriptions.Item label="Caja">
-        {payment.cashRegisterCode
-          ? `${payment.cashRegisterName} (${payment.cashRegisterCode})`
-          : payment.cashRegisterName ?? '—'}
-      </Descriptions.Item>
-      <Descriptions.Item label="Cajero">{payment.cashierName ?? '—'}</Descriptions.Item>
-      {payment.customerName && (
-        <Descriptions.Item label="Cliente">{payment.customerName}</Descriptions.Item>
-      )}
-      {payment.customerTaxId && (
-        <Descriptions.Item label="RUC / Cédula">{payment.customerTaxId}</Descriptions.Item>
-      )}
-      {payment.lines.map(l => (
-        <Descriptions.Item key={l.id} label={l.methodName}>
-          <Space size={4}>
-            <Tag color={l.methodColor} style={{ borderColor: l.methodColor }}>
-              {formatMoney(l.netAmount)}
-            </Tag>
-            {l.change > 0 && <Text type="secondary">cambio: {formatMoney(l.change)}</Text>}
-          </Space>
+    <div style={{ padding: '8px 16px' }}>
+      <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }}>
+        <Descriptions.Item label="Caja">
+          {payment.cashRegisterCode
+            ? `${payment.cashRegisterName} (${payment.cashRegisterCode})`
+            : payment.cashRegisterName ?? '—'}
         </Descriptions.Item>
-      ))}
-    </Descriptions>
+        <Descriptions.Item label="Cajero">{payment.cashierName ?? '—'}</Descriptions.Item>
+        {payment.customerName && (
+          <Descriptions.Item label="Cliente">{payment.customerName}</Descriptions.Item>
+        )}
+        {payment.customerTaxId && (
+          <Descriptions.Item label="RUC / Cédula">{payment.customerTaxId}</Descriptions.Item>
+        )}
+        {payment.documentType === 'Factura' && (
+          <Descriptions.Item label="N° factura">
+            {payment.electronicDocumentNumber ?? 'Pendiente de generación'}
+          </Descriptions.Item>
+        )}
+        {payment.electronicDocumentStatus && (
+          <Descriptions.Item label="Estado SRI">
+            <Tag>{electronicStatusLabel(payment.electronicDocumentStatus)}</Tag>
+          </Descriptions.Item>
+        )}
+        {payment.lines.map(l => (
+          <Descriptions.Item key={l.id} label={l.methodName}>
+            <Space size={4}>
+              <Tag color={l.methodColor} style={{ borderColor: l.methodColor }}>
+                {formatMoney(l.netAmount)}
+              </Tag>
+              {l.change > 0 && <Text type="secondary">cambio: {formatMoney(l.change)}</Text>}
+            </Space>
+          </Descriptions.Item>
+        ))}
+      </Descriptions>
+
+      <Text strong>Ítems cobrados</Text>
+      <Table
+        size="small"
+        dataSource={payment.items}
+        rowKey="id"
+        pagination={false}
+        locale={{ emptyText: 'Este cobro no tiene ítems detallados' }}
+        style={{ marginTop: 8 }}
+        columns={[
+          { title: 'Producto', dataIndex: 'itemName' },
+          { title: 'Cantidad', dataIndex: 'quantity', width: 100, align: 'right', render: formatQuantity },
+          { title: 'Precio unit.', dataIndex: 'unitPrice', width: 120, align: 'right', render: formatMoney },
+          { title: 'Total', dataIndex: 'total', width: 110, align: 'right', render: formatMoney },
+        ]}
+      />
+    </div>
   );
 }
 

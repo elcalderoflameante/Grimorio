@@ -36,16 +36,25 @@ const TIPO_OPTIONS: { label: string; value: MovementType }[] = [
   { label: 'Entrada por compra', value: 'PurchaseEntry' },
   { label: 'Entrada manual', value: 'ManualEntry' },
   { label: 'Salida manual', value: 'ManualExit' },
-  { label: 'Waste', value: 'Waste' },
-  { label: 'Spoilage', value: 'Spoilage' },
-  { label: 'Descuento por venta', value: 'SaleDeduction' },
-  { label: 'Transferencia entrada', value: 'TransferIn' },
-  { label: 'Transferencia salida', value: 'TransferOut' },
+  { label: 'Merma', value: 'Waste' },
+  { label: 'Pérdida por deterioro', value: 'Spoilage' },
+  { label: 'Salida por venta', value: 'SaleDeduction' },
+  { label: 'Entrada por transferencia', value: 'TransferIn' },
+  { label: 'Salida por transferencia', value: 'TransferOut' },
   { label: 'Ajuste positivo', value: 'PositiveAdjustment' },
   { label: 'Ajuste negativo', value: 'NegativeAdjustment' },
-  { label: 'Producción insumo', value: 'ProductionInput' },
-  { label: 'Producción salida', value: 'ProductionOutput' },
+  { label: 'Consumo en producción', value: 'ProductionInput' },
+  { label: 'Entrada por producción', value: 'ProductionOutput' },
 ];
+
+const TIPO_FILTER_OPTIONS: { label: string; value: MovementType }[] = [
+  ...TIPO_OPTIONS,
+  { label: 'Reintegro por venta anulada', value: 'SaleRestoration' },
+];
+
+const TIPO_LABELS = new Map<MovementType, string>(
+  TIPO_FILTER_OPTIONS.map(option => [option.value, option.label]),
+);
 
 const SALIDAS = new Set<MovementType>([
   'ManualExit',
@@ -201,7 +210,7 @@ export default function StockMovements() {
           allowClear
           placeholder="Tipo"
           style={{ width: 180 }}
-          options={TIPO_OPTIONS}
+          options={TIPO_FILTER_OPTIONS}
           onChange={v => setFilterTipo(v as MovementType)}
         />
         <RangePicker
@@ -232,7 +241,7 @@ export default function StockMovements() {
             title: 'Tipo',
             dataIndex: 'type',
             key: 'tipo',
-            render: (v: MovementType) => <Tag color={tipoColor(v)}>{v}</Tag>,
+            render: (v: MovementType) => <Tag color={tipoColor(v)}>{TIPO_LABELS.get(v) ?? v}</Tag>,
           },
           {
             title: 'Cantidad',

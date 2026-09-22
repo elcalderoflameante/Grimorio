@@ -378,15 +378,14 @@ public class RegisterMovementHandler : IRequestHandler<RegisterMovementCommand, 
 
         try
         {
+            var stock = await InventoryStockLock.AcquireAsync(
+                _db, req.BranchId, req.ArticleId, req.WarehouseId, ct);
             await _db.SaveChangesAsync(ct);
 
             // Recalcular stock real desde todos los movimientos (corrige divergencias históricas)
             var trueStock = await _db.StockMovements
                 .Where(m => m.BranchId == req.BranchId && m.ArticleId == req.ArticleId && m.WarehouseId == req.WarehouseId)
                 .SumAsync(m => m.BaseQuantity, ct);
-
-            var stock = await _db.WarehouseStock.FirstOrDefaultAsync(
-                x => x.BranchId == req.BranchId && x.ArticleId == req.ArticleId && x.WarehouseId == req.WarehouseId, ct);
 
             if (stock is null)
             {
@@ -603,6 +602,16 @@ public class RegisterProductionHandler : IRequestHandler<RegisterProductionComma
             _db, req.BranchId, recipe.OutputArticle!, recipe.OutputQuantity, recipe.OutputUnitId, ct);
         var factor = outputBaseQuantity / recipeOutputBaseQuantity;
 
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        var stockKeys = recipe.Ingredients
+            .Select(i => (ArticleId: i.ArticleId, WarehouseId: req.SourceWarehouseId))
+            .Append((ArticleId: recipe.OutputArticleId, WarehouseId: req.DestinationWarehouseId))
+            .Distinct()
+            .OrderBy(x => x.ArticleId)
+            .ThenBy(x => x.WarehouseId);
+        foreach (var key in stockKeys)
+            await InventoryStockLock.AcquireAsync(_db, req.BranchId, key.ArticleId, key.WarehouseId, ct);
+
         var ingredientSnapshots = new List<ProductionOrderIngredient>();
         foreach (var ingredient in recipe.Ingredients)
         {
@@ -626,6 +635,7 @@ public class RegisterProductionHandler : IRequestHandler<RegisterProductionComma
                 Quantity = requiredQuantity,
                 UnitId = ingredient.UnitId,
                 BaseQuantity = requiredBaseQuantity,
+                BaseUnitId = ingredient.Article!.BaseUnitId,
                 UnitCost = unitCost,
                 TotalCost = Math.Round(requiredBaseQuantity * unitCost, 4),
             });
@@ -635,8 +645,6 @@ public class RegisterProductionHandler : IRequestHandler<RegisterProductionComma
         var outputUnitCost = outputBaseQuantity == 0 ? 0 : Math.Round(totalCost / outputBaseQuantity, 4);
         var productionNumber = await InventoryProductionHelper.NextProductionNumber(_db, req.BranchId, ct);
         var reference = $"Producción {productionNumber}";
-
-        await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
         var order = new ProductionOrder
         {
@@ -652,6 +660,7 @@ public class RegisterProductionHandler : IRequestHandler<RegisterProductionComma
             OutputBaseQuantity = outputBaseQuantity,
             TotalCost = totalCost,
             UnitCost = outputUnitCost,
+            ProducedAt = DateTime.UtcNow,
             Status = ProductionOrderStatus.Completed,
             Notes = req.Notes?.Trim(),
         };
@@ -854,34 +863,33 @@ internal static class InventoryProductionHelper
             Reference = reference,
             Notes = notes?.Trim(),
         };
+        var stock = await InventoryStockLock.AcquireAsync(db, branchId, articleId, warehouseId, ct);
         db.StockMovements.Add(movement);
-
-        var stock = await db.WarehouseStock.FirstOrDefaultAsync(
-            x => x.BranchId == branchId && x.ArticleId == articleId && x.WarehouseId == warehouseId, ct);
+        await db.SaveChangesAsync(ct);
+        var currentQuantity = await db.StockMovements
+            .Where(x => x.BranchId == branchId && x.ArticleId == articleId && x.WarehouseId == warehouseId)
+            .SumAsync(x => x.BaseQuantity, ct);
 
         if (stock is null)
         {
-            var currentQuantity = await db.StockMovements
-                .Where(x => x.BranchId == branchId && x.ArticleId == articleId && x.WarehouseId == warehouseId)
-                .SumAsync(x => x.BaseQuantity, ct);
-
             stock = new WarehouseStock
             {
                 Id = Guid.NewGuid(),
                 BranchId = branchId,
                 ArticleId = articleId,
                 WarehouseId = warehouseId,
-                Quantity = currentQuantity + effectiveQuantity,
+                Quantity = currentQuantity,
                 LastUpdatedAt = DateTime.UtcNow,
             };
             db.WarehouseStock.Add(stock);
         }
         else
         {
-            stock.Quantity += effectiveQuantity;
+            stock.Quantity = currentQuantity;
             stock.LastUpdatedAt = DateTime.UtcNow;
         }
 
+        await db.SaveChangesAsync(ct);
         return movement;
     }
 }

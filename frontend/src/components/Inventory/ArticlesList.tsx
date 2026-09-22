@@ -13,7 +13,7 @@ import { PERMISSIONS } from '../../constants/permissions';
 
 const { Title } = Typography;
 
-const TIPO_OPTIONS = [
+const TIPO_OPTIONS: { label: string; value: ArticleType }[] = [
   { label: 'Ingrediente', value: 'Ingredient' },
   { label: 'Producto terminado', value: 'FinishedProduct' },
   { label: 'Producto elaborado', value: 'ElaboratedProduct' },
@@ -48,6 +48,7 @@ export default function ArticlesList() {
   const [modal, setModal] = useState(false);
   const [filterBodega, setFilterBodega] = useState<string | undefined>();
   const [filterCategoria, setFilterCategoria] = useState<string | undefined>();
+  const [filterTipo, setFilterTipo] = useState<ArticleType | undefined>();
   const [filterNombre, setFilterNombre] = useState('');
   const [editing, setEditing] = useState<InventoryArticleDto | null>(null);
   const [form] = Form.useForm();
@@ -66,7 +67,7 @@ export default function ArticlesList() {
     setLoading(true);
     try {
       const [a, c, u, b, s] = await Promise.all([
-        inventoryApi.getArticles({ categoryId: filterCategoria }),
+        inventoryApi.getArticles({ categoryId: filterCategoria, type: filterTipo }),
         inventoryApi.getCategories(),
         inventoryApi.getUnits(),
         inventoryApi.getWarehouses(),
@@ -84,7 +85,7 @@ export default function ArticlesList() {
     } finally {
       setLoading(false);
     }
-  }, [filterBodega, filterCategoria, loadCatalogos, message]);
+  }, [filterBodega, filterCategoria, filterTipo, loadCatalogos, message]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -201,6 +202,13 @@ export default function ArticlesList() {
           style={{ width: 200 }}
           options={categorias.map(c => ({ label: c.name, value: c.id }))}
           onChange={setFilterCategoria}
+        />
+        <Select
+          allowClear
+          placeholder="Filtrar por tipo"
+          style={{ width: 200 }}
+          options={TIPO_OPTIONS}
+          onChange={setFilterTipo}
         />
         <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>Actualizar</Button>
       </Space>

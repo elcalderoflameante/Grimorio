@@ -40,7 +40,7 @@ import { PERMISSIONS } from '../constants/permissions';
 import { branchApi } from '../services/api';
 import { formatError } from '../utils/errorHandler';
 import { setBranchTimeZone } from '../utils/branchTimeZone';
-import type { BranchDto } from '../types';
+import type { BranchDto, PurchaseDto, SupplierDto } from '../types';
 import Welcome from '../components/Welcome/Welcome';
 import EmployeeList from '../components/Employees/EmployeeList.tsx';
 import EmployeeDetail from '../components/Employees/EmployeeDetail';
@@ -71,6 +71,7 @@ import StockMovements from '../components/Inventory/StockMovements';
 import Production from '../components/Inventory/Production';
 import SuppliersList from '../components/Purchases/SuppliersList';
 import PurchasesList from '../components/Purchases/PurchaseOrdersList';
+import PurchaseForm from '../components/Purchases/PurchaseForm';
 import CustomersList from '../components/Billing/CustomersList';
 import CashRegister from '../components/Billing/CashRegister';
 import SalesHistory from '../components/Billing/SalesHistory';
@@ -169,6 +170,8 @@ export default function Dashboard() {
   const [collapsed, setCollapsed] = useState(false);
   const [branch, setBranch] = useState<BranchDto | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+  const [selectedPurchase, setSelectedPurchase] = useState<PurchaseDto | null>(null);
+  const [purchaseSuppliers, setPurchaseSuppliers] = useState<SupplierDto[]>([]);
   const [alertasStock, setAlertasStock] = useState<StockAlertDto[]>([]);
   const navigate = useNavigate();
   const { user, logout, hasPermission, branchId } = useAuth();
@@ -223,6 +226,12 @@ export default function Dashboard() {
   const handleCreateEmployee = () => {
     setSelectedEmployeeId(null);
     setSelectedMenu('employee-detail');
+  };
+
+  const handleOpenPurchase = (purchase: PurchaseDto | null, suppliers: SupplierDto[]) => {
+    setSelectedPurchase(purchase);
+    setPurchaseSuppliers(suppliers);
+    setSelectedMenu('purchase-detail');
   };
 
   const menuItems: MenuItem[] = useMemo(() => {
@@ -379,7 +388,7 @@ export default function Dashboard() {
   }, [menuItems]);
 
   useEffect(() => {
-    if (selectedMenu === 'employee-detail') return;
+    if (selectedMenu === 'employee-detail' || selectedMenu === 'purchase-detail') return;
     if (allowedMenuKeys.has(selectedMenu)) return;
 
     setSelectedMenu(getFirstMenuKey(menuItems) ?? 'welcome');
@@ -476,7 +485,22 @@ case 'pos-estaciones':
       case 'purchases-suppliers':
         return <SuppliersList />;
       case 'purchases-orders':
-        return <PurchasesList />;
+        return (
+          <PurchasesList
+            onCreatePurchase={suppliers => handleOpenPurchase(null, suppliers)}
+            onEditPurchase={handleOpenPurchase}
+          />
+        );
+      case 'purchase-detail':
+        return (
+          <PurchaseForm
+            open
+            compra={selectedPurchase}
+            proveedores={purchaseSuppliers}
+            onClose={() => setSelectedMenu('purchases-orders')}
+            onSaved={() => setSelectedMenu('purchases-orders')}
+          />
+        );
       case 'billing-cash':
         return <CashRegister />;
       case 'billing-sales':
@@ -515,10 +539,17 @@ case 'pos-estaciones':
       ];
     }
 
+    if (selectedMenu === 'purchase-detail') {
+      return [
+        { title: 'Compras' },
+        { title: selectedPurchase ? 'Editar compra' : 'Nueva compra' },
+      ];
+    }
+
     const path = findBreadcrumbs(menuItems, selectedMenu);
     const titles = path.length > 0 ? path : ['Inicio'];
     return titles.map((title) => ({ title }));
-  }, [selectedMenu, menuItems, selectedEmployeeId]);
+  }, [selectedMenu, menuItems, selectedEmployeeId, selectedPurchase]);
 
   return (
     <Layout className="dashboard-layout" style={{ minHeight: '100vh', width: '100%', overflowX: 'hidden' }}>

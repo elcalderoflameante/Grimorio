@@ -5,7 +5,8 @@ using Microsoft.Extensions.Logging;
 
 namespace Grimorio.Infrastructure.Services.Sri;
 
-public enum SriSubmitResult { Received, Rejected }
+public enum SriSubmitResult { Received, Rejected, AlreadyReceived, Unknown }
+public enum SriAuthorizationStatus { Unknown, NotFound, Processing, Authorized, Rejected }
 
 public record SriValidateResponse(SriSubmitResult Result, List<string> Messages, string RawXml);
 
@@ -15,7 +16,8 @@ public record SriAuthorizationResponse(
     DateTime? FechaAutorizacion,
     string? XmlAuthorizado,
     List<string> Messages,
-    string RawXml);
+    string RawXml,
+    SriAuthorizationStatus Status = SriAuthorizationStatus.Unknown);
 
 // Cliente SOAP para los webservices del SRI Ecuador
 public class SriSoapClient
@@ -90,30 +92,37 @@ public class SriSoapClient
         using var client = _httpFactory.CreateClient();
         client.Timeout = TimeSpan.FromSeconds(30);
 
-        var content = new StringContent(soap, Encoding.UTF8, "text/xml");
+        using var content = new StringContent(soap, Encoding.UTF8, "text/xml");
         content.Headers.ContentType = new MediaTypeHeaderValue("text/xml") { CharSet = "UTF-8" };
         client.DefaultRequestHeaders.Add("SOAPAction", "\"\"");
 
-        var response = await client.PostAsync(endpoint, content, ct);
+        using var response = await client.PostAsync(endpoint, content, ct);
+        response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync(ct);
     }
 
     private static SriValidateResponse ParseValidarResponse(string xml)
     {
         var doc = new XmlDocument();
-        try { doc.LoadXml(xml); } catch { return new(SriSubmitResult.Rejected, ["Respuesta inválida del SRI"], xml); }
+        try { doc.LoadXml(xml); } catch { return new(SriSubmitResult.Unknown, ["Respuesta invalida del SRI; resultado pendiente de verificar."], xml); }
 
         // El estado está en RespuestaRecepcionComprobante/estado
-        var estadoNodes = doc.GetElementsByTagName("estado");
-        var estado = estadoNodes.Count > 0 ? estadoNodes[0]!.InnerText.Trim() : "";
+        var estado = doc.SelectSingleNode("//*[local-name()='RespuestaRecepcionComprobante']/*[local-name()='estado']")?.InnerText.Trim() ?? "";
 
         var messages = ExtractMensajes(doc);
 
-        var result = estado.Equals("RECIBIDA", StringComparison.OrdinalIgnoreCase)
-            ? SriSubmitResult.Received
-            : SriSubmitResult.Rejected;
+        var codes = doc.SelectNodes("//*[local-name()='mensaje']/*[local-name()='identificador']")!
+            .Cast<XmlNode>().Select(n => n.InnerText.Trim()).ToList();
+        var result = estado.ToUpperInvariant() switch
+        {
+            "RECIBIDA" => SriSubmitResult.Received,
+            "DEVUELTA" when codes.Any(c => c is "43" or "70") => SriSubmitResult.AlreadyReceived,
+            "DEVUELTA" when codes.Contains("50") => SriSubmitResult.Unknown,
+            "DEVUELTA" => SriSubmitResult.Rejected,
+            _ => SriSubmitResult.Unknown,
+        };
 
-        if (messages.Count == 0 && result == SriSubmitResult.Rejected)
+        if (messages.Count == 0 && result != SriSubmitResult.Received)
             messages.Add($"El SRI devolvió estado: {(string.IsNullOrEmpty(estado) ? "desconocido" : estado)}");
 
         return new(result, messages, xml);
@@ -125,15 +134,27 @@ public class SriSoapClient
         try { doc.LoadXml(xml); }
         catch { return new(false, null, null, null, ["Respuesta inválida del SRI"], xml); }
 
-        var autNodes = doc.GetElementsByTagName("autorizacion");
+        var response = doc.SelectSingleNode("//*[local-name()='RespuestaAutorizacionComprobante']");
+        var queriedKey = response?.SelectSingleNode("*[local-name()='claveAccesoConsultada']")?.InnerText.Trim();
+        if (response == null || queriedKey != claveAcceso)
+            return new(false, null, null, null, ["Respuesta de autorizacion invalida o de otra clave."], xml);
+        var autNodes = response.SelectNodes("*[local-name()='autorizaciones']/*[local-name()='autorizacion']")!;
         if (autNodes.Count == 0)
-            return new(false, null, null, null, ["Sin nodo de autorización en respuesta del SRI"], xml);
+        {
+            var messagesWithoutAuthorization = ExtractMensajes(doc);
+            var count = response.SelectSingleNode("*[local-name()='numeroComprobantes']")?.InnerText.Trim();
+            var state = count == "0" && messagesWithoutAuthorization.Count == 0
+                ? SriAuthorizationStatus.NotFound : SriAuthorizationStatus.Unknown;
+            return new(false, null, null, null,
+                messagesWithoutAuthorization.Count > 0 ? messagesWithoutAuthorization : ["Sin autorizacion disponible para la clave consultada."], xml, state);
+        }
 
-        var aut = autNodes[0]!;
-        var estado = aut.SelectSingleNode("estado")?.InnerText?.Trim() ?? "";
-        var numeroAut = aut.SelectSingleNode("numeroAutorizacion")?.InnerText;
-        var fechaAut = aut.SelectSingleNode("fechaAutorizacion")?.InnerText;
-        var comprobante = aut.SelectSingleNode("comprobante")?.InnerText;
+        var aut = autNodes.Cast<XmlNode>().FirstOrDefault(n =>
+            n.SelectSingleNode("*[local-name()='estado']")?.InnerText.Trim() == "AUTORIZADO") ?? autNodes[autNodes.Count - 1]!;
+        var estado = aut.SelectSingleNode("*[local-name()='estado']")?.InnerText?.Trim() ?? "";
+        var numeroAut = aut.SelectSingleNode("*[local-name()='numeroAutorizacion']")?.InnerText;
+        var fechaAut = aut.SelectSingleNode("*[local-name()='fechaAutorizacion']")?.InnerText;
+        var comprobante = aut.SelectSingleNode("*[local-name()='comprobante']")?.InnerText;
 
         bool autorizado = estado.Equals("AUTORIZADO", StringComparison.OrdinalIgnoreCase);
 
@@ -145,7 +166,16 @@ public class SriSoapClient
         if (messages.Count == 0 && !autorizado)
             messages.Add($"El SRI devolvió estado: {(string.IsNullOrEmpty(estado) ? "desconocido" : estado)}");
 
-        return new(autorizado, numeroAut, fechaDate, comprobante, messages, xml);
+        var status = estado.ToUpperInvariant() switch
+        {
+            "AUTORIZADO" => SriAuthorizationStatus.Authorized,
+            "NO AUTORIZADO" => SriAuthorizationStatus.Rejected,
+            "EN PROCESO" or "EN PROCESAMIENTO" => SriAuthorizationStatus.Processing,
+            _ => SriAuthorizationStatus.Unknown,
+        };
+        if (autorizado && (string.IsNullOrWhiteSpace(numeroAut) || string.IsNullOrWhiteSpace(comprobante) || !fechaDate.HasValue))
+            return new(false, null, null, null, ["Respuesta de autorizacion incompleta; se consultara nuevamente."], xml);
+        return new(autorizado, numeroAut, fechaDate, comprobante, messages, xml, status);
     }
 
     // El SRI usa <mensaje> tanto como contenedor como elemento hijo con el texto.
@@ -155,17 +185,17 @@ public class SriSoapClient
         var result = new List<string>();
 
         // Los nodos <mensajes> contienen los <mensaje> contenedores
-        var mensajesContainers = doc.GetElementsByTagName("mensajes");
+        var mensajesContainers = doc.SelectNodes("//*[local-name()='mensajes']")!;
         foreach (XmlNode container in mensajesContainers)
         {
             foreach (XmlNode mensajeNode in container.ChildNodes)
             {
                 if (mensajeNode.NodeType != XmlNodeType.Element) continue;
 
-                var id = mensajeNode.SelectSingleNode("identificador")?.InnerText?.Trim();
-                var texto = mensajeNode.SelectSingleNode("mensaje")?.InnerText?.Trim();
-                var tipo = mensajeNode.SelectSingleNode("tipo")?.InnerText?.Trim();
-                var info = mensajeNode.SelectSingleNode("informacionAdicional")?.InnerText?.Trim();
+                var id = mensajeNode.SelectSingleNode("*[local-name()='identificador']")?.InnerText?.Trim();
+                var texto = mensajeNode.SelectSingleNode("*[local-name()='mensaje']")?.InnerText?.Trim();
+                var tipo = mensajeNode.SelectSingleNode("*[local-name()='tipo']")?.InnerText?.Trim();
+                var info = mensajeNode.SelectSingleNode("*[local-name()='informacionAdicional']")?.InnerText?.Trim();
 
                 if (string.IsNullOrEmpty(texto)) continue;
 

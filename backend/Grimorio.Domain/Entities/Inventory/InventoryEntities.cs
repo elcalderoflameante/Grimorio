@@ -193,6 +193,7 @@ public class ProductionOrder : BaseEntity
     public decimal OutputBaseQuantity { get; set; }
     public decimal TotalCost { get; set; }
     public decimal UnitCost { get; set; }
+    public DateTime ProducedAt { get; set; }
     public ProductionOrderStatus Status { get; set; } = ProductionOrderStatus.Completed;
     public string? Notes { get; set; }
 
@@ -212,6 +213,7 @@ public class ProductionOrderIngredient : BaseEntity
     public decimal Quantity { get; set; }
     public Guid UnitId { get; set; }
     public decimal BaseQuantity { get; set; }
+    public Guid BaseUnitId { get; set; }
     public decimal UnitCost { get; set; }
     public decimal TotalCost { get; set; }
 

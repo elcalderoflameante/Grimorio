@@ -10,11 +10,19 @@ public record SriInvoiceData(
     BranchTaxConfig Config,
     OrderPayment Payment,
     Order Order,
-    List<OrderItem> Items,
+    List<SriInvoiceLine> Items,
     string ClaveAcceso,
     long Secuencial,
     Customer? Customer,
     DateTime? EmissionDate = null);
+
+public record SriInvoiceLine(
+    string Code,
+    string Description,
+    decimal Quantity,
+    decimal UnitPrice,
+    string TaxRateSriCode,
+    decimal TaxRatePercentage);
 
 // Construye el XML de Factura v2.1.0 sin firma
 public static class SriXmlBuilder
@@ -72,7 +80,7 @@ public static class SriXmlBuilder
 
         var taxGroups = ComputeTaxGroups(d.Items);
         decimal totalSinImpuestos = taxGroups.Sum(g => g.TaxableBase);
-        decimal importeTotal = d.Order.Total;
+        decimal importeTotal = d.Payment.OrderAmount;
 
         // Identificación del comprador
         string tipoId, idComprador, razonComprador;
@@ -117,12 +125,29 @@ public static class SriXmlBuilder
 
         // Forma de pago (SRI requiere al menos una)
         w.WriteStartElement("pagos");
-        w.WriteStartElement("pago");
-        w.WriteElementString("formaPago", MapPaymentMethod(payment));
-        w.WriteElementString("total", Fmt(importeTotal));
-        w.WriteElementString("plazo", "0");
-        w.WriteElementString("unidadTiempo", "dias");
-        w.WriteEndElement(); // pago
+        var paymentGroups = payment.Lines
+            .Where(l => !l.IsDeleted)
+            .GroupBy(MapPaymentMethod)
+            .Select(g => new
+            {
+                SriCode = g.Key,
+                Total = g.Sum(l => l.AmountTendered - l.Change),
+            })
+            .Where(g => g.Total > 0)
+            .ToList();
+
+        if (paymentGroups.Count == 0)
+            paymentGroups.Add(new { SriCode = "01", Total = importeTotal });
+
+        foreach (var paymentGroup in paymentGroups)
+        {
+            w.WriteStartElement("pago");
+            w.WriteElementString("formaPago", paymentGroup.SriCode);
+            w.WriteElementString("total", Fmt(paymentGroup.Total));
+            w.WriteElementString("plazo", "0");
+            w.WriteElementString("unidadTiempo", "dias");
+            w.WriteEndElement(); // pago
+        }
         w.WriteEndElement(); // pagos
 
         w.WriteEndElement(); // infoFactura
@@ -141,13 +166,13 @@ public static class SriXmlBuilder
 
     private record TaxGroup(string SriCode, decimal Percentage, decimal TaxableBase, decimal TaxAmt);
 
-    private static List<TaxGroup> ComputeTaxGroups(List<OrderItem> items)
+    private static List<TaxGroup> ComputeTaxGroups(List<SriInvoiceLine> items)
     {
         return items
             .GroupBy(i => new
             {
-                SriCode = i.MenuItem?.TaxRate?.SriCode ?? "6",
-                Percentage = i.MenuItem?.TaxRate?.Percentage ?? 0m,
+                SriCode = i.TaxRateSriCode,
+                Percentage = i.TaxRatePercentage,
             })
             .Select(g =>
             {
@@ -155,8 +180,7 @@ public static class SriXmlBuilder
                 decimal taxableBase = 0, taxAmt = 0;
                 foreach (var item in g)
                 {
-                    var net = item.UnitPrice * item.Quantity
-                              - Math.Round(item.UnitPrice * item.Quantity * (item.DiscountPct / 100m), 2);
+                    var net = item.UnitPrice * item.Quantity;
                     if (pct > 0)
                     {
                         var b = Math.Round(net / (1m + pct / 100m), 2);
@@ -176,14 +200,12 @@ public static class SriXmlBuilder
         w.WriteStartElement("detalles");
         foreach (var item in d.Items)
         {
-            var menuItem = item.MenuItem;
-            var taxRate = menuItem?.TaxRate;
-            var pct = taxRate?.Percentage ?? 0m;
-            var sriCode = taxRate?.SriCode ?? "6";
+            var pct = item.TaxRatePercentage;
+            var sriCode = item.TaxRateSriCode;
 
             var gross = item.UnitPrice * item.Quantity;
-            var discount = Math.Round(gross * (item.DiscountPct / 100m), 2);
-            var net = gross - discount;
+            const decimal discount = 0m;
+            var net = gross;
             decimal taxableBase, taxAmt;
             if (pct > 0)
             {
@@ -193,8 +215,8 @@ public static class SriXmlBuilder
             else { taxableBase = net; taxAmt = 0m; }
 
             w.WriteStartElement("detalle");
-            w.WriteElementString("codigoPrincipal", menuItem?.InternalCode ?? item.MenuItemId.ToString()[..8]);
-            w.WriteElementString("descripcion", menuItem?.Name ?? item.MenuItemId.ToString()[..8]);
+            w.WriteElementString("codigoPrincipal", item.Code);
+            w.WriteElementString("descripcion", item.Description);
             w.WriteElementString("cantidad", item.Quantity.ToString("F6", System.Globalization.CultureInfo.InvariantCulture));
             w.WriteElementString("precioUnitario", (net / (pct > 0 ? 1m + pct / 100m : 1m)).ToString("F6", System.Globalization.CultureInfo.InvariantCulture));
             w.WriteElementString("descuento", Fmt(discount));
@@ -239,17 +261,14 @@ public static class SriXmlBuilder
         w.WriteEndElement(); // infoAdicional
     }
 
-    private static string MapPaymentMethod(OrderPayment payment)
+    private static string MapPaymentMethod(PaymentLine line)
     {
         // Código de forma de pago SRI
         // 01 = efectivo, 08 = tarjeta débito, 19 = tarjeta crédito, 20 = transferencia
-        var lines = payment.Lines?.ToList();
-        if (lines == null || lines.Count == 0) return "01";
-        var first = lines[0];
-        if (first.Config?.IsCash == true) return "01";
-        if (first.Config?.Name?.Contains("débito", StringComparison.OrdinalIgnoreCase) == true) return "08";
-        if (first.Config?.Name?.Contains("crédit", StringComparison.OrdinalIgnoreCase) == true) return "19";
-        if (first.Config?.Name?.Contains("transfer", StringComparison.OrdinalIgnoreCase) == true) return "20";
+        if (line.Config?.IsCash == true) return "01";
+        if (line.CardPaymentType == CardPaymentType.Debit) return "08";
+        if (line.CardPaymentType == CardPaymentType.Credit) return "19";
+        if (line.Config?.Name?.Contains("transfer", StringComparison.OrdinalIgnoreCase) == true) return "20";
         return "01";
     }
 

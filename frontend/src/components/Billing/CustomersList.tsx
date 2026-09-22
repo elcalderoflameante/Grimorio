@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { App as AntApp, Table, Button, Space, Tag, Modal, Form, Input, Select, Popconfirm, Typography } from 'antd';
+import { App as AntApp, Table, Button, Space, Tag, Modal, Form, Input, Select, Popconfirm, Typography, Row, Col } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto } from '../../types';
 import { customersApi } from '../../services/api';
@@ -134,32 +134,47 @@ export default function CustomersList() {
         confirmLoading={saving}
         okText="Guardar"
         cancelText="Cancelar"
-        width={480}
+        width={760}
+        style={{ top: 32 }}
       >
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="Nombre / Razón social" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="taxIdType" label="Tipo de identificación">
-            <Select options={TAX_ID_TYPES} />
-          </Form.Item>
-          <Form.Item name="taxId" label="RUC / Cédula">
-            <Input />
-          </Form.Item>
-          <Form.Item name="address" label="Dirección">
-            <Input />
-          </Form.Item>
-          <Form.Item name="phone" label="Teléfono">
-            <Input />
-          </Form.Item>
-          <Form.Item name="email" label="Email">
-            <Input type="email" />
-          </Form.Item>
-          {editing && (
-            <Form.Item name="isActive" label="Estado">
-              <Select options={[{ value: true, label: 'Activo' }, { value: false, label: 'Inactivo' }]} />
-            </Form.Item>
-          )}
+          <Row gutter={16}>
+            <Col xs={24} md={12}>
+              <Form.Item name="taxIdType" label="Tipo de identificación">
+                <Select options={TAX_ID_TYPES} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="taxId" label="RUC / Cédula">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="address" label="Dirección">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="phone" label="Teléfono">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={editing ? 12 : 24}>
+              <Form.Item name="email" label="Email">
+                <Input type="email" />
+              </Form.Item>
+            </Col>
+            {editing && (
+              <Col xs={24} md={12}>
+                <Form.Item name="isActive" label="Estado">
+                  <Select options={[{ value: true, label: 'Activo' }, { value: false, label: 'Inactivo' }]} />
+                </Form.Item>
+              </Col>
+            )}
+          </Row>
         </Form>
       </Modal>
     </div>

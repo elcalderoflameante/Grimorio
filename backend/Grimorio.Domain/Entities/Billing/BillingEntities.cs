@@ -65,6 +65,15 @@ public enum ElectronicDocumentStatus
     Cancelled = 5,     // Anulado
 }
 
+public enum ElectronicDocumentEmailStatus
+{
+    Unknown = 1,
+    Pending = 2,
+    Sent = 3,
+    Failed = 4,
+    Skipped = 5,
+}
+
 public class ElectronicDocument : BaseEntity
 {
     public Guid OrderPaymentId { get; set; }
@@ -94,7 +103,14 @@ public class ElectronicDocument : BaseEntity
 
     public string? ErrorMessage { get; set; }
     public DateTime? SentAt { get; set; }
+    public DateTime? ProcessingStartedAt { get; set; }
     public int RetryCount { get; set; }
+
+    public ElectronicDocumentEmailStatus EmailStatus { get; set; } = ElectronicDocumentEmailStatus.Unknown;
+    public string? EmailRecipient { get; set; }
+    public DateTime? EmailSentAt { get; set; }
+    public string? EmailErrorMessage { get; set; }
+    public int EmailRetryCount { get; set; }
 
     public virtual OrderPayment? OrderPayment { get; set; }
 }
@@ -185,6 +201,7 @@ public class CashSession : BaseEntity
 public class OrderPayment : BaseEntity
 {
     public Guid OrderId { get; set; }
+    public Guid? IdempotencyKey { get; set; }
     public Guid? CashSessionId { get; set; }
     public Guid? CustomerId { get; set; }
     public DocumentType DocumentType { get; set; } = DocumentType.NotaDeVenta;
@@ -202,9 +219,13 @@ public class OrderPaymentItem : BaseEntity
 {
     public Guid OrderPaymentId { get; set; }
     public Guid OrderItemId { get; set; }
+    public string? ItemCode { get; set; }
+    public string? ItemName { get; set; }
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal Total { get; set; }
+    public string? TaxRateSriCode { get; set; }
+    public decimal? TaxRatePercentage { get; set; }
 
     public virtual OrderPayment? Payment { get; set; }
     public virtual POS.OrderItem? OrderItem { get; set; }

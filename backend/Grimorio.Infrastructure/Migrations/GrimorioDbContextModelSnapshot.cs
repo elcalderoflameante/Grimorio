@@ -865,6 +865,25 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid?>("DeletedBy")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("EmailErrorMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("EmailRecipient")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<int>("EmailRetryCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("EmailSentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EmailStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<DateTime>("EmissionDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -904,6 +923,9 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("OriginalEmissionDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ProcessingStartedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("RetryCount")
@@ -954,11 +976,15 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.HasIndex("IsDeleted");
 
-                    b.HasIndex("OrderPaymentId");
+                    b.HasIndex("OrderPaymentId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
 
                     b.HasIndex("BranchId", "IsDeleted");
 
                     b.HasIndex("BranchId", "Status");
+
+                    b.HasIndex("Status", "ProcessingStartedAt");
 
                     b.ToTable("ElectronicDocuments", "billing");
                 });
@@ -1069,6 +1095,9 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<int>("DocumentType")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("IdempotencyKey")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -1100,6 +1129,10 @@ namespace Grimorio.Infrastructure.Migrations
                     b.HasIndex("IsDeleted");
 
                     b.HasIndex("OrderId");
+
+                    b.HasIndex("BranchId", "IdempotencyKey")
+                        .IsUnique()
+                        .HasFilter("\"IdempotencyKey\" IS NOT NULL AND \"IsDeleted\" = false");
 
                     b.HasIndex("BranchId", "IsDeleted");
 
@@ -1137,6 +1170,14 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<string>("ItemCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ItemName")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
                     b.Property<Guid>("OrderItemId")
                         .HasColumnType("uuid");
 
@@ -1146,11 +1187,18 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<decimal>("Quantity")
                         .HasColumnType("numeric(18,4)");
 
+                    b.Property<decimal?>("TaxRatePercentage")
+                        .HasColumnType("numeric(8,4)");
+
+                    b.Property<string>("TaxRateSriCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
                     b.Property<decimal>("Total")
                         .HasColumnType("numeric(18,2)");
 
                     b.Property<decimal>("UnitPrice")
-                        .HasColumnType("numeric(18,2)");
+                        .HasColumnType("numeric(18,6)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -2050,6 +2098,11 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid>("OutputUnitId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime>("ProducedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
                     b.Property<Guid>("ProductionRecipeId")
                         .HasColumnType("uuid");
 
@@ -2114,6 +2167,9 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.Property<decimal>("BaseQuantity")
                         .HasColumnType("numeric(18,4)");
+
+                    b.Property<Guid>("BaseUnitId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("BranchId")
                         .HasColumnType("uuid");

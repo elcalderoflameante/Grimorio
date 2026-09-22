@@ -173,6 +173,24 @@ public class SriController : ControllerBase
         catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
     }
 
+    [Authorize(Policy = "Billing.Sri.Generate")]
+    [HttpPost("documentos/{id:guid}/correo/reintentar")]
+    public async Task<IActionResult> ResendInvoiceEmail(Guid id)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        try
+        {
+            var result = await _mediator.Send(new ResendElectronicInvoiceEmailCommand
+            {
+                DocumentId = id,
+                BranchId = branchId,
+            });
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+        catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
+    }
+
     [Authorize(Policy = "Billing.Sri.View")]
     [HttpGet("documentos/{id:guid}/ride")]
     public async Task<IActionResult> DownloadRide(Guid id)

@@ -66,6 +66,8 @@ public class ElectronicDocumentDto
 {
     public Guid Id { get; set; }
     public Guid OrderPaymentId { get; set; }
+    public Guid OrderId { get; set; }
+    public int OrderNumber { get; set; }
     public string ClaveAcceso { get; set; } = string.Empty;
     public string NumeroFactura { get; set; } = string.Empty;
     public long Secuencial { get; set; }
@@ -92,6 +94,11 @@ public class ElectronicDocumentDto
     public bool HasRide { get; set; }
     public bool HasXml { get; set; }
     public bool HasXmlResponse { get; set; }
+    public string EmailStatus { get; set; } = string.Empty;
+    public string? EmailRecipient { get; set; }
+    public DateTime? EmailSentAt { get; set; }
+    public string? EmailErrorMessage { get; set; }
+    public int EmailRetryCount { get; set; }
 }
 
 // ── SmtpConfig ────────────────────────────────────────────────────────────────
@@ -322,6 +329,7 @@ public class OrderPaymentDto
     public List<PaymentLineDto> Lines { get; set; } = [];
     public List<OrderPaymentItemDto> Items { get; set; } = [];
     public Guid? ElectronicDocumentId { get; set; }
+    public string? ElectronicDocumentNumber { get; set; }
     public string? ElectronicDocumentStatus { get; set; }
 }
 
@@ -472,6 +480,7 @@ public class AddPaymentLineDto
 
 public class AddOrderPaymentDto
 {
+    public Guid IdempotencyKey { get; set; }
     public decimal OrderAmount { get; set; }
     public string DocumentType { get; set; } = "NotaDeVenta";
     public Guid? CustomerId { get; set; }

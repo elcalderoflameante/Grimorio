@@ -14,6 +14,15 @@ import { formatError } from '../../utils/errorHandler';
 const { Title, Text } = Typography;
 const PROMOTIONS_CATEGORY_ID = '__promotions__';
 
+const getMissingIngredientNames = (availability?: MenuItemAvailabilityDto) => {
+  const names = availability?.components
+    .filter(component => component.availableServings < 1)
+    .map(component => component.articleName) ?? [];
+
+  if (names.length > 0) return [...new Set(names)];
+  return availability?.limitingArticleName ? [availability.limitingArticleName] : [];
+};
+
 interface Props {
   table?: RestaurantTableDto;
   orderType: OrderType;
@@ -245,7 +254,12 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
       .reduce((sum, line) => sum + line.quantity, 0);
 
     if (itemAvailability?.isTracked && !itemAvailability.isAvailable) {
-      message.warning(`${itemDetail.name} no tiene stock disponible`);
+      const missingIngredients = getMissingIngredientNames(itemAvailability);
+      message.warning(
+        missingIngredients.length > 0
+          ? `${itemDetail.name} no tiene stock disponible. Faltan: ${missingIngredients.join(', ')}`
+          : `${itemDetail.name} no tiene stock disponible`,
+      );
       return;
     }
 
@@ -543,6 +557,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
                 && itemAvailability.availableQuantity !== null
                 && itemAvailability.availableQuantity !== undefined
                 && totalQty >= itemAvailability.availableQuantity;
+              const missingIngredients = isSoldOut ? getMissingIngredientNames(itemAvailability) : [];
               const stockColor = isSoldOut ? 'red' : reachedLimit ? 'orange' : itemAvailability?.isTracked ? 'green' : 'default';
               return (
                 <Card
@@ -561,7 +576,14 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
                 >
                   <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>{item.name}</div>
                   <div style={{ fontSize: 12, color: '#1677ff', marginTop: 4 }}>${item.price.toFixed(2)}</div>
-                  <Tooltip title={isSoldOut && itemAvailability?.limitingArticleName ? `Falta ${itemAvailability.limitingArticleName}` : undefined}>
+                  <Tooltip
+                    title={missingIngredients.length > 0 ? (
+                      <div>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>Faltan ingredientes:</div>
+                        {missingIngredients.map(name => <div key={name}>{name}</div>)}
+                      </div>
+                    ) : undefined}
+                  >
                     <Tag color={stockColor} style={{ fontSize: 10, marginTop: 4, marginInlineEnd: 0 }}>
                       {isSoldOut ? 'Agotado' : formatStock(itemAvailability?.availableQuantity)}
                     </Tag>
@@ -761,18 +783,20 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
         }}
         okText="Agregar al pedido"
         cancelText="Cancelar"
-        width={460}
+        width={560}
+        style={{ top: 24 }}
+        styles={{ body: { maxHeight: 'calc(100dvh - 160px)', overflowY: 'auto' } }}
         okButtonProps={{ size: 'large' }}
         cancelButtonProps={{ size: 'large' }}
       >
         {modifierTarget && (
-          <div style={{ paddingTop: 8 }}>
+          <div style={{ paddingTop: 4 }}>
             {modifierError && (
               <Alert
                 type="error"
                 showIcon
                 title="Revisa las opciones requeridas"
-                style={{ marginBottom: 16 }}
+                style={{ marginBottom: 12 }}
               />
             )}
             {modifierTarget.modifierGroups.map(group => {
@@ -780,14 +804,14 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
               const min = group.isRequired && group.minSelections === 0 ? 1 : group.minSelections;
               const groupInvalid = modifierError && (selectedCount < min || selectedCount > group.maxSelections);
               return (
-                <div key={group.id} style={{ marginBottom: 18 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div key={group.id} style={{ marginBottom: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                     <Text strong style={{ fontSize: 13 }}>{group.name}</Text>
                     <Tag color={groupInvalid ? 'red' : 'default'} style={{ fontSize: 11 }}>
                       {selectedCount}/{group.maxSelections}
                     </Tag>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 6 }}>
                     {group.options.map(option => {
                       const qty = pendingModifiers[option.id] ?? 0;
                       const selected = qty > 0;
@@ -801,36 +825,40 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
                         <div
                           key={option.id}
                           style={{
-                            flex: '1 1 calc(50% - 10px)',
-                            minWidth: 140,
-                            padding: 10,
-                            borderRadius: 8,
+                            display: 'grid',
+                            gridTemplateColumns: 'minmax(0, 1fr) auto',
+                            alignItems: 'center',
+                            gap: 10,
+                            minHeight: 60,
+                            padding: '6px 10px',
+                            borderRadius: 6,
                             border: `1px solid ${selected ? '#1677ff' : groupInvalid || outOfStock ? '#ff4d4f' : '#d9d9d9'}`,
                             background: outOfStock ? '#fff1f0' : selected ? '#e6f4ff' : '#fff',
-                            opacity: outOfStock ? 0.65 : 1,
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
-                            <Text style={{ fontSize: 13 }}>{option.name}</Text>
-                            {option.priceDelta !== 0 && (
-                              <Text type="secondary" style={{ fontSize: 12 }}>
-                                +${option.priceDelta.toFixed(2)}
-                              </Text>
+                          <div style={{ minWidth: 0 }}>
+                            <Text style={{ fontSize: 13, display: 'block' }}>{option.name}</Text>
+                            {(option.isTracked || option.priceDelta !== 0) && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 11 }}>
+                                {option.isTracked && (
+                                  <Text type={outOfStock ? 'danger' : 'secondary'} style={{ fontSize: 11 }}>
+                                    {outOfStock ? 'Sin stock' : `Disp. ${stockLimit}`}
+                                  </Text>
+                                )}
+                                {option.priceDelta !== 0 && (
+                                  <Text type="secondary" style={{ fontSize: 11 }}>+${option.priceDelta.toFixed(2)}</Text>
+                                )}
+                              </div>
                             )}
                           </div>
-                          {option.isTracked && (
-                            <Tag color={outOfStock ? 'red' : reachedOptionStock ? 'orange' : 'green'} style={{ fontSize: 11, marginTop: 6 }}>
-                              {outOfStock ? 'Sin stock' : `Disp. ${stockLimit}`}
-                            </Tag>
-                          )}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                             <Button
                               size="small"
                               icon={<MinusOutlined />}
                               disabled={qty <= 0}
                               onClick={() => setPendingModifiers(prev => ({ ...prev, [option.id]: Math.max(0, qty - 1) }))}
                             />
-                            <Text style={{ width: 24, textAlign: 'center' }}>{qty}</Text>
+                            <Text style={{ width: 22, textAlign: 'center' }}>{qty}</Text>
                             <Button
                               size="small"
                               icon={<PlusOutlined />}

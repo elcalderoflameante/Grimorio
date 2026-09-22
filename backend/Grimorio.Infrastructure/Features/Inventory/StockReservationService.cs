@@ -76,8 +76,10 @@ internal static class StockReservationService
                 WHERE "BranchId" = {branchId}
                     AND "IsDeleted" = false
                     AND "ArticleId" = ANY({articleIdsArray})
+                ORDER BY "ArticleId", "WarehouseId"
                 FOR UPDATE
                 """)
+            .AsNoTracking()
             .ToListAsync(ct);
 
         var stockRows = lockedStockRows

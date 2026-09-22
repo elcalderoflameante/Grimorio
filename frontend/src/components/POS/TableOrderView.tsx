@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { App as AntApp, Alert, Button, Card, Checkbox, Col, Divider, Empty, Input, InputNumber, Popconfirm,
-  Modal, Row, Select, Space, Spin, Tabs, Tag, Tooltip, Typography } from 'antd';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { App as AntApp, Alert, Badge, Button, Card, Checkbox, Col, Divider, Empty, Input, InputNumber, Popconfirm,
+  Grid, Modal, Row, Select, Space, Spin, Tabs, Tag, Tooltip, Typography } from 'antd';
 import { ArrowLeftOutlined, CheckCircleOutlined, DeleteOutlined, DollarOutlined, EditOutlined,
   MinusOutlined, PlusOutlined, PrinterOutlined, QuestionCircleOutlined, ReloadOutlined, SplitCellsOutlined } from '@ant-design/icons';
 import type {
   OrderDto, RestaurantTableDto, PaymentMethodConfigDto,
   OrderPaymentDto, AddOrderPaymentDto, CustomerDto, MenuCategoryDto,
   MenuItemDto, CreateOrderItemDto, CreateModifierSelectionDto, CardBankDto, PromotionDto,
+  MenuItemAvailabilityDto,
 } from '../../types';
 import { cashApi, menuApi, paymentMethodsApi, posApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
@@ -14,6 +15,8 @@ import { printThermalReceipt } from '../../utils/thermalReceiptPrinter';
 import CustomerSelector from '../Billing/CustomerSelector';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
+import { clearPendingPayment, pendingPaymentStorageKey, readPendingPayment } from '../../utils/pendingPayment';
+import { allocatePaymentTotal, getPaymentLineTotal as calculatePaymentLineTotal } from '../../utils/orderPaymentPricing';
 
 function modifiersLabel(selections: CreateModifierSelectionDto[] | undefined, items: MenuItemDto[], menuItemId: string): string | null {
   if (!selections || selections.length === 0) return null;
@@ -29,6 +32,30 @@ function modifiersLabel(selections: CreateModifierSelectionDto[] | undefined, it
 const { Title, Text } = Typography;
 const PROMOTIONS_CATEGORY_ID = '__promotions__';
 
+const getMissingIngredientNames = (availability?: MenuItemAvailabilityDto) => {
+  const names = availability?.components
+    .filter(component => component.availableServings < 1)
+    .map(component => component.articleName) ?? [];
+
+  if (names.length > 0) return [...new Set(names)];
+  return availability?.limitingArticleName ? [availability.limitingArticleName] : [];
+};
+
+const formatStock = (quantity?: number | null) => {
+  if (quantity === null || quantity === undefined) return 'Stock sin control';
+  return `Disponible: ${Math.max(0, Math.floor(quantity))}`;
+};
+
+const createIdempotencyKey = () => {
+  if (crypto.randomUUID) return crypto.randomUUID();
+
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0'));
+  return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10).join('')}`;
+};
+
 const STATUS_COLORS: Record<string, string> = {
   Draft: 'default', Confirmed: 'processing', InPreparation: 'orange',
   Ready: 'cyan', Delivered: 'green', Cancelled: 'red',
@@ -42,6 +69,12 @@ const ITEM_STATUS_COLORS: Record<string, string> = {
 };
 const ITEM_STATUS_LABELS: Record<string, string> = {
   Pending: 'Pendiente', InPreparation: 'En prep.', Ready: 'Listo', Cancelled: 'Cancelado',
+};
+const ELECTRONIC_DOCUMENT_STATUS_COLORS: Record<string, string> = {
+  Pending: 'gold', Sent: 'blue', Authorized: 'green', Rejected: 'red',
+};
+const ELECTRONIC_DOCUMENT_STATUS_LABELS: Record<string, string> = {
+  Pending: 'SRI pendiente', Sent: 'Enviada al SRI', Authorized: 'Autorizada', Rejected: 'Rechazada',
 };
 const DOC_OPTIONS = [
   { value: 'NotaDeVenta', label: 'Nota de Venta' },
@@ -78,6 +111,8 @@ interface Props {
 
 export default function TableOrderView({ orderId, table, branchId, onClose, onTableUpdated }: Props) {
   const { message } = AntApp.useApp();
+  const screens = Grid.useBreakpoint();
+  const isDesktop = !!screens.md;
 
   const { hasPermission } = useAuth();
   const [order, setOrder] = useState<OrderDto | null>(null);
@@ -86,6 +121,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const [cardBanks, setCardBanks] = useState<CardBankDto[]>([]);
   const [categories, setCategories] = useState<MenuCategoryDto[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItemDto[]>([]);
+  const [availability, setAvailability] = useState<MenuItemAvailabilityDto[]>([]);
   const [promotions, setPromotions] = useState<PromotionDto[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -108,6 +144,27 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const [payLines, setPayLines] = useState<PayLine[]>([]);
   const [splitRows, setSplitRows] = useState<Record<string, SplitRow>>({});
   const [paying, setPaying] = useState(false);
+  const [pendingPayment, setPendingPayment] = useState<AddOrderPaymentDto | null>(null);
+  const paymentInFlight = useRef(false);
+  const paymentStorageKey = pendingPaymentStorageKey(branchId, orderId);
+  const [paymentStorageError, setPaymentStorageError] = useState(false);
+
+  useEffect(() => {
+    const restore = () => {
+      try {
+        setPendingPayment(readPendingPayment(paymentStorageKey));
+        setPaymentStorageError(false);
+      } catch {
+        setPaymentStorageError(true);
+      }
+    };
+    restore();
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === paymentStorageKey || event.key === null) restore();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [paymentStorageKey]);
   const [cancellingOrder, setCancellingOrder] = useState(false);
   const [cancellingItemId, setCancellingItemId] = useState<string | null>(null);
   const [editingItemObs, setEditingItemObs] = useState<{ itemId: string; itemName: string; obs: string } | null>(null);
@@ -120,13 +177,14 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [orderRes, paymentsRes, methodsRes, banksRes, catsRes, itemsRes, sessionRes, promosRes] = await Promise.allSettled([
+      const [orderRes, paymentsRes, methodsRes, banksRes, catsRes, itemsRes, availabilityRes, sessionRes, promosRes] = await Promise.allSettled([
         posApi.getOrden(orderId),
         cashApi.getOrderPayments(orderId),
         paymentMethodsApi.getAll(true),
         paymentMethodsApi.getCardBanks(true),
         menuApi.getCategories(),
         menuApi.getItems({ activeOnly: true, lightweight: true }),
+        menuApi.getAvailability({ activeOnly: true, availableOnly: true }),
         cashApi.getActiveSession(),
         posApi.getPromotions(),
       ]);
@@ -141,7 +199,10 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       if (paymentsRes.status === 'fulfilled') setPayments(paymentsRes.value.data);
       if (methodsRes.status === 'fulfilled') setMethods(methodsRes.value.data);
       if (banksRes.status === 'fulfilled') setCardBanks(banksRes.value.data);
-      if (catsRes.status === 'fulfilled') setCategories(catsRes.value.data);
+      if (catsRes.status === 'fulfilled') {
+        setCategories(catsRes.value.data);
+        setActiveCategory(current => current ?? catsRes.value.data[0]?.id ?? null);
+      }
       if (itemsRes.status === 'fulfilled') {
         let loadedMenuItems = itemsRes.value.data;
         if (orderRes.status === 'fulfilled') {
@@ -156,6 +217,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         }
         setMenuItems(loadedMenuItems);
       }
+      if (availabilityRes.status === 'fulfilled') setAvailability(availabilityRes.value.data);
       if (promosRes.status === 'fulfilled') setPromotions(promosRes.value.data);
       setCashSessionId(sessionRes.status === 'fulfilled' ? sessionRes.value.data.id : undefined);
     } finally {
@@ -204,6 +266,10 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const remaining = order ? Math.max(0, order.total - alreadyPaid) : 0;
   const isFullyPaid = remaining <= 0.01;
   const cartSubtotal = cart.reduce((s, l) => s + l.price * l.quantity, 0);
+  const availabilityByItemId = useMemo(
+    () => new Map(availability.map(item => [item.menuItemId, item])),
+    [availability],
+  );
   const promotionsByItemId = useMemo(() => {
     const map = new Map<string, PromotionDto[]>();
     for (const item of menuItems) {
@@ -241,36 +307,21 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
 
   const getMethod = (id: string) => methods.find(m => m.id === id);
   const hasCardLine = payLines.some(l => getMethod(l.methodId)?.isCard ?? false);
-  const getPaymentLineTotal = (item: OrderDto['items'][number], useCardPrice: boolean) => {
-    if (!useCardPrice || !item.promotionId) return item.totalPrice;
-
-    const promotion = promotions.find(p => p.id === item.promotionId);
-    if (!promotion) return item.totalPrice;
-
-    if (promotion.paymentPolicy === 'CashTransferOnly') {
-      return Math.round(item.unitPrice * item.quantity * 100) / 100;
-    }
-    if (promotion.paymentPolicy === 'CardAlternativePrice' && promotion.cardPrice !== undefined && promotion.cardPrice !== null) {
-      return Math.round(Math.max(0, promotion.cardPrice * item.quantity) * 100) / 100;
-    }
-    return item.totalPrice;
-  };
+  const getPaymentLineTotal = (item: OrderDto['items'][number], useCardPrice: boolean) =>
+    calculatePaymentLineTotal(item, promotions.find(p => p.id === item.promotionId), useCardPrice);
   const getPaymentUnitTotal = (item: OrderDto['items'][number], useCardPrice: boolean) =>
     item.quantity > 0 ? getPaymentLineTotal(item, useCardPrice) / item.quantity : 0;
-  const adjustedOrderTotal = order
-    ? order.items
-        .filter(item => item.status !== 'Cancelled')
-        .reduce((sum, item) => sum + getPaymentLineTotal(item, hasCardLine), 0)
-    : 0;
-  const paymentRemaining = order ? Math.max(0, adjustedOrderTotal - alreadyPaid) : 0;
-  const splitSubtotal = order
-    ? order.items.reduce((sum, item) => {
-        const row = splitRows[item.id];
-        const pendingQty = getPendingItemQty(item.id, item.quantity);
-        const qty = Math.min(row?.qty ?? pendingQty, pendingQty);
-        return row?.checked ? sum + getPaymentUnitTotal(item, hasCardLine) * qty : sum;
-      }, 0)
-    : 0;
+  const getSelectedPaymentTotal = (item: OrderDto['items'][number], quantity: number) =>
+    allocatePaymentTotal(getPaymentLineTotal(item, hasCardLine), item.quantity, paidQtyByItem[item.id] ?? 0, quantity);
+  const paymentRemaining = Math.round(activeOrderItems
+    .filter(item => getPendingItemQty(item.id, item.quantity) > 0)
+    .reduce((sum, item) => sum + getSelectedPaymentTotal(item, getPendingItemQty(item.id, item.quantity)), 0) * 100) / 100;
+  const splitSubtotal = Math.round(activeOrderItems.reduce((sum, item) => {
+    const row = splitRows[item.id];
+    const pendingQty = getPendingItemQty(item.id, item.quantity);
+    const qty = Math.min(row?.qty ?? pendingQty, pendingQty);
+    return row?.checked && qty > 0 ? sum + getSelectedPaymentTotal(item, qty) : sum;
+  }, 0) * 100) / 100;
   const buildLineForMethod = (methodId: string, amountTendered = 0): PayLine => {
     const method = getMethod(methodId);
     return method?.isCard
@@ -309,6 +360,9 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const getCartLineCapacity = (line: CartLine): number | null => {
     const item = menuItems.find(menuItem => menuItem.id === line.menuItemId);
     const capacities: number[] = [];
+    const itemAvailability = availabilityByItemId.get(line.menuItemId);
+    if (itemAvailability?.isTracked) capacities.push(itemAvailability.availableQuantity ?? 0);
+
     for (const selection of line.modifierSelections ?? []) {
       const option = item?.modifierGroups?.flatMap(group => group.options).find(o => o.id === selection.modifierOptionId);
       if (!option?.isTracked) continue;
@@ -336,6 +390,27 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       return;
     }
     const itemDetail = await ensureItemDetail(item);
+    const itemAvailability = availabilityByItemId.get(itemDetail.id);
+    const currentQty = cart
+      .filter(line => line.menuItemId === itemDetail.id)
+      .reduce((sum, line) => sum + line.quantity, 0);
+
+    if (itemAvailability?.isTracked && !itemAvailability.isAvailable) {
+      const missingIngredients = getMissingIngredientNames(itemAvailability);
+      message.warning(
+        missingIngredients.length > 0
+          ? `${itemDetail.name} no tiene stock disponible. Faltan: ${missingIngredients.join(', ')}`
+          : `${itemDetail.name} no tiene stock disponible`,
+      );
+      return;
+    }
+    if (itemAvailability?.isTracked
+      && itemAvailability.availableQuantity !== null
+      && itemAvailability.availableQuantity !== undefined
+      && currentQty >= itemAvailability.availableQuantity) {
+      message.warning(`Solo hay ${Math.floor(itemAvailability.availableQuantity)} disponible(s) de ${itemDetail.name}`);
+      return;
+    }
     if (itemDetail.modifierGroups?.length > 0) {
       setModifierBaseLine({ menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1, promotionId });
       setPendingModifiers({});
@@ -443,14 +518,25 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   };
 
   const handlePay = async () => {
-    if (!canPay || !order) return;
-    if (totalChange > 0 && !hasCashLine) {
+    if (paymentInFlight.current || !canChargeOrders || !order || paymentStorageError) return;
+    if (!pendingPayment && !canPay) return;
+    if (!pendingPayment && totalChange > 0 && !hasCashLine) {
       message.warning('Hay excedente pero ningún medio acepta vuelto.');
       return;
     }
+    paymentInFlight.current = true;
     setPaying(true);
+    let submitted: AddOrderPaymentDto | null = null;
+    let confirmedPayment: OrderPaymentDto | null = null;
     try {
-      const dto: AddOrderPaymentDto = {
+      const stored = readPendingPayment(paymentStorageKey);
+      if (stored && stored.idempotencyKey !== pendingPayment?.idempotencyKey) {
+        setPendingPayment(stored);
+        message.warning('Hay un cobro pendiente de verificar. Revisa el intento antes de continuar.');
+        return;
+      }
+      const dto: AddOrderPaymentDto = stored ?? pendingPayment ?? {
+        idempotencyKey: createIdempotencyKey(),
         orderAmount: targetAmount,
         documentType: docType,
         customerId: customer?.id,
@@ -473,17 +559,70 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
           authorizationNumber: l.authorizationNumber?.trim(),
         })),
       };
+      // Persist the exact request before sending; ambiguous failures must reuse it unchanged.
+      localStorage.setItem(paymentStorageKey, JSON.stringify(dto));
+      setPendingPayment(dto);
+      submitted = dto;
       const { data: payment } = await cashApi.payOrder(order.id, dto);
-      message.success('Cobro registrado');
+      confirmedPayment = payment;
+      clearPendingPayment(paymentStorageKey, dto.idempotencyKey);
+      setPendingPayment(null);
+      if (payment.documentType === 'Factura') {
+        if (payment.electronicDocumentStatus === 'Authorized') {
+          message.success('Cobro registrado y factura autorizada por el SRI');
+        } else if (payment.electronicDocumentStatus === 'Rejected') {
+          message.warning('Cobro registrado. La factura requiere revisión antes de reenviarla');
+        } else {
+          message.warning('Cobro registrado. La factura quedó pendiente y se reintentará automáticamente');
+        }
+      } else {
+        message.success('Cobro registrado');
+      }
       setShowPayModal(false);
-      await handlePrintPayment(payment.id);
-      await loadAll();
-      onTableUpdated();
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } } };
-      message.error(err?.response?.data?.message ?? 'Error al registrar cobro');
+      const err = e as { response?: { data?: { message?: string; code?: string } } };
+      if (confirmedPayment) {
+        message.warning('Cobro confirmado. No se pudo limpiar el intento local; al verificarlo se recuperara el mismo pago.');
+      } else if (submitted && err.response?.data?.code === 'payment_rejected') {
+        try {
+          clearPendingPayment(paymentStorageKey, submitted.idempotencyKey);
+          setPendingPayment(null);
+        } catch {
+          setPaymentStorageError(true);
+        }
+        message.error(err.response.data.message ?? 'Cobro rechazado sin registrar cambios.');
+      } else {
+        message.error(submitted
+          ? err.response?.data?.message ?? 'No se pudo confirmar el resultado. Verifica o reintenta el mismo cobro antes de registrar otro.'
+          : 'No se pudo guardar el intento de cobro en este navegador. No se envio el pago.');
+      }
     } finally {
       setPaying(false);
+      paymentInFlight.current = false;
+    }
+    if (confirmedPayment) {
+      try {
+        await handlePrintPayment(confirmedPayment.id);
+      } catch {
+        message.warning('El cobro esta confirmado, pero no se pudo imprimir el comprobante.');
+      }
+      try {
+        await loadAll();
+        onTableUpdated();
+      } catch {
+        message.warning('El cobro esta confirmado. Actualiza la pantalla para ver el saldo.');
+      }
+    }
+  };
+
+  const openPayModal = () => {
+    try {
+      setPendingPayment(readPendingPayment(paymentStorageKey));
+      setPaymentStorageError(false);
+      setShowPayModal(true);
+    } catch {
+      setPaymentStorageError(true);
+      message.error('No se puede recuperar el intento local. Revisa los pagos registrados antes de continuar.');
     }
   };
 
@@ -730,7 +869,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
               <Text type="secondary" style={{ fontSize: 12 }}>×{pendingQty}</Text>
             )}
             <Text strong style={{ width: 60, textAlign: 'right', fontSize: 13 }}>
-              ${(paymentUnitTotal * (row.checked ? selectedQty : pendingQty)).toFixed(2)}
+              ${getSelectedPaymentTotal(item, row.checked ? selectedQty : pendingQty).toFixed(2)}
             </Text>
           </div>
         );
@@ -742,7 +881,12 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   );
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div style={{
+      height: isDesktop ? 'calc(100dvh - 176px)' : 'auto',
+      minHeight: isDesktop ? 480 : undefined,
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         <Space>
@@ -754,9 +898,16 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         <Button icon={<ReloadOutlined />} size="small" onClick={loadAll} />
       </div>
 
-      <Row gutter={16} style={{ flex: 1, minHeight: 0 }}>
+      <Row gutter={12} style={{ flex: 1, minHeight: 0 }}>
         {/* LEFT: Category filter + menu items */}
-        <Col xs={24} md={14} style={{ height: '100%', overflowY: 'auto', paddingBottom: 16 }}>
+        <Col xs={24} md={14} style={{
+          height: isDesktop ? '100%' : 'auto',
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          paddingBottom: isDesktop ? 0 : 16,
+        }}>
           {isFullyPaid && (
             <Alert
               type="success"
@@ -766,45 +917,46 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
               style={{ marginBottom: 12 }}
             />
           )}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-            <Tag
-              style={{ cursor: 'pointer', padding: '4px 10px', fontSize: 13 }}
-              color={!activeCategory ? 'blue' : 'default'}
-              onClick={() => {
-                setActiveCategory(null);
-                setSelectedPromotionId(null);
-              }}
-            >
-              Todos
-            </Tag>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {activePromotions.length > 0 && (
-              <Tag
-                style={{ cursor: 'pointer', padding: '4px 10px', fontSize: 13 }}
-                color={activeCategory === PROMOTIONS_CATEGORY_ID ? 'magenta' : 'default'}
+              <Button
+                size="small"
+                type={activeCategory === PROMOTIONS_CATEGORY_ID ? 'primary' : 'default'}
                 onClick={() => {
                   setActiveCategory(PROMOTIONS_CATEGORY_ID);
                   setSelectedPromotionId(null);
                 }}
+                style={activeCategory !== PROMOTIONS_CATEGORY_ID ? { borderColor: '#c41d7f', color: '#c41d7f' } : {}}
               >
                 Promociones
-              </Tag>
+              </Button>
             )}
             {categories.map(c => (
-              <Tag
+              <Button
                 key={c.id}
-                style={{ cursor: 'pointer', padding: '4px 10px', fontSize: 13 }}
-                color={activeCategory === c.id ? 'blue' : 'default'}
+                size="small"
+                type={activeCategory === c.id ? 'primary' : 'default'}
                 onClick={() => {
                   setActiveCategory(c.id);
                   setSelectedPromotionId(null);
                 }}
+                style={c.color && activeCategory !== c.id ? { borderColor: c.color, color: c.color } : {}}
               >
                 {c.name}
-              </Tag>
+              </Button>
             ))}
           </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignContent: 'flex-start',
+            gap: 8,
+            flex: isDesktop ? 1 : undefined,
+            minHeight: 0,
+            overflowY: 'auto',
+            maxHeight: isDesktop ? undefined : 380,
+          }}>
             {activeCategory === PROMOTIONS_CATEGORY_ID && !selectedPromotionId && activePromotions.map(promotion => (
               <Card
                 key={promotion.id}
@@ -812,13 +964,13 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                 hoverable={promotion.isCurrentlyActive}
                 onClick={() => promotion.isCurrentlyActive && setSelectedPromotionId(promotion.id)}
                 style={{
-                  width: 'calc(50% - 4px)',
+                  width: 160,
                   cursor: promotion.isCurrentlyActive ? 'pointer' : 'not-allowed',
                   borderColor: promotion.isCurrentlyActive ? '#c41d7f' : '#d9d9d9',
                   background: promotion.isCurrentlyActive ? '#fff0f6' : '#fafafa',
                   opacity: promotion.isCurrentlyActive ? 1 : 0.65,
                 }}
-                styles={{ body: { padding: '10px 12px' } }}
+                styles={{ body: { padding: '8px 10px' } }}
               >
                 <Text strong style={{ display: 'block', fontSize: 13 }}>{promotion.name}</Text>
                 <Tag color={promotion.isCurrentlyActive ? 'magenta' : 'default'} style={{ marginTop: 6 }}>
@@ -843,30 +995,50 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
               const inCart = cart.filter(l => l.menuItemId === item.id);
               const cartQty = inCart.reduce((s, l) => s + l.quantity, 0);
               const hasModifiers = item.hasModifiers || item.modifierGroups?.length > 0;
+              const itemAvailability = availabilityByItemId.get(item.id);
+              const isSoldOut = itemAvailability?.isTracked && !itemAvailability.isAvailable;
+              const reachedLimit = itemAvailability?.isTracked
+                && itemAvailability.availableQuantity !== null
+                && itemAvailability.availableQuantity !== undefined
+                && cartQty >= itemAvailability.availableQuantity;
+              const missingIngredients = isSoldOut ? getMissingIngredientNames(itemAvailability) : [];
+              const stockColor = isSoldOut ? 'red' : reachedLimit ? 'orange' : itemAvailability?.isTracked ? 'green' : 'default';
+              const isDisabled = isFullyPaid || !canUpdateOrders || !!isSoldOut || !!reachedLimit;
               return (
                 <Card
                   key={item.id}
                   size="small"
-                  hoverable={!isFullyPaid && canUpdateOrders}
+                  hoverable={!isDisabled}
                   onClick={() => { void addToCart(item, selectedPromotion?.isCurrentlyActive ? selectedPromotion.id : undefined).catch(e => message.error(formatError(e))); }}
                   style={{
-                    width: 'calc(50% - 4px)', cursor: isFullyPaid || !canUpdateOrders ? 'not-allowed' : 'pointer',
-                    opacity: isFullyPaid || !canUpdateOrders ? 0.55 : 1,
+                    width: 130,
+                    cursor: isDisabled ? 'not-allowed' : 'pointer',
+                    opacity: isSoldOut || isFullyPaid || !canUpdateOrders ? 0.55 : 1,
                     borderColor: cartQty > 0 ? '#1677ff' : undefined,
                     background: cartQty > 0 ? '#e6f4ff' : undefined,
                   }}
-                  styles={{ body: { padding: '10px 12px' } }}
+                  styles={{ body: { padding: '8px 10px' } }}
                 >
-                  <Text strong ellipsis style={{ display: 'block', fontSize: 13 }}>{item.name}</Text>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>${item.price.toFixed(2)}</Text>
-                    {hasModifiers && <QuestionCircleOutlined style={{ color: '#fa8c16', fontSize: 11 }} />}
-                    {cartQty > 0 && (
-                      <span style={{ marginLeft: 'auto', background: '#1677ff', color: '#fff', borderRadius: 10, padding: '0 6px', fontSize: 11 }}>
-                        {cartQty}
-                      </span>
-                    )}
-                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>{item.name}</div>
+                  <div style={{ fontSize: 12, color: '#1677ff', marginTop: 4 }}>${item.price.toFixed(2)}</div>
+                  <Tooltip
+                    title={missingIngredients.length > 0 ? (
+                      <div>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>Faltan ingredientes:</div>
+                        {missingIngredients.map(name => <div key={name}>{name}</div>)}
+                      </div>
+                    ) : undefined}
+                  >
+                    <Tag color={stockColor} style={{ fontSize: 10, marginTop: 4, marginInlineEnd: 0 }}>
+                      {isSoldOut ? 'Agotado' : formatStock(itemAvailability?.availableQuantity)}
+                    </Tag>
+                  </Tooltip>
+                  {hasModifiers && (
+                    <QuestionCircleOutlined style={{ color: '#fa8c16', fontSize: 11, marginTop: 2 }} title="Tiene opciones" />
+                  )}
+                  {cartQty > 0 && (
+                    <Badge count={cartQty} style={{ background: '#1677ff', fontSize: 11 }} />
+                  )}
                 </Card>
               );
             })}
@@ -877,11 +1049,17 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         </Col>
 
         {/* RIGHT: Order summary + actions */}
-        <Col xs={24} md={10} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <Col xs={24} md={10} style={{
+          height: isDesktop ? '100%' : 'auto',
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
           <Card
             size="small"
             title={<Text strong>Pedido #{order.number}</Text>}
-            style={{ flex: 1, overflowY: 'auto', marginBottom: 8 }}
+            style={{ flex: 1, minHeight: 0, marginBottom: 8, display: 'flex', flexDirection: 'column' }}
+            styles={{ body: { flex: 1, minHeight: 0, overflowY: 'auto' } }}
           >
             {order.items.length === 0 && cart.length === 0 ? (
               <Empty description="Sin ítems" image={Empty.PRESENTED_IMAGE_SIMPLE} />
@@ -1076,7 +1254,14 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                               <Tag color={l.methodColor} style={{ fontSize: 11 }}>{l.methodName}</Tag>
                             </Tooltip>
                           ))}
-                          {p.documentType === 'Factura' && <Tag color="gold" style={{ fontSize: 11 }}>Factura</Tag>}
+                          {p.documentType === 'Factura' && (
+                            <Tag
+                              color={ELECTRONIC_DOCUMENT_STATUS_COLORS[p.electronicDocumentStatus ?? 'Pending']}
+                              style={{ fontSize: 11 }}
+                            >
+                              {ELECTRONIC_DOCUMENT_STATUS_LABELS[p.electronicDocumentStatus ?? 'Pending'] ?? 'Factura'}
+                            </Tag>
+                          )}
                         </Space>
                         <Space size={4}>
                           <Text style={{ fontSize: 12 }}>${p.orderAmount.toFixed(2)}</Text>
@@ -1124,12 +1309,19 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                 </Button>
               </Popconfirm>
             )}
-            {isFullyPaid ? (
+            {paymentStorageError && (
+              <Alert type="error" showIcon title="No se puede acceder al intento de cobro guardado" />
+            )}
+            {pendingPayment && canChargeOrders ? (
+              <Button block type="primary" onClick={openPayModal} icon={<ReloadOutlined />}>
+                Verificar cobro pendiente
+              </Button>
+            ) : isFullyPaid ? (
               <Alert type="success" icon={<CheckCircleOutlined />} title="Orden pagada completamente" showIcon />
             ) : canChargeOrders ? (
               <Button
                 type="primary" block size="large" icon={<DollarOutlined />}
-                onClick={() => setShowPayModal(true)}
+                onClick={openPayModal}
                 disabled={methods.length === 0}
               >
                 Cobrar
@@ -1148,7 +1340,10 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
           </Space>
         }
         open={showPayModal}
-        onCancel={() => setShowPayModal(false)}
+        onCancel={() => { if (!paymentInFlight.current) setShowPayModal(false); }}
+        closable={!paying}
+        keyboard={!paying}
+        maskClosable={!paying}
         footer={null}
         width={520}
         destroyOnHidden
@@ -1163,7 +1358,12 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
           </Space>
         </div>
 
-        <Tabs
+        {pendingPayment ? (
+          <Alert type="warning" showIcon
+            title={`Cobro pendiente de verificar: $${pendingPayment.orderAmount.toFixed(2)}`}
+            description="Se recuperara el pago si ya fue registrado; de lo contrario se reintentara la misma solicitud. No registres otro cobro por este importe."
+          />
+        ) : <Tabs
           activeKey={payTab}
           onChange={k => setPayTab(k as 'single' | 'split')}
           size="small"
@@ -1193,15 +1393,15 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
               ),
             },
           ]}
-        />
+        />}
 
         <Divider style={{ margin: '12px 0' }} />
 
         <Button
           type="primary" block size="large" loading={paying}
-          disabled={!canPay} onClick={handlePay} icon={<DollarOutlined />}
+          disabled={paymentStorageError || (!pendingPayment && !canPay)} onClick={handlePay} icon={<DollarOutlined />}
         >
-          Confirmar cobro ${targetAmount.toFixed(2)}
+          {pendingPayment ? 'Verificar / reintentar cobro' : `Confirmar cobro $${targetAmount.toFixed(2)}`}
         </Button>
       </Modal>
 
@@ -1261,18 +1461,20 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         }}
         okText="Agregar al pedido"
         cancelText="Cancelar"
-        width={460}
+        width={560}
+        style={{ top: 24 }}
+        styles={{ body: { maxHeight: 'calc(100dvh - 160px)', overflowY: 'auto' } }}
         okButtonProps={{ size: 'large' }}
         cancelButtonProps={{ size: 'large' }}
       >
         {modifierTarget && (
-          <div style={{ paddingTop: 8 }}>
+          <div style={{ paddingTop: 4 }}>
             {modifierError && (
               <Alert
                 type="error"
                 showIcon
                 title="Revisa las opciones requeridas"
-                style={{ marginBottom: 16 }}
+                style={{ marginBottom: 12 }}
               />
             )}
             {modifierTarget.modifierGroups.map(group => {
@@ -1280,14 +1482,14 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
               const min = group.isRequired && group.minSelections === 0 ? 1 : group.minSelections;
               const groupInvalid = modifierError && (selectedCount < min || selectedCount > group.maxSelections);
               return (
-                <div key={group.id} style={{ marginBottom: 18 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div key={group.id} style={{ marginBottom: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                     <Text strong style={{ fontSize: 13 }}>{group.name}</Text>
                     <Tag color={groupInvalid ? 'red' : 'default'} style={{ fontSize: 11 }}>
                       {selectedCount}/{group.maxSelections}
                     </Tag>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 6 }}>
                     {group.options.map(option => {
                       const qty = pendingModifiers[option.id] ?? 0;
                       const selected = qty > 0;
@@ -1301,36 +1503,40 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                         <div
                           key={option.id}
                           style={{
-                            flex: '1 1 calc(50% - 10px)',
-                            minWidth: 140,
-                            padding: 10,
-                            borderRadius: 8,
+                            display: 'grid',
+                            gridTemplateColumns: 'minmax(0, 1fr) auto',
+                            alignItems: 'center',
+                            gap: 10,
+                            minHeight: 60,
+                            padding: '6px 10px',
+                            borderRadius: 6,
                             border: `1px solid ${selected ? '#1677ff' : groupInvalid || outOfStock ? '#ff4d4f' : '#d9d9d9'}`,
                             background: outOfStock ? '#fff1f0' : selected ? '#e6f4ff' : '#fff',
-                            opacity: outOfStock ? 0.65 : 1,
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
-                            <Text style={{ fontSize: 13 }}>{option.name}</Text>
-                            {option.priceDelta !== 0 && (
-                              <Text type="secondary" style={{ fontSize: 12 }}>
-                                +${option.priceDelta.toFixed(2)}
-                              </Text>
+                          <div style={{ minWidth: 0 }}>
+                            <Text style={{ fontSize: 13, display: 'block' }}>{option.name}</Text>
+                            {(option.isTracked || option.priceDelta !== 0) && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 11 }}>
+                                {option.isTracked && (
+                                  <Text type={outOfStock ? 'danger' : 'secondary'} style={{ fontSize: 11 }}>
+                                    {outOfStock ? 'Sin stock' : `Disp. ${stockLimit}`}
+                                  </Text>
+                                )}
+                                {option.priceDelta !== 0 && (
+                                  <Text type="secondary" style={{ fontSize: 11 }}>+${option.priceDelta.toFixed(2)}</Text>
+                                )}
+                              </div>
                             )}
                           </div>
-                          {option.isTracked && (
-                            <Tag color={outOfStock ? 'red' : reachedOptionStock ? 'orange' : 'green'} style={{ fontSize: 11, marginTop: 6 }}>
-                              {outOfStock ? 'Sin stock' : `Disp. ${stockLimit}`}
-                            </Tag>
-                          )}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                             <Button
                               size="small"
                               icon={<MinusOutlined />}
                               disabled={qty <= 0}
                               onClick={() => setPendingModifiers(prev => ({ ...prev, [option.id]: Math.max(0, qty - 1) }))}
                             />
-                            <Text style={{ width: 24, textAlign: 'center' }}>{qty}</Text>
+                            <Text style={{ width: 22, textAlign: 'center' }}>{qty}</Text>
                             <Button
                               size="small"
                               icon={<PlusOutlined />}

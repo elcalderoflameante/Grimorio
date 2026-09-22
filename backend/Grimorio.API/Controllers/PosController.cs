@@ -457,12 +457,20 @@ public class PosController : ControllerBase
     public async Task<IActionResult> SetItemEstado(Guid id, [FromBody] SetItemEstadoBody body)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
-        var result = await _mediator.Send(new SetOrderItemStatusCommand
+        OrderItemDto result;
+        try
         {
-            OrderItemId = id,
-            BranchId = branchId,
-            Status = body.Estado,
-        });
+            result = await _mediator.Send(new SetOrderItemStatusCommand
+            {
+                OrderItemId = id,
+                BranchId = branchId,
+                Status = body.Estado,
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
 
         // Notificar a la estación correspondiente el cambio de estado
         if (result.StationId.HasValue)

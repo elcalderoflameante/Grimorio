@@ -274,6 +274,7 @@ public class ProductionOrderConfiguration : BaseEntityConfiguration<ProductionOr
         builder.Property(x => x.OutputBaseQuantity).HasColumnType("numeric(18,4)").IsRequired();
         builder.Property(x => x.TotalCost).HasColumnType("numeric(18,4)").IsRequired();
         builder.Property(x => x.UnitCost).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.ProducedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(30).IsRequired();
         builder.Property(x => x.Notes).HasMaxLength(500);
 
@@ -318,6 +319,7 @@ public class ProductionOrderIngredientConfiguration : BaseEntityConfiguration<Pr
 
         builder.Property(x => x.Quantity).HasColumnType("numeric(18,4)").IsRequired();
         builder.Property(x => x.BaseQuantity).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.BaseUnitId).IsRequired();
         builder.Property(x => x.UnitCost).HasColumnType("numeric(18,4)").IsRequired();
         builder.Property(x => x.TotalCost).HasColumnType("numeric(18,4)").IsRequired();
 

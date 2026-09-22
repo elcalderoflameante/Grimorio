@@ -275,27 +275,43 @@ public class CashController : ControllerBase
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
         if (!TryGetUserId(out var userId)) return Unauthorized();
-        var result = await _mediator.Send(new PayOrderCommand
+        try
         {
-            OrderId = orderId, BranchId = branchId, UserId = userId,
-            OrderAmount = dto.OrderAmount,
-            DocumentType = dto.DocumentType,
-            CustomerId = dto.CustomerId, CashSessionId = dto.CashSessionId,
-            Lines = dto.Lines.Select(l => new PaymentLineCommand
+            var result = await _mediator.Send(new PayOrderCommand
             {
-                MethodId = l.MethodId, AmountTendered = l.AmountTendered,
-                CardPaymentType = l.CardPaymentType,
-                CardBankId = l.CardBankId,
-                CardBrand = l.CardBrand,
-                AuthorizationNumber = l.AuthorizationNumber,
-            }).ToList(),
-            Items = dto.Items.Select(i => new PaymentItemCommand
-            {
-                OrderItemId = i.OrderItemId,
-                Quantity = i.Quantity,
-            }).ToList(),
-        });
-        return Ok(result);
+                OrderId = orderId, BranchId = branchId, UserId = userId,
+                IdempotencyKey = dto.IdempotencyKey,
+                OrderAmount = dto.OrderAmount,
+                DocumentType = dto.DocumentType,
+                CustomerId = dto.CustomerId, CashSessionId = dto.CashSessionId,
+                Lines = dto.Lines.Select(l => new PaymentLineCommand
+                {
+                    MethodId = l.MethodId, AmountTendered = l.AmountTendered,
+                    CardPaymentType = l.CardPaymentType,
+                    CardBankId = l.CardBankId,
+                    CardBrand = l.CardBrand,
+                    AuthorizationNumber = l.AuthorizationNumber,
+                }).ToList(),
+                Items = dto.Items.Select(i => new PaymentItemCommand
+                {
+                    OrderItemId = i.OrderItemId,
+                    Quantity = i.Quantity,
+                }).ToList(),
+            });
+            return Ok(result);
+        }
+        catch (PaymentIdempotencyConflictException ex)
+        {
+            return Conflict(new { message = ex.Message, code = "payment_idempotency_conflict" });
+        }
+        catch (PaymentRejectedException ex)
+        {
+            return Conflict(new { message = ex.Message, code = "payment_rejected" });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

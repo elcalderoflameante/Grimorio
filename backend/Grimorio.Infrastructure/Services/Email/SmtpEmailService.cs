@@ -39,10 +39,12 @@ public class SmtpEmailService : IEmailService
         string? signedXml = null,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(toEmail)) return;
+        if (string.IsNullOrWhiteSpace(toEmail))
+            throw new InvalidOperationException("El cliente no tiene un correo electrónico registrado.");
 
         var (config, password) = await LoadConfigAsync(branchId, ct);
-        if (config == null || !config.IsActive) return;
+        if (config == null || !config.IsActive)
+            throw new InvalidOperationException("No existe una configuración SMTP activa para la sucursal.");
 
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress(config.FromName, config.FromEmail));

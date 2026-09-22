@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { App as AntApp, Modal, Form, Select, DatePicker, Input, Button, Table, InputNumber,
   Space, Divider, Descriptions, Tag, Typography, Switch, Upload, Tabs, Alert } from 'antd';
-import { PlusOutlined, DeleteOutlined, UploadOutlined, PaperClipOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, PlusOutlined, DeleteOutlined, UploadOutlined, PaperClipOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type {
   PurchaseDto, SupplierDto, PurchaseItemInputDto,
@@ -9,6 +9,7 @@ import type {
 } from '../../types';
 import { purchasesApi, inventoryApi, resolveMediaUrl, taxApi } from '../../services/api';
 import { branchDateTimeUtcIso, branchStartOfDayUtcIso, formatBranchDate, formatBranchDateTime, toBranchDayjs } from '../../utils/branchTimeZone';
+import './PurchaseForm.css';
 
 const { Text } = Typography;
 
@@ -622,10 +623,34 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
       rowKey="key"
       dataSource={items}
       pagination={false}
-      scroll={{ x: 1660, y: 430 }}
+      scroll={{ x: 1180, y: 'max(260px, calc(100dvh - 400px))' }}
+      expandable={{
+        expandedRowRender: (row: ItemRow) => (
+          <div className="purchase-item-extra">
+            <label>Cod. proveedor
+              <Input value={row.supplierMainCode} onChange={e => updateItem(row.key, 'supplierMainCode', e.target.value)} />
+            </label>
+            <label>Cod. auxiliar
+              <Input value={row.supplierAuxCode} onChange={e => updateItem(row.key, 'supplierAuxCode', e.target.value)} />
+            </label>
+            <label>Detalle adicional
+              <Input value={row.additionalDetail} onChange={e => updateItem(row.key, 'additionalDetail', e.target.value)} />
+            </label>
+            <label>Descuento $
+              <InputNumber min={0} step={0.01} precision={2} value={row.discountAmount} onChange={v => updateItem(row.key, 'discountAmount', v ?? undefined)} style={{ width: '100%' }} />
+            </label>
+            <label>Descuento %
+              <InputNumber min={0} max={100} step={0.01} precision={2} value={row.discountPct || 0} disabled={typeof row.discountAmount === 'number'} onChange={v => updateItem(row.key, 'discountPct', v ?? 0)} style={{ width: '100%' }} />
+            </label>
+            <label>Observaciones
+              <Input value={row.notes} onChange={e => updateItem(row.key, 'notes', e.target.value)} />
+            </label>
+          </div>
+        ),
+      }}
       columns={[
         {
-          title: 'Articulo', key: 'articleId', width: 210,
+          title: 'Articulo', key: 'articleId', width: 200,
           fixed: 'left' as const,
           render: (_: unknown, row: ItemRow) => (
             <Select
@@ -640,31 +665,13 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
           ),
         },
         {
-          title: 'Cod. prov.', key: 'supplierMainCode', width: 110,
-          render: (_: unknown, row: ItemRow) => (
-            <Input value={row.supplierMainCode} onChange={e => updateItem(row.key, 'supplierMainCode', e.target.value)} />
-          ),
-        },
-        {
-          title: 'Cod. aux.', key: 'supplierAuxCode', width: 110,
-          render: (_: unknown, row: ItemRow) => (
-            <Input value={row.supplierAuxCode} onChange={e => updateItem(row.key, 'supplierAuxCode', e.target.value)} />
-          ),
-        },
-        {
-          title: 'Desc. factura', key: 'supplierDescription', width: 190,
+          title: 'Desc. factura', key: 'supplierDescription', width: 220,
           render: (_: unknown, row: ItemRow) => (
             <Input value={row.supplierDescription} onChange={e => updateItem(row.key, 'supplierDescription', e.target.value)} />
           ),
         },
         {
-          title: 'Detalle adic.', key: 'additionalDetail', width: 150,
-          render: (_: unknown, row: ItemRow) => (
-            <Input value={row.additionalDetail} onChange={e => updateItem(row.key, 'additionalDetail', e.target.value)} />
-          ),
-        },
-        {
-          title: 'Unidad fact.', key: 'unitId', width: 115,
+          title: 'Unidad fact.', key: 'unitId', width: 95,
           render: (_: unknown, row: ItemRow) => {
             return unitOptions.length > 0 ? (
               <Select
@@ -677,19 +684,19 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
           },
         },
         {
-          title: 'Cant. fact.', key: 'quantity', width: 105,
+          title: 'Cant. fact.', key: 'quantity', width: 95,
           render: (_: unknown, row: ItemRow) => (
             <InputNumber min={0.001} step={1} value={row.quantity} onChange={v => updateItem(row.key, 'quantity', v ?? 1)} style={{ width: '100%' }} />
           ),
         },
         {
-          title: 'Cant. inv.', key: 'inventoryQuantity', width: 105,
+          title: 'Cant. inv.', key: 'inventoryQuantity', width: 95,
           render: (_: unknown, row: ItemRow) => (
             <InputNumber min={0.001} step={0.001} precision={4} value={row.inventoryQuantity} onChange={v => updateItem(row.key, 'inventoryQuantity', v ?? 1)} style={{ width: '100%' }} />
           ),
         },
         {
-          title: 'Unidad inv.', key: 'inventoryUnitId', width: 115,
+          title: 'Unidad inv.', key: 'inventoryUnitId', width: 95,
           render: (_: unknown, row: ItemRow) => {
             const unitOptions = getArticleUnitOptions(row.articleId);
             return unitOptions.length > 0 ? (
@@ -703,31 +710,19 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
           },
         },
         {
-          title: 'P. Unit.', key: 'unitPrice', width: 105,
+          title: 'P. Unit.', key: 'unitPrice', width: 95,
           render: (_: unknown, row: ItemRow) => (
             <InputNumber min={0} step={0.01} precision={4} value={row.unitPrice} onChange={v => updateItem(row.key, 'unitPrice', v ?? 0)} prefix="$" style={{ width: '100%' }} />
           ),
         },
         {
-          title: 'Desc. $', key: 'discountAmount', width: 95,
-          render: (_: unknown, row: ItemRow) => (
-            <InputNumber min={0} step={0.01} precision={2} value={row.discountAmount} onChange={v => updateItem(row.key, 'discountAmount', v ?? undefined)} style={{ width: '100%' }} />
-          ),
-        },
-        {
-          title: 'Desc. %', key: 'discountPct', width: 85,
-          render: (_: unknown, row: ItemRow) => (
-            <InputNumber min={0} max={100} step={0.01} precision={2} value={row.discountPct || 0} disabled={typeof row.discountAmount === 'number'} onChange={v => updateItem(row.key, 'discountPct', v ?? 0)} style={{ width: '100%' }} />
-          ),
-        },
-        {
-          title: 'IVA', key: 'taxRateId', width: 120,
+          title: 'IVA', key: 'taxRateId', width: 100,
           render: (_: unknown, row: ItemRow) => (
             <Select allowClear style={{ width: '100%' }} value={row.taxRateId} onChange={v => updateItem(row.key, 'taxRateId', v)} options={taxRates.map(t => ({ value: t.id, label: t.name }))} placeholder="Sin IVA" />
           ),
         },
         {
-          title: 'Total', key: 'total', width: 95, align: 'right',
+          title: 'Total', key: 'total', width: 90, align: 'right',
           render: (_: unknown, row: ItemRow) => {
             const gross = (row.quantity || 0) * (row.unitPrice || 0);
             const exactDiscount = typeof row.discountAmount === 'number' ? row.discountAmount : undefined;
@@ -747,10 +742,7 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
         },
       ]}
       footer={() => (
-        <Space style={{ justifyContent: 'space-between', width: '100%', display: 'flex' }}>
-          <Button icon={<PlusOutlined />} onClick={addItem} size="small">Agregar item</Button>
-          <Text strong>Total: ${fiscal.total.toFixed(2)}</Text>
-        </Space>
+        <Button icon={<PlusOutlined />} onClick={addItem}>Agregar item</Button>
       )}
     />
   );
@@ -789,7 +781,7 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
           )}
 
           <Divider plain>Datos principales</Divider>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0 16px' }}>
+          <div className="purchase-document-grid">
             <Form.Item name="documentType" label="Tipo de documento" rules={[{ required: true }]}>
               <Select options={DOC_TYPE_OPTIONS} />
             </Form.Item>
@@ -811,7 +803,7 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
           </div>
 
           <Divider plain>Datos SRI</Divider>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '0 16px' }}>
+          <div className="purchase-document-grid">
             <Form.Item name="accessKey" label="Clave de acceso">
               <Input maxLength={49} placeholder="49 digitos" />
             </Form.Item>
@@ -860,7 +852,7 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
       key: 'summary',
       label: 'Resumen',
       children: (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 360px) minmax(320px, 1fr)', gap: 24 }}>
+        <div className="purchase-summary-grid">
           <div>
             <Divider plain>Impuestos adicionales</Divider>
             <Form.Item name="ice" label="ICE">
@@ -883,23 +875,29 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
   ];
 
   return (
-    <Modal
-      open={open}
-      onCancel={onClose}
-      onOk={handleSave}
-      okText="Guardar"
-      cancelText="Cancelar"
-      confirmLoading={saving}
-      title={compra ? 'Editar compra' : 'Registrar compra'}
-      width={1120}
-      style={{ top: 24 }}
-      styles={{ body: { maxHeight: '78vh', overflowY: 'auto', paddingTop: 8 } }}
-    >
-      <Form form={form} layout="vertical">
+    <div className="purchase-workspace">
+      <Form form={form} layout="vertical" className="purchase-workspace-form">
+        <header className="purchase-workspace-header">
+          <Space>
+            <Button icon={<ArrowLeftOutlined />} onClick={onClose} disabled={saving}>Volver</Button>
+            <h2>{compra ? 'Editar compra' : 'Nueva compra'}</h2>
+          </Space>
+          <Text type="secondary">{items.length} items</Text>
+        </header>
         <Form.Item name="xmlFileUrl" hidden><Input /></Form.Item>
         <Form.Item name="pdfFileUrl" hidden><Input /></Form.Item>
-        <Tabs defaultActiveKey="items" items={tabItems} />
+        <Tabs defaultActiveKey="items" items={tabItems} className="purchase-workspace-tabs" />
+        <footer className="purchase-workspace-footer">
+          <div>
+            <Text type="secondary">Total de compra</Text>
+            <Text strong className="purchase-workspace-total">${fiscal.total.toFixed(2)}</Text>
+          </div>
+          <Space>
+            <Button onClick={onClose} disabled={saving}>Cancelar</Button>
+            <Button type="primary" loading={saving} onClick={handleSave}>Guardar</Button>
+          </Space>
+        </footer>
       </Form>
-    </Modal>
+    </div>
   );
 }

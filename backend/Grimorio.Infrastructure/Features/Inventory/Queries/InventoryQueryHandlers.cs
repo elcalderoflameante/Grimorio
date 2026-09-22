@@ -411,11 +411,11 @@ public class GetProductionOrdersHandler : IRequestHandler<GetProductionOrdersQue
         if (req.OutputArticleId.HasValue) query = query.Where(x => x.OutputArticleId == req.OutputArticleId.Value);
         if (req.WarehouseId.HasValue)
             query = query.Where(x => x.SourceWarehouseId == req.WarehouseId.Value || x.DestinationWarehouseId == req.WarehouseId.Value);
-        if (req.FromUtc.HasValue) query = query.Where(x => x.CreatedAt >= req.FromUtc.Value);
-        if (req.ToUtc.HasValue) query = query.Where(x => x.CreatedAt <= req.ToUtc.Value);
+        if (req.FromUtc.HasValue) query = query.Where(x => x.ProducedAt >= req.FromUtc.Value);
+        if (req.ToUtc.HasValue) query = query.Where(x => x.ProducedAt <= req.ToUtc.Value);
 
         var orders = await query
-            .OrderByDescending(x => x.CreatedAt)
+            .OrderByDescending(x => x.ProducedAt)
             .Take(req.PageSize)
             .ToListAsync(ct);
 
@@ -473,7 +473,7 @@ internal static class InventoryProductionMapper
         UnitCost = order.UnitCost,
         Status = order.Status.ToString(),
         Notes = order.Notes,
-        ProducedAt = order.CreatedAt,
+        ProducedAt = order.ProducedAt,
         Ingredients = order.Ingredients
             .Where(x => !x.IsDeleted)
             .OrderBy(x => x.Article!.Name)

@@ -252,6 +252,7 @@ builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddScoped<IFcmPushNotificationService, FcmPushNotificationService>();
 builder.Services.AddScoped<AttendanceKioskAuthenticator>();
 builder.Services.AddSingleton<SFaceBiometricService>();
+builder.Services.AddHostedService<SriInvoiceRetryBackgroundService>();
 
 // === Registrar MediatR ===
 builder.Services.AddMediatR(config =>

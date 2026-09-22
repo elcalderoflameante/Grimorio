@@ -14,6 +14,26 @@ using System.Text.RegularExpressions;
 
 namespace Grimorio.Infrastructure.Features.POS.Commands;
 
+internal static class PosOrderLock
+{
+    public static async Task AcquireAsync(GrimorioDbContext db, Guid branchId, Guid orderId, CancellationToken ct)
+    {
+        if (db.Database.CurrentTransaction is null)
+            throw new InvalidOperationException("El bloqueo de la orden requiere una transaccion activa.");
+
+        // Use the same parent-row lock as payments, before reading items or validating balances.
+        _ = await db.Orders
+            .FromSqlInterpolated($"""
+                SELECT * FROM pos."Orders"
+                WHERE "Id" = {orderId} AND "BranchId" = {branchId} AND NOT "IsDeleted"
+                FOR UPDATE
+                """)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(ct)
+            ?? throw new InvalidOperationException("Orden no encontrada.");
+    }
+}
+
 internal static class PosCashSessionGuard
 {
     public static async Task EnsureOpenAsync(GrimorioDbContext db, Guid branchId, CancellationToken ct)
@@ -414,6 +434,9 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
     {
         await PosCashSessionGuard.EnsureOpenAsync(_db, req.BranchId, ct);
 
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        await PosOrderLock.AcquireAsync(_db, req.BranchId, req.OrderId, ct);
+
         var order = await _db.Orders
             .Include(o => o.Items)
             .Include(o => o.Payments)
@@ -446,8 +469,6 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
             .ToListAsync(ct);
         var localNow = await PosPromotionCommandHelper.GetLocalNowAsync(_db, req.BranchId, ct);
         var activePromotions = await PosMapper.LoadActivePromotionsAsync(_db, req.BranchId, localNow, ct);
-
-        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
 
         decimal addedSubtotal = 0, addedDiscount = 0;
         decimal addedBase15 = 0, addedBase0 = 0, addedBaseExempt = 0, addedIva15 = 0, addedIce = 0;
@@ -541,6 +562,9 @@ public class ConfirmOrderCommandHandler : IRequestHandler<ConfirmOrderCommand, O
     {
         await PosCashSessionGuard.EnsureOpenAsync(_db, req.BranchId, ct);
 
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        await PosOrderLock.AcquireAsync(_db, req.BranchId, req.OrderId, ct);
+
         var order = await _db.Orders
             .Include(o => o.Table)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
@@ -555,8 +579,6 @@ public class ConfirmOrderCommandHandler : IRequestHandler<ConfirmOrderCommand, O
 
         if (!order.Items.Any(i => !i.IsDeleted))
             throw new InvalidOperationException("La orden no tiene ítems.");
-
-        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
 
         order.Status = OrderStatus.Confirmed;
         order.ConfirmedAt = DateTime.UtcNow;
@@ -599,6 +621,9 @@ public class CancelOrderCommandHandler : IRequestHandler<CancelOrderCommand, Ord
 
     public async Task<OrderDto> Handle(CancelOrderCommand req, CancellationToken ct)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        await PosOrderLock.AcquireAsync(_db, req.BranchId, req.OrderId, ct);
+
         var order = await _db.Orders
             .Include(o => o.Table)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
@@ -619,8 +644,6 @@ public class CancelOrderCommandHandler : IRequestHandler<CancelOrderCommand, Ord
         if (activeItems.Any(i => i.Status != OrderItemStatus.Pending))
             throw new InvalidOperationException("Solo se puede cancelar toda la orden si ningun plato ha empezado a prepararse.");
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
-
         order.Status = OrderStatus.Cancelled;
         await StockReservationService.ReleaseOrderReservationsAsync(_db, req.BranchId, order.Id, ct);
         await _db.SaveChangesAsync(ct);
@@ -638,6 +661,14 @@ public class CancelOrderItemCommandHandler : IRequestHandler<CancelOrderItemComm
 
     public async Task<OrderDto> Handle(CancelOrderItemCommand req, CancellationToken ct)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        var orderId = await _db.OrderItems
+            .Where(i => i.Id == req.OrderItemId && i.BranchId == req.BranchId && !i.IsDeleted)
+            .Select(i => (Guid?)i.OrderId)
+            .FirstOrDefaultAsync(ct)
+            ?? throw new InvalidOperationException("Item de orden no encontrado.");
+        await PosOrderLock.AcquireAsync(_db, req.BranchId, orderId, ct);
+
         var item = await _db.OrderItems
             .Include(i => i.Order)!.ThenInclude(o => o!.Payments.Where(p => !p.IsDeleted))
                 .ThenInclude(p => p.Items)
@@ -681,8 +712,6 @@ public class CancelOrderItemCommandHandler : IRequestHandler<CancelOrderItemComm
         if (activeItemsBeforeCancel.Count == 1 && payments.Count > 0)
             throw new InvalidOperationException("No se puede cancelar el ultimo item activo de una orden con pagos registrados.");
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
-
         item.Status = OrderItemStatus.Cancelled;
         await StockReservationService.ReleaseOrderItemReservationsAsync(_db, req.BranchId, item.Id, ct);
 
@@ -724,18 +753,29 @@ public class UpdateOrderItemNotesCommandHandler : IRequestHandler<UpdateOrderIte
 
     public async Task<OrderItemDto> Handle(UpdateOrderItemNotesCommand req, CancellationToken ct)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        var orderId = await _db.OrderItems
+            .Where(i => i.Id == req.OrderItemId && i.BranchId == req.BranchId && !i.IsDeleted)
+            .Select(i => (Guid?)i.OrderId)
+            .FirstOrDefaultAsync(ct)
+            ?? throw new InvalidOperationException("Item de orden no encontrado.");
+        await PosOrderLock.AcquireAsync(_db, req.BranchId, orderId, ct);
         var item = await _db.OrderItems
+            .Include(i => i.Order)
             .Include(i => i.MenuItem)
             .Include(i => i.Station)
             .Include(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .FirstOrDefaultAsync(i => i.Id == req.OrderItemId && i.BranchId == req.BranchId && !i.IsDeleted, ct)
             ?? throw new InvalidOperationException("Item de orden no encontrado.");
 
+        if (item.Order == null || item.Order.Status is OrderStatus.Cancelled or OrderStatus.Delivered)
+            throw new InvalidOperationException("La orden ya no permite editar observaciones.");
         if (item.Status != OrderItemStatus.Pending)
             throw new InvalidOperationException("Solo se puede editar la observacion de un plato que aun no empezo a prepararse.");
 
         item.Notes = string.IsNullOrWhiteSpace(req.Notes) ? null : req.Notes.Trim();
         await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         return PosMapper.MapOrderItem(item);
     }
@@ -748,6 +788,17 @@ public class SetOrderItemStatusCommandHandler : IRequestHandler<SetOrderItemStat
 
     public async Task<OrderItemDto> Handle(SetOrderItemStatusCommand req, CancellationToken ct)
     {
+        if (!Enum.TryParse<OrderItemStatus>(req.Status, out var status) || !Enum.IsDefined(status))
+            throw new InvalidOperationException($"Estado no valido: {req.Status}");
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        var orderId = await _db.OrderItems
+            .Where(i => i.Id == req.OrderItemId && i.BranchId == req.BranchId && !i.IsDeleted)
+            .Select(i => (Guid?)i.OrderId)
+            .FirstOrDefaultAsync(ct)
+            ?? throw new InvalidOperationException("Item de orden no encontrado.");
+        await PosOrderLock.AcquireAsync(_db, req.BranchId, orderId, ct);
+
         var item = await _db.OrderItems
             .Include(i => i.MenuItem)
             .Include(i => i.Station)
@@ -755,26 +806,17 @@ public class SetOrderItemStatusCommandHandler : IRequestHandler<SetOrderItemStat
             .FirstOrDefaultAsync(i => i.Id == req.OrderItemId && i.BranchId == req.BranchId && !i.IsDeleted, ct)
             ?? throw new InvalidOperationException("Ítem de orden no encontrado.");
 
-        if (!Enum.TryParse<OrderItemStatus>(req.Status, out var status))
-            throw new InvalidOperationException($"Status no válido: {req.Status}");
-
-        item.Status = status;
-
-        // Update parent order state if needed
         var order = await _db.Orders
             .Include(o => o.Items.Where(i => !i.IsDeleted))
-            .FirstOrDefaultAsync(o => o.Id == item.OrderId && !o.IsDeleted, ct);
+            .FirstOrDefaultAsync(o => o.Id == orderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
+            ?? throw new InvalidOperationException("Orden no encontrada.");
 
-        if (order != null && order.Status == OrderStatus.Confirmed)
-        {
-            var allItems = order.Items.Where(i => !i.IsDeleted).ToList();
-            if (allItems.Any(i => i.Status == OrderItemStatus.InPreparation))
-                order.Status = OrderStatus.InPreparation;
-            else if (allItems.All(i => i.Status == OrderItemStatus.Ready || i.Status == OrderItemStatus.Cancelled))
-                order.Status = OrderStatus.Ready;
-        }
+        KitchenOrderState.Validate(order, item, status);
+        item.Status = status;
+        KitchenOrderState.Recalculate(order);
 
         await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return PosMapper.MapOrderItem(item);
     }
 }
@@ -831,16 +873,16 @@ public class ProcessAlexaKitchenCommandHandler
             .Include(i => i.Order).ThenInclude(o => o!.Items.Where(oi => !oi.IsDeleted))
             .Include(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .Where(i => i.Order != null &&
-                i.Order.PaidAt == null &&
                 i.Order.Status != OrderStatus.Cancelled &&
                 i.Order.Status != OrderStatus.Delivered &&
                 i.Order.Status != OrderStatus.Draft)
+            .AsNoTrackingWithIdentityResolution()
             .AsSplitQuery()
             .ToListAsync(ct);
 
         var candidates = items
             .Where(i => MatchesTarget(i, tableCode, orderNumber))
-            .Where(i => CanAdvanceTo(i.Status, targetStatus.Value))
+            .Where(i => KitchenOrderState.CanAdvance(i.Status, targetStatus.Value))
             .ToList();
 
         if (candidates.Count == 0)
@@ -863,11 +905,39 @@ public class ProcessAlexaKitchenCommandHandler
         if (selected.Count == 0)
             return Fail("No encontre ese plato en la mesa o pedido.");
 
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        foreach (var orderId in selected.Select(i => i.OrderId).Distinct().OrderBy(id => id))
+            await PosOrderLock.AcquireAsync(_db, req.BranchId, orderId, ct);
+
+        // Reload after locking: matching by voice must not authorize a stale state.
+        var selectedIds = selected.Select(i => i.Id).ToList();
+        selected = await _db.OrderItems
+            .Where(i => selectedIds.Contains(i.Id) && i.BranchId == req.BranchId && !i.IsDeleted)
+            .Include(i => i.MenuItem)
+            .Include(i => i.Station)
+            .Include(i => i.Order).ThenInclude(o => o!.Table)
+            .Include(i => i.Order).ThenInclude(o => o!.Items.Where(oi => !oi.IsDeleted))
+            .Include(i => i.ModifierSelections.Where(s => !s.IsDeleted))
+            .ToListAsync(ct);
+        if (selected.Count != selectedIds.Count || selected.Any(i => i.Order == null))
+            return Fail("El pedido cambio mientras se procesaba la solicitud. Intenta nuevamente.");
+        try
+        {
+            foreach (var item in selected)
+                KitchenOrderState.Validate(item.Order!, item, targetStatus.Value);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Fail(ex.Message);
+        }
+
         foreach (var item in selected)
             item.Status = targetStatus.Value;
 
-        UpdateOrdersStatus(selected.Select(i => i.Order!).DistinctBy(o => o.Id));
+        foreach (var order in selected.Select(i => i.Order!).DistinctBy(o => o.Id))
+            KitchenOrderState.Recalculate(order);
         await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         var itemDtos = selected.Select(PosMapper.MapOrderItem).ToList();
         var label = BuildSuccessLabel(selected);
@@ -896,14 +966,6 @@ public class ProcessAlexaKitchenCommandHandler
         if (PreparationWords.Any(text.Contains)) return OrderItemStatus.InPreparation;
         if (ReadyWords.Any(text.Contains)) return OrderItemStatus.Ready;
         return null;
-    }
-
-    private static bool CanAdvanceTo(OrderItemStatus current, OrderItemStatus target)
-    {
-        if (target == OrderItemStatus.InPreparation) return current == OrderItemStatus.Pending;
-        if (target == OrderItemStatus.Ready)
-            return current is OrderItemStatus.Pending or OrderItemStatus.InPreparation;
-        return false;
     }
 
     private static bool MatchesTarget(OrderItem item, string tableCode, int? orderNumber)
@@ -995,23 +1057,6 @@ public class ProcessAlexaKitchenCommandHandler
         return score;
     }
 
-    private static void UpdateOrdersStatus(IEnumerable<Order> orders)
-    {
-        foreach (var order in orders)
-        {
-            var activeItems = order.Items
-                .Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled)
-                .ToList();
-
-            if (activeItems.Count == 0) continue;
-            if (activeItems.All(i => i.Status == OrderItemStatus.Ready))
-                order.Status = OrderStatus.Ready;
-            else if (activeItems.Any(i => i.Status == OrderItemStatus.InPreparation))
-                order.Status = OrderStatus.InPreparation;
-            else if (order.Status is OrderStatus.InPreparation or OrderStatus.Ready)
-                order.Status = OrderStatus.Confirmed;
-        }
-    }
 
     private static string BuildSuccessLabel(IReadOnlyList<OrderItem> items)
     {
