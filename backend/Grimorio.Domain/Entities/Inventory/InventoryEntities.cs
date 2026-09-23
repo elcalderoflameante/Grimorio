@@ -123,6 +123,9 @@ public class StockMovement : BaseEntity
     public string? Reference { get; set; }
     public string? Notes { get; set; }
     public Guid? OrderItemId { get; set; }
+    public Guid? OrderPaymentItemId { get; set; }
+    public Guid? StockReservationId { get; set; }
+    public Guid? PurchaseItemId { get; set; }
 
     public virtual InventoryArticle? Article { get; set; }
     public virtual Warehouse? Warehouse { get; set; }

@@ -160,7 +160,10 @@ class OrderDto {
   final double ice;
   final double taxAmount;
   final double total;
+  final double paidAmount;
+  final double pendingPaymentTotal;
   final DateTime? confirmedAt;
+  final DateTime? paidAt;
   final List<OrderItemDto> items;
 
   const OrderDto({
@@ -183,9 +186,19 @@ class OrderDto {
     this.ice = 0,
     this.taxAmount = 0,
     required this.total,
+    this.paidAmount = 0,
+    this.pendingPaymentTotal = 0,
     this.confirmedAt,
+    this.paidAt,
     required this.items,
   });
+
+  bool get acceptsAdditionalItems =>
+      paidAt == null &&
+      pendingPaymentTotal > 0.01 &&
+      (status == OrderStatus.draft ||
+          status == OrderStatus.confirmed ||
+          status == OrderStatus.inPreparation);
 
   String get displayTitle {
     if (type == OrderType.dineIn && tableCode != null) return 'Mesa $tableCode';
@@ -213,9 +226,14 @@ class OrderDto {
     ice: (j['ice'] as num?)?.toDouble() ?? 0,
     taxAmount: (j['taxAmount'] as num?)?.toDouble() ?? 0,
     total: (j['total'] as num).toDouble(),
+    paidAmount: (j['paidAmount'] as num?)?.toDouble() ?? 0,
+    pendingPaymentTotal:
+        (j['pendingPaymentTotal'] as num?)?.toDouble() ??
+        (j['total'] as num).toDouble(),
     confirmedAt: j['confirmedAt'] != null
         ? DateTime.parse(j['confirmedAt'] as String)
         : null,
+    paidAt: j['paidAt'] != null ? DateTime.parse(j['paidAt'] as String) : null,
     items: (j['items'] as List<dynamic>? ?? [])
         .map((e) => OrderItemDto.fromJson(e as Map<String, dynamic>))
         .toList(),
@@ -237,6 +255,8 @@ class MenuCategoryDto {
 }
 
 class PromotionDto {
+  final bool isActive;
+  final bool isCurrentlyActive;
   final String id;
   final String name;
   final String? description;
@@ -250,6 +270,8 @@ class PromotionDto {
   final List<String> menuCategoryIds;
 
   const PromotionDto({
+    this.isActive = false,
+    this.isCurrentlyActive = false,
     required this.id,
     required this.name,
     this.description,
@@ -264,6 +286,8 @@ class PromotionDto {
   });
 
   factory PromotionDto.fromJson(Map<String, dynamic> j) => PromotionDto(
+    isActive: j['isActive'] as bool? ?? false,
+    isCurrentlyActive: j['isCurrentlyActive'] as bool? ?? false,
     id: j['id'] as String,
     name: j['name'] as String? ?? '',
     description: j['description'] as String?,

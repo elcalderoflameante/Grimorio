@@ -511,6 +511,10 @@ export { specialDateTemplateApi } from './specialDateTemplateApi';
 // ======================== Inventario API ========================
 
 export const inventoryApi = {
+  getReconciliation: (params?: { articleId?: string; warehouseId?: string; search?: string; severity?: string; page?: number; pageSize?: number }) =>
+    apiClient.get<import('../types/inventoryReconciliation').InventoryReconciliationDto>('/inventory/conciliacion', { params }),
+  getMovementTrace: (id: string) =>
+    apiClient.get<import('../types/inventoryReconciliation').StockMovementTraceDto>(`/inventory/movimientos/${id}/origen`),
   // Unidades de medida
   getUnits: (): Promise<AxiosResponse<MeasurementUnitDto[]>> =>
     apiClient.get<MeasurementUnitDto[]>('/inventory/unidades'),

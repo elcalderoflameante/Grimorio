@@ -2481,12 +2481,21 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid?>("OrderItemId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("OrderPaymentItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PurchaseItemId")
+                        .HasColumnType("uuid");
+
                     b.Property<decimal>("Quantity")
                         .HasColumnType("numeric(18,4)");
 
                     b.Property<string>("Reference")
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
+
+                    b.Property<Guid?>("StockReservationId")
+                        .HasColumnType("uuid");
 
                     b.Property<decimal?>("TotalCost")
                         .HasColumnType("numeric(18,4)");
@@ -2518,6 +2527,12 @@ namespace Grimorio.Infrastructure.Migrations
                     b.HasIndex("BranchId");
 
                     b.HasIndex("IsDeleted");
+
+                    b.HasIndex("OrderPaymentItemId");
+
+                    b.HasIndex("PurchaseItemId");
+
+                    b.HasIndex("StockReservationId");
 
                     b.HasIndex("UnitId");
 
@@ -4618,6 +4633,9 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<Guid?>("UpdateIdempotencyKey")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -4638,6 +4656,9 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.HasIndex("StationId", "Status")
                         .HasFilter("\"IsDeleted\" = false");
+
+                    b.HasIndex("BranchId", "OrderId", "UpdateIdempotencyKey")
+                        .HasFilter("\"UpdateIdempotencyKey\" IS NOT NULL AND \"IsDeleted\" = false");
 
                     b.ToTable("OrderItems", "pos");
                 });
@@ -6735,6 +6756,21 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasForeignKey("ArticleId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.Billing.OrderPaymentItem", null)
+                        .WithMany()
+                        .HasForeignKey("OrderPaymentItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Grimorio.Domain.Entities.Purchases.PurchaseItem", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Grimorio.Domain.Entities.Inventory.StockReservation", null)
+                        .WithMany()
+                        .HasForeignKey("StockReservationId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Grimorio.Domain.Entities.Inventory.MeasurementUnit", "Unit")
                         .WithMany("Movements")

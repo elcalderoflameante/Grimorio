@@ -163,6 +163,12 @@ public class MovimientoStockConfiguration : BaseEntityConfiguration<StockMovemen
 
         builder.HasIndex(x => new { x.BranchId, x.ArticleId, x.CreatedAt });
         builder.HasIndex(x => new { x.BranchId, x.Type, x.CreatedAt });
+        builder.HasOne<Grimorio.Domain.Entities.Billing.OrderPaymentItem>().WithMany()
+            .HasForeignKey(x => x.OrderPaymentItemId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Grimorio.Domain.Entities.Purchases.PurchaseItem>().WithMany()
+            .HasForeignKey(x => x.PurchaseItemId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<StockReservation>().WithMany()
+            .HasForeignKey(x => x.StockReservationId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 

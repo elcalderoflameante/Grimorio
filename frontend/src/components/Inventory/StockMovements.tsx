@@ -14,6 +14,7 @@ import {
   DatePicker,
 } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
+import StockMovementTrace from './StockMovementTrace';
 import { inventoryApi } from '../../services/api';
 import type {
   StockMovementDto,
@@ -223,6 +224,7 @@ export default function StockMovements() {
 
       <Table
         dataSource={movimientos}
+        expandable={{ expandedRowRender: movement => <StockMovementTrace movementId={movement.id} /> }}
         rowKey="id"
         loading={loading}
         size="small"

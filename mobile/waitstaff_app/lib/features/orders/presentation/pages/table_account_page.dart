@@ -28,22 +28,22 @@ class _TableAccountPageState extends ConsumerState<TableAccountPage> {
     _loadOrder();
   }
 
-  Future<void> _loadOrder() async {
+  Future<bool> _loadOrder() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
     try {
-      final order = await ref
-          .read(orderApiServiceProvider)
-          .getOrder(widget.table.currentOrderId!);
-      if (!mounted) return;
+      final api = ref.read(orderApiServiceProvider);
+      final order = await api.getOrder(widget.table.currentOrderId!);
+      if (!mounted) return false;
       setState(() {
         _order = order;
         _isLoading = false;
       });
+      return true;
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         _isLoading = false;
         _errorMessage = readableApiError(
@@ -51,12 +51,14 @@ class _TableAccountPageState extends ConsumerState<TableAccountPage> {
           fallback: 'No se pudo cargar la cuenta.',
         );
       });
+      return false;
     }
   }
 
   Future<void> _addItems() async {
+    if (_isLoading || !await _loadOrder() || !mounted) return;
     final order = _order;
-    if (order == null) return;
+    if (order == null || !order.acceptsAdditionalItems) return;
     await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => NewOrderPage(
@@ -123,6 +125,12 @@ class _TableAccountPageState extends ConsumerState<TableAccountPage> {
 
   @override
   Widget build(BuildContext context) {
+    final order = _order;
+    final canAddItems =
+        order != null &&
+        !_isLoading &&
+        _errorMessage == null &&
+        order.acceptsAdditionalItems;
     return Scaffold(
       appBar: AppBar(
         title: Text('Cuenta · Mesa ${widget.table.code}'),
@@ -135,18 +143,22 @@ class _TableAccountPageState extends ConsumerState<TableAccountPage> {
         ],
       ),
       body: _buildBody(),
-      bottomNavigationBar: _order == null
+      bottomNavigationBar: order == null
           ? null
           : SafeArea(
               top: false,
               minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: FilledButton.icon(
-                onPressed: _addItems,
-                icon: const Icon(Icons.add_shopping_cart_rounded),
+                onPressed: canAddItems ? _addItems : null,
+                icon: Icon(
+                  canAddItems
+                      ? Icons.add_shopping_cart_rounded
+                      : Icons.lock_outline_rounded,
+                ),
                 label: Text(
-                  _order!.status == OrderStatus.draft
-                      ? 'Continuar pedido'
-                      : 'Agregar productos',
+                  _isLoading
+                      ? 'Actualizando cuenta...'
+                      : _orderActionLabel(order),
                 ),
               ),
             ),
@@ -179,13 +191,15 @@ class _TableAccountPageState extends ConsumerState<TableAccountPage> {
 
     final order = _order!;
     return RefreshIndicator(
-      onRefresh: _loadOrder,
+      onRefresh: () async {
+        await _loadOrder();
+      },
       child: ListView(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
         children: [
           _AccountSummary(
             order: order,
-            pendingTotal: widget.table.pendingPaymentTotal,
+            pendingTotal: order.pendingPaymentTotal,
           ),
           const SizedBox(height: 16),
           Text(
@@ -536,3 +550,14 @@ Color _statusColor(OrderStatus status) => switch (status) {
   OrderStatus.delivered => kGoldLight,
   OrderStatus.cancelled => const Color(0xFFFF6B6B),
 };
+
+String _orderActionLabel(OrderDto order) {
+  if (order.paidAt != null) return 'Cuenta pagada';
+  return switch (order.status) {
+    OrderStatus.draft => 'Continuar pedido',
+    OrderStatus.confirmed || OrderStatus.inPreparation => 'Agregar productos',
+    OrderStatus.ready => 'Pedido listo · sin cambios',
+    OrderStatus.delivered => 'Pedido entregado',
+    OrderStatus.cancelled => 'Pedido cancelado',
+  };
+}

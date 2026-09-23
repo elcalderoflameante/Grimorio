@@ -133,6 +133,7 @@ public class Order : BaseEntity
 public class OrderItem : BaseEntity
 {
     public Guid OrderId { get; set; }
+    public Guid? UpdateIdempotencyKey { get; set; }
     public Guid MenuItemId { get; set; }
     public Guid? StationId { get; set; }
     public int Quantity { get; set; }

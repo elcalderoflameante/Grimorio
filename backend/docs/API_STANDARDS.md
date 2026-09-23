@@ -104,6 +104,8 @@ Compatibilidad temporal:
 - `GET /api/inventory/articulos`
 - `GET /api/inventory/stock`
 - `GET /api/inventory/movimientos`
+- `GET /api/inventory/movimientos/{id}/origen`
+- `GET /api/inventory/conciliacion`
 - `POST /api/inventory/movimientos`
 
 ### Menu

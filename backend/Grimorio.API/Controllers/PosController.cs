@@ -278,6 +278,8 @@ public class PosController : ControllerBase
             {
                 OrderId = id,
                 BranchId = branchId,
+                IdempotencyKey = dto.IdempotencyKey,
+                ExpectedIsDraft = dto.ExpectedIsDraft,
                 Items = dto.Items,
             });
         }
@@ -291,8 +293,9 @@ public class PosController : ControllerBase
         {
             // Notificar a cada estación los ítems nuevos (Pending) del pedido actualizado
             var confirmedAt = result.ConfirmedAt ?? result.CreatedAt;
+            var addedItemIds = result.AddedItemIds.ToHashSet();
             var newItemsByStation = result.Items
-                .Where(i => i.StationId.HasValue && i.Status == "Pending")
+                .Where(i => addedItemIds.Contains(i.Id) && i.StationId.HasValue && i.Status == "Pending")
                 .GroupBy(i => i.StationId!.Value);
             foreach (var group in newItemsByStation)
             {

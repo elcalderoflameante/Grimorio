@@ -432,7 +432,8 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
 
     public async Task<OrderDto> Handle(UpdateOrderItemsCommand req, CancellationToken ct)
     {
-        await PosCashSessionGuard.EnsureOpenAsync(_db, req.BranchId, ct);
+        if (req.IdempotencyKey == Guid.Empty)
+            throw new InvalidOperationException("La clave de idempotencia del pedido no es válida.");
 
         await using var transaction = await _db.Database.BeginTransactionAsync(ct);
         await PosOrderLock.AcquireAsync(_db, req.BranchId, req.OrderId, ct);
@@ -442,6 +443,20 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
             .Include(o => o.Payments)
             .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
             ?? throw new InvalidOperationException("Orden no encontrada.");
+
+        if (req.IdempotencyKey is { } idempotencyKey &&
+            idempotencyKey != Guid.Empty &&
+            order.Items.Any(i => !i.IsDeleted && i.UpdateIdempotencyKey == idempotencyKey))
+        {
+            await transaction.CommitAsync(ct);
+            return await LoadOrderAsync(order.Id, [], ct);
+        }
+
+        // Check under the same order lock as confirmation, before replacing or appending.
+        // A replay already applied above remains successful even if the state changed.
+        OrderUpdateState.ValidateExpectedDraft(order.Status, req.ExpectedIsDraft);
+
+        await PosCashSessionGuard.EnsureOpenAsync(_db, req.BranchId, ct);
 
         var paidAmount = order.Payments.Where(p => !p.IsDeleted).Sum(p => p.OrderAmount);
         var isFullyPaid = order.PaidAt.HasValue || paidAmount >= order.Total - 0.01m;
@@ -491,6 +506,7 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
                 Id = Guid.NewGuid(),
                 BranchId = req.BranchId,
                 OrderId = order.Id,
+                UpdateIdempotencyKey = req.IdempotencyKey,
                 MenuItemId = itemDto.MenuItemId,
                 StationId = menuItem.StationId,
                 Quantity = itemDto.Quantity,
@@ -542,14 +558,24 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
         await _db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
+        return await LoadOrderAsync(order.Id, newItems.Select(i => i.Id).ToList(), ct);
+    }
+
+    private async Task<OrderDto> LoadOrderAsync(Guid orderId, List<Guid> addedItemIds, CancellationToken ct)
+    {
         var updated = await _db.Orders
+            .AsNoTracking()
             .Include(o => o.Table)
+            .Include(o => o.Payments.Where(p => !p.IsDeleted))
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
             .Include(o => o.Items.Where(i => !i.IsDeleted))
                 .ThenInclude(i => i.ModifierSelections.Where(s => !s.IsDeleted))
-            .FirstAsync(o => o.Id == order.Id, ct);
-        return PosMapper.MapOrder(updated);
+            .AsSplitQuery()
+            .FirstAsync(o => o.Id == orderId, ct);
+        var result = PosMapper.MapOrder(updated);
+        result.AddedItemIds = addedItemIds;
+        return result;
     }
 }
 
@@ -1517,33 +1543,39 @@ internal static class PosMapper
         return selectionsByGroup.Values.SelectMany(x => x).ToList();
     }
 
-    public static OrderDto MapOrder(Order o) => new()
+    public static OrderDto MapOrder(Order o)
     {
-        Id = o.Id,
-        Number = o.Number,
-        Type = o.Type.ToString(),
-        Status = o.Status.ToString(),
-        TableId = o.TableId,
-        TableCode = o.Table?.Code,
-        CustomerName = o.CustomerName,
-        DeliveryAddress = o.DeliveryAddress,
-        Notes = o.Notes,
-        Subtotal = o.Subtotal,
-        DiscountTotal = o.DiscountTotal,
-        TaxableBase15 = o.TaxableBase15,
-        TaxableBase0 = o.TaxableBase0,
-        TaxableBaseExempt = o.TaxableBaseExempt,
-        Iva15 = o.Iva15,
-        Ice = o.Ice,
-        TaxAmount = o.TaxAmount,
-        Total = o.Total,
-        CreatedAt = o.CreatedAt,
-        ConfirmedAt = o.ConfirmedAt,
-        DeliveredAt = o.DeliveredAt,
-        PaidAt = o.PaidAt,
-        TotalItems = o.Items.Count(i => !i.IsDeleted),
-        Items = o.Items.Where(i => !i.IsDeleted).Select(MapOrderItem).ToList(),
-    };
+        var paidAmount = o.Payments.Where(p => !p.IsDeleted).Sum(p => p.OrderAmount);
+        return new OrderDto
+        {
+            Id = o.Id,
+            Number = o.Number,
+            Type = o.Type.ToString(),
+            Status = o.Status.ToString(),
+            TableId = o.TableId,
+            TableCode = o.Table?.Code,
+            CustomerName = o.CustomerName,
+            DeliveryAddress = o.DeliveryAddress,
+            Notes = o.Notes,
+            Subtotal = o.Subtotal,
+            DiscountTotal = o.DiscountTotal,
+            TaxableBase15 = o.TaxableBase15,
+            TaxableBase0 = o.TaxableBase0,
+            TaxableBaseExempt = o.TaxableBaseExempt,
+            Iva15 = o.Iva15,
+            Ice = o.Ice,
+            TaxAmount = o.TaxAmount,
+            Total = o.Total,
+            PaidAmount = paidAmount,
+            PendingPaymentTotal = Math.Max(0, o.Total - paidAmount),
+            CreatedAt = o.CreatedAt,
+            ConfirmedAt = o.ConfirmedAt,
+            DeliveredAt = o.DeliveredAt,
+            PaidAt = o.PaidAt,
+            TotalItems = o.Items.Count(i => !i.IsDeleted),
+            Items = o.Items.Where(i => !i.IsDeleted).Select(MapOrderItem).ToList(),
+        };
+    }
 
     public static OrderItemDto MapOrderItem(OrderItem i) => new()
     {

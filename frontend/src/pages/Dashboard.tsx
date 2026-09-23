@@ -18,6 +18,7 @@ import { UserOutlined,
   InboxOutlined,
   WarningOutlined,
   SwapOutlined,
+  SearchOutlined,
   AppstoreOutlined,
   UnorderedListOutlined,
   ShoppingCartOutlined,
@@ -68,6 +69,7 @@ import SubRecipesList from '../components/Menu/SubRecipesList';
 import ArticlesList from '../components/Inventory/ArticlesList';
 import CurrentStock from '../components/Inventory/CurrentStock';
 import StockMovements from '../components/Inventory/StockMovements';
+import InventoryReconciliation from '../components/Inventory/InventoryReconciliation';
 import Production from '../components/Inventory/Production';
 import SuppliersList from '../components/Purchases/SuppliersList';
 import PurchasesList from '../components/Purchases/PurchaseOrdersList';
@@ -329,6 +331,7 @@ export default function Dashboard() {
           { key: 'inv-articulos', label: 'Artículos', icon: <InboxOutlined />, permission: PERMISSIONS.inventory.articlesView },
           { key: 'inv-stock', label: 'Stock actual', icon: <WarningOutlined />, permission: PERMISSIONS.inventory.stockView },
           { key: 'inv-movimientos', label: 'Movimientos', icon: <SwapOutlined />, permission: PERMISSIONS.inventory.movementsView },
+          { key: 'inv-conciliacion', label: 'Conciliación', icon: <SearchOutlined />, permission: PERMISSIONS.inventory.movementsView },
           { key: 'inv-produccion', label: 'Producción', icon: <ToolOutlined />, permission: PERMISSIONS.inventory.movementsView },
         ],
       },
@@ -476,6 +479,8 @@ case 'pos-estaciones':
         return <CurrentStock />;
       case 'inv-movimientos':
         return <StockMovements />;
+      case 'inv-conciliacion':
+        return <InventoryReconciliation />;
       case 'inv-produccion':
         return <Production />;
       case 'inv-articulos':

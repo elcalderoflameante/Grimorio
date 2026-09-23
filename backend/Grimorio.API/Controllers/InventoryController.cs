@@ -261,6 +261,31 @@ public class InventoryController : ControllerBase
 
     // ── Movements ───────────────────────────────────────────────────────
 
+    /// <summary>Diagnostico de saldos, reservas y origenes de inventario, sin modificar datos.</summary>
+    [Authorize(Policy = "Inventory.Movements.View")]
+    [HttpGet("conciliacion")]
+    public async Task<IActionResult> GetReconciliation([FromQuery] Guid? articleId, [FromQuery] Guid? warehouseId,
+        [FromQuery] string? search, [FromQuery] string? severity, CancellationToken ct,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        return Ok(await _mediator.Send(new GetInventoryReconciliationQuery
+        {
+            BranchId = branchId, ArticleId = articleId, WarehouseId = warehouseId,
+            Search = search, Severity = severity, Page = page, PageSize = pageSize,
+        }, ct));
+    }
+
+    /// <summary>Origen registrado de un movimiento, incluyendo documentos corregidos o anulados.</summary>
+    [Authorize(Policy = "Inventory.Movements.View")]
+    [HttpGet("movimientos/{id:guid}/origen")]
+    public async Task<IActionResult> GetMovementTrace(Guid id, CancellationToken ct)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new GetStockMovementTraceQuery { BranchId = branchId, MovementId = id }, ct);
+        return result is null ? NotFound() : Ok(result);
+    }
+
     [Authorize(Policy = "Inventory.Movements.View")]
     [HttpGet("movimientos")]
     public async Task<IActionResult> GetMovimientos(

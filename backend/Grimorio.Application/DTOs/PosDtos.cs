@@ -45,12 +45,16 @@ public class OrderDto
     public decimal Ice { get; set; }
     public decimal TaxAmount { get; set; }
     public decimal Total { get; set; }
+    public decimal PaidAmount { get; set; }
+    public decimal PendingPaymentTotal { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? ConfirmedAt { get; set; }
     public DateTime? DeliveredAt { get; set; }
     public DateTime? PaidAt { get; set; }
     public int TotalItems { get; set; }
     public List<OrderItemDto> Items { get; set; } = [];
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<Guid> AddedItemIds { get; set; } = [];
 }
 
 public class ActiveOrderSummaryDto
@@ -133,6 +137,8 @@ public class CreateOrderItemDto
 
 public class UpdateOrderItemsDto
 {
+    public Guid? IdempotencyKey { get; set; }
+    public bool? ExpectedIsDraft { get; set; }
     public List<CreateOrderItemDto> Items { get; set; } = [];
 }
 

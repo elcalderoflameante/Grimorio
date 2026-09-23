@@ -368,6 +368,10 @@ public class RegisterMovementHandler : IRequestHandler<RegisterMovementCommand, 
             Type = req.Type, Quantity = req.Quantity, UnitId = req.UnitId,
             BaseQuantity = effectiveQuantity, UnitCost = unitCost, TotalCost = totalCost,
             Reference = req.Reference?.Trim(), Notes = req.Notes?.Trim(),
+            OrderItemId = req.OrderItemId,
+            OrderPaymentItemId = req.OrderPaymentItemId,
+            StockReservationId = req.StockReservationId,
+            PurchaseItemId = req.PurchaseItemId,
         };
         _db.StockMovements.Add(movement);
 

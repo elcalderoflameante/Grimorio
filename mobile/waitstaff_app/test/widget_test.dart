@@ -46,5 +46,40 @@ void main() {
       expect(item.isTakeout, isTrue);
       expect(item.subtotal, 8.50);
     });
+
+    test('uses the order-specific balance and blocks a paid account', () {
+      final order = OrderDto.fromJson({
+        'id': 'order-1',
+        'number': 12,
+        'type': 'DineIn',
+        'status': 'Confirmed',
+        'subtotal': 24.50,
+        'total': 24.50,
+        'paidAmount': 24.50,
+        'pendingPaymentTotal': 0,
+        'paidAt': '2026-09-23T14:00:00Z',
+        'items': <dynamic>[],
+      });
+
+      expect(order.paidAmount, 24.50);
+      expect(order.pendingPaymentTotal, 0);
+      expect(order.acceptsAdditionalItems, isFalse);
+    });
+
+    test('allows additions while an eligible order has a balance', () {
+      final order = OrderDto.fromJson({
+        'id': 'order-2',
+        'number': 13,
+        'type': 'DineIn',
+        'status': 'InPreparation',
+        'subtotal': 30,
+        'total': 30,
+        'paidAmount': 10,
+        'pendingPaymentTotal': 20,
+        'items': <dynamic>[],
+      });
+
+      expect(order.acceptsAdditionalItems, isTrue);
+    });
   });
 }

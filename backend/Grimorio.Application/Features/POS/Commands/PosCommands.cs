@@ -82,6 +82,8 @@ public class UpdateOrderItemsCommand : IRequest<OrderDto>
 {
     public Guid OrderId { get; set; }
     public Guid BranchId { get; set; }
+    public Guid? IdempotencyKey { get; set; }
+    public bool? ExpectedIsDraft { get; set; }
     public List<CreateOrderItemDto> Items { get; set; } = [];
 }
 

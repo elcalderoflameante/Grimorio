@@ -1167,6 +1167,9 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
                     Type = MovementType.SaleDeduction,
                     Quantity = quantityToConsume,
                     UnitId = reservation.UnitId,
+                    OrderItemId = paymentItem.OrderItemId,
+                    OrderPaymentItemId = paymentItem.Id,
+                    StockReservationId = reservation.Id,
                     Reference = $"Orden #{orderNumber}",
                 }, ct);
 

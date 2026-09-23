@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/network/api_client.dart' show dioProvider;
 import '../models/order_models.dart';
+import '../models/pending_order_items_update.dart';
 
 class OrderApiService {
   OrderApiService(this._ref);
@@ -62,9 +63,11 @@ class OrderApiService {
 
   Future<List<PromotionDto>> getActivePromotions() async {
     final dio = _ref.read(dioProvider);
-    final res = await dio.get('/pos/promociones/activas');
+    // Like the web POS: retain enabled promotions outside their current schedule.
+    final res = await dio.get('/pos/promociones');
     return (res.data as List<dynamic>)
         .map((e) => PromotionDto.fromJson(e as Map<String, dynamic>))
+        .where((promotion) => promotion.isActive)
         .toList();
   }
 
@@ -137,33 +140,12 @@ class OrderApiService {
     return OrderDto.fromJson(res.data as Map<String, dynamic>);
   }
 
-  Future<OrderDto> addOrderItems(String id, List<CartItem> items) async {
+  Future<OrderDto> addOrderItems(
+    String id,
+    PendingOrderItemsUpdate request,
+  ) async {
     final dio = _ref.read(dioProvider);
-    final res = await dio.put(
-      '/pos/ordenes/$id/items',
-      data: {
-        'items': items
-            .map(
-              (i) => {
-                'menuItemId': i.menuItemId,
-                'quantity': i.quantity,
-                if (i.promotionId != null) 'promotionId': i.promotionId,
-                'notes': i.notes,
-                'isTakeout': i.isTakeout,
-                if (i.modifierSelections.isNotEmpty)
-                  'modifierSelections': i.modifierSelections
-                      .map(
-                        (selection) => {
-                          'modifierOptionId': selection.modifierOptionId,
-                          'quantity': selection.quantity,
-                        },
-                      )
-                      .toList(),
-              },
-            )
-            .toList(),
-      },
-    );
+    final res = await dio.put('/pos/ordenes/$id/items', data: request.toJson());
     return OrderDto.fromJson(res.data as Map<String, dynamic>);
   }
 

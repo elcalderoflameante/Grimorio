@@ -136,6 +136,7 @@ public class CreatePurchaseHandler : IRequestHandler<CreatePurchaseCommand, Purc
                 Quantity = item.InventoryQuantity ?? item.Quantity,
                 UnitId = item.InventoryUnitId ?? item.UnitId,
                 Reference = reference,
+                PurchaseItemId = item.Id,
             }, ct);
         }
     }
@@ -193,6 +194,7 @@ public class UpdatePurchaseHandler : IRequestHandler<UpdatePurchaseCommand, Purc
                     Quantity = item.InventoryQuantity ?? item.Quantity,
                     UnitId = item.InventoryUnitId ?? item.UnitId,
                     Reference = oldRef,
+                    PurchaseItemId = item.Id,
                 }, ct);
             }
         }
@@ -248,6 +250,7 @@ public class UpdatePurchaseHandler : IRequestHandler<UpdatePurchaseCommand, Purc
                     Quantity = item.InventoryQuantity ?? item.Quantity,
                     UnitId = item.InventoryUnitId ?? item.UnitId,
                     Reference = newRef,
+                    PurchaseItemId = item.Id,
                 }, ct);
             }
         }
@@ -306,6 +309,7 @@ public class AnularPurchaseHandler : IRequestHandler<AnularPurchaseCommand, Purc
                     Quantity = item.InventoryQuantity ?? item.Quantity,
                     UnitId = item.InventoryUnitId ?? item.UnitId,
                     Reference = docRef,
+                    PurchaseItemId = item.Id,
                 }, ct);
             }
         }

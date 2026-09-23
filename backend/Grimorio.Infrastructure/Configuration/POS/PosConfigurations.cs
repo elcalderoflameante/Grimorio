@@ -110,6 +110,8 @@ public class OrdenItemConfiguration : IEntityTypeConfiguration<OrderItem>
             .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(x => new { x.BranchId, x.OrderId });
+        builder.HasIndex(x => new { x.BranchId, x.OrderId, x.UpdateIdempotencyKey })
+            .HasFilter("\"UpdateIdempotencyKey\" IS NOT NULL AND \"IsDeleted\" = false");
         builder.HasIndex(x => new { x.StationId, x.Status })
             .HasFilter("\"IsDeleted\" = false");
     }

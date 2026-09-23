@@ -134,6 +134,10 @@ public class DeleteWarehouseCommand : IRequest<bool>
 
 public class RegisterMovementCommand : IRequest<StockMovementDto>
 {
+    public Guid? OrderItemId { get; set; }
+    public Guid? OrderPaymentItemId { get; set; }
+    public Guid? StockReservationId { get; set; }
+    public Guid? PurchaseItemId { get; set; }
     public Guid BranchId { get; set; }
     public Guid ArticleId { get; set; }
     public Guid WarehouseId { get; set; }

@@ -1,3 +1,6 @@
+import 'dart:math';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,7 +9,21 @@ import '../../../../core/constants/api_config.dart';
 import '../../../../core/network/api_error.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/models/order_models.dart';
+import '../../data/models/pending_order_items_update.dart';
 import '../../data/services/order_api_service.dart';
+
+String _createIdempotencyKey() {
+  final random = Random.secure();
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  final hex = bytes
+      .map((value) => value.toRadixString(16).padLeft(2, '0'))
+      .join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+      '${hex.substring(12, 16)}-${hex.substring(16, 20)}-'
+      '${hex.substring(20)}';
+}
 
 class NewOrderPage extends ConsumerStatefulWidget {
   const NewOrderPage({
@@ -39,7 +56,10 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
   List<PromotionDto> _promotions = [];
   Map<String, MenuItemAvailabilityDto> _availabilityByItemId = {};
   bool _loadingCatalog = true;
-  String? _selectedCategory; // null = todas las categorías
+  bool _catalogReady = false;
+  String? _catalogError;
+  static const _promotionsCategoryId = '__promotions__';
+  String? _selectedCategory;
   String? _selectedPromotionId;
 
   // ── Carrito ───────────────────────────────────────────────────────────────
@@ -49,6 +69,24 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
   // ── UI state ──────────────────────────────────────────────────────────────
   bool _cartExpanded = false;
   bool _saving = false;
+  String? _orderId;
+  late bool _orderIsDraft;
+  bool _confirmationPending = false;
+  PendingOrderItemsUpdate? _pendingItemsUpdate;
+  bool get _cartLocked =>
+      _saving || _pendingItemsUpdate != null || _confirmationPending;
+
+  bool _canEditCart() {
+    if (!_cartLocked) return true;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Primero reintenta el envío pendiente para verificar el pedido.',
+        ),
+      ),
+    );
+    return false;
+  }
 
   double get _subtotal => _cart.fold(0, (s, i) => s + i.subtotal);
   double get _discountTotal =>
@@ -60,6 +98,8 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
   @override
   void initState() {
     super.initState();
+    _orderId = widget.orderId;
+    _orderIsDraft = widget.orderId == null || widget.orderIsDraft;
     _loadDraftIntoCart();
     _loadCatalog();
   }
@@ -108,7 +148,11 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
   // ── Carga de datos ────────────────────────────────────────────────────────
 
   Future<void> _loadCatalog() async {
-    setState(() => _loadingCatalog = true);
+    setState(() {
+      _loadingCatalog = true;
+      _catalogReady = false;
+      _catalogError = null;
+    });
     try {
       final api = ref.read(orderApiServiceProvider);
       final (cats, items, availability, promotions) = await (
@@ -117,29 +161,116 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
         api.getMenuAvailability(),
         api.getActivePromotions(),
       ).wait;
+      final modifierDetails = await _loadDraftModifierDetails(api);
+      if (!_refreshDraftModifierAvailability(modifierDetails)) {
+        throw StateError(
+          'Uno o más modificadores del borrador ya no están disponibles.',
+        );
+      }
       if (mounted) {
         setState(() {
           _categories = cats;
           _items = items;
           _promotions = promotions;
+          if (_selectedCategory != _promotionsCategoryId ||
+              promotions.isEmpty) {
+            if (!cats.any((category) => category.id == _selectedCategory)) {
+              _selectedCategory = cats.isNotEmpty
+                  ? cats.first.id
+                  : promotions.isNotEmpty
+                  ? _promotionsCategoryId
+                  : null;
+              _selectedPromotionId = null;
+            }
+          }
+          if (!promotions.any(
+            (promotion) =>
+                promotion.id == _selectedPromotionId &&
+                promotion.isCurrentlyActive,
+          )) {
+            _selectedPromotionId = null;
+          }
           _availabilityByItemId = {
             for (final entry in availability) entry.menuItemId: entry,
           };
           _loadingCatalog = false;
+          _catalogReady = true;
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _loadingCatalog = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              readableApiError(e, fallback: 'No se pudo cargar el menú.'),
-            ),
-          ),
+        final message = e is StateError
+            ? e.message.toString()
+            : readableApiError(
+                e,
+                fallback:
+                    'No se pudo verificar el menú y el inventario actual.',
+              );
+        setState(() {
+          _loadingCatalog = false;
+          _catalogReady = false;
+          _catalogError = message;
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
+    }
+  }
+
+  Future<Map<String, MenuItemDto>> _loadDraftModifierDetails(
+    OrderApiService api,
+  ) async {
+    final menuItemIds = _cart
+        .where((item) => item.modifierSelections.isNotEmpty)
+        .map((item) => item.menuItemId)
+        .toSet();
+    final details = <String, MenuItemDto>{};
+
+    await Future.wait(
+      menuItemIds.map((menuItemId) async {
+        details[menuItemId] = await api.getMenuItem(menuItemId);
+      }),
+    );
+    return details;
+  }
+
+  bool _refreshDraftModifierAvailability(
+    Map<String, MenuItemDto> detailsByMenuItemId,
+  ) {
+    var verified = true;
+    for (final cartItem in _cart) {
+      final detail = detailsByMenuItemId[cartItem.menuItemId];
+      if (cartItem.modifierSelections.isNotEmpty && detail == null) {
+        verified = false;
+        continue;
+      }
+      if (detail == null) continue;
+
+      final optionsById = <String, MenuItemModifierOptionDto>{
+        for (final group in detail.modifierGroups)
+          for (final option in group.options) option.id: option,
+      };
+      for (var index = 0; index < cartItem.modifierSelections.length; index++) {
+        final selection = cartItem.modifierSelections[index];
+        final currentOption = optionsById[selection.modifierOptionId];
+        if (currentOption == null) {
+          verified = false;
+          continue;
+        }
+
+        cartItem.modifierSelections[index] = CartModifierSelection(
+          modifierOptionId: selection.modifierOptionId,
+          groupName: selection.groupName,
+          optionName: selection.optionName,
+          quantity: selection.quantity,
+          unitPriceDelta: selection.unitPriceDelta,
+          isTracked: currentOption.isTracked,
+          availableQuantity: currentOption.availableQuantity,
         );
       }
     }
+    return verified;
   }
 
   List<MenuItemDto> get _filteredItems {
@@ -147,9 +278,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
     if (promotion != null) {
       return _items.where(promotion.appliesTo).toList();
     }
-    return _selectedCategory == null
-        ? _items
-        : _items.where((i) => i.menuCategoryId == _selectedCategory).toList();
+    return _items.where((i) => i.menuCategoryId == _selectedCategory).toList();
   }
 
   PromotionDto? get _selectedPromotion {
@@ -173,6 +302,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
   // ── Carrito ───────────────────────────────────────────────────────────────
 
   Future<void> _addItem(MenuItemDto item) async {
+    if (!_canEditCart()) return;
     final promotion = _selectedPromotion;
     final availability = _availabilityByItemId[item.id];
     if (availability?.isTracked == true && !availability!.isAvailable) {
@@ -188,12 +318,13 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
       );
       return;
     }
+    if (!_canIncreaseItemQuantity(item.id, item.name)) return;
     if (item.hasModifiers || item.modifierGroups.isNotEmpty) {
       try {
         final detail = await ref
             .read(orderApiServiceProvider)
             .getMenuItem(item.id);
-        if (!mounted) return;
+        if (!mounted || !_canEditCart()) return;
         await _showModifierDialog(detail, promotion: promotion);
       } catch (e) {
         if (!mounted) return;
@@ -457,7 +588,8 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !mounted || !_canEditCart()) return;
+    if (!_canIncreaseItemQuantity(item.id, item.name)) return;
 
     final selections = <CartModifierSelection>[];
     for (final group in item.modifierGroups) {
@@ -509,30 +641,45 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
     return used;
   }
 
+  bool _canIncreaseItemQuantity(
+    String menuItemId,
+    String name, {
+    int delta = 1,
+  }) {
+    final availability = _availabilityByItemId[menuItemId];
+    if (availability?.isTracked != true) return true;
+
+    final reportedLimit = (availability!.availableQuantity ?? 0).floor();
+    final baseLimit = availability.isAvailable && reportedLimit > 0
+        ? reportedLimit
+        : 0;
+    final totalForItem = _cart
+        .where((line) => line.menuItemId == menuItemId)
+        .fold<int>(0, (sum, line) => sum + line.quantity);
+    if (totalForItem + delta <= baseLimit) return true;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Solo hay $baseLimit disponible(s) de $name.')),
+    );
+    return false;
+  }
+
   void _changeQuantity(int idx, int delta) {
+    if (!_canEditCart()) return;
     final item = _cart[idx];
     final nextQuantity = item.quantity + delta;
     if (delta > 0) {
-      final availability = _availabilityByItemId[item.menuItemId];
-      final reportedLimit = availability?.isTracked == true
-          ? (availability?.availableQuantity ?? 0).floor()
-          : null;
-      final baseLimit = reportedLimit == null
-          ? null
-          : reportedLimit < 0
-          ? 0
-          : reportedLimit;
-      final totalForItem =
-          _cart
-              .where((line) => line.menuItemId == item.menuItemId)
-              .fold<int>(0, (sum, line) => sum + line.quantity) +
-          1;
-      if (baseLimit != null && totalForItem > baseLimit) {
+      if (!_catalogReady) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Solo hay $baseLimit disponible(s) de ${item.name}.'),
+          const SnackBar(
+            content: Text(
+              'Espera a que termine la verificación del inventario.',
+            ),
           ),
         );
+        return;
+      }
+      if (!_canIncreaseItemQuantity(item.menuItemId, item.name, delta: delta)) {
         return;
       }
       for (final selection in item.modifierSelections) {
@@ -563,10 +710,12 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
   }
 
   void _toggleTakeout(int idx) {
+    if (!_canEditCart()) return;
     setState(() => _cart[idx].isTakeout = !_cart[idx].isTakeout);
   }
 
   void _editNote(int idx) {
+    if (!_canEditCart()) return;
     final ctrl = TextEditingController(text: _cart[idx].notes ?? '');
     showDialog<void>(
       context: context,
@@ -627,76 +776,111 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
         .fold(0, (sum, item) => sum + item.quantity);
   }
 
-  Future<void> _choosePromotion() async {
-    final selected = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: kBgCard,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
-              child: Text(
-                'Promociones disponibles',
-                style: GoogleFonts.cinzel(
-                  color: kGold,
-                  fontSize: 17,
+  Widget _buildPromotions() {
+    return ListView(
+      shrinkWrap: true,
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+          child: Text(
+            'Promociones disponibles',
+            style: GoogleFonts.cinzel(
+              color: kGold,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        ..._promotions.map(
+          (promotion) => Card(
+            child: ListTile(
+              minTileHeight: 64,
+              title: Text(
+                promotion.name,
+                style: GoogleFonts.lato(
+                  color: kParchment,
                   fontWeight: FontWeight.w700,
                 ),
               ),
-            ),
-            ..._promotions.map(
-              (promotion) => Card(
-                child: ListTile(
-                  minTileHeight: 64,
-                  title: Text(
-                    promotion.name,
-                    style: GoogleFonts.lato(
-                      color: kParchment,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  subtitle: Text(
-                    [
-                      promotion.valueLabel,
-                      if (promotion.description?.trim().isNotEmpty == true)
-                        promotion.description!.trim(),
-                    ].join(' · '),
-                    style: GoogleFonts.lato(color: kParchmentDim),
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right_rounded,
-                    color: kGold,
-                  ),
-                  onTap: () => Navigator.of(sheetContext).pop(promotion.id),
-                ),
+              subtitle: Text(
+                [
+                  promotion.valueLabel,
+                  if (!promotion.isCurrentlyActive) 'No disponible ahora',
+                  if (promotion.description?.trim().isNotEmpty == true)
+                    promotion.description!.trim(),
+                ].join(' · '),
+                style: GoogleFonts.lato(color: kParchmentDim),
               ),
+              trailing: const Icon(Icons.chevron_right_rounded, color: kGold),
+              enabled: promotion.isCurrentlyActive,
+              onTap: promotion.isCurrentlyActive
+                  ? () {
+                      if (!_canEditCart()) return;
+                      setState(() => _selectedPromotionId = promotion.id);
+                    }
+                  : null,
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
-    if (!mounted || selected == null) return;
-    setState(() {
-      _selectedPromotionId = selected;
-      _selectedCategory = null;
-    });
   }
 
   // ── Enviar a cocina ───────────────────────────────────────────────────────
 
   Future<void> _saveOrder({required bool confirm}) async {
-    if (_cart.isEmpty) return;
+    if (_saving || _cart.isEmpty) return;
+    if (!_catalogReady) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Primero verifica el menú y el inventario para guardar el pedido.',
+          ),
+        ),
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
       final api = ref.read(orderApiServiceProvider);
+      // A failed response does not guarantee confirmation failed on the server.
+      // Check before replacing draft items, which would append on a confirmed order.
+      if (_confirmationPending && _orderId != null) {
+        final currentOrder = await api.getOrder(_orderId!);
+        if (currentOrder.status != OrderStatus.draft) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'El pedido #${currentOrder.number} ya no es un borrador. '
+                'Revisa la cuenta antes de agregar productos.',
+              ),
+            ),
+          );
+          Navigator.of(context).pop(true);
+          return;
+        }
+        _confirmationPending = false;
+      }
       final OrderDto order;
-      if (widget.orderId != null) {
-        order = await api.addOrderItems(widget.orderId!, _cart);
-        if (confirm && widget.orderIsDraft) await api.confirmOrder(order.id);
+      if (_orderId != null) {
+        final request = _pendingItemsUpdate ??= PendingOrderItemsUpdate(
+          idempotencyKey: _createIdempotencyKey(),
+          expectedIsDraft: _orderIsDraft,
+          items: _cart,
+        );
+        try {
+          order = await api.addOrderItems(_orderId!, request);
+        } on DioException catch (error) {
+          // Rejected updates can be edited. Ambiguous failures retain the request.
+          if (error.response?.statusCode == 400 ||
+              error.response?.statusCode == 409) {
+            _pendingItemsUpdate = null;
+          }
+          rethrow;
+        }
+        _pendingItemsUpdate = null;
       } else {
         order = await api.createOrder(
           type: OrderType.dineIn,
@@ -704,7 +888,21 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
           notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
           items: _cart,
         );
-        if (confirm) await api.confirmOrder(order.id);
+        _orderId = order.id;
+      }
+      if (confirm && _orderIsDraft) {
+        _confirmationPending = true;
+        try {
+          await api.confirmOrder(order.id);
+        } on DioException catch (error) {
+          if (error.response?.statusCode == 400 ||
+              error.response?.statusCode == 409) {
+            _confirmationPending = false;
+          }
+          rethrow;
+        }
+        _confirmationPending = false;
+        _orderIsDraft = false;
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -749,49 +947,82 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
             : 'Domicilio',
     };
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => Navigator.of(context).pop(false),
+    return PopScope(
+      canPop: !_cartLocked,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _canEditCart();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(title),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: () {
+              if (_canEditCart()) Navigator.of(context).pop(false);
+            },
+          ),
+          actions: [
+            if (_totalItems > 0)
+              TextButton.icon(
+                onPressed: () => setState(() => _cartExpanded = !_cartExpanded),
+                icon: Badge(
+                  label: Text('$_totalItems'),
+                  isLabelVisible: _totalItems > 0,
+                  child: const Icon(Icons.shopping_cart_outlined, color: kGold),
+                ),
+                label: Text(
+                  '\$${_total.toStringAsFixed(2)}',
+                  style: GoogleFonts.cinzel(color: kGold, fontSize: 13),
+                ),
+              ),
+          ],
         ),
-        actions: [
-          if (_totalItems > 0)
-            TextButton.icon(
-              onPressed: () => setState(() => _cartExpanded = !_cartExpanded),
-              icon: Badge(
-                label: Text('$_totalItems'),
-                isLabelVisible: _totalItems > 0,
-                child: const Icon(Icons.shopping_cart_outlined, color: kGold),
-              ),
-              label: Text(
-                '\$${_total.toStringAsFixed(2)}',
-                style: GoogleFonts.cinzel(color: kGold, fontSize: 13),
-              ),
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                _buildCategoryBar(),
+                Expanded(
+                  child: _loadingCatalog
+                      ? const Center(child: CircularProgressIndicator())
+                      : _catalogError != null
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _catalogError!,
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.lato(color: Colors.amber),
+                                ),
+                                const SizedBox(height: 12),
+                                OutlinedButton.icon(
+                                  onPressed: _loadCatalog,
+                                  icon: const Icon(Icons.refresh_rounded),
+                                  label: const Text('Reintentar'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : _selectedCategory == _promotionsCategoryId &&
+                            _selectedPromotionId == null
+                      ? _buildPromotions()
+                      : _buildItemGrid(),
+                ),
+                if (_totalItems > 0) const SizedBox(height: 80),
+              ],
             ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              _buildCategoryBar(),
-              Expanded(
-                child: _loadingCatalog
-                    ? const Center(child: CircularProgressIndicator())
-                    : _buildItemGrid(),
-              ),
-              if (_totalItems > 0) const SizedBox(height: 80),
-            ],
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: SafeArea(top: false, child: _buildCartPanel()),
-          ),
-        ],
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: SafeArea(top: false, child: _buildCartPanel()),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -806,20 +1037,15 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         children: [
-          _CategoryChip(
-            label: 'Todos',
-            selected: _selectedCategory == null && _selectedPromotionId == null,
-            onTap: () => setState(() {
-              _selectedCategory = null;
-              _selectedPromotionId = null;
-            }),
-          ),
           if (_promotions.isNotEmpty)
             _CategoryChip(
-              label: _selectedPromotion?.name ?? 'Promociones',
-              selected: _selectedPromotionId != null,
+              label: 'Promociones',
+              selected: _selectedCategory == _promotionsCategoryId,
               color: '#C41D7F',
-              onTap: _choosePromotion,
+              onTap: () => setState(() {
+                _selectedCategory = _promotionsCategoryId;
+                _selectedPromotionId = null;
+              }),
             ),
           ..._categories.map(
             (c) => _CategoryChip(
@@ -976,6 +1202,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: TextField(
                 controller: _notesCtrl,
+                enabled: !_cartLocked,
                 decoration: InputDecoration(
                   hintText: 'Observación general del pedido (opcional)',
                   hintStyle: GoogleFonts.lato(
@@ -1007,15 +1234,43 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
             ),
           ],
 
+          if (_pendingItemsUpdate != null || _confirmationPending)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                'Envío pendiente de verificar. Reintenta antes de modificar el pedido.',
+              ),
+            ),
+          if (_catalogError != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Colors.amber),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _catalogError!,
+                      style: GoogleFonts.lato(color: Colors.amber),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _loadingCatalog ? null : _loadCatalog,
+                    child: const Text('Reintentar'),
+                  ),
+                ],
+              ),
+            ),
+
           // Acciones del pedido
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
             child: Row(
               children: [
-                if (widget.orderId == null || widget.orderIsDraft) ...[
+                if (_orderIsDraft) ...[
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: _saving
+                      onPressed: _saving || !_catalogReady
                           ? null
                           : () => _saveOrder(confirm: false),
                       icon: const Icon(Icons.save_outlined),
@@ -1026,7 +1281,9 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
                 ],
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: _saving ? null : () => _saveOrder(confirm: true),
+                    onPressed: _saving || !_catalogReady
+                        ? null
+                        : () => _saveOrder(confirm: true),
                     icon: _saving
                         ? const SizedBox(
                             width: 16,

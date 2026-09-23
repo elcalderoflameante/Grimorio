@@ -79,7 +79,7 @@ Los endpoints `public/*` de `TableService` quedan sin permiso de usuario porque 
 | `Inventory.Articles.View` | Ver articulos | Inventario > Articulos | `GET /api/inventory/articulos` |
 | `Inventory.Articles.Manage` | Crear, editar o eliminar articulos | Inventario > Articulos | `POST/PUT/DELETE /api/inventory/articulos` |
 | `Inventory.Stock.View` | Ver stock y alertas | Inventario > Stock actual | `GET /api/inventory/stock`, `GET /api/inventory/alertas` |
-| `Inventory.Movements.View` | Ver movimientos | Inventario > Movimientos | `GET /api/inventory/movimientos` |
+| `Inventory.Movements.View` | Ver movimientos y conciliacion | Inventario > Movimientos / Conciliacion | `GET /api/inventory/movimientos`, `GET /api/inventory/movimientos/{id}/origen`, `GET /api/inventory/conciliacion` |
 | `Inventory.Movements.Create` | Registrar movimientos e inventario inicial | Inventario > Movimientos | `POST /api/inventory/movimientos`, `POST /api/inventory/movimientos/inventario-inicial` |
 
 ## Compras
