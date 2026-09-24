@@ -12,7 +12,7 @@ void main() {
     expect(find.text('Grimorio Asistencia'), findsOneWidget);
     expect(
       find.text(
-        '1. Registra este identificador desde RR. HH. → Kioscos de asistencia.',
+        '1. Registra este identificador desde Personal → Asistencia → Kioscos.',
       ),
       findsOneWidget,
     );

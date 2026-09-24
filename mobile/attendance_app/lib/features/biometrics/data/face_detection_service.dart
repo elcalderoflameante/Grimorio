@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image/image.dart' as img;
 import '../domain/face_detection_result.dart';
@@ -10,7 +11,7 @@ class FaceDetectionService {
         options: FaceDetectorOptions(
           performanceMode: FaceDetectorMode.accurate,
           enableClassification: true,
-          enableLandmarks: true,
+          enableLandmarks: false,
           minFaceSize: 0.25,
         ),
       );
@@ -78,6 +79,12 @@ class FaceDetectionService {
   }
 
   Future<({double width, double height})> _readImageSize(String path) async {
+    return compute(_decodeImageSize, path);
+  }
+
+  static Future<({double width, double height})> _decodeImageSize(
+    String path,
+  ) async {
     final decoded = img.decodeImage(await File(path).readAsBytes());
     if (decoded == null) {
       throw StateError('No se pudo decodificar la fotografía.');

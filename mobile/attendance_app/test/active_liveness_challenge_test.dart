@@ -10,6 +10,41 @@ FaceDetectionResult frame({double left = .9, double right = .9}) =>
     );
 
 void main() {
+  test('reinicia al perder el rostro después de cerrar los ojos', () {
+    final challenge = ActiveLivenessChallenge();
+    challenge.process(frame());
+    challenge.process(frame());
+    challenge.process(frame(left: .1, right: .1));
+    challenge.process(
+      const FaceDetectionResult(issues: {FaceQualityIssue.noFace}),
+    );
+    challenge.process(frame());
+    expect(challenge.isCompleted, isFalse);
+    expect(challenge.step, LivenessStep.center);
+  });
+
+  test('caduca un parpadeo incompleto', () {
+    final challenge = ActiveLivenessChallenge();
+    final now = DateTime.utc(2026);
+    challenge.process(frame(), now: now);
+    challenge.process(frame(), now: now);
+    challenge.process(frame(left: .1, right: .1), now: now);
+    challenge.process(frame(), now: now.add(const Duration(seconds: 9)));
+    expect(challenge.step, LivenessStep.center);
+  });
+
+  test('reinicia si cambia la calidad o aparecen varias personas', () {
+    for (final issue in [
+      FaceQualityIssue.offCenter,
+      FaceQualityIssue.multipleFaces,
+    ]) {
+      final challenge = ActiveLivenessChallenge();
+      challenge.process(frame());
+      challenge.process(frame());
+      challenge.process(FaceDetectionResult(issues: {issue}));
+      expect(challenge.step, LivenessStep.center);
+    }
+  });
   test('completa dos cuadros centrados y un parpadeo', () {
     final challenge = ActiveLivenessChallenge();
     challenge.process(frame());

@@ -8,7 +8,7 @@ import type { EmployeeDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
-import { formatBranchDateTime, formatBranchTime, toBranchDayjs } from '../../utils/branchTimeZone';
+import { branchDateTimeUtcIso, formatBranchDateTime, formatBranchTime, toBranchDayjs } from '../../utils/branchTimeZone';
 
 interface CorrectionValues {
   clockIn: Dayjs;
@@ -87,10 +87,10 @@ export const AttendanceDashboard = () => {
     setSaving(true);
     try {
       await attendanceApi.correctClocking(editing.id, {
-        clockInTimeUtc: values.clockIn.toISOString(),
-        clockOutTimeUtc: values.clockOut?.toISOString(),
-        breakStartedAtUtc: values.breakStart?.toISOString(),
-        breakEndedAtUtc: values.breakEnd?.toISOString(),
+        clockInTimeUtc: branchDateTimeUtcIso(values.clockIn)!,
+        clockOutTimeUtc: branchDateTimeUtcIso(values.clockOut),
+        breakStartedAtUtc: branchDateTimeUtcIso(values.breakStart),
+        breakEndedAtUtc: branchDateTimeUtcIso(values.breakEnd),
         reason: values.reason.trim(),
       });
       message.success('Marcación corregida y auditada');
@@ -106,7 +106,7 @@ export const AttendanceDashboard = () => {
 
   const openManual = () => {
     manualForm.resetFields();
-    manualForm.setFieldsValue({ clockIn: dayjs().second(0).millisecond(0) });
+    manualForm.setFieldsValue({ clockIn: toBranchDayjs(new Date())!.second(0).millisecond(0) });
     setManualOpen(true);
   };
 
@@ -116,10 +116,10 @@ export const AttendanceDashboard = () => {
       const notes = values.notes?.trim();
       await attendanceApi.createManualClocking({
         employeeId: values.employeeId,
-        clockInTimeUtc: values.clockIn.toISOString(),
-        clockOutTimeUtc: values.clockOut?.toISOString(),
-        breakStartedAtUtc: values.breakStart?.toISOString(),
-        breakEndedAtUtc: values.breakEnd?.toISOString(),
+        clockInTimeUtc: branchDateTimeUtcIso(values.clockIn)!,
+        clockOutTimeUtc: branchDateTimeUtcIso(values.clockOut),
+        breakStartedAtUtc: branchDateTimeUtcIso(values.breakStart),
+        breakEndedAtUtc: branchDateTimeUtcIso(values.breakEnd),
         reason: notes ? `${values.reasonType}: ${notes}` : values.reasonType,
       });
       message.success('Marcación manual registrada y auditada');

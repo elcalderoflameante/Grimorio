@@ -9,6 +9,7 @@ class ApiClient {
         BaseOptions(
           baseUrl: ApiConfig.baseUrl,
           connectTimeout: const Duration(seconds: 10),
+          sendTimeout: const Duration(seconds: 15),
           receiveTimeout: const Duration(seconds: 15),
           headers: const {'Content-Type': 'application/json'},
         ),

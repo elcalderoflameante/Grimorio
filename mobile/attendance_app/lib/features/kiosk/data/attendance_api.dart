@@ -8,11 +8,13 @@ class IdentifiedEmployee {
     required this.id,
     required this.name,
     required this.similarity,
+    required this.recognitionToken,
   });
 
   final String id;
   final String name;
   final double similarity;
+  final String recognitionToken;
 }
 
 class AttendanceStatus {
@@ -54,6 +56,7 @@ class AttendanceApi {
       id: data['employeeId'].toString(),
       name: data['employeeName'].toString(),
       similarity: (data['similarity'] as num).toDouble(),
+      recognitionToken: data['recognitionToken'] as String,
     );
   }
 
@@ -64,10 +67,14 @@ class AttendanceApi {
     return AttendanceStatus.fromJson(response.data!);
   }
 
-  Future<AttendanceStatus> mark(String employeeId, String action) async {
+  Future<AttendanceStatus> mark(
+    String employeeId,
+    String action,
+    String recognitionToken,
+  ) async {
     final response = await _client.dio.post<Map<String, dynamic>>(
       '/attendance/kiosk/employees/$employeeId/$action',
-      data: const {'method': 1},
+      data: {'method': 1, 'recognitionToken': recognitionToken},
     );
     return AttendanceStatus.fromJson(response.data!);
   }

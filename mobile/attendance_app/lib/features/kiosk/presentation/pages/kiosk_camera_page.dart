@@ -28,7 +28,14 @@ class _KioskCameraPageState extends State<KioskCameraPage>
   ActiveLivenessChallenge _liveness = ActiveLivenessChallenge();
   CameraController? _camera;
   Timer? _scanTimer;
+  Timer? _selectionTimer;
+  bool _active = true;
+  int _session = 0;
+  bool _awaitingDeparture = false;
+  int _emptyFrames = 0;
+  bool _canStartBreak = true;
   bool _processing = false;
+  bool _initializingCamera = false;
   bool _coolingDown = false;
   IdentifiedEmployee? _pendingEmployee;
   bool _marking = false;
@@ -43,8 +50,17 @@ class _KioskCameraPageState extends State<KioskCameraPage>
   }
 
   Future<void> _initializeCamera() async {
+    if (!mounted || !_active || _initializingCamera || _camera != null) return;
+    _initializingCamera = true;
+    CameraController? initializingController;
     try {
       final available = await availableCameras();
+      if (available.isEmpty) {
+        throw CameraException(
+          'camera_not_found',
+          'No se encontró una cámara disponible.',
+        );
+      }
       final selected = available.firstWhere(
         (item) => item.lensDirection == CameraLensDirection.front,
         orElse: () => available.first,
@@ -54,26 +70,36 @@ class _KioskCameraPageState extends State<KioskCameraPage>
         ResolutionPreset.medium,
         enableAudio: false,
       );
+      initializingController = controller;
       await controller.initialize();
-      if (!mounted) {
+      if (!mounted || !_active) {
         await controller.dispose();
         return;
       }
       setState(() => _camera = controller);
       _scanTimer = Timer.periodic(
-        const Duration(milliseconds: 350),
+        const Duration(milliseconds: 500),
         (_) => _inspectFrame(),
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      await initializingController?.dispose();
+      debugPrint('No se pudo iniciar la cámara: $error\n$stackTrace');
       if (mounted) {
-        setState(() => _message = 'No se pudo iniciar la cámara frontal');
+        setState(() {
+          _statusColor = Colors.redAccent;
+          _message = 'No se pudo iniciar la cámara frontal';
+        });
       }
+    } finally {
+      if (mounted) setState(() => _initializingCamera = false);
     }
   }
 
   Future<void> _inspectFrame() async {
     final camera = _camera;
-    if (_processing ||
+    if (!_active ||
+        _pendingEmployee != null ||
+        _processing ||
         _coolingDown ||
         camera == null ||
         !camera.value.isInitialized ||
@@ -85,7 +111,18 @@ class _KioskCameraPageState extends State<KioskCameraPage>
     try {
       capture = await camera.takePicture();
       final result = await _faceDetection.inspectFile(capture.path);
-      if (!mounted) return;
+      if (!mounted || !_active || camera != _camera) return;
+      if (_awaitingDeparture) {
+        _emptyFrames = result.issues.contains(FaceQualityIssue.noFace)
+            ? _emptyFrames + 1
+            : 0;
+        if (_emptyFrames >= 2) {
+          _awaitingDeparture = false;
+          _liveness.reset();
+          setState(() => _message = _liveness.instruction);
+        }
+        return;
+      }
       _liveness.process(result);
       if (_liveness.isCompleted) {
         setState(() {
@@ -110,7 +147,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       if (mounted) {
         setState(() {
           _statusColor = Colors.redAccent;
-          _message = 'Error de detección: $error';
+          _message = 'No se pudo analizar la imagen. Reintentando...';
         });
       }
     } finally {
@@ -124,25 +161,32 @@ class _KioskCameraPageState extends State<KioskCameraPage>
   }
 
   Future<void> _identify(String imagePath) async {
+    final session = _session;
     var shouldCooldown = true;
     try {
       final employee = await _attendanceApi.identify(imagePath);
-      if (!mounted) return;
+      if (!mounted || !_active || session != _session) return;
       final status = await _attendanceApi.getToday(employee.id);
-      if (!mounted) return;
+      if (!mounted || !_active || session != _session) return;
 
       if (status.status == null) {
         await _performMark(employee, 'clock-in', 'Entrada registrada');
       } else if (status.status == 2) {
         await _performMark(employee, 'break/end', 'Fin de descanso registrado');
-      } else if (status.status == 1 && status.breakStartedAtUtc != null) {
-        await _performMark(employee, 'clock-out', 'Salida registrada');
       } else if (status.status == 1) {
         shouldCooldown = false;
         setState(() {
           _pendingEmployee = employee;
+          _canStartBreak = status.breakStartedAtUtc == null;
           _statusColor = const Color(0xFF1890FF);
           _message = '${employee.name}, selecciona la marcación';
+        });
+        _selectionTimer?.cancel();
+        _selectionTimer = Timer(const Duration(seconds: 10), () {
+          if (mounted && !_marking) {
+            setState(() => _pendingEmployee = null);
+            unawaited(_startCooldown());
+          }
         });
       } else {
         setState(() {
@@ -152,6 +196,10 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       }
     } on DioException catch (error) {
       if (!mounted) return;
+      if (error.response?.statusCode == 401) {
+        await widget.onUnlink();
+        return;
+      }
       final data = error.response?.data;
       final serverMessage = data is Map ? data['message']?.toString() : null;
       setState(() {
@@ -166,7 +214,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       });
       debugPrint('Error durante identificación facial: $error');
     } finally {
-      if (shouldCooldown) await _startCooldown();
+      if (shouldCooldown && session == _session) await _startCooldown();
     }
   }
 
@@ -177,7 +225,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
   ) async {
     setState(() => _marking = true);
     try {
-      await _attendanceApi.mark(employee.id, action);
+      await _attendanceApi.mark(employee.id, action, employee.recognitionToken);
       if (!mounted) return;
       setState(() {
         _pendingEmployee = null;
@@ -192,10 +240,30 @@ class _KioskCameraPageState extends State<KioskCameraPage>
   Future<void> _chooseMark(String action, String successMessage) async {
     final employee = _pendingEmployee;
     if (employee == null || _marking) return;
+    _selectionTimer?.cancel();
+    final session = _session;
+    XFile? confirmation;
+    setState(() => _marking = true);
     try {
-      await _performMark(employee, action, successMessage);
+      final camera = _camera;
+      if (camera == null || !_active) return;
+      confirmation = await camera.takePicture();
+      final current = await _attendanceApi.identify(confirmation.path);
+      if (!mounted || !_active || session != _session) return;
+      if (current.id != employee.id) {
+        setState(() {
+          _statusColor = Colors.orange;
+          _message = 'La persona cambió. Identifícate nuevamente.';
+        });
+        return;
+      }
+      await _performMark(current, action, successMessage);
     } on DioException catch (error) {
       if (!mounted) return;
+      if (error.response?.statusCode == 401) {
+        await widget.onUnlink();
+        return;
+      }
       final data = error.response?.data;
       setState(() {
         _statusColor = Colors.redAccent;
@@ -203,25 +271,52 @@ class _KioskCameraPageState extends State<KioskCameraPage>
             ? data['message']?.toString() ?? 'No se pudo registrar la marcación'
             : 'No se pudo registrar la marcación';
       });
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _message =
+              'No se pudo confirmar la marcación. Identifícate nuevamente.',
+        );
+      }
     } finally {
-      await _startCooldown();
+      if (confirmation != null) {
+        try {
+          await File(confirmation.path).delete();
+        } catch (_) {}
+      }
+      if (mounted) {
+        setState(() {
+          _marking = false;
+          _pendingEmployee = null;
+        });
+      }
+      if (session == _session) await _startCooldown();
     }
   }
 
   Future<void> _startCooldown() async {
+    if (!mounted || !_active || _coolingDown) return;
+    _scanTimer?.cancel();
+    _selectionTimer?.cancel();
     _coolingDown = true;
+    final session = _session;
     await Future<void>.delayed(const Duration(seconds: 3));
-    if (!mounted) return;
+    if (!mounted || !_active || session != _session) {
+      _coolingDown = false;
+      return;
+    }
 
     setState(() {
       _liveness = ActiveLivenessChallenge();
       _statusColor = const Color(0xFF1890FF);
-      _message = _liveness.instruction;
+      _awaitingDeparture = true;
+      _emptyFrames = 0;
+      _message = 'Retírate de la cámara para la siguiente marcación';
       _pendingEmployee = null;
       _coolingDown = false;
     });
     _scanTimer = Timer.periodic(
-      const Duration(milliseconds: 350),
+      const Duration(milliseconds: 500),
       (_) => _inspectFrame(),
     );
   }
@@ -241,9 +336,16 @@ class _KioskCameraPageState extends State<KioskCameraPage>
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
       _scanTimer?.cancel();
+      _active = false;
+      _session++;
+      _selectionTimer?.cancel();
+      _pendingEmployee = null;
+      _liveness.reset();
       _camera?.dispose();
       _camera = null;
     } else if (state == AppLifecycleState.resumed) {
+      _active = true;
+      _coolingDown = false;
       _initializeCamera();
     }
   }
@@ -252,6 +354,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _scanTimer?.cancel();
+    _selectionTimer?.cancel();
     _camera?.dispose();
     _faceDetection.close();
     super.dispose();
@@ -295,7 +398,20 @@ class _KioskCameraPageState extends State<KioskCameraPage>
         ],
       ),
       body: camera == null || !camera.value.isInitialized
-          ? Center(child: Text(_message))
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_message, textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _initializingCamera ? null : _initializeCamera,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Reintentar cámara'),
+                  ),
+                ],
+              ),
+            )
           : Stack(
               fit: StackFit.expand,
               children: [
@@ -334,7 +450,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
                               children: [
                                 Expanded(
                                   child: FilledButton.tonal(
-                                    onPressed: _marking
+                                    onPressed: _marking || !_canStartBreak
                                         ? null
                                         : () => _chooseMark(
                                             'break/start',

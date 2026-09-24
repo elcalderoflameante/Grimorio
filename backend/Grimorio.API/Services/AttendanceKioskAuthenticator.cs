@@ -30,8 +30,12 @@ public sealed class AttendanceKioskAuthenticator
             cancellationToken);
         if (kiosk is null || !_passwordHashing.VerifyPassword(apiKey, kiosk.ApiKeyHash)) return null;
 
-        kiosk.LastSeenAtUtc = DateTime.UtcNow;
-        await _context.SaveChangesAsync(cancellationToken);
+        var nowUtc = DateTime.UtcNow;
+        if (!kiosk.LastSeenAtUtc.HasValue || nowUtc - kiosk.LastSeenAtUtc.Value >= TimeSpan.FromMinutes(1))
+        {
+            kiosk.LastSeenAtUtc = nowUtc;
+            await _context.SaveChangesAsync(cancellationToken);
+        }
         return kiosk;
     }
 }

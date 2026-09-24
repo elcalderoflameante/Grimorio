@@ -251,6 +251,7 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddScoped<IFcmPushNotificationService, FcmPushNotificationService>();
 builder.Services.AddScoped<AttendanceKioskAuthenticator>();
+builder.Services.AddSingleton<AttendanceRecognitionTickets>();
 builder.Services.AddSingleton<SFaceBiometricService>();
 builder.Services.AddHostedService<SriInvoiceRetryBackgroundService>();
 

@@ -62,7 +62,7 @@ public sealed class AttendanceHandlers :
         var workDate = BranchTimeZone.DateFromUtc(nowUtc, timeZoneId);
 
         if (await _context.EmployeeClockings.AnyAsync(
-                x => x.EmployeeId == employee.Id && x.WorkDate == workDate && !x.IsDeleted,
+                x => x.EmployeeId == employee.Id && (x.WorkDate == workDate || x.ClockOutTimeUtc == null) && !x.IsDeleted,
                 cancellationToken))
             throw new InvalidOperationException("El empleado ya tiene una jornada registrada para hoy.");
 
@@ -174,9 +174,11 @@ public sealed class AttendanceHandlers :
             cancellationToken) ?? throw new KeyNotFoundException("Empleado no encontrado en la sucursal del kiosco.");
         var timeZoneId = await GetBranchTimeZoneId(request.BranchId, cancellationToken);
         var workDate = BranchTimeZone.DateFromUtc(DateTime.UtcNow, timeZoneId);
-        var clocking = await _context.EmployeeClockings.Include(x => x.Break).FirstOrDefaultAsync(
-            x => x.EmployeeId == employee.Id && x.WorkDate == workDate && !x.IsDeleted,
-            cancellationToken);
+        var clocking = await _context.EmployeeClockings.Include(x => x.Break)
+            .Where(x => x.EmployeeId == employee.Id && x.BranchId == request.BranchId &&
+                (x.WorkDate == workDate || x.ClockOutTimeUtc == null) && !x.IsDeleted)
+            .OrderBy(x => x.ClockOutTimeUtc != null).ThenByDescending(x => x.WorkDate)
+            .FirstOrDefaultAsync(cancellationToken);
         return clocking is null
             ? new AttendanceStatusDto { EmployeeId = employee.Id, EmployeeName = FullName(employee), WorkDate = workDate }
             : Map(employee, clocking);
@@ -526,6 +528,17 @@ public sealed class AttendanceHandlers :
             throw new InvalidOperationException("El fin del descanso no es válido.");
         if (clockOut.HasValue && breakStart.HasValue && !breakEnd.HasValue) breakEnd = clockOut;
 
+        var correctedTimeZone = await GetBranchTimeZoneId(request.BranchId, cancellationToken);
+        var correctedDate = BranchTimeZone.DateFromUtc(clockIn, correctedTimeZone);
+        if (await _context.EmployeeClockings.AnyAsync(x => x.EmployeeId == clocking.EmployeeId &&
+            x.Id != clocking.Id && x.WorkDate == correctedDate && !x.IsDeleted, cancellationToken))
+            throw new InvalidOperationException("Ya existe otra jornada para esa fecha.");
+        clocking.WorkDate = correctedDate;
+        var correctedShiftDate = correctedDate.ToDateTime(TimeOnly.MinValue);
+        var correctedShift = await _context.ShiftAssignments.Where(x => x.EmployeeId == clocking.EmployeeId &&
+            x.Date == correctedShiftDate && !x.IsDeleted).OrderBy(x => x.StartTime).FirstOrDefaultAsync(cancellationToken);
+        clocking.ScheduledStartTime = correctedShift?.StartTime;
+        clocking.ScheduledEndTime = correctedShift?.EndTime;
         clocking.ClockInTimeUtc = clockIn;
         clocking.ClockOutTimeUtc = clockOut;
         clocking.ClockInMethod = AttendanceMethod.Manual;
@@ -594,7 +607,10 @@ public sealed class AttendanceHandlers :
         if (includeBreak) query = query.Include(x => x.Break);
         var timeZoneId = await GetBranchTimeZoneId(branchId, cancellationToken);
         var workDate = BranchTimeZone.DateFromUtc(DateTime.UtcNow, timeZoneId);
-        return await query.FirstOrDefaultAsync(x => x.EmployeeId == employeeId && x.WorkDate == workDate && !x.IsDeleted, cancellationToken)
+        return await query.Where(x => x.EmployeeId == employeeId && x.BranchId == branchId &&
+                (x.WorkDate == workDate || x.ClockOutTimeUtc == null) && !x.IsDeleted)
+            .OrderBy(x => x.ClockOutTimeUtc != null).ThenByDescending(x => x.WorkDate)
+            .FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException("El empleado no tiene una jornada registrada para hoy.");
     }
 
@@ -709,6 +725,9 @@ public sealed class AttendanceHandlers :
 
     private static string SerializeClockingSnapshot(EmployeeClocking clocking) => JsonSerializer.Serialize(new
     {
+        clocking.WorkDate,
+        clocking.ClockInMethod,
+        clocking.ClockOutMethod,
         clocking.ClockInTimeUtc,
         clocking.ClockOutTimeUtc,
         BreakStartedAtUtc = clocking.Break?.StartedAtUtc,

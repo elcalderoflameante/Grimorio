@@ -7,6 +7,15 @@ class ActiveLivenessChallenge {
   int _centerFrames = 0;
   bool _eyesWereOpen = false;
   bool _eyesWereClosed = false;
+  DateTime? _startedAt;
+
+  void reset() {
+    _step = LivenessStep.center;
+    _centerFrames = 0;
+    _eyesWereOpen = false;
+    _eyesWereClosed = false;
+    _startedAt = null;
+  }
 
   LivenessStep get step => _step;
   bool get isCompleted => _step == LivenessStep.completed;
@@ -17,8 +26,17 @@ class ActiveLivenessChallenge {
     LivenessStep.completed => 'Prueba de vida completada',
   };
 
-  void process(FaceDetectionResult result) {
-    if (!result.hasSingleFace || isCompleted) return;
+  void process(FaceDetectionResult result, {DateTime? now}) {
+    final timestamp = now ?? DateTime.now();
+    if (!result.hasSingleFace ||
+        result.issues.any((issue) => issue != FaceQualityIssue.eyesClosed) ||
+        (_startedAt != null &&
+            timestamp.difference(_startedAt!) > const Duration(seconds: 8))) {
+      reset();
+      return;
+    }
+    if (isCompleted) return;
+    _startedAt ??= timestamp;
 
     switch (_step) {
       case LivenessStep.center:

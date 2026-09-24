@@ -67,8 +67,15 @@ class _SetupPageState extends State<SetupPage> {
       apiKey: _apiKeyController.text.trim(),
     );
     try {
-      final response = await Dio(BaseOptions(baseUrl: ApiConfig.baseUrl))
-          .get<Map<String, dynamic>>(
+      final response =
+          await Dio(
+            BaseOptions(
+              baseUrl: ApiConfig.baseUrl,
+              connectTimeout: const Duration(seconds: 10),
+              sendTimeout: const Duration(seconds: 10),
+              receiveTimeout: const Duration(seconds: 15),
+            ),
+          ).get<Map<String, dynamic>>(
             '/attendance/kiosk/ping',
             options: Options(
               headers: {

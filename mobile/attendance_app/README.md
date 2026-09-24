@@ -46,7 +46,27 @@ build\app\outputs\flutter-apk\app-release.apk
 Publicacion:
 
 ```powershell
+.\verify-release.ps1
 Copy-Item build\app\outputs\flutter-apk\app-release.apk ..\..\frontend\public\downloads\grimorio-asistencia.apk
 ```
 
 Para actualizar una instalacion se debe incrementar `version` en `pubspec.yaml`, generar nuevamente con la misma llave y reemplazar la APK publicada.
+
+## Actualización 1.0.3
+
+La API exige ahora un token de reconocimiento de un solo uso (30 segundos),
+ligado al empleado y al kiosco. Actualizar la API y las tablets en la misma
+ventana de mantenimiento: las APK anteriores no pueden marcar con la API nueva.
+Los tokens están en memoria del único proceso API del despliegue actual;
+un reinicio requiere reconocer el rostro nuevamente. Antes de usar varias réplicas,
+se debe implementar almacenamiento compartido con consumo atómico.
+
+La dirección predeterminada de la app es producción. Para desarrollo se debe
+proporcionar `API_BASE_URL` explícitamente; Android release solo permite HTTPS.
+Verificar también la URL incluida en el binario, no solamente la firma y versión.
+
+Antes del despliegue, probar en la tablet: entrada, descanso, regreso, salida
+confirmada, selección abandonada, pérdida/restablecimiento de Internet, suspensión
+y reanudación, rostro desconocido y cierre de una jornada después de medianoche.
+El parpadeo es una comprobación básica local, no una garantía contra reproducción
+de videos. La contingencia sin Internet sigue siendo el registro manual en el ERP.

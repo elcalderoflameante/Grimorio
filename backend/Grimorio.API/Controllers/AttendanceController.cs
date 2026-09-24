@@ -24,14 +24,16 @@ public sealed class AttendanceController : ControllerBase
     private readonly AttendanceKioskAuthenticator _kioskAuthenticator;
     private readonly SFaceBiometricService _biometricService;
     private readonly GrimorioDbContext _dbContext;
+    private readonly AttendanceRecognitionTickets _tickets;
 
     public AttendanceController(IMediator mediator, AttendanceKioskAuthenticator kioskAuthenticator,
-        SFaceBiometricService biometricService, GrimorioDbContext dbContext)
+        SFaceBiometricService biometricService, GrimorioDbContext dbContext, AttendanceRecognitionTickets tickets)
     {
         _mediator = mediator;
         _kioskAuthenticator = kioskAuthenticator;
         _biometricService = biometricService;
         _dbContext = dbContext;
+        _tickets = tickets;
     }
 
     [Authorize(Policy = AppConstants.Permissions.RrhhAttendanceEnroll)]
@@ -253,8 +255,10 @@ public sealed class AttendanceController : ControllerBase
         try
         {
             var images = await ReadImages([image], cancellationToken);
-            return Ok(await _mediator.Send(new IdentifyEmployeeFaceQuery
-                { BranchId = kiosk.BranchId, Image = images[0] }, cancellationToken));
+            var identified = await _mediator.Send(new IdentifyEmployeeFaceQuery
+                { BranchId = kiosk.BranchId, Image = images[0] }, cancellationToken);
+            return Ok(new { identified.EmployeeId, identified.EmployeeName, identified.Similarity,
+                recognitionToken = _tickets.Issue(kiosk.Id, identified.EmployeeId) });
         }
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
         catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
@@ -290,6 +294,8 @@ public sealed class AttendanceController : ControllerBase
             return BadRequest(new { message = "Una marcación manual requiere autorización administrativa." });
 
         command.EmployeeId = employeeId;
+        if (body.Method != AttendanceMethod.Face || !_tickets.Consume(kiosk.Id, employeeId, body.RecognitionToken))
+            return Conflict(new { message = "Identifica nuevamente tu rostro para registrar la marcación." });
         command.KioskDeviceId = kiosk.Id;
         command.Method = body.Method;
         command.EvidencePath = body.EvidencePath;
@@ -329,6 +335,7 @@ public sealed class AttendanceController : ControllerBase
 
 public sealed class KioskMarkRequest
 {
+    public string? RecognitionToken { get; set; }
     public AttendanceMethod Method { get; set; } = AttendanceMethod.Face;
     public string? EvidencePath { get; set; }
 }
