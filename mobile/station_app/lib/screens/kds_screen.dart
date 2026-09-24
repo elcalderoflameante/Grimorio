@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:signalr_netcore/signalr_client.dart';
@@ -5,8 +6,27 @@ import '../providers/station_provider.dart';
 import '../widgets/order_card.dart';
 import '../widgets/completed_sidebar.dart';
 
-class KdsScreen extends StatelessWidget {
+class KdsScreen extends StatefulWidget {
   const KdsScreen({super.key});
+
+  @override
+  State<KdsScreen> createState() => _KdsScreenState();
+}
+
+class _KdsScreenState extends State<KdsScreen> {
+  late final Timer _clock;
+
+  @override
+  void initState() {
+    super.initState();
+    _clock = Timer.periodic(const Duration(minutes: 1), (_) => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _clock.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,69 +40,110 @@ class KdsScreen extends StatelessWidget {
         toolbarHeight: 48,
         title: Row(
           children: [
-            const Icon(Icons.restaurant_menu, color: Color(0xFFE94560), size: 20),
+            const Icon(
+              Icons.restaurant_menu,
+              color: Color(0xFFE94560),
+              size: 20,
+            ),
             const SizedBox(width: 10),
-            Text(
-              provider.stationName ?? 'Estación',
-              style: const TextStyle(
-                  color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            Flexible(
+              child: Text(
+                provider.stationName ?? 'Estación',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
             const SizedBox(width: 16),
             _ConnectionBadge(state: provider.connectionState),
           ],
         ),
         actions: [
+          if (provider.connectionState == HubConnectionState.Disconnected)
+            IconButton(
+              tooltip: 'Reconectar',
+              icon: const Icon(Icons.refresh),
+              onPressed: provider.reconnect,
+            ),
           // Contador pedidos activos
           if (provider.items.any((e) => e.status == 'Pending'))
             Center(
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 6),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.orange.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
+                  border: Border.all(
+                    color: Colors.orange.withValues(alpha: 0.5),
+                  ),
                 ),
                 child: Text(
                   '${provider.items.where((e) => e.status == 'Pending').length} pendientes',
                   style: const TextStyle(
-                      color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12),
+                    color: Colors.orange,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ),
           IconButton(
             tooltip: provider.ttsEnabled ? 'Silenciar voz' : 'Activar voz',
             icon: Icon(
-              provider.ttsEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-              color: provider.ttsEnabled ? const Color(0xFF4EE87A) : Colors.white30,
+              provider.ttsEnabled
+                  ? Icons.volume_up_rounded
+                  : Icons.volume_off_rounded,
+              color: provider.ttsEnabled
+                  ? const Color(0xFF4EE87A)
+                  : Colors.white30,
               size: 22,
             ),
-            onPressed: () =>
-                context.read<StationProvider>().setTtsEnabled(!provider.ttsEnabled),
+            onPressed: () => context.read<StationProvider>().setTtsEnabled(
+              !provider.ttsEnabled,
+            ),
           ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert, color: Colors.white54, size: 20),
             color: const Color(0xFF1C1C3A),
             onSelected: (value) {
-              if (value == 'change') context.read<StationProvider>().changeStation();
+              if (value == 'change') {
+                context.read<StationProvider>().changeStation();
+              }
               if (value == 'logout') context.read<StationProvider>().logout();
             },
             itemBuilder: (_) => [
               const PopupMenuItem(
                 value: 'change',
-                child: Row(children: [
-                  Icon(Icons.swap_horiz, color: Colors.white70, size: 18),
-                  SizedBox(width: 8),
-                  Text('Cambiar estación', style: TextStyle(color: Colors.white, fontSize: 14)),
-                ]),
+                child: Row(
+                  children: [
+                    Icon(Icons.swap_horiz, color: Colors.white70, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'Cambiar estación',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                  ],
+                ),
               ),
               const PopupMenuItem(
                 value: 'logout',
-                child: Row(children: [
-                  Icon(Icons.logout, color: Colors.redAccent, size: 18),
-                  SizedBox(width: 8),
-                  Text('Cerrar sesión', style: TextStyle(color: Colors.redAccent, fontSize: 14)),
-                ]),
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, color: Colors.redAccent, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'Cerrar sesión',
+                      style: TextStyle(color: Colors.redAccent, fontSize: 14),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -120,7 +181,11 @@ class _ErrorBanner extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
   final VoidCallback onDismiss;
-  const _ErrorBanner({required this.message, required this.onRetry, required this.onDismiss});
+  const _ErrorBanner({
+    required this.message,
+    required this.onRetry,
+    required this.onDismiss,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -130,7 +195,11 @@ class _ErrorBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 18),
+          const Icon(
+            Icons.warning_amber_rounded,
+            color: Colors.redAccent,
+            size: 18,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -141,7 +210,10 @@ class _ErrorBanner extends StatelessWidget {
           ),
           TextButton(
             onPressed: onRetry,
-            child: const Text('Reintentar', style: TextStyle(color: Colors.orangeAccent, fontSize: 13)),
+            child: const Text(
+              'Reintentar',
+              style: TextStyle(color: Colors.orangeAccent, fontSize: 13),
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.close, color: Colors.white38, size: 16),
@@ -161,14 +233,18 @@ class _MainArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (provider.connectionState == HubConnectionState.Reconnecting) {
+    if (provider.connectionState == HubConnectionState.Reconnecting &&
+        provider.items.isEmpty) {
       return const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             CircularProgressIndicator(color: Color(0xFFE94560)),
             SizedBox(height: 14),
-            Text('Reconectando...', style: TextStyle(color: Colors.white54, fontSize: 15)),
+            Text(
+              'Reconectando...',
+              style: TextStyle(color: Colors.white54, fontSize: 15),
+            ),
           ],
         ),
       );
@@ -177,19 +253,28 @@ class _MainArea extends StatelessWidget {
     final groups = provider.orderedGroups;
 
     if (groups.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.check_circle_outline, color: Color(0xFF2ECC71), size: 64),
-            SizedBox(height: 14),
-            Text(
-              'Todo listo',
-              style: TextStyle(
-                  color: Colors.white70, fontSize: 26, fontWeight: FontWeight.bold),
+            const Icon(
+              Icons.check_circle_outline,
+              color: Color(0xFF2ECC71),
+              size: 64,
             ),
-            SizedBox(height: 6),
+            const SizedBox(height: 14),
             Text(
+              provider.connectionState == HubConnectionState.Connected
+                  ? 'Todo listo'
+                  : 'Sin conexión',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
               'Los nuevos pedidos aparecerán aquí.',
               style: TextStyle(color: Colors.white38, fontSize: 14),
             ),
@@ -208,10 +293,7 @@ class _MainArea extends StatelessWidget {
         alignment: WrapAlignment.start,
         crossAxisAlignment: WrapCrossAlignment.start,
         children: groups
-            .map((entry) => OrderCard(
-                  orderId: entry.key,
-                  items: entry.value,
-                ))
+            .map((entry) => OrderCard(orderId: entry.key, items: entry.value))
             .toList(),
       ),
     );

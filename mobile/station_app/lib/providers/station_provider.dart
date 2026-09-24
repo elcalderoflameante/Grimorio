@@ -12,9 +12,40 @@ import '../services/tts_service.dart';
 enum AppState { unauthenticated, pickingStation, ready }
 
 class StationProvider extends ChangeNotifier {
-  final AuthService _auth = AuthService();
-  final KitchenHubService _hub = KitchenHubService();
-  final TtsService _tts = TtsService();
+  final AuthService _auth;
+  final KitchenHubService _hub;
+  final TtsService _tts;
+  final ApiService Function(String token) _apiFactory;
+  final Set<String> _updatingItems = {};
+  List<VoidCallback>? _pendingEvents;
+  int _session = 0;
+  bool _disposed = false;
+
+  StationProvider({
+    AuthService? auth,
+    KitchenHubService? hub,
+    TtsService? tts,
+    ApiService Function(String token)? apiFactory,
+  }) : _auth = auth ?? AuthService(),
+       _hub = hub ?? KitchenHubService(),
+       _tts = tts ?? TtsService(),
+       _apiFactory = apiFactory ?? ((token) => ApiService(token: token));
+
+  bool isUpdating(String itemId) => _updatingItems.contains(itemId);
+
+  void _handleEvent(VoidCallback event) {
+    if (_disposed || appState != AppState.ready) return;
+    if (_pendingEvents != null) {
+      _pendingEvents!.add(event);
+    } else {
+      event();
+    }
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
 
   AppState appState = AppState.unauthenticated;
   HubConnectionState connectionState = HubConnectionState.Disconnected;
@@ -34,6 +65,7 @@ class StationProvider extends ChangeNotifier {
     if (_stationNames.length == 1) return _stationNames.first;
     return _stationNames.join(' + ');
   }
+
   String get serverUrl => ApiConfig.baseUrl;
 
   bool get ttsEnabled => _tts.enabled;
@@ -49,12 +81,20 @@ class StationProvider extends ChangeNotifier {
       map.putIfAbsent(item.orderId, () => []).add(item);
     }
     final entries = map.entries.toList()
-      ..sort((a, b) => a.value.first.confirmedAt.compareTo(b.value.first.confirmedAt));
+      ..sort(
+        (a, b) =>
+            a.value.first.confirmedAt.compareTo(b.value.first.confirmedAt),
+      );
     return entries;
   }
 
   Future<void> init() async {
-    await _tts.init();
+    try {
+      await _tts.init();
+    } catch (e) {
+      debugPrint('[Provider] Voz no disponible: $e');
+      _tts.enabled = false;
+    }
 
     _token = await _auth.getToken() ?? '';
     _stationIds = await _auth.getSavedStationIds();
@@ -73,7 +113,8 @@ class StationProvider extends ChangeNotifier {
 
   Future<List<KdsBranch>> loadKdsBranches() => _auth.getKdsBranches();
 
-  Future<List<KdsUser>> loadKdsUsers(String branchId) => _auth.getKdsUsers(branchId);
+  Future<List<KdsUser>> loadKdsUsers(String branchId) =>
+      _auth.getKdsUsers(branchId);
 
   Future<void> login(String branchId, String userId, String pin) async {
     isLoading = true;
@@ -100,7 +141,7 @@ class StationProvider extends ChangeNotifier {
   }
 
   Future<List<WorkStation>> loadStations() async {
-    final api = ApiService(token: _token);
+    final api = _apiFactory(_token);
     return api.getStations();
   }
 
@@ -117,33 +158,51 @@ class StationProvider extends ChangeNotifier {
   }
 
   Future<void> _startHub() async {
+    final session = ++_session;
+    _hub.onResynchronized = _loadInitialItems;
     _hub.onConnectionChanged = (state) {
       connectionState = state;
       notifyListeners();
     };
 
-    _hub.onNewItems = (newItems) {
+    _hub.onNewItems = (newItems) => _handleEvent(() {
       final brandNew = <String, List<StationItem>>{};
       final additions = <String, List<StationItem>>{};
+      final knownOrders = {
+        ...items.map((item) => item.orderId),
+        ...completedOrders.map((order) => order.orderId),
+      };
+      final knownItemIds = {
+        ...items.map((item) => item.orderItemId),
+        ...completedOrders.expand(
+          (order) => order.items.map((item) => item.orderItemId),
+        ),
+      };
 
       for (final item in newItems) {
-        final existingIdx = items.indexWhere((e) => e.orderItemId == item.orderItemId);
+        final existingIdx = items.indexWhere(
+          (e) => e.orderItemId == item.orderItemId,
+        );
         if (existingIdx != -1) {
           items[existingIdx] = item;
           continue;
         }
 
-        final orderOnScreen = items.any((e) => e.orderId == item.orderId);
-        final orderCompleted = completedOrders.any((e) => e.orderId == item.orderId);
+        if (knownItemIds.contains(item.orderItemId)) continue;
+        if (item.status != 'Pending' && item.status != 'InPreparation') {
+          continue;
+        }
+        knownItemIds.add(item.orderItemId);
+        final previous = completedOrders.where(
+          (e) => e.orderId == item.orderId,
+        );
+        if (previous.isNotEmpty) items.addAll(previous.first.items);
+        completedOrders.removeWhere((e) => e.orderId == item.orderId);
         items.add(item);
 
-        if (orderCompleted) {
-          completedOrders.removeWhere((e) => e.orderId == item.orderId);
+        if (knownOrders.contains(item.orderId)) {
           additions.putIfAbsent(item.orderId, () => []).add(item);
-        } else if (orderOnScreen) {
-          additions.putIfAbsent(item.orderId, () => []).add(item);
-        }
-        if (!orderOnScreen && !orderCompleted) {
+        } else {
           brandNew.putIfAbsent(item.orderId, () => []).add(item);
         }
       }
@@ -156,100 +215,159 @@ class StationProvider extends ChangeNotifier {
       }
 
       notifyListeners();
-    };
+    });
 
-    _hub.onItemUpdated = (orderItemId, orderId, status, notes) {
-      final idx = items.indexWhere((e) => e.orderItemId == orderItemId);
-      if (idx != -1) {
-        items[idx].status = status;
-        if (notes != null) {
-          items[idx].notes = notes.isEmpty ? null : notes;
-          _tts.enqueue(TtsService.buildItemNotesUpdated(items[idx], notes));
-        }
-        _checkOrderCompletion(orderId);
-        notifyListeners();
-      }
-    };
+    _hub.onItemUpdated = (orderItemId, orderId, status, notes) =>
+        _handleEvent(() {
+          if (status == 'Cancelled') {
+            items.removeWhere((e) => e.orderItemId == orderItemId);
+            completedOrders = completedOrders
+                .map(
+                  (order) => CompletedOrder(
+                    orderId: order.orderId,
+                    orderNumber: order.orderNumber,
+                    orderLabel: order.orderLabel,
+                    orderType: order.orderType,
+                    orderNotes: order.orderNotes,
+                    completedAt: order.completedAt,
+                    items: List.unmodifiable(
+                      order.items.where((e) => e.orderItemId != orderItemId),
+                    ),
+                  ),
+                )
+                .where((order) => order.items.isNotEmpty)
+                .toList();
+            _checkOrderCompletion(orderId);
+            notifyListeners();
+            return;
+          }
+          final idx = items.indexWhere((e) => e.orderItemId == orderItemId);
+          if (idx != -1) {
+            items[idx].status = status;
+            if (notes != null && (items[idx].notes ?? '') != notes) {
+              items[idx].notes = notes.isEmpty ? null : notes;
+              _tts.enqueue(TtsService.buildItemNotesUpdated(items[idx], notes));
+            }
+            _checkOrderCompletion(orderId);
+            notifyListeners();
+          }
+        });
 
-    _hub.onOrderCancelled = (orderId) {
+    _hub.onOrderCancelled = (orderId) => _handleEvent(() {
       items.removeWhere((e) => e.orderId == orderId);
       completedOrders.removeWhere((e) => e.orderId == orderId);
       notifyListeners();
-    };
+    });
 
-    debugPrint('[Provider] Conectando a ${ApiConfig.hubBaseUrl} con stationIds=$_stationIds');
+    debugPrint(
+      '[Provider] Conectando a ${ApiConfig.hubBaseUrl} con stationIds=$_stationIds',
+    );
     try {
       await _hub.connect(ApiConfig.hubBaseUrl, _token, _stationIds);
+      if (session != _session || _disposed) return;
       debugPrint('[Provider] Hub conectado OK');
       await _loadInitialItems();
     } catch (e) {
+      if (session != _session || _disposed) return;
       if (e is UnauthorizedException) {
         debugPrint('[Provider] Token expirado, forzando re-login');
         await _forceLogout();
         return;
       }
       debugPrint('[Provider] Error en _startHub: $e');
-      errorMessage = 'Error de conexión: ${e.toString().replaceFirst('Exception: ', '')}';
+      errorMessage =
+          'Error de conexión: ${e.toString().replaceFirst('Exception: ', '')}';
       notifyListeners();
     }
   }
 
   Future<void> _loadInitialItems() async {
-    final api = ApiService(token: _token);
+    if (_pendingEvents != null || _disposed) return;
+    final session = _session;
+    final events = <VoidCallback>[];
+    _pendingEvents = events;
+    try {
+      final api = _apiFactory(_token);
+      final stationIds = List<String>.of(_stationIds);
 
-    final activeItems = <StationItem>[];
-    for (final stationId in _stationIds) {
-      activeItems.addAll(await api.getStationItems(stationId));
-    }
-    items = _dedupeItems(activeItems);
+      final activeItems = (await Future.wait(
+        stationIds.map(api.getStationItems),
+      )).expand((items) => items).toList();
 
-    List<StationItem> completedItems = [];
-    for (final stationId in _stationIds) {
-      try {
-        completedItems.addAll(await api.getCompletedStationItems(stationId));
-      } catch (e) {
-        if (e is UnauthorizedException) rethrow;
-        debugPrint('[Provider] Completados no disponibles para $stationId: $e');
+      List<StationItem> completedItems = [];
+      for (final stationId in stationIds) {
+        try {
+          completedItems.addAll(await api.getCompletedStationItems(stationId));
+        } catch (e) {
+          if (e is UnauthorizedException) rethrow;
+          debugPrint(
+            '[Provider] Completados no disponibles para $stationId: $e',
+          );
+        }
+      }
+      if (session != _session || _disposed) return;
+      completedItems = _dedupeItems(completedItems);
+      final activeOrders = activeItems.map((item) => item.orderId).toSet();
+      items = _dedupeItems([
+        ...activeItems,
+        ...completedItems.where((item) => activeOrders.contains(item.orderId)),
+      ]);
+
+      final byOrder = <String, List<StationItem>>{};
+      for (final item in completedItems) {
+        if (activeOrders.contains(item.orderId)) continue;
+        byOrder.putIfAbsent(item.orderId, () => []).add(item);
+      }
+
+      final sortedGroups = byOrder.entries.toList()
+        ..sort((a, b) {
+          final aTime = a.value
+              .map((i) => i.updatedAt ?? i.confirmedAt)
+              .reduce((max, current) => current.isAfter(max) ? current : max);
+          final bTime = b.value
+              .map((i) => i.updatedAt ?? i.confirmedAt)
+              .reduce((max, current) => current.isAfter(max) ? current : max);
+          return bTime.compareTo(aTime);
+        });
+
+      completedOrders = sortedGroups.map((entry) {
+        final first = entry.value.first;
+        final completedAt = entry.value
+            .map((i) => i.updatedAt ?? i.confirmedAt)
+            .reduce((max, current) => current.isAfter(max) ? current : max);
+        return CompletedOrder(
+          orderId: entry.key,
+          orderNumber: first.orderNumber,
+          orderLabel: first.orderLabel,
+          orderType: first.orderType,
+          orderNotes: first.orderNotes,
+          completedAt: completedAt,
+          items: List.unmodifiable(entry.value),
+        );
+      }).toList();
+
+      errorMessage = null;
+    } on UnauthorizedException {
+      if (session == _session && !_disposed) await _forceLogout();
+    } catch (e) {
+      if (session == _session && !_disposed) {
+        errorMessage = 'No se pudieron sincronizar los pedidos: $e';
+      }
+    } finally {
+      if (identical(_pendingEvents, events)) _pendingEvents = null;
+      if (session == _session && !_disposed) {
+        for (final event in events) {
+          event();
+        }
+        notifyListeners();
       }
     }
-    completedItems = _dedupeItems(completedItems);
-
-    final byOrder = <String, List<StationItem>>{};
-    for (final item in completedItems) {
-      byOrder.putIfAbsent(item.orderId, () => []).add(item);
-    }
-
-    final sortedGroups = byOrder.entries.toList()
-      ..sort((a, b) {
-        final aTime = a.value
-            .map((i) => i.updatedAt ?? i.confirmedAt)
-            .reduce((max, current) => current.isAfter(max) ? current : max);
-        final bTime = b.value
-            .map((i) => i.updatedAt ?? i.confirmedAt)
-            .reduce((max, current) => current.isAfter(max) ? current : max);
-        return bTime.compareTo(aTime);
-      });
-
-    completedOrders = sortedGroups.map((entry) {
-      final first = entry.value.first;
-      final completedAt = entry.value
-          .map((i) => i.updatedAt ?? i.confirmedAt)
-          .reduce((max, current) => current.isAfter(max) ? current : max);
-      return CompletedOrder(
-        orderId: entry.key,
-        orderNumber: first.orderNumber,
-        orderLabel: first.orderLabel,
-        orderType: first.orderType,
-        orderNotes: first.orderNotes,
-        completedAt: completedAt,
-        items: List.unmodifiable(entry.value),
-      );
-    }).toList();
-
-    notifyListeners();
   }
 
   Future<void> _forceLogout() async {
+    _session++;
+    _pendingEvents = null;
+    await _tts.stop();
     await _hub.dispose();
     await _auth.logout();
     _token = '';
@@ -264,7 +382,9 @@ class StationProvider extends ChangeNotifier {
 
   void _checkOrderCompletion(String orderId) {
     final orderItems = items.where((e) => e.orderId == orderId).toList();
-    if (orderItems.isEmpty || !orderItems.every((e) => e.status == 'Ready')) return;
+    if (orderItems.isEmpty || !orderItems.every((e) => e.status == 'Ready')) {
+      return;
+    }
 
     final first = orderItems.first;
     if (!completedOrders.any((e) => e.orderId == orderId)) {
@@ -300,31 +420,38 @@ class StationProvider extends ChangeNotifier {
     await advanceItemStatusTo(item, nextStatus);
   }
 
-  Future<bool> advanceItemStatusTo(StationItem item, String targetStatus) async {
+  Future<bool> advanceItemStatusTo(
+    StationItem item,
+    String targetStatus,
+  ) async {
     if (item.status == targetStatus) return true;
-
+    if (!_updatingItems.add(item.orderItemId)) return false;
+    final session = _session;
     final previousStatus = item.status;
-    final previousItems = List<StationItem>.from(items);
-    final previousCompletedOrders = List<CompletedOrder>.from(completedOrders);
-
-    item.status = targetStatus;
-    _checkOrderCompletion(item.orderId);
     notifyListeners();
 
-    final api = ApiService(token: _token);
+    final api = _apiFactory(_token);
     try {
       await api.updateItemStatus(item.orderItemId, targetStatus);
+      if (session != _session || _disposed) return false;
+      final current = items.where((e) => e.orderItemId == item.orderItemId);
+      if (current.isNotEmpty && current.first.status == previousStatus) {
+        current.first.status = targetStatus;
+        _checkOrderCompletion(item.orderId);
+      }
       return true;
     } on UnauthorizedException {
-      await _forceLogout();
+      if (session == _session && !_disposed) await _forceLogout();
       return false;
     } catch (e) {
-      item.status = previousStatus;
-      items = previousItems;
-      completedOrders = previousCompletedOrders;
-      errorMessage = 'Sin sincronizar: ${e.toString().replaceFirst('Exception: ', '')}';
+      if (session != _session || _disposed) return false;
+      errorMessage =
+          'Sin sincronizar: ${e.toString().replaceFirst('Exception: ', '')}';
       notifyListeners();
       return false;
+    } finally {
+      _updatingItems.remove(item.orderItemId);
+      notifyListeners();
     }
   }
 
@@ -340,6 +467,9 @@ class StationProvider extends ChangeNotifier {
   }
 
   Future<void> changeStation() async {
+    _session++;
+    _pendingEvents = null;
+    await _tts.stop();
     await _hub.dispose();
     await _auth.clearStation();
     _stationIds = [];
@@ -351,6 +481,9 @@ class StationProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _session++;
+    _pendingEvents = null;
+    await _tts.stop();
     await _hub.dispose();
     await _auth.logout();
     _token = '';
@@ -364,6 +497,8 @@ class StationProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
+    _session++;
     _hub.dispose();
     _tts.dispose();
     super.dispose();

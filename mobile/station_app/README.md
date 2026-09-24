@@ -2,6 +2,30 @@
 
 Aplicacion Flutter para estaciones de cocina/barra. Muestra items pendientes por estacion, recibe eventos en tiempo real del hub de cocina y permite actualizar estados.
 
+## Verificacion
+
+Desde `mobile/station_app`:
+
+```powershell
+flutter analyze
+flutter test --dart-define=API_BASE_URL=http://localhost/api
+```
+
+Las pruebas usan servicios simulados; no requieren un backend en localhost.
+Cubren pedidos nuevos y adicionales, modificadores, observaciones, cancelaciones,
+recuperacion de pedidos al reconectar, actualizaciones concurrentes y pantallas
+de tablet de 1024x600 y 1280x800.
+
+Antes de distribuir una APK, comprobar en una tablet real:
+
+1. Login por sucursal, usuario y PIN; seleccion de varias estaciones.
+2. Pedido con modificadores, nota general y observaciones por plato.
+3. Preparacion parcial desde Alexa y desde la pantalla, incluyendo cancelacion.
+4. Desconectar Wi-Fi, modificar un pedido y reconectar: verificar pantalla e historial.
+5. Avisos de voz para nuevos pedidos, adicionales y cambios de observaciones.
+
+La voz de la app reproduce avisos; los comandos de voz se gestionan con Alexa.
+
 ## Build de produccion Android
 
 La APK no se publica en Play Store. Se genera firmada y se sirve desde el frontend del ERP en:

@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../models/station_item.dart';
 
@@ -6,6 +7,7 @@ class TtsService {
   final FlutterTts _tts = FlutterTts();
   final Queue<String> _queue = Queue();
   bool _processing = false;
+  int _generation = 0;
   bool enabled = true;
 
   Future<void> init() async {
@@ -31,24 +33,38 @@ class TtsService {
   }
 
   void enqueue(String text) {
-    if (!enabled) return;
+    if (!enabled || text.trim().isEmpty) return;
     _queue.add(text);
     if (!_processing) _processQueue();
   }
 
   Future<void> _processQueue() async {
     _processing = true;
-    while (_queue.isNotEmpty) {
-      final text = _queue.removeFirst();
-      await _tts.speak(text);
+    final generation = _generation;
+    try {
+      while (_queue.isNotEmpty && enabled && generation == _generation) {
+        final text = _queue.removeFirst();
+        try {
+          await _tts.speak(text);
+        } catch (e) {
+          debugPrint('[TTS] No se pudo reproducir el aviso: $e');
+        }
+      }
+    } finally {
+      if (generation == _generation) _processing = false;
     }
-    _processing = false;
   }
 
   Future<void> stop() async {
+    _generation++;
     _queue.clear();
-    await _tts.stop();
-    _processing = false;
+    try {
+      await _tts.stop();
+    } catch (e) {
+      debugPrint('[TTS] No se pudo detener el motor de voz: $e');
+    } finally {
+      _processing = false;
+    }
   }
 
   Future<void> dispose() async => stop();

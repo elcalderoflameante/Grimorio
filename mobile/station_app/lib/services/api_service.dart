@@ -14,9 +14,9 @@ class ApiService {
   String get _base => ApiConfig.baseUrl;
 
   Map<String, String> get _headers => {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      };
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer $token',
+  };
 
   Future<T> _get<T>(String path, T Function(dynamic body) parse) async {
     final response = await http
@@ -25,33 +25,35 @@ class ApiService {
 
     if (response.statusCode == 401) throw UnauthorizedException();
     if (response.statusCode != 200) {
-      throw Exception('Error $path (${response.statusCode}): '
-          '${response.body.length > 200 ? response.body.substring(0, 200) : response.body}');
+      throw Exception(
+        'Error $path (${response.statusCode}): '
+        '${response.body.length > 200 ? response.body.substring(0, 200) : response.body}',
+      );
     }
     return parse(jsonDecode(response.body));
   }
 
   Future<List<WorkStation>> getStations() => _get(
-        '/pos/estaciones',
-        (body) => (body as List)
-            .map((e) => WorkStation.fromJson(e as Map<String, dynamic>))
-            .where((s) => s.isActive)
-            .toList(),
-      );
+    '/pos/estaciones',
+    (body) => (body as List)
+        .map((e) => WorkStation.fromJson(e as Map<String, dynamic>))
+        .where((s) => s.isActive)
+        .toList(),
+  );
 
   Future<List<StationItem>> getStationItems(String stationId) => _get(
-        '/pos/estaciones/$stationId/items',
-        (body) => (body as List)
-            .map((e) => StationItem.fromJson(e as Map<String, dynamic>))
-            .toList(),
-      );
+    '/pos/estaciones/$stationId/items',
+    (body) => (body as List)
+        .map((e) => StationItem.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
 
   Future<List<StationItem>> getCompletedStationItems(String stationId) => _get(
-        '/pos/estaciones/$stationId/completados',
-        (body) => (body as List)
-            .map((e) => StationItem.fromJson(e as Map<String, dynamic>))
-            .toList(),
-      );
+    '/pos/estaciones/$stationId/completados',
+    (body) => (body as List)
+        .map((e) => StationItem.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
 
   Future<void> updateItemStatus(String orderItemId, String status) async {
     final response = await http
@@ -64,6 +66,14 @@ class ApiService {
 
     if (response.statusCode == 401) throw UnauthorizedException();
     if (response.statusCode != 200) {
+      try {
+        final body = jsonDecode(response.body);
+        if (body is Map<String, dynamic> && body['message'] is String) {
+          throw Exception(body['message'] as String);
+        }
+      } on FormatException {
+        // El proxy puede devolver HTML cuando el backend no responde.
+      }
       throw Exception('Error al actualizar estado (${response.statusCode}).');
     }
   }

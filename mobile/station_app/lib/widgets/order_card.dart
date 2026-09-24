@@ -34,8 +34,12 @@ class OrderCard extends StatelessWidget {
 
   Color _typeBadgeColor() {
     final t = items.first.orderType.toLowerCase();
-    if (t.contains('mesa') || t.contains('dine')) return const Color(0xFF3B82F6);
-    if (t.contains('llevar') || t.contains('takeout')) return const Color(0xFFF59E0B);
+    if (t.contains('mesa') || t.contains('dine')) {
+      return const Color(0xFF3B82F6);
+    }
+    if (t.contains('llevar') || t.contains('takeout')) {
+      return const Color(0xFFF59E0B);
+    }
     if (t.contains('delivery')) return const Color(0xFF8B5CF6);
     return Colors.grey;
   }
@@ -104,15 +108,24 @@ class OrderCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 // Badge tipo
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: _typeBadgeColor().withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: _typeBadgeColor().withValues(alpha: 0.5)),
+                    border: Border.all(
+                      color: _typeBadgeColor().withValues(alpha: 0.5),
+                    ),
                   ),
                   child: Text(
                     _orderTypeBadge(),
-                    style: TextStyle(color: _typeBadgeColor(), fontSize: 10, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: _typeBadgeColor(),
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -122,7 +135,10 @@ class OrderCard extends StatelessWidget {
                   children: [
                     Icon(Icons.schedule, size: 12, color: _elapsedColor()),
                     const SizedBox(width: 3),
-                    Text(_elapsed(), style: TextStyle(color: _elapsedColor(), fontSize: 11)),
+                    Text(
+                      _elapsed(),
+                      style: TextStyle(color: _elapsedColor(), fontSize: 11),
+                    ),
                   ],
                 ),
               ],
@@ -136,8 +152,11 @@ class OrderCard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.info_outline_rounded,
-                      color: Colors.amberAccent, size: 14),
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    color: Colors.amberAccent,
+                    size: 14,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -156,9 +175,7 @@ class OrderCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(6),
             child: Column(
-              children: items
-                  .map((item) => _ItemRow(item: item))
-                  .toList(),
+              children: items.map((item) => _ItemRow(item: item)).toList(),
             ),
           ),
         ],
@@ -175,31 +192,36 @@ class _ItemRow extends StatelessWidget {
 
   // Strings exactos del enum C# OrderItemStatus.ToString()
   Color _bg(String status) => switch (status) {
-        'Pending' => const Color(0xFF3D1800),
-        'InPreparation' => const Color(0xFF00204A),
-        'Ready' => const Color(0xFF003D1A),
-        _ => const Color(0xFF2A2A3E),
-      };
+    'Pending' => const Color(0xFF3D1800),
+    'InPreparation' => const Color(0xFF00204A),
+    'Ready' => const Color(0xFF003D1A),
+    _ => const Color(0xFF2A2A3E),
+  };
 
   Color _fg(String status) => switch (status) {
-        'Pending' => const Color(0xFFFF8C00),
-        'InPreparation' => const Color(0xFF60C0FF),
-        'Ready' => const Color(0xFF4EE87A),
-        _ => Colors.white54,
-      };
+    'Pending' => const Color(0xFFFF8C00),
+    'InPreparation' => const Color(0xFF60C0FF),
+    'Ready' => const Color(0xFF4EE87A),
+    _ => Colors.white54,
+  };
 
   IconData _statusIcon(String status) => switch (status) {
-        'Pending' => Icons.hourglass_empty_rounded,
-        'InPreparation' => Icons.local_fire_department_rounded,
-        'Ready' => Icons.check_circle_rounded,
-        _ => Icons.circle_outlined,
-      };
+    'Pending' => Icons.hourglass_empty_rounded,
+    'InPreparation' => Icons.local_fire_department_rounded,
+    'Ready' => Icons.check_circle_rounded,
+    _ => Icons.circle_outlined,
+  };
 
   @override
   Widget build(BuildContext context) {
     final bg = _bg(item.status);
     final fg = _fg(item.status);
-    final canAdvance = item.status == 'Pending' || item.status == 'InPreparation';
+    final updating = context.watch<StationProvider>().isUpdating(
+      item.orderItemId,
+    );
+    final canAdvance =
+        !updating &&
+        (item.status == 'Pending' || item.status == 'InPreparation');
     final modifierLabels = item.modifierSelections
         .map((c) => c.label)
         .where((label) => label.isNotEmpty)
@@ -224,11 +246,20 @@ class _ItemRow extends StatelessWidget {
                 Row(
                   children: [
                     // Ícono de estado
-                    Icon(_statusIcon(item.status), color: fg, size: 16),
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: updating
+                          ? CircularProgressIndicator(strokeWidth: 2, color: fg)
+                          : Icon(_statusIcon(item.status), color: fg, size: 16),
+                    ),
                     const SizedBox(width: 6),
                     // Cantidad
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
                       decoration: BoxDecoration(
                         color: fg.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
@@ -236,7 +267,10 @@ class _ItemRow extends StatelessWidget {
                       child: Text(
                         'x${item.quantity}',
                         style: TextStyle(
-                            color: fg, fontWeight: FontWeight.bold, fontSize: 13),
+                          color: fg,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -245,15 +279,20 @@ class _ItemRow extends StatelessWidget {
                       child: Text(
                         item.itemName,
                         style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600),
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     // Cursor visual si se puede tocar
                     if (canAdvance)
-                      Icon(Icons.touch_app_rounded, color: fg.withValues(alpha: 0.5), size: 14),
+                      Icon(
+                        Icons.touch_app_rounded,
+                        color: fg.withValues(alpha: 0.5),
+                        size: 14,
+                      ),
                   ],
                 ),
                 // Modificadores (ej: salsa bbq, mostaza miel...)
@@ -265,23 +304,33 @@ class _ItemRow extends StatelessWidget {
                       spacing: 4,
                       runSpacing: 4,
                       children: modifierLabels
-                          .map((label) => Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(
-                                      color: const Color(0xFF7C3AED).withValues(alpha: 0.5)),
+                          .map(
+                            (label) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFF7C3AED,
+                                ).withValues(alpha: 0.25),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: const Color(
+                                    0xFF7C3AED,
+                                  ).withValues(alpha: 0.5),
                                 ),
-                                child: Text(
-                                  label,
-                                  style: const TextStyle(
-                                      color: Color(0xFFBB86FC),
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600),
+                              ),
+                              child: Text(
+                                label,
+                                style: const TextStyle(
+                                  color: Color(0xFFBB86FC),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
                                 ),
-                              ))
+                              ),
+                            ),
+                          )
                           .toList(),
                     ),
                   ),
@@ -293,9 +342,20 @@ class _ItemRow extends StatelessWidget {
                     padding: EdgeInsets.only(left: 22),
                     child: Row(
                       children: [
-                        Icon(Icons.shopping_bag_rounded, color: Colors.orangeAccent, size: 14),
+                        Icon(
+                          Icons.shopping_bag_rounded,
+                          color: Colors.orangeAccent,
+                          size: 14,
+                        ),
                         SizedBox(width: 4),
-                        Text('PARA LLEVAR', style: TextStyle(color: Colors.orangeAccent, fontSize: 12, fontWeight: FontWeight.w800)),
+                        Text(
+                          'PARA LLEVAR',
+                          style: TextStyle(
+                            color: Colors.orangeAccent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -308,12 +368,19 @@ class _ItemRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(width: 22),
-                      const Icon(Icons.notes_rounded, color: Colors.amber, size: 12),
+                      const Icon(
+                        Icons.notes_rounded,
+                        color: Colors.amber,
+                        size: 12,
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           item.notes!,
-                          style: const TextStyle(color: Colors.amber, fontSize: 12),
+                          style: const TextStyle(
+                            color: Colors.amber,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ],
