@@ -820,6 +820,7 @@ export interface PublicTableMenuDto {
 
 export interface PublicCreateDraftOrderDto {
   tableToken: string;
+  idempotencyKey: string;
   notes?: string;
   items: CreateOrderItemDto[];
 }
@@ -827,6 +828,7 @@ export interface PublicCreateDraftOrderDto {
 export interface PublicDraftOrderResultDto {
   order: OrderDto;
   notification: TableServiceRequestDto;
+  isNew: boolean;
 }
 
 // ======================== Inventory ========================
@@ -1479,6 +1481,7 @@ export interface ActiveOrderSummaryDto {
 export interface CreateOrderItemDto {
   menuItemId: string;
   quantity: number;
+  expectedUnitPrice?: number;
   promotionId?: string;
   notes?: string;
   modifierSelections?: CreateModifierSelectionDto[];

@@ -125,6 +125,7 @@ public class PublicTableMenuDto
 public class PublicCreateDraftOrderDto
 {
     public string TableToken { get; set; } = string.Empty;
+    public Guid IdempotencyKey { get; set; }
     public string? Notes { get; set; }
     public List<CreateOrderItemDto> Items { get; set; } = [];
 }
@@ -133,4 +134,5 @@ public class PublicDraftOrderResultDto
 {
     public OrderDto Order { get; set; } = new();
     public TableServiceRequestDto Notification { get; set; } = new();
+    public bool IsNew { get; set; }
 }

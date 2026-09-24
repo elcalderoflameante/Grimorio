@@ -1,12 +1,14 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { App as AntApp, ConfigProvider, Spin } from 'antd';
 import esES from 'antd/locale/es_ES';
 import { useAuth } from './context/useAuth';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
 import PublicTableRequest from './pages/PublicTableRequest';
 import { grimorioAppTheme } from './theme/grimorioTheme';
 import type { ReactNode } from 'react';
+
+const Dashboard = lazy(() => import('./pages/Dashboard'));
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -49,7 +51,7 @@ export default function App() {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <Suspense fallback={<Spin size="large" />}><Dashboard /></Suspense>
               </ProtectedRoute>
             }
           />

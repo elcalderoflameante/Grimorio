@@ -103,6 +103,7 @@ public class WorkStation : BaseEntity
 public class Order : BaseEntity
 {
     public int Number { get; set; }
+    public Guid? PublicSubmissionId { get; set; }
     public OrderType Type { get; set; }
     public OrderStatus Status { get; set; } = OrderStatus.Draft;
     public Guid? TableId { get; set; }

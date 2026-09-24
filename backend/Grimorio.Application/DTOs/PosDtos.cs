@@ -128,6 +128,7 @@ public class CreateOrderItemDto
 {
     public Guid MenuItemId { get; set; }
     public int Quantity { get; set; }
+    public decimal? ExpectedUnitPrice { get; set; }
     public decimal DiscountPct { get; set; }
     public Guid? PromotionId { get; set; }
     public string? Notes { get; set; }

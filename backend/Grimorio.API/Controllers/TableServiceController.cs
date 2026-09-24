@@ -279,6 +279,7 @@ public class TableServiceController : ControllerBase
             result = await _mediator.Send(new PublicCreateDraftOrderCommand
             {
                 TableToken = body.TableToken,
+                IdempotencyKey = body.IdempotencyKey,
                 Notes = body.Notes,
                 Items = body.Items,
                 SourceIp = sourceIp,
@@ -289,11 +290,14 @@ public class TableServiceController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
 
-        await _hubContext.Clients
-            .Group(TableServiceHub.GetBranchGroup(result.Notification.BranchId))
-            .SendAsync(TableServiceHub.NewRequestEvent, result.Notification);
+        if (result.IsNew)
+        {
+            await _hubContext.Clients
+                .Group(TableServiceHub.GetBranchGroup(result.Notification.BranchId))
+                .SendAsync(TableServiceHub.NewRequestEvent, result.Notification);
 
-        await _fcmPushNotificationService.SendNewTableRequestAsync(result.Notification);
+            await _fcmPushNotificationService.SendNewTableRequestAsync(result.Notification);
+        }
 
         return Ok(result);
     }

@@ -4501,6 +4501,9 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<DateTime?>("PaidAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("PublicSubmissionId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -4548,6 +4551,10 @@ namespace Grimorio.Infrastructure.Migrations
                     b.HasIndex("TableId");
 
                     b.HasIndex("BranchId", "Number");
+
+                    b.HasIndex("BranchId", "PublicSubmissionId")
+                        .IsUnique()
+                        .HasFilter("\"PublicSubmissionId\" IS NOT NULL AND \"IsDeleted\" = false");
 
                     b.HasIndex("BranchId", "Status")
                         .HasFilter("\"IsDeleted\" = false");

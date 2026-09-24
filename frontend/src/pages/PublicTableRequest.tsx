@@ -1,12 +1,10 @@
 import { HubConnection, HubConnectionBuilder } from '@microsoft/signalr';
-import Lottie from 'lottie-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import contenedorImg from '../assets/contenedor.png';
 import ecfLogo from '../assets/ECF-Logo.png';
 import fondoPergamino from '../assets/fondo-pergamino.jpg';
 import llamarMeseroImg from '../assets/llamar-mesero.png';
-import magicAnimation from '../assets/magic-animation.json';
 import pedirCuentaImg from '../assets/pedir-cuenta.png';
 import salImg from '../assets/sal.png';
 import salsaAji from '../assets/salsa-aji.png';
@@ -86,6 +84,7 @@ type PublicTab = 'requests' | 'menu' | 'order';
 const PROMOTIONS_CATEGORY_ID = '__promotions__';
 const money = (value: number) => `$${value.toFixed(2)}`;
 const createLocalId = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const PROMOTION_DAYS = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
 
 const ORDER_STATUS_LABELS: Record<string, { label: string; detail: string }> = {
   Draft: {
@@ -123,6 +122,7 @@ export default function PublicTableRequest() {
   const [customRequest, setCustomRequest] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingRequest, setPendingRequest] = useState<PendingRequest | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
   const [activeRequestStatus, setActiveRequestStatus] = useState<number | null>(null);
   const [tab, setTab] = useState<PublicTab>('requests');
@@ -141,6 +141,8 @@ export default function PublicTableRequest() {
   const [loadingOrder, setLoadingOrder] = useState(false);
   const connectionRef = useRef<HubConnection | null>(null);
   const activeRequestIdRef = useRef<string | null>(null);
+  const menuLoadedAtRef = useRef(0);
+  const orderSubmissionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     activeRequestIdRef.current = activeRequestId;
@@ -161,17 +163,22 @@ export default function PublicTableRequest() {
         setTableCode(response.data.code || null);
         setPublicMenuEnabled(response.data.publicMenuEnabled);
         setPublicOrderingEnabled(response.data.publicMenuEnabled && response.data.publicOrderingEnabled);
+        setTab(response.data.publicMenuEnabled ? 'menu' : 'requests');
 
         const resolvedTableId = response.data.tableId || null;
         setTableId(resolvedTableId);
 
-        const activeRequestResponse = await tableServiceApi.getPublicActiveRequest(token);
-        const activeRequest = activeRequestResponse.data;
-
-        if (activeRequest && ACTIVE_STATUSES.has(activeRequest.status)) {
-          setActiveRequestId(activeRequest.id);
-          setActiveRequestStatus(activeRequest.status);
-        } else {
+        try {
+          const activeRequestResponse = await tableServiceApi.getPublicActiveRequest(token);
+          const activeRequest = activeRequestResponse.data;
+          if (activeRequest && ACTIVE_STATUSES.has(activeRequest.status)) {
+            setActiveRequestId(activeRequest.id);
+            setActiveRequestStatus(activeRequest.status);
+          } else {
+            setActiveRequestId(null);
+            setActiveRequestStatus(null);
+          }
+        } catch {
           setActiveRequestId(null);
           setActiveRequestStatus(null);
         }
@@ -188,6 +195,31 @@ export default function PublicTableRequest() {
     loadTableInfo().catch(() => {});
   }, [token]);
 
+  const loadMenu = useCallback(async (showLoading = false) => {
+    if (!publicMenuEnabled || !token) return;
+      try {
+        if (showLoading) setLoadingMenu(true);
+        setMenuError(null);
+        const response = await tableServiceApi.getPublicTableMenu(token);
+        setCategories(response.data.categories);
+        setMenuItems(response.data.items);
+        const nextPromotions = response.data.promotions ?? [];
+        const hasPromotions = nextPromotions.some(promotion => promotion.isActive);
+        setPromotions(nextPromotions);
+        setSelectedPromotionId(current => current && nextPromotions.some(promotion => promotion.id === current) ? current : null);
+        setSelectedCategoryId(current => {
+          if (current === PROMOTIONS_CATEGORY_ID && hasPromotions) return current;
+          if (current && response.data.categories.some(category => category.id === current)) return current;
+          return hasPromotions ? PROMOTIONS_CATEGORY_ID : response.data.categories[0]?.id ?? null;
+        });
+        menuLoadedAtRef.current = Date.now();
+      } catch {
+        setMenuError('No se pudo cargar el menu en este momento.');
+      } finally {
+        setLoadingMenu(false);
+      }
+  }, [publicMenuEnabled, token]);
+
   useEffect(() => {
     if (!publicMenuEnabled) {
       setCategories([]);
@@ -195,28 +227,43 @@ export default function PublicTableRequest() {
       setPromotions([]);
       setSelectedCategoryId(null);
       setSelectedPromotionId(null);
+      menuLoadedAtRef.current = 0;
       return;
     }
-    if (!token) return;
+    loadMenu(true).catch(() => {});
+  }, [publicMenuEnabled, loadMenu]);
 
-    const loadMenu = async () => {
-      try {
-        setLoadingMenu(true);
-        setMenuError(null);
-        const response = await tableServiceApi.getPublicTableMenu(token);
-        setCategories(response.data.categories);
-        setMenuItems(response.data.items);
-        setPromotions(response.data.promotions ?? []);
-        setSelectedCategoryId(response.data.categories[0]?.id ?? null);
-      } catch {
-        setMenuError('No se pudo cargar el menu en este momento.');
-      } finally {
-        setLoadingMenu(false);
-      }
+  useEffect(() => {
+    if (!publicMenuEnabled || tab !== 'menu') return;
+    const refresh = () => {
+      if (document.visibilityState === 'visible' && menuLoadedAtRef.current > 0 && Date.now() - menuLoadedAtRef.current > 30000)
+        loadMenu().catch(() => {});
     };
+    refresh();
+    document.addEventListener('visibilitychange', refresh);
+    const interval = window.setInterval(refresh, 60000);
+    return () => {
+      document.removeEventListener('visibilitychange', refresh);
+      window.clearInterval(interval);
+    };
+  }, [publicMenuEnabled, tab, loadMenu]);
 
-    loadMenu().catch(() => {});
-  }, [publicMenuEnabled, token]);
+  const refreshActiveRequest = useCallback(async () => {
+    if (!token) return;
+    try {
+      const { data } = await tableServiceApi.getPublicActiveRequest(token);
+      setActiveRequestId(data?.id ?? null);
+      setActiveRequestStatus(data?.status ?? null);
+    } catch {
+      // SignalR may still deliver the next update.
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || !activeRequestId) return;
+    const interval = window.setInterval(() => refreshActiveRequest().catch(() => {}), 15000);
+    return () => window.clearInterval(interval);
+  }, [token, activeRequestId, refreshActiveRequest]);
 
   const loadActiveOrder = useCallback(async (showLoading = false) => {
     if (!publicOrderingEnabled || !token) {
@@ -305,6 +352,7 @@ export default function PublicTableRequest() {
     connection.onreconnected(async () => {
       try {
         await connection.invoke('JoinPublicTable', tableId);
+        await refreshActiveRequest();
       } catch {
         // no-op
       }
@@ -316,7 +364,7 @@ export default function PublicTableRequest() {
       connection.stop().catch(() => {});
       connectionRef.current = null;
     };
-  }, [tableId]);
+  }, [tableId, refreshActiveRequest]);
 
   const visibleItems = useMemo(
     () => {
@@ -351,14 +399,27 @@ export default function PublicTableRequest() {
   };
 
   const promotionScheduleLabel = (promotion: PromotionDto) => {
-    const days = promotion.daysOfWeekMask === 0 ? 'Todos los dias' : 'Dias seleccionados';
+    const selectedDays = PROMOTION_DAYS.filter((_, index) => (promotion.daysOfWeekMask & (1 << index)) !== 0);
+    const days = promotion.daysOfWeekMask === 0 || selectedDays.length === PROMOTION_DAYS.length
+      ? 'Todos los dias'
+      : selectedDays.join(', ');
     const hours = promotion.startsAt && promotion.endsAt
       ? `${promotion.startsAt.slice(0, 5)} - ${promotion.endsAt.slice(0, 5)}`
       : 'Todo el dia';
-    return `${days} · ${hours}`;
+    const dates = promotion.startsOn || promotion.endsOn
+      ? ` - ${promotion.startsOn?.slice(0, 10) ?? 'Desde hoy'} a ${promotion.endsOn?.slice(0, 10) ?? 'sin fecha fin'}`
+      : '';
+    return `${days} - ${hours}${dates}`;
   };
 
-  const calculateLineDiscount = (line: CartLine) => {
+  const promotionPaymentLabel = (promotion: PromotionDto) => {
+    if (promotion.paymentPolicy === 'CashTransferOnly') return 'Aplica solo con efectivo o transferencia';
+    if (promotion.paymentPolicy === 'CardAlternativePrice')
+      return `Con tarjeta: ${money(promotion.cardPrice ?? 0)}`;
+    return 'Aplica con cualquier medio de pago';
+  };
+
+  const calculateLineDiscount = useCallback((line: CartLine) => {
     const promotion = line.promotionId
       ? promotions.find(p => p.id === line.promotionId && p.isCurrentlyActive)
       : undefined;
@@ -377,11 +438,11 @@ export default function PublicTableRequest() {
     }
 
     return Math.min(Math.max(Math.round(discount * 100) / 100, 0), gross);
-  };
+  }, [promotions]);
 
   const cartDiscount = useMemo(
     () => cart.reduce((sum, line) => sum + calculateLineDiscount(line), 0),
-    [cart, promotions],
+    [cart, calculateLineDiscount],
   );
 
   const cartTotal = useMemo(
@@ -394,11 +455,12 @@ export default function PublicTableRequest() {
     [cart],
   );
 
-  const sendRequestAndTrack = async (type: TableServiceRequestType, customMessage?: string) => {
-    if (!token || isSubmitting) return;
+  const sendRequestAndTrack = async (type: TableServiceRequestType, customMessage?: string): Promise<boolean> => {
+    if (!token || isSubmitting) return false;
 
     try {
       setIsSubmitting(true);
+      setRequestError(null);
 
       const response = await tableServiceApi.createPublicRequest({
         tableToken: token,
@@ -409,14 +471,17 @@ export default function PublicTableRequest() {
       const requestId = response.data.id;
       setActiveRequestId(requestId);
       setActiveRequestStatus(response.data.status);
+      return true;
     } catch {
-      // No-op: la mascara es el feedback principal de estado.
+      setRequestError('No se pudo enviar la solicitud. Intenta nuevamente.');
+      return false;
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleOptionRequest = (type: TableServiceRequestType, label: string) => {
+    setRequestError(null);
     setPendingRequest({ type, label });
   };
 
@@ -428,12 +493,14 @@ export default function PublicTableRequest() {
 
   const confirmRequest = async () => {
     if (!pendingRequest) return;
-    await sendRequestAndTrack(pendingRequest.type, pendingRequest.customMessage);
-    if (pendingRequest.type === 99) setCustomRequest('');
-    setPendingRequest(null);
+    if (await sendRequestAndTrack(pendingRequest.type, pendingRequest.customMessage)) {
+      if (pendingRequest.type === 99) setCustomRequest('');
+      setPendingRequest(null);
+    }
   };
 
   const cancelRequest = () => {
+    setRequestError(null);
     setPendingRequest(null);
   };
 
@@ -516,17 +583,20 @@ export default function PublicTableRequest() {
         modifierLabels,
       },
     ]);
+    orderSubmissionIdRef.current = null;
     setItemDraft(null);
     setOrderMessage(null);
   };
 
   const updateCartQuantity = (localId: string, delta: number) => {
+    orderSubmissionIdRef.current = null;
     setCart(prev => prev
       .map(line => line.localId === localId ? { ...line, quantity: line.quantity + delta } : line)
       .filter(line => line.quantity > 0));
   };
 
   const removeCartLine = (localId: string) => {
+    orderSubmissionIdRef.current = null;
     setCart(prev => prev.filter(line => line.localId !== localId));
   };
 
@@ -537,17 +607,22 @@ export default function PublicTableRequest() {
     try {
       setIsSubmitting(true);
       setOrderMessage(null);
+      const idempotencyKey = orderSubmissionIdRef.current ?? crypto.randomUUID();
+      orderSubmissionIdRef.current = idempotencyKey;
       const response = await tableServiceApi.createPublicDraftOrder({
         tableToken: token,
+        idempotencyKey,
         items: cart.map(line => ({
           menuItemId: line.menuItemId,
           quantity: line.quantity,
+          expectedUnitPrice: line.unitPrice,
           promotionId: line.promotionId,
           notes: line.notes,
           modifierSelections: line.modifierSelections,
         })),
       });
       setCart([]);
+      orderSubmissionIdRef.current = null;
       setActiveOrder(response.data.order);
       setTab('order');
       setOrderMessage(`Pedido #${response.data.order.number} enviado al mesero para confirmar.`);
@@ -555,7 +630,15 @@ export default function PublicTableRequest() {
       const message = error && typeof error === 'object' && 'response' in error
         ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
         : null;
-      setOrderMessage(message || 'No se pudo enviar el pedido. Revisa disponibilidad e intenta otra vez.');
+      if (message?.includes('precios del menu cambiaron')) {
+        orderSubmissionIdRef.current = null;
+        setCart([]);
+        setTab('menu');
+        await loadMenu(true);
+        setOrderMessage('Los precios fueron actualizados. Revisa el menu y agrega nuevamente los productos.');
+      } else {
+        setOrderMessage(message || 'No se pudo enviar el pedido. Revisa disponibilidad e intenta otra vez.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -563,45 +646,6 @@ export default function PublicTableRequest() {
 
   return (
     <>
-      {activeRequestId && activeRequestStatus && (
-        <div className="fixed inset-0 z-40 flex flex-col">
-          <div className="absolute inset-0 bg-black" />
-          <div className="relative z-10 mx-auto flex w-full max-w-sm flex-col sm:max-w-md" style={{ height: '100dvh' }}>
-            <div className="flex justify-center pt-8 sm:pt-12">
-              <img
-                src={ecfLogo}
-                alt="El Caldero Flameante"
-                className="w-40 sm:w-52 md:w-60 drop-shadow-[0_8px_20px_rgba(0,0,0,0.7)]"
-              />
-            </div>
-            <div className="flex-1">
-              <Lottie animationData={magicAnimation} loop className="h-full w-full" />
-            </div>
-            <div className="px-4 pb-10 sm:pb-14">
-              <div
-                className="rounded-2xl border-4 border-[#8B5E3C] px-5 py-3 text-center shadow-xl"
-                style={{ backgroundImage: `url(${fondoPergamino})`, backgroundSize: 'cover' }}
-              >
-                {ACTIVE_STATUSES.has(activeRequestStatus) ? (
-                  <>
-                    <p className="text-xl font-bold text-[#3e2723] sm:text-2xl [font-family:'Eagle_Lake',serif]">
-                      {STATUS_MESSAGES[activeRequestStatus]?.title}
-                    </p>
-                    <p className="mt-2 text-base italic text-[#5d4037] sm:text-lg [font-family:'Eagle_Lake',serif]">
-                      {STATUS_MESSAGES[activeRequestStatus]?.subtitle}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-xl font-bold text-[#4E7D40] sm:text-2xl [font-family:'Eagle_Lake',serif]">
-                    Solicitud completada
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div
         className="min-h-screen w-full"
         style={{ backgroundImage: `url(${fondoPergamino})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
@@ -613,6 +657,13 @@ export default function PublicTableRequest() {
               Mesa {tableCode ?? '--'}
             </h1>
           </div>
+
+          {activeRequestId && activeRequestStatus && (
+            <div role="status" className="mb-2 rounded-lg border-2 border-[#8B5E3C] bg-[#f5f1ed] p-2 text-center text-xs text-[#3e2723]">
+              <p className="font-bold">{STATUS_MESSAGES[activeRequestStatus]?.title ?? 'Solicitud completada'}</p>
+              <p>{STATUS_MESSAGES[activeRequestStatus]?.subtitle ?? 'Gracias por avisarnos.'}</p>
+            </div>
+          )}
 
           <div className="mb-2 grid grid-cols-3 gap-1 rounded-lg border-2 border-[#8B5E3C] bg-[#e8d9c0]/80 p-1">
             <button
@@ -688,6 +739,7 @@ export default function PublicTableRequest() {
               {menuError && (
                 <div className="mb-3 rounded-xl border-2 border-[#8B5E3C] bg-[#f5f1ed] p-3 text-center text-xs font-bold text-[#8B2E2E]">
                   {menuError}
+                  <button onClick={() => loadMenu(true).catch(() => {})} className="ml-2 underline">Reintentar</button>
                 </div>
               )}
               {loadingMenu ? (
@@ -739,6 +791,7 @@ export default function PublicTableRequest() {
                             <h3 className="text-xs font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif]">{promotion.name}</h3>
                             {promotion.description && <p className="mt-0.5 text-[11px] text-[#6d4c3d]">{promotion.description}</p>}
                             <p className="mt-1 text-[11px] font-bold text-[#6d4c3d]">{promotionScheduleLabel(promotion)}</p>
+                            <p className="mt-0.5 text-[11px] text-[#6d4c3d]">{promotionPaymentLabel(promotion)}</p>
                             {!promotion.isCurrentlyActive && <p className="mt-1 text-xs font-bold text-[#8B2E2E]">No disponible ahora</p>}
                           </div>
                           <span className="shrink-0 rounded-full bg-[#8B5E3C] px-2 py-0.5 text-[11px] font-bold text-[#f5ead8]">
@@ -748,12 +801,11 @@ export default function PublicTableRequest() {
                       </button>
                     ))}
                     {selectedCategoryId === PROMOTIONS_CATEGORY_ID && selectedPromotionId && (
-                      <button
-                        onClick={() => setSelectedPromotionId(null)}
-                        className="mb-1 rounded-full border-2 border-[#8B5E3C] bg-[#e8d9c0] px-3 py-1 text-[11px] font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif]"
-                      >
-                        Ver promociones
-                      </button>
+                      <div className="mb-1 text-xs text-[#3e2723]">
+                        <button onClick={() => setSelectedPromotionId(null)} className="rounded-full border-2 border-[#8B5E3C] bg-[#e8d9c0] px-3 py-1 font-bold [font-family:'Eagle_Lake',serif]">Ver promociones</button>
+                        <p className="mt-1 font-bold">{selectedPromotion?.name} - {selectedPromotion && promotionValueLabel(selectedPromotion)}</p>
+                        {selectedPromotion && <p>{promotionPaymentLabel(selectedPromotion)}</p>}
+                      </div>
                     )}
                     {visibleItems.map(item => (
                       <button
@@ -776,9 +828,10 @@ export default function PublicTableRequest() {
                             {item.description && <p className="mt-0.5 text-[11px] text-[#6d4c3d]">{item.description}</p>}
                             {!item.isAvailable && <p className="mt-1 text-xs font-bold text-[#8B2E2E]">No disponible</p>}
                           </div>
-                          <span className="shrink-0 rounded-full bg-[#8B5E3C] px-2 py-0.5 text-[11px] font-bold text-[#f5ead8]">
-                            {money(item.price)}
-                          </span>
+                          <div className="shrink-0 text-right">
+                            <span className="block rounded-full bg-[#8B5E3C] px-2 py-0.5 text-[11px] font-bold text-[#f5ead8]">{money(item.price)}</span>
+                            {selectedPromotion && <span className="mt-0.5 block text-[10px] text-[#6d4c3d]">Precio base</span>}
+                          </div>
                         </div>
                       </button>
                     ))}
@@ -948,6 +1001,7 @@ export default function PublicTableRequest() {
                   &ldquo;{pendingRequest.customMessage}&rdquo;
                 </p>
               )}
+              {requestError && <p role="alert" className="mt-2 text-center text-xs font-bold text-[#8B2E2E]">{requestError}</p>}
               <div className="mt-3 flex gap-2">
                 <button
                   onClick={cancelRequest}
@@ -1034,7 +1088,7 @@ export default function PublicTableRequest() {
                 <div key={group.id} className="mt-2.5 rounded-lg border-2 border-[#D2B48C] bg-white/60 p-2">
                   <p className="text-xs font-bold text-[#3e2723]">{group.name}</p>
                   <p className="text-[11px] text-[#6d4c3d]">
-                    {group.isRequired ? 'Requerido' : 'Opcional'} · elige {group.minSelections || (group.isRequired ? 1 : 0)} a {group.maxSelections}
+                    {group.isRequired ? 'Requerido' : 'Opcional'} - elige {group.minSelections || (group.isRequired ? 1 : 0)} a {group.maxSelections}
                   </p>
                   <div className="mt-2 space-y-1.5">
                     {group.options.map(option => {

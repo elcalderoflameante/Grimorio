@@ -242,19 +242,53 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
         if (request.Items.Any(i => i.Quantity <= 0))
             throw new InvalidOperationException("La cantidad de cada producto debe ser mayor a cero.");
 
+        if (request.IdempotencyKey == Guid.Empty)
+            throw new InvalidOperationException("No se pudo identificar el envio del pedido.");
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        await PosOrderCreationLock.AcquireAsync(_context, table.BranchId, cancellationToken);
+
+        var existingOrder = await _context.Orders
+            .AsNoTracking()
+            .Where(o => o.BranchId == table.BranchId && o.PublicSubmissionId == request.IdempotencyKey && !o.IsDeleted)
+            .Include(o => o.Table)
+            .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
+            .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.Station)
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.ModifierSelections.Where(s => !s.IsDeleted))
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (existingOrder is not null)
+        {
+            var existingNotification = await _context.TableServiceRequests
+                .AsNoTracking()
+                .Include(x => x.RestaurantTable)
+                .Where(x => x.RestaurantTableId == table.Id &&
+                    x.CustomMessage == $"Pedido #{existingOrder.Number} pendiente de confirmar" &&
+                    !x.IsDeleted)
+                .OrderByDescending(x => x.RequestedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            await transaction.CommitAsync(cancellationToken);
+            return new PublicDraftOrderResultDto
+            {
+                Order = PosMapper.MapOrder(existingOrder),
+                Notification = existingNotification is null ? new TableServiceRequestDto() : MapNotification(existingNotification, table),
+                IsNew = false,
+            };
+        }
+
         var hasActiveOrder = await _context.Orders.AnyAsync(o =>
             o.BranchId == table.BranchId &&
             o.TableId == table.Id &&
             !o.IsDeleted &&
             o.PaidAt == null &&
-            o.Status != OrderStatus.Cancelled &&
-            o.Status != OrderStatus.Delivered,
+            o.Status != OrderStatus.Cancelled,
             cancellationToken);
 
         if (hasActiveOrder)
             throw new InvalidOperationException("Esta mesa ya tiene un pedido abierto. Un mesero puede ayudarte a agregar o modificar productos.");
-
-        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
 
         var itemIds = request.Items.Select(i => i.MenuItemId).Distinct().ToList();
         var menuItems = await _context.MenuItems
@@ -300,6 +334,7 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
                 .ToList(),
             cancellationToken);
 
+        var remainingStock = new Dictionary<Guid, decimal>(stockByArticle);
         var number = await _context.Orders
             .Where(o => o.BranchId == table.BranchId)
             .MaxAsync(o => (int?)o.Number, cancellationToken) ?? 0;
@@ -315,6 +350,7 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
             Type = OrderType.DineIn,
             Status = OrderStatus.Draft,
             TableId = table.Id,
+            PublicSubmissionId = request.IdempotencyKey,
             Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim(),
         };
 
@@ -328,8 +364,15 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
             if (menuItem.Category is null || !menuItem.Category.IsActive || menuItem.Category.IsDeleted)
                 throw new InvalidOperationException($"{menuItem.Name} ya no está disponible.");
 
-            if (!PublicMenuAvailability.IsMenuItemAvailable(menuItem, stockByArticle, conversions, itemDto.Quantity))
+            if (!PublicMenuAvailability.IsMenuItemAvailable(menuItem, remainingStock, conversions, itemDto.Quantity))
                 throw new InvalidOperationException($"{menuItem.Name} ya no está disponible en este momento.");
+
+            foreach (var ingredient in MenuRecipeExpansion.Expand(menuItem, itemDto.Quantity, conversions))
+            {
+                if (ingredient.BaseQuantity <= 0 || remainingStock.GetValueOrDefault(ingredient.ArticleId) < ingredient.BaseQuantity)
+                    throw new InvalidOperationException($"{menuItem.Name} ya no está disponible en este momento.");
+                remainingStock[ingredient.ArticleId] -= ingredient.BaseQuantity;
+            }
 
             var modifierSelections = PosMapper.BuildModifierSelections(table.BranchId, itemDto, menuItem);
             foreach (var selection in modifierSelections)
@@ -340,17 +383,30 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
 
                 if (option is null || !PublicMenuAvailability.IsModifierOptionAvailable(
                     option,
-                    stockByArticle,
+                    remainingStock,
                     conversions,
                     selection.Quantity * itemDto.Quantity))
                 {
                     throw new InvalidOperationException($"La opción {selection.OptionName} ya no está disponible.");
                 }
+
+                if (option.ArticleId.HasValue && option.UnitId.HasValue && option.Article is not null)
+                {
+                    var required = PublicMenuAvailability.ConvertQuantity(
+                        option.Quantity * selection.Quantity * itemDto.Quantity,
+                        option.UnitId.Value,
+                        option.Article.BaseUnitId,
+                        conversions);
+                    remainingStock[option.ArticleId.Value] -= required;
+                }
             }
 
             var unitPrice = menuItem.Price + modifierSelections.Sum(s => s.UnitPriceDelta * s.Quantity);
+            if (!itemDto.ExpectedUnitPrice.HasValue || Math.Abs(itemDto.ExpectedUnitPrice.Value - unitPrice) >= 0.01m)
+                throw new InvalidOperationException("Los precios del menu cambiaron. Revisa el carrito antes de enviarlo nuevamente.");
+
             var promotion = PosMapper.ResolvePromotion(itemDto.PromotionId, menuItem, activePromotions);
-            var pricing = PosMapper.CalcItemWithPromotion(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage, promotion);
+            var pricing = PosMapper.CalcItemWithPromotion(unitPrice, itemDto.Quantity, 0m, menuItem.TaxRate?.Percentage, promotion);
             subtotal += unitPrice * itemDto.Quantity;
             discountTotal += pricing.DiscountAmount;
             PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, pricing.TaxableBase, pricing.TaxAmount, ref base15, ref base0, ref baseExempt, ref iva15, ref ice);
@@ -420,24 +476,27 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
         return new PublicDraftOrderResultDto
         {
             Order = PosMapper.MapOrder(createdOrder),
-            Notification = new TableServiceRequestDto
-            {
-                Id = notification.Id,
-                BranchId = notification.BranchId,
-                RestaurantTableId = table.Id,
-                TableCode = table.Code,
-                TableArea = table.Area,
-                Type = notification.Type,
-                CustomMessage = notification.CustomMessage,
-                Status = notification.Status,
-                RequestedAt = notification.RequestedAt,
-                TakenAt = notification.TakenAt,
-                CompletedAt = notification.CompletedAt,
-                TakenByUserId = notification.TakenByUserId,
-                TakenByName = notification.TakenByName,
-            },
+            Notification = MapNotification(notification, table),
+            IsNew = true,
         };
     }
+
+    private static TableServiceRequestDto MapNotification(TableServiceRequest notification, RestaurantTable table) => new()
+    {
+        Id = notification.Id,
+        BranchId = notification.BranchId,
+        RestaurantTableId = table.Id,
+        TableCode = table.Code,
+        TableArea = table.Area,
+        Type = notification.Type,
+        CustomMessage = notification.CustomMessage,
+        Status = notification.Status,
+        RequestedAt = notification.RequestedAt,
+        TakenAt = notification.TakenAt,
+        CompletedAt = notification.CompletedAt,
+        TakenByUserId = notification.TakenByUserId,
+        TakenByName = notification.TakenByName,
+    };
 }
 
 public class TakeTableServiceRequestCommandHandler : IRequestHandler<TakeTableServiceRequestCommand, TableServiceRequestDto>

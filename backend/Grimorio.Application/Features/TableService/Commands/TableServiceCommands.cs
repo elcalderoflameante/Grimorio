@@ -43,6 +43,7 @@ public class PublicCreateTableServiceRequestCommand : IRequest<TableServiceReque
 public class PublicCreateDraftOrderCommand : IRequest<PublicDraftOrderResultDto>
 {
     public string TableToken { get; set; } = string.Empty;
+    public Guid IdempotencyKey { get; set; }
     public string? Notes { get; set; }
     public List<CreateOrderItemDto> Items { get; set; } = [];
     public string? ClientFingerprint { get; set; }

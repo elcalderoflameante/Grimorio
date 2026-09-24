@@ -34,6 +34,24 @@ internal static class PosOrderLock
     }
 }
 
+internal static class PosOrderCreationLock
+{
+    public static async Task AcquireAsync(GrimorioDbContext db, Guid branchId, CancellationToken ct)
+    {
+        if (db.Database.CurrentTransaction is null)
+            throw new InvalidOperationException("El bloqueo de creacion de pedidos requiere una transaccion activa.");
+
+        _ = await db.Branches
+            .FromSqlInterpolated($"""
+                SELECT * FROM organization."Branches"
+                WHERE "Id" = {branchId} AND NOT "IsDeleted"
+                FOR UPDATE
+                """)
+            .AsNoTracking()
+            .FirstAsync(ct);
+    }
+}
+
 internal static class PosCashSessionGuard
 {
     public static async Task EnsureOpenAsync(GrimorioDbContext db, Guid branchId, CancellationToken ct)
@@ -203,6 +221,9 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
         if (!Enum.TryParse<OrderType>(req.Type, out var orderType))
             throw new InvalidOperationException($"Type de orden no válido: {req.Type}");
 
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        await PosOrderCreationLock.AcquireAsync(_db, req.BranchId, ct);
+
         if (orderType == OrderType.DineIn && req.TableId.HasValue)
         {
             var hasActiveOrder = await _db.Orders.AnyAsync(o =>
@@ -299,6 +320,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
 
         _db.Orders.Add(order);
         await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         return await LoadOrderDto(order.Id, ct);
     }
@@ -328,6 +350,7 @@ public class CreateDirectSaleCommandHandler : IRequestHandler<CreateDirectSaleCo
             throw new InvalidOperationException("La venta directa no tiene items.");
 
         await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        await PosOrderCreationLock.AcquireAsync(_db, req.BranchId, ct);
 
         var number = await _db.Orders
             .Where(o => o.BranchId == req.BranchId)

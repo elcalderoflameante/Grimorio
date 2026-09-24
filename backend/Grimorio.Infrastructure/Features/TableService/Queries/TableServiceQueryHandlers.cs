@@ -270,7 +270,6 @@ public class GetActivePublicTableOrderQueryHandler : IRequestHandler<GetActivePu
                 !x.IsDeleted &&
                 x.TableId == tableSettings.Id &&
                 x.Status != OrderStatus.Cancelled &&
-                x.Status != OrderStatus.Delivered &&
                 x.PaidAt == null)
             .Include(x => x.Table)
             .Include(x => x.Items.Where(i => !i.IsDeleted))
@@ -535,7 +534,7 @@ internal static class PublicMenuAvailability
         return (stockByArticle, conversions);
     }
 
-    private static decimal ConvertQuantity(
+    internal static decimal ConvertQuantity(
         decimal quantity,
         Guid originUnitId,
         Guid destinationUnitId,
