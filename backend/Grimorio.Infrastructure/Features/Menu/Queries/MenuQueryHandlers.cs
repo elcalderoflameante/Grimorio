@@ -4,6 +4,7 @@ using Grimorio.Domain.Entities.Inventory;
 using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.Purchases;
 using Grimorio.Infrastructure.Features.Menu.Commands;
+using Grimorio.Infrastructure.Features.Purchases;
 using Grimorio.Infrastructure.Persistence;
 using Grimorio.Infrastructure.Services;
 using MediatR;
@@ -600,9 +601,10 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
                     && x.Purchase.Status == PurchaseStatus.Registrada)
                 .Select(x => new PurchaseCostInput(
                     x.ArticleId,
-                    x.UnitId,
+                    x.InventoryUnitId ?? x.UnitId,
                     x.Article != null ? x.Article.BaseUnitId : Guid.Empty,
                     x.Quantity,
+                    x.InventoryQuantity ?? x.Quantity,
                     x.UnitPrice,
                     x.DiscountAmount,
                     x.Purchase!.DocumentDate,
@@ -612,10 +614,10 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
         var purchaseCostSamples = purchaseItems
             .Select(x =>
             {
-                var baseQty = ConvertQuantity(x.Quantity, x.UnitId, x.ArticleBaseUnitId, conversions);
-                var netCost = x.UnitPrice * x.Quantity - x.DiscountAmount;
-                var unitCost = baseQty > 0 ? netCost / baseQty : 0m;
-                return new ArticleCostSample(x.ArticleId, baseQty, netCost, unitCost, x.PurchaseDate, x.CreatedAt);
+                var baseQty = ConvertQuantity(x.InventoryQuantity, x.InventoryUnitId, x.ArticleBaseUnitId, conversions);
+                var cost = PurchaseCostCalculator.Calculate(
+                    x.Quantity, baseQty, x.UnitPrice, x.DiscountAmount);
+                return new ArticleCostSample(x.ArticleId, cost.BaseQuantity, cost.NetCost, cost.UnitCost, x.PurchaseDate, x.CreatedAt);
             })
             .Where(x => x.BaseQuantity > 0 && x.NetCost >= 0)
             .ToList();
@@ -774,9 +776,10 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
 
     private sealed record PurchaseCostInput(
         Guid ArticleId,
-        Guid UnitId,
+        Guid InventoryUnitId,
         Guid ArticleBaseUnitId,
         decimal Quantity,
+        decimal InventoryQuantity,
         decimal UnitPrice,
         decimal DiscountAmount,
         DateTime PurchaseDate,

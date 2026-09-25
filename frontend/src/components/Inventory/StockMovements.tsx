@@ -12,8 +12,9 @@ import {
   Typography,
   Tag,
   DatePicker,
+  Tooltip,
 } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { InfoCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import StockMovementTrace from './StockMovementTrace';
 import { inventoryApi } from '../../services/api';
 import type {
@@ -322,7 +323,17 @@ export default function StockMovements() {
               />
             </Form.Item>
             {shouldShowCost && (
-              <Form.Item name="unitCost" label="Costo unit." rules={[{ required: true }]} style={{ marginBottom: 4 }}>
+              <Form.Item
+                name="unitCost"
+                label={<Space size={4}>
+                  Costo unit.
+                  <Tooltip title="Costo por unidad base. Excluye el IVA si puedes recuperarlo como crédito tributario; inclúyelo si no es recuperable.">
+                    <InfoCircleOutlined aria-label="Información sobre IVA en el costo" tabIndex={0} style={{ color: '#8c8c8c', fontSize: 13 }} />
+                  </Tooltip>
+                </Space>}
+                rules={[{ required: true }]}
+                style={{ marginBottom: 4 }}
+              >
                 <InputNumber style={{ width: '100%' }} min={0} step={0.0001} precision={4} prefix="$" />
               </Form.Item>
             )}

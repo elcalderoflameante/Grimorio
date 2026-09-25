@@ -4,6 +4,7 @@ using Grimorio.Domain.Entities.Billing;
 using Grimorio.Domain.Entities.Purchases;
 using Grimorio.Infrastructure.Features.Billing.Commands;
 using Grimorio.Infrastructure.Features.Menu;
+using Grimorio.Infrastructure.Features.Purchases;
 using Grimorio.Infrastructure.Persistence;
 using System.Text.Json;
 using MediatR;
@@ -692,9 +693,10 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
                 && x.Purchase.Status == PurchaseStatus.Registrada)
             .Select(x => new SalesPurchaseCostInput(
                 x.ArticleId,
-                x.UnitId,
+                x.InventoryUnitId ?? x.UnitId,
                 x.Article != null ? x.Article.BaseUnitId : Guid.Empty,
                 x.Quantity,
+                x.InventoryQuantity ?? x.Quantity,
                 x.UnitPrice,
                 x.DiscountAmount))
             .ToListAsync(ct);
@@ -702,9 +704,10 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
         return inputs
             .Select(x =>
             {
-                var baseQty = ConvertQuantity(x.Quantity, x.UnitId, x.ArticleBaseUnitId, conversions);
-                var netCost = x.UnitPrice * x.Quantity - x.DiscountAmount;
-                return new SalesArticleCostSample(x.ArticleId, baseQty, netCost);
+                var baseQty = ConvertQuantity(x.InventoryQuantity, x.InventoryUnitId, x.ArticleBaseUnitId, conversions);
+                var cost = PurchaseCostCalculator.Calculate(
+                    x.Quantity, baseQty, x.UnitPrice, x.DiscountAmount);
+                return new SalesArticleCostSample(x.ArticleId, cost.BaseQuantity, cost.NetCost);
             })
             .Where(x => x.BaseQuantity > 0 && x.NetCost >= 0)
             .GroupBy(x => x.ArticleId)
@@ -773,7 +776,8 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
 
     private static decimal Round2(decimal value) => Math.Round(value, 2);
 
-    private sealed record SalesPurchaseCostInput(Guid ArticleId, Guid UnitId, Guid ArticleBaseUnitId, decimal Quantity, decimal UnitPrice, decimal DiscountAmount);
+    private sealed record SalesPurchaseCostInput(Guid ArticleId, Guid InventoryUnitId, Guid ArticleBaseUnitId,
+        decimal Quantity, decimal InventoryQuantity, decimal UnitPrice, decimal DiscountAmount);
     private sealed record SalesArticleCostSample(Guid ArticleId, decimal BaseQuantity, decimal NetCost);
     private sealed record SalesArticleUnitCost(decimal Average);
     private sealed record SalesProfitabilityLine(
