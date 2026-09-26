@@ -1,7 +1,9 @@
 ﻿using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Inventory.Commands;
 using Grimorio.Domain.Entities.Inventory;
+using Grimorio.Domain.Entities.Purchases;
 using Grimorio.Infrastructure.Features.Inventory.Queries;
+using Grimorio.Infrastructure.Features.Purchases;
 using Grimorio.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -360,6 +362,24 @@ public class RegisterMovementHandler : IRequestHandler<RegisterMovementCommand, 
             or MovementType.ProductionOutput;
         decimal? unitCost = allowsManualCost ? req.UnitCost : null;
         decimal? totalCost = unitCost.HasValue ? Math.Abs(effectiveQuantity) * unitCost.Value : null;
+
+        if (req.PurchaseItemId.HasValue && (req.Type is MovementType.PurchaseEntry or MovementType.NegativeAdjustment))
+        {
+            var purchaseItem = await _db.PurchaseItems.IgnoreQueryFilters().AsNoTracking()
+                .Where(x => x.Id == req.PurchaseItemId && x.BranchId == req.BranchId
+                    && x.Purchase != null && x.Purchase.BranchId == req.BranchId)
+                .Select(x => new { x.ArticleId, x.Quantity, x.UnitPrice, x.DiscountAmount, x.IsDeleted })
+                .FirstOrDefaultAsync(ct)
+                ?? throw new InvalidOperationException("Linea de compra no encontrada.");
+            if (purchaseItem.ArticleId != req.ArticleId || (req.Type == MovementType.PurchaseEntry && purchaseItem.IsDeleted))
+                throw new InvalidOperationException("La linea de compra no corresponde al articulo del movimiento.");
+
+            var cost = PurchaseCostCalculator.CalculateMovement(
+                purchaseItem.Quantity, Math.Abs(baseQuantity), purchaseItem.UnitPrice, purchaseItem.DiscountAmount);
+            effectiveQuantity = isExit ? -cost.BaseQuantity : cost.BaseQuantity;
+            unitCost = cost.UnitCost;
+            totalCost = cost.TotalCost;
+        }
 
         var movement = new StockMovement
         {
@@ -800,7 +820,11 @@ internal static class InventoryProductionHelper
                 && x.ArticleId == articleId
                 && x.BaseQuantity > 0
                 && x.TotalCost.HasValue
-                && x.TotalCost.Value > 0)
+                && x.TotalCost.Value >= 0
+                && (!x.PurchaseItemId.HasValue || db.PurchaseItems.Any(p => p.Id == x.PurchaseItemId
+                    && p.BranchId == branchId && !p.IsDeleted && p.Purchase != null
+                    && p.Purchase.BranchId == branchId && !p.Purchase.IsDeleted
+                    && p.Purchase.Status == PurchaseStatus.Registrada)))
             .GroupBy(x => x.ArticleId)
             .Select(g => new
             {
