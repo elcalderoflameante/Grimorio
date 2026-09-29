@@ -159,6 +159,7 @@ public class UpdatePromotionCommandHandler : IRequestHandler<UpdatePromotionComm
     public async Task<PromotionDto> Handle(UpdatePromotionCommand req, CancellationToken ct)
     {
         var entity = await _db.Promotions
+            .IgnoreQueryFilters()
             .Include(x => x.MenuItems)
             .Include(x => x.MenuCategories)
             .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId && !x.IsDeleted, ct)
@@ -1289,21 +1290,28 @@ internal static class PosPromotionCommandHelper
         entity.PayQuantity = dto.PayQuantity;
         entity.Priority = dto.Priority;
 
-        foreach (var target in entity.MenuItems)
-            target.IsDeleted = !validMenuItemIds.Contains(target.MenuItemId);
-        foreach (var target in entity.MenuCategories)
-            target.IsDeleted = !validMenuCategoryIds.Contains(target.MenuCategoryId);
+        ReconcileMenuItems(entity, validMenuItemIds, branchId);
+        ReconcileMenuCategories(entity, validMenuCategoryIds, branchId);
 
-        var existingMenuItemIds = entity.MenuItems
-            .Where(x => !x.IsDeleted)
-            .Select(x => x.MenuItemId)
-            .ToHashSet();
-        var existingMenuCategoryIds = entity.MenuCategories
-            .Where(x => !x.IsDeleted)
-            .Select(x => x.MenuCategoryId)
-            .ToHashSet();
+        PromotionEngine.Validate(entity);
+    }
 
-        foreach (var menuItemId in validMenuItemIds.Where(id => !existingMenuItemIds.Contains(id)))
+    private static void ReconcileMenuItems(Promotion entity, IReadOnlyCollection<Guid> requestedIds, Guid branchId)
+    {
+        var requestedIdSet = requestedIds.ToHashSet();
+
+        foreach (var group in entity.MenuItems.GroupBy(x => x.MenuItemId))
+        {
+            var shouldBeActive = requestedIdSet.Contains(group.Key);
+            var survivor = group.FirstOrDefault(x => !x.IsDeleted) ?? group.First();
+
+            foreach (var target in group)
+                SetDeleted(target, !shouldBeActive || target != survivor);
+
+            requestedIdSet.Remove(group.Key);
+        }
+
+        foreach (var menuItemId in requestedIdSet)
         {
             entity.MenuItems.Add(new PromotionMenuItem
             {
@@ -1313,8 +1321,24 @@ internal static class PosPromotionCommandHelper
                 MenuItemId = menuItemId,
             });
         }
+    }
 
-        foreach (var menuCategoryId in validMenuCategoryIds.Where(id => !existingMenuCategoryIds.Contains(id)))
+    private static void ReconcileMenuCategories(Promotion entity, IReadOnlyCollection<Guid> requestedIds, Guid branchId)
+    {
+        var requestedIdSet = requestedIds.ToHashSet();
+
+        foreach (var group in entity.MenuCategories.GroupBy(x => x.MenuCategoryId))
+        {
+            var shouldBeActive = requestedIdSet.Contains(group.Key);
+            var survivor = group.FirstOrDefault(x => !x.IsDeleted) ?? group.First();
+
+            foreach (var target in group)
+                SetDeleted(target, !shouldBeActive || target != survivor);
+
+            requestedIdSet.Remove(group.Key);
+        }
+
+        foreach (var menuCategoryId in requestedIdSet)
         {
             entity.MenuCategories.Add(new PromotionMenuCategory
             {
@@ -1324,8 +1348,16 @@ internal static class PosPromotionCommandHelper
                 MenuCategoryId = menuCategoryId,
             });
         }
+    }
 
-        PromotionEngine.Validate(entity);
+    private static void SetDeleted(Grimorio.SharedKernel.BaseEntity entity, bool isDeleted)
+    {
+        entity.IsDeleted = isDeleted;
+        if (!isDeleted)
+        {
+            entity.DeletedAt = null;
+            entity.DeletedBy = null;
+        }
     }
 
     public static async Task<DateTime> GetLocalNowAsync(GrimorioDbContext db, Guid branchId, CancellationToken ct)

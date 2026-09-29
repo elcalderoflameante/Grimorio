@@ -162,8 +162,9 @@ export default function PromotionsList() {
       message.success('Promoción guardada.');
       setModalOpen(false);
       await load();
-    } catch {
-      message.error('No se pudo guardar la promoción.');
+    } catch (error) {
+      const apiError = error as { response?: { data?: { message?: string } } };
+      message.error(apiError.response?.data?.message ?? 'No se pudo guardar la promoción.');
     } finally {
       setSaving(false);
     }

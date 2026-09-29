@@ -101,8 +101,15 @@ public class PosController : ControllerBase
     public async Task<IActionResult> CreatePromotion([FromBody] UpsertPromotionDto dto)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
-        var result = await _mediator.Send(new CreatePromotionCommand { BranchId = branchId, Data = dto });
-        return Ok(result);
+        try
+        {
+            var result = await _mediator.Send(new CreatePromotionCommand { BranchId = branchId, Data = dto });
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [Authorize(Policy = "POS.Orders.Update")]
@@ -110,8 +117,15 @@ public class PosController : ControllerBase
     public async Task<IActionResult> UpdatePromotion(Guid id, [FromBody] UpsertPromotionDto dto)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
-        var result = await _mediator.Send(new UpdatePromotionCommand { Id = id, BranchId = branchId, Data = dto });
-        return Ok(result);
+        try
+        {
+            var result = await _mediator.Send(new UpdatePromotionCommand { Id = id, BranchId = branchId, Data = dto });
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [Authorize(Policy = "POS.Orders.Update")]
