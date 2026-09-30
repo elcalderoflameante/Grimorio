@@ -158,15 +158,26 @@ public class UpdatePromotionCommandHandler : IRequestHandler<UpdatePromotionComm
 
     public async Task<PromotionDto> Handle(UpdatePromotionCommand req, CancellationToken ct)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+
         var entity = await _db.Promotions
             .IgnoreQueryFilters()
             .Include(x => x.MenuItems)
             .Include(x => x.MenuCategories)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId && !x.IsDeleted, ct)
             ?? throw new InvalidOperationException("Promocion no encontrada.");
 
+        foreach (var target in entity.MenuItems.Where(x => !x.IsDeleted))
+            target.IsDeleted = true;
+        foreach (var target in entity.MenuCategories.Where(x => !x.IsDeleted))
+            target.IsDeleted = true;
+
+        await _db.SaveChangesAsync(ct);
+
         await PosPromotionCommandHelper.ApplyPromotionDataAsync(_db, entity, req.Data, req.BranchId, ct);
         await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         var localNow = await PosPromotionCommandHelper.GetLocalNowAsync(_db, req.BranchId, ct);
         return PromotionEngine.Map(entity, localNow);
