@@ -15,9 +15,11 @@ Check(12m, 12m, 2m, 0m, 24m, 2m);      // Already billed by bottle.
 Check(1m, 0m, 24m, 0m, 24m, 0m);       // Invalid conversion cannot divide by zero.
 
 void CheckMovement(decimal billedQuantity, decimal receivedBaseQuantity, decimal billedUnitPrice,
-    decimal discountAmount, decimal expectedQuantity, decimal expectedTotal, decimal expectedUnitCost)
+    decimal discountAmount, decimal expectedQuantity, decimal expectedTotal, decimal expectedUnitCost,
+    decimal allocatedCost = 0m)
 {
-    var result = PurchaseCostCalculator.CalculateMovement(billedQuantity, receivedBaseQuantity, billedUnitPrice, discountAmount);
+    var result = PurchaseCostCalculator.CalculateMovement(
+        billedQuantity, receivedBaseQuantity, billedUnitPrice, discountAmount, allocatedCost);
     if (result.BaseQuantity != expectedQuantity || result.TotalCost != expectedTotal || result.UnitCost != expectedUnitCost)
         throw new InvalidOperationException($"Incorrect persisted purchase cost: {result}.");
 }
@@ -29,6 +31,11 @@ CheckMovement(1m, 1000m, 24m, 0m, 1000m, 24m, 0.024m); // Received kg expressed 
 CheckMovement(1m, 3m, 10m, 0m, 3m, 10m, 3.3333m);      // Preserve total despite unit-cost rounding.
 CheckMovement(1m, 12m, 24m, 24m, 12m, 0m, 0m);        // Fully discounted line.
 CheckMovement(1m, 1.12345m, 10m, 0m, 1.1235m, 10m, 8.9008m);
+CheckMovement(20m, 20m, 2.91m, 0m, 20m, 62.20m, 3.11m, 4m); // Freight allocated to inventory cost.
+
+var allocation = PurchaseCostCalculator.AllocateAdditionalCost([40m, 20m], 4m);
+if (allocation.Count != 2 || allocation[0] != 2.6667m || allocation[1] != 1.3333m || allocation.Sum() != 4m)
+    throw new InvalidOperationException($"Incorrect proportional allocation: {string.Join(", ", allocation)}.");
 
 void CheckInvalidMovement(decimal receivedBaseQuantity, decimal discountAmount)
 {
@@ -42,4 +49,4 @@ void CheckInvalidMovement(decimal receivedBaseQuantity, decimal discountAmount)
 CheckInvalidMovement(0m, 0m);
 CheckInvalidMovement(0.00001m, 0m);
 CheckInvalidMovement(12m, 25m);
-Console.WriteLine("15 purchase cost checks passed.");
+Console.WriteLine("17 purchase cost checks passed.");

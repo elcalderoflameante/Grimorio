@@ -171,9 +171,10 @@ public class GetInventoryReconciliationHandler(GrimorioDbContext db)
 
         // Compare purchase quantities in the ORIGINAL entry unit; conversions may have changed later.
         var purchaseRows = await db.PurchaseItems.IgnoreQueryFilters().AsNoTracking()
-            .Where(x => x.BranchId == req.BranchId && (!req.ArticleId.HasValue || x.ArticleId == req.ArticleId))
-            .Select(x => new { x.Id, x.PurchaseId, x.ArticleId, x.IsDeleted,
-                Quantity = x.InventoryQuantity ?? x.Quantity, UnitId = x.InventoryUnitId ?? x.UnitId }).ToListAsync(ct);
+            .Where(x => x.BranchId == req.BranchId && x.ArticleId.HasValue && x.UnitId.HasValue &&
+                (!req.ArticleId.HasValue || x.ArticleId == req.ArticleId))
+            .Select(x => new { x.Id, x.PurchaseId, ArticleId = x.ArticleId!.Value, x.IsDeleted,
+                Quantity = x.InventoryQuantity ?? x.Quantity, UnitId = x.InventoryUnitId ?? x.UnitId!.Value }).ToListAsync(ct);
         var purchases = await db.Purchases.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.BranchId == req.BranchId)
             .Select(x => new { x.Id, x.DocumentNumber, x.Status, x.IsDeleted, x.DestinationWarehouseId })

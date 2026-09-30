@@ -30,6 +30,13 @@ public enum PurchaseStatus
     Anulada = 2,
 }
 
+public enum PurchaseItemCostTreatment
+{
+    Inventory = 1,
+    AllocateToInventory = 2,
+    Expense = 3,
+}
+
 public class Purchase : BaseEntity
 {
     public Guid? SupplierId { get; set; }
@@ -77,12 +84,12 @@ public class Purchase : BaseEntity
 public class PurchaseItem : BaseEntity
 {
     public Guid PurchaseId { get; set; }
-    public Guid ArticleId { get; set; }
+    public Guid? ArticleId { get; set; }
     public string? SupplierMainCode { get; set; }
     public string? SupplierAuxCode { get; set; }
     public string? SupplierDescription { get; set; }
     public string? AdditionalDetail { get; set; }
-    public Guid UnitId { get; set; }
+    public Guid? UnitId { get; set; }
     public decimal? InventoryQuantity { get; set; }
     public Guid? InventoryUnitId { get; set; }
     public decimal Quantity { get; set; }
@@ -92,6 +99,8 @@ public class PurchaseItem : BaseEntity
     public Guid? TaxRateId { get; set; }
     public decimal TaxAmount { get; set; }
     public decimal TotalPrice { get; set; }
+    public PurchaseItemCostTreatment CostTreatment { get; set; } = PurchaseItemCostTreatment.Inventory;
+    public decimal AllocatedCost { get; set; }
     public string? Notes { get; set; }
 
     public virtual Purchase? Purchase { get; set; }

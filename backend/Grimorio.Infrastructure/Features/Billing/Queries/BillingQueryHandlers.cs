@@ -687,18 +687,20 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
             .Include(x => x.Article)
             .Where(x => x.BranchId == branchId
                 && !x.IsDeleted
-                && articleIds.Contains(x.ArticleId)
+                && x.ArticleId.HasValue
+                && articleIds.Contains(x.ArticleId.Value)
                 && x.Purchase != null
                 && !x.Purchase.IsDeleted
                 && x.Purchase.Status == PurchaseStatus.Registrada)
             .Select(x => new SalesPurchaseCostInput(
-                x.ArticleId,
-                x.InventoryUnitId ?? x.UnitId,
+                x.ArticleId!.Value,
+                x.InventoryUnitId ?? x.UnitId ?? Guid.Empty,
                 x.Article != null ? x.Article.BaseUnitId : Guid.Empty,
                 x.Quantity,
                 x.InventoryQuantity ?? x.Quantity,
                 x.UnitPrice,
-                x.DiscountAmount))
+                x.DiscountAmount,
+                x.AllocatedCost))
             .ToListAsync(ct);
 
         return inputs
@@ -706,7 +708,7 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
             {
                 var baseQty = ConvertQuantity(x.InventoryQuantity, x.InventoryUnitId, x.ArticleBaseUnitId, conversions);
                 var cost = PurchaseCostCalculator.Calculate(
-                    x.Quantity, baseQty, x.UnitPrice, x.DiscountAmount);
+                    x.Quantity, baseQty, x.UnitPrice, x.DiscountAmount, x.AllocatedCost);
                 return new SalesArticleCostSample(x.ArticleId, cost.BaseQuantity, cost.NetCost);
             })
             .Where(x => x.BaseQuantity > 0 && x.NetCost >= 0)
@@ -777,7 +779,7 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
     private static decimal Round2(decimal value) => Math.Round(value, 2);
 
     private sealed record SalesPurchaseCostInput(Guid ArticleId, Guid InventoryUnitId, Guid ArticleBaseUnitId,
-        decimal Quantity, decimal InventoryQuantity, decimal UnitPrice, decimal DiscountAmount);
+        decimal Quantity, decimal InventoryQuantity, decimal UnitPrice, decimal DiscountAmount, decimal AllocatedCost);
     private sealed record SalesArticleCostSample(Guid ArticleId, decimal BaseQuantity, decimal NetCost);
     private sealed record SalesArticleUnitCost(decimal Average);
     private sealed record SalesProfitabilityLine(

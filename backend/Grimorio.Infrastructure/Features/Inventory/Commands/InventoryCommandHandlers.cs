@@ -368,14 +368,15 @@ public class RegisterMovementHandler : IRequestHandler<RegisterMovementCommand, 
             var purchaseItem = await _db.PurchaseItems.IgnoreQueryFilters().AsNoTracking()
                 .Where(x => x.Id == req.PurchaseItemId && x.BranchId == req.BranchId
                     && x.Purchase != null && x.Purchase.BranchId == req.BranchId)
-                .Select(x => new { x.ArticleId, x.Quantity, x.UnitPrice, x.DiscountAmount, x.IsDeleted })
+                .Select(x => new { x.ArticleId, x.Quantity, x.UnitPrice, x.DiscountAmount, x.AllocatedCost, x.IsDeleted })
                 .FirstOrDefaultAsync(ct)
                 ?? throw new InvalidOperationException("Linea de compra no encontrada.");
             if (purchaseItem.ArticleId != req.ArticleId || (req.Type == MovementType.PurchaseEntry && purchaseItem.IsDeleted))
                 throw new InvalidOperationException("La linea de compra no corresponde al articulo del movimiento.");
 
             var cost = PurchaseCostCalculator.CalculateMovement(
-                purchaseItem.Quantity, Math.Abs(baseQuantity), purchaseItem.UnitPrice, purchaseItem.DiscountAmount);
+                purchaseItem.Quantity, Math.Abs(baseQuantity), purchaseItem.UnitPrice,
+                purchaseItem.DiscountAmount, purchaseItem.AllocatedCost);
             effectiveQuantity = isExit ? -cost.BaseQuantity : cost.BaseQuantity;
             unitCost = cost.UnitCost;
             totalCost = cost.TotalCost;

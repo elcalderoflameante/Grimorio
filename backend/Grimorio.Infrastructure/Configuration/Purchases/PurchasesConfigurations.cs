@@ -90,6 +90,11 @@ public class PurchaseItemConfiguration : IEntityTypeConfiguration<PurchaseItem>
         builder.Property(x => x.DiscountAmount).HasColumnType("numeric(18,2)");
         builder.Property(x => x.TaxAmount).HasColumnType("numeric(18,2)");
         builder.Property(x => x.TotalPrice).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.CostTreatment)
+            .HasConversion<int>()
+            .HasDefaultValue(PurchaseItemCostTreatment.Inventory)
+            .IsRequired();
+        builder.Property(x => x.AllocatedCost).HasColumnType("numeric(18,4)");
         builder.Property(x => x.Notes).HasMaxLength(300);
 
         builder.HasOne(x => x.Purchase)

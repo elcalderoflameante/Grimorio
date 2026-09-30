@@ -32,6 +32,24 @@ const DOC_TYPE_LABEL: Record<string, string> = {
 
 const STATUS_COLOR: Record<string, string> = { Registrada: 'green', Anulada: 'red' };
 
+const COST_TREATMENT_OPTIONS = [
+  { value: 1, label: 'Inventario' },
+  { value: 2, label: 'Distribuir costo' },
+  { value: 3, label: 'Gasto sin stock' },
+];
+
+const COST_TREATMENT_VALUE: Record<string, number> = {
+  Inventory: 1,
+  AllocateToInventory: 2,
+  Expense: 3,
+};
+
+const COST_TREATMENT_LABEL: Record<string, string> = {
+  Inventory: 'Inventario',
+  AllocateToInventory: 'Distribuido en inventario',
+  Expense: 'Gasto sin stock',
+};
+
 interface Props {
   open: boolean;
   compra: PurchaseDto | null;
@@ -144,11 +162,6 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
       .map(unit => ({ value: unit.id, label: unit.symbol }));
   };
 
-  const unitOptions = useMemo(
-    () => units.map(unit => ({ value: unit.id, label: unit.symbol })),
-    [units],
-  );
-
   const fiscal = useMemo(() => {
     const result = computeFiscal(items, taxMap);
     const ice = Number(iceValue) || 0;
@@ -217,6 +230,7 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
       });
       setItems(compra.items.map(i => ({
         key: i.id,
+        costTreatment: COST_TREATMENT_VALUE[i.costTreatment] ?? 1,
         articleId: i.articleId,
         unitId: i.unitId,
         supplierMainCode: i.supplierMainCode,
@@ -245,7 +259,7 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
   const addItem = () => {
     const key = crypto.randomUUID?.() ?? `item-${Math.random().toString(36).slice(2)}-${Date.now()}`;
     setItems(prev => [...prev, {
-      key, articleId: '', unitId: '', quantity: 1,
+      key, costTreatment: 1, articleId: undefined, unitId: undefined, quantity: 1,
       inventoryQuantity: 1, inventoryUnitId: '',
       unitPrice: 0, discountPct: 0,
     }]);
@@ -255,6 +269,19 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
     setItems(prev => prev.map(i => {
       if (i.key !== key) return i;
       const updated = { ...i, [field]: value };
+      if (field === 'costTreatment') {
+        if (value === 1) {
+          updated.inventoryQuantity = updated.inventoryQuantity || updated.quantity || 1;
+        } else {
+          updated.articleId = undefined;
+          updated.articleName = undefined;
+          updated.unitId = undefined;
+          updated.unitSymbol = undefined;
+          updated.inventoryQuantity = undefined;
+          updated.inventoryUnitId = undefined;
+          updated.inventoryUnitSymbol = undefined;
+        }
+      }
       if (field === 'articleId') {
         const art = articulos.find(a => a.id === value);
         if (art) {
@@ -334,6 +361,7 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
         const article = findArticleBySupplierCode(item.supplierMainCode, item.supplierAuxCode);
         return {
           key: `${Date.now()}-${index}`,
+          costTreatment: 1,
           articleId: article?.id ?? '',
           unitId: article?.baseUnitId ?? '',
           unitSymbol: article?.baseUnitSymbol,
@@ -413,10 +441,18 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
     const values = await form.validateFields().catch(() => null);
     if (!values) return;
     if (items.length === 0) { message.warning('Agrega al menos un ítem'); return; }
-    if (items.some(i => !i.articleId || !i.unitId)) { message.warning('Completa todos los ítems'); return; }
+    const inventoryItems = items.filter(i => i.costTreatment === 1);
+    if (inventoryItems.some(i => !i.articleId || !i.unitId)) {
+      message.warning('Vincula un artículo y una unidad en cada línea de inventario');
+      return;
+    }
 
-    if (items.some(i => !i.inventoryQuantity || !i.inventoryUnitId)) {
+    if (inventoryItems.some(i => !i.inventoryQuantity || !i.inventoryUnitId)) {
       message.warning('Completa la cantidad y unidad de ingreso a inventario');
+      return;
+    }
+    if (items.some(i => i.costTreatment === 2) && inventoryItems.length === 0) {
+      message.warning('Agrega al menos una línea de inventario para distribuir el costo');
       return;
     }
 
@@ -448,19 +484,20 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
         notes: values.notes || undefined,
         destinationWarehouseId: values.destinationWarehouseId || undefined,
         items: items.map(i => ({
-          articleId: i.articleId,
-          unitId: i.unitId,
+          articleId: i.costTreatment === 1 ? i.articleId : undefined,
+          unitId: i.costTreatment === 1 ? i.unitId : undefined,
           supplierMainCode: i.supplierMainCode || undefined,
           supplierAuxCode: i.supplierAuxCode || undefined,
           supplierDescription: i.supplierDescription || undefined,
           additionalDetail: i.additionalDetail || undefined,
           quantity: i.quantity,
-          inventoryQuantity: i.inventoryQuantity,
-          inventoryUnitId: i.inventoryUnitId,
+          inventoryQuantity: i.costTreatment === 1 ? i.inventoryQuantity : undefined,
+          inventoryUnitId: i.costTreatment === 1 ? i.inventoryUnitId : undefined,
           unitPrice: i.unitPrice,
           discountPct: i.discountPct || 0,
           discountAmount: i.discountAmount ?? undefined,
           taxRateId: i.taxRateId || undefined,
+          costTreatment: i.costTreatment,
           notes: i.notes || undefined,
         })),
       };
@@ -536,7 +573,8 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
           dataSource={f.items}
           pagination={false}
           columns={[
-            { title: 'Artículo', dataIndex: 'articleName' },
+            { title: 'Destino', dataIndex: 'costTreatment', render: (v: string) => COST_TREATMENT_LABEL[v] ?? v, width: 150 },
+            { title: 'Artículo', dataIndex: 'articleName', render: (v?: string) => v || 'No aplica' },
             { title: 'Cod. prov.', dataIndex: 'supplierMainCode', render: (v?: string) => v ?? '—', width: 90 },
             { title: 'Cod. aux.', dataIndex: 'supplierAuxCode', render: (v?: string) => v ?? '—', width: 90 },
             { title: 'Desc. factura', dataIndex: 'supplierDescription', render: (v?: string) => v ?? '—', width: 140 },
@@ -546,8 +584,11 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
             {
               title: 'Ingreso inv.', key: 'inventoryEntry', width: 110,
               render: (_: unknown, row: PurchaseDto['items'][number]) =>
-                `${row.inventoryQuantity ?? row.quantity} ${row.inventoryUnitSymbol ?? row.unitSymbol}`,
+                row.costTreatment === 'Inventory'
+                  ? `${row.inventoryQuantity ?? row.quantity} ${row.inventoryUnitSymbol ?? row.unitSymbol}`
+                  : '-',
             },
+            { title: 'Costo asignado', dataIndex: 'allocatedCost', align: 'right', width: 105, render: (v: number) => v ? `$${v.toFixed(4)}` : '-' },
             { title: 'P. Unit.', dataIndex: 'unitPrice', align: 'right', width: 90, render: (v: number) => `$${v.toFixed(4)}` },
             { title: 'Desc. $', dataIndex: 'discountAmount', align: 'right', width: 80, render: (v: number) => v ? `$${v.toFixed(2)}` : '—' },
             { title: 'Desc. %', dataIndex: 'discountPct', align: 'right', width: 75, render: (v: number) => v ? `${v}%` : '—' },
@@ -625,7 +666,7 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
       rowKey="key"
       dataSource={items}
       pagination={false}
-      scroll={{ x: 1180, y: 'max(260px, calc(100dvh - 400px))' }}
+      scroll={{ x: 1325, y: 'max(260px, calc(100dvh - 400px))' }}
       expandable={{
         expandedRowRender: (row: ItemRow) => (
           <div className="purchase-item-extra">
@@ -652,19 +693,31 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
       }}
       columns={[
         {
-          title: 'Articulo', key: 'articleId', width: 200,
+          title: 'Destino', key: 'costTreatment', width: 145,
           fixed: 'left' as const,
           render: (_: unknown, row: ItemRow) => (
             <Select
               style={{ width: '100%' }}
-              value={row.articleId || undefined}
-              onChange={v => updateItem(row.key, 'articleId', v)}
-              showSearch
-              options={articulos.map(a => ({ value: a.id, label: `${a.name}${a.internalCode ? ` (${a.internalCode})` : ''}` }))}
-              filterOption={(input, opt) => (opt?.label as string ?? '').toLowerCase().includes(input.toLowerCase())}
-              placeholder="Articulo"
+              value={row.costTreatment}
+              onChange={v => updateItem(row.key, 'costTreatment', v)}
+              options={COST_TREATMENT_OPTIONS}
             />
           ),
+        },
+        {
+          title: 'Articulo', key: 'articleId', width: 200,
+          fixed: 'left' as const,
+          render: (_: unknown, row: ItemRow) => row.costTreatment === 1 ? (
+              <Select
+                style={{ width: '100%' }}
+                value={row.articleId || undefined}
+                onChange={v => updateItem(row.key, 'articleId', v)}
+                showSearch
+                options={articulos.map(a => ({ value: a.id, label: `${a.name}${a.internalCode ? ` (${a.internalCode})` : ''}` }))}
+                filterOption={(input, opt) => (opt?.label as string ?? '').toLowerCase().includes(input.toLowerCase())}
+                placeholder="Articulo"
+              />
+            ) : <Text type="secondary">No aplica</Text>,
         },
         {
           title: 'Desc. factura', key: 'supplierDescription', width: 220,
@@ -675,6 +728,8 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
         {
           title: 'Unidad fact.', key: 'unitId', width: 95,
           render: (_: unknown, row: ItemRow) => {
+            if (row.costTreatment !== 1) return <Text type="secondary">-</Text>;
+            const unitOptions = getArticleUnitOptions(row.articleId);
             return unitOptions.length > 0 ? (
               <Select
                 style={{ width: '100%' }}
@@ -693,13 +748,14 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
         },
         {
           title: 'Cant. inv.', key: 'inventoryQuantity', width: 95,
-          render: (_: unknown, row: ItemRow) => (
+          render: (_: unknown, row: ItemRow) => row.costTreatment === 1 ? (
             <InputNumber min={0.001} step={0.001} precision={4} value={row.inventoryQuantity} onChange={v => updateItem(row.key, 'inventoryQuantity', v ?? 1)} style={{ width: '100%' }} />
-          ),
+          ) : <Text type="secondary">-</Text>,
         },
         {
           title: 'Unidad inv.', key: 'inventoryUnitId', width: 95,
           render: (_: unknown, row: ItemRow) => {
+            if (row.costTreatment !== 1) return <Text type="secondary">-</Text>;
             const unitOptions = getArticleUnitOptions(row.articleId);
             return unitOptions.length > 0 ? (
               <Select

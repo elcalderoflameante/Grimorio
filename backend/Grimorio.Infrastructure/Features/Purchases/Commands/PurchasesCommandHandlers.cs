@@ -131,14 +131,14 @@ public class CreatePurchaseHandler : IRequestHandler<CreatePurchaseCommand, Purc
     private async Task RegisterStockMovements(List<PurchaseItem> items, Guid warehouseId, Guid branchId,
         MovementType type, string reference, CancellationToken ct)
     {
-        foreach (var item in items)
+        foreach (var item in items.Where(x => x.ArticleId.HasValue && x.UnitId.HasValue))
         {
             await _mediator.Send(new RegisterMovementCommand
             {
-                BranchId = branchId, ArticleId = item.ArticleId,
+                BranchId = branchId, ArticleId = item.ArticleId!.Value,
                 WarehouseId = warehouseId, Type = type,
                 Quantity = item.InventoryQuantity ?? item.Quantity,
-                UnitId = item.InventoryUnitId ?? item.UnitId,
+                UnitId = item.InventoryUnitId ?? item.UnitId!.Value,
                 Reference = reference,
                 PurchaseItemId = item.Id,
             }, ct);
@@ -192,15 +192,15 @@ public class UpdatePurchaseHandler : IRequestHandler<UpdatePurchaseCommand, Purc
         if (purchase.DestinationWarehouseId.HasValue)
         {
             var oldRef = $"Corrección {CreatePurchaseHandler.DocRef(purchase)}";
-            foreach (var item in purchase.Items)
+            foreach (var item in purchase.Items.Where(x => x.ArticleId.HasValue && x.UnitId.HasValue))
             {
                 await _mediator.Send(new RegisterMovementCommand
                 {
-                    BranchId = req.BranchId, ArticleId = item.ArticleId,
+                    BranchId = req.BranchId, ArticleId = item.ArticleId!.Value,
                     WarehouseId = purchase.DestinationWarehouseId.Value,
                     Type = MovementType.NegativeAdjustment,
                     Quantity = item.InventoryQuantity ?? item.Quantity,
-                    UnitId = item.InventoryUnitId ?? item.UnitId,
+                    UnitId = item.InventoryUnitId ?? item.UnitId!.Value,
                     Reference = oldRef,
                     PurchaseItemId = item.Id,
                 }, ct);
@@ -248,15 +248,15 @@ public class UpdatePurchaseHandler : IRequestHandler<UpdatePurchaseCommand, Purc
         if (req.DestinationWarehouseId.HasValue)
         {
             var newRef = CreatePurchaseHandler.DocRef(purchase);
-            foreach (var item in newItems)
+            foreach (var item in newItems.Where(x => x.ArticleId.HasValue && x.UnitId.HasValue))
             {
                 await _mediator.Send(new RegisterMovementCommand
                 {
-                    BranchId = req.BranchId, ArticleId = item.ArticleId,
+                    BranchId = req.BranchId, ArticleId = item.ArticleId!.Value,
                     WarehouseId = req.DestinationWarehouseId.Value,
                     Type = MovementType.PurchaseEntry,
                     Quantity = item.InventoryQuantity ?? item.Quantity,
-                    UnitId = item.InventoryUnitId ?? item.UnitId,
+                    UnitId = item.InventoryUnitId ?? item.UnitId!.Value,
                     Reference = newRef,
                     PurchaseItemId = item.Id,
                 }, ct);
@@ -307,15 +307,15 @@ public class AnularPurchaseHandler : IRequestHandler<AnularPurchaseCommand, Purc
         if (purchase.DestinationWarehouseId.HasValue)
         {
             var docRef = $"Anulación {CreatePurchaseHandler.DocRef(purchase)}";
-            foreach (var item in purchase.Items.Where(i => !i.IsDeleted))
+            foreach (var item in purchase.Items.Where(i => !i.IsDeleted && i.ArticleId.HasValue && i.UnitId.HasValue))
             {
                 await _mediator.Send(new RegisterMovementCommand
                 {
-                    BranchId = req.BranchId, ArticleId = item.ArticleId,
+                    BranchId = req.BranchId, ArticleId = item.ArticleId!.Value,
                     WarehouseId = purchase.DestinationWarehouseId.Value,
                     Type = MovementType.NegativeAdjustment,
                     Quantity = item.InventoryQuantity ?? item.Quantity,
-                    UnitId = item.InventoryUnitId ?? item.UnitId,
+                    UnitId = item.InventoryUnitId ?? item.UnitId!.Value,
                     Reference = docRef,
                     PurchaseItemId = item.Id,
                 }, ct);
@@ -435,6 +435,21 @@ internal static class PurchasesHelper
         var result = new List<PurchaseItem>();
         foreach (var item in items)
         {
+            if (!Enum.IsDefined(typeof(PurchaseItemCostTreatment), item.CostTreatment))
+                throw new InvalidOperationException("El destino de una linea de compra no es valido.");
+
+            var costTreatment = (PurchaseItemCostTreatment)item.CostTreatment;
+            var isInventoryItem = costTreatment == PurchaseItemCostTreatment.Inventory;
+            if (isInventoryItem && (!item.ArticleId.HasValue || !item.UnitId.HasValue ||
+                                    !item.InventoryQuantity.HasValue || item.InventoryQuantity <= 0 ||
+                                    !item.InventoryUnitId.HasValue))
+            {
+                throw new InvalidOperationException(
+                    "Las lineas de inventario requieren articulo, unidad y cantidad de ingreso.");
+            }
+            if (!isInventoryItem && item.ArticleId.HasValue)
+                throw new InvalidOperationException("Un cargo no inventariable no puede estar vinculado a un articulo.");
+
             var gross = item.UnitPrice * item.Quantity;
             var discountAmt = item.DiscountAmount.HasValue
                 ? Math.Round(Math.Min(Math.Max(item.DiscountAmount.Value, 0m), gross), 2)
@@ -443,14 +458,15 @@ internal static class PurchasesHelper
             var taxableBase = gross - discountAmt;
             var info = item.TaxRateId.HasValue ? taxInfo.GetValueOrDefault(item.TaxRateId.Value) : null;
             var taxAmt = info != null ? Math.Round(taxableBase * (info.Percentage / 100m), 2) : 0m;
-            var inventoryQuantity = item.InventoryQuantity.HasValue && item.InventoryQuantity.Value > 0
+            var inventoryQuantity = isInventoryItem && item.InventoryQuantity.HasValue && item.InventoryQuantity.Value > 0
                 ? item.InventoryQuantity.Value
                 : (decimal?)null;
 
             result.Add(new PurchaseItem
             {
                 Id = Guid.NewGuid(), BranchId = branchId, PurchaseId = purchaseId,
-                ArticleId = item.ArticleId, UnitId = item.UnitId,
+                ArticleId = isInventoryItem ? item.ArticleId : null,
+                UnitId = isInventoryItem ? item.UnitId : null,
                 InventoryQuantity = inventoryQuantity,
                 InventoryUnitId = inventoryQuantity.HasValue ? (item.InventoryUnitId ?? item.UnitId) : null,
                 SupplierMainCode = item.SupplierMainCode?.Trim(),
@@ -461,9 +477,29 @@ internal static class PurchasesHelper
                 DiscountPct = discountPct, DiscountAmount = discountAmt,
                 TaxRateId = item.TaxRateId, TaxAmount = taxAmt,
                 TotalPrice = taxableBase + taxAmt, Notes = item.Notes?.Trim(),
+                CostTreatment = costTreatment,
             });
         }
+
+        ApplyAllocatedCosts(result);
         return result;
+    }
+
+    private static void ApplyAllocatedCosts(List<PurchaseItem> items)
+    {
+        var inventoryItems = items
+            .Where(x => x.CostTreatment == PurchaseItemCostTreatment.Inventory)
+            .ToList();
+        var allocatableCost = items
+            .Where(x => x.CostTreatment == PurchaseItemCostTreatment.AllocateToInventory)
+            .Sum(x => x.UnitPrice * x.Quantity - x.DiscountAmount);
+
+        var allocations = PurchaseCostCalculator.AllocateAdditionalCost(
+            inventoryItems.Select(x => x.UnitPrice * x.Quantity - x.DiscountAmount).ToList(),
+            allocatableCost);
+
+        for (var i = 0; i < inventoryItems.Count; i++)
+            inventoryItems[i].AllocatedCost = allocations[i];
     }
 
     internal static void ApplyTotals(Purchase purchase, List<PurchaseItem> items)
@@ -632,6 +668,8 @@ internal static class PurchasesMapper
             TaxRateId = i.TaxRateId, TaxRateName = i.TaxRate?.Name,
             TaxRatePercentage = i.TaxRate?.Percentage,
             TaxAmount = i.TaxAmount, TotalPrice = i.TotalPrice,
+            CostTreatment = i.CostTreatment.ToString(),
+            AllocatedCost = i.AllocatedCost,
             Notes = i.Notes,
         }).ToList(),
     };

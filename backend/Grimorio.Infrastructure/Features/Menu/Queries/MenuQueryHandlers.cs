@@ -595,18 +595,20 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
                 .Include(x => x.Article)
                 .Where(x => x.BranchId == req.BranchId
                     && !x.IsDeleted
-                    && articleIds.Contains(x.ArticleId)
+                    && x.ArticleId.HasValue
+                    && articleIds.Contains(x.ArticleId.Value)
                     && x.Purchase != null
                     && !x.Purchase.IsDeleted
                     && x.Purchase.Status == PurchaseStatus.Registrada)
                 .Select(x => new PurchaseCostInput(
-                    x.ArticleId,
-                    x.InventoryUnitId ?? x.UnitId,
+                    x.ArticleId!.Value,
+                    x.InventoryUnitId ?? x.UnitId ?? Guid.Empty,
                     x.Article != null ? x.Article.BaseUnitId : Guid.Empty,
                     x.Quantity,
                     x.InventoryQuantity ?? x.Quantity,
                     x.UnitPrice,
                     x.DiscountAmount,
+                    x.AllocatedCost,
                     x.Purchase!.DocumentDate,
                     x.CreatedAt))
                 .ToListAsync(ct);
@@ -616,7 +618,7 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
             {
                 var baseQty = ConvertQuantity(x.InventoryQuantity, x.InventoryUnitId, x.ArticleBaseUnitId, conversions);
                 var cost = PurchaseCostCalculator.Calculate(
-                    x.Quantity, baseQty, x.UnitPrice, x.DiscountAmount);
+                    x.Quantity, baseQty, x.UnitPrice, x.DiscountAmount, x.AllocatedCost);
                 return new ArticleCostSample(x.ArticleId, cost.BaseQuantity, cost.NetCost, cost.UnitCost, x.PurchaseDate, x.CreatedAt);
             })
             .Where(x => x.BaseQuantity > 0 && x.NetCost >= 0)
@@ -782,6 +784,7 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
         decimal InventoryQuantity,
         decimal UnitPrice,
         decimal DiscountAmount,
+        decimal AllocatedCost,
         DateTime PurchaseDate,
         DateTime CreatedAt);
     private sealed record ArticleCostSample(

@@ -78,14 +78,14 @@ public class PurchaseDto
 public class PurchaseItemDto
 {
     public Guid Id { get; set; }
-    public Guid ArticleId { get; set; }
+    public Guid? ArticleId { get; set; }
     public string ArticleName { get; set; } = string.Empty;
     public string? InternalCode { get; set; }
     public string? SupplierMainCode { get; set; }
     public string? SupplierAuxCode { get; set; }
     public string? SupplierDescription { get; set; }
     public string? AdditionalDetail { get; set; }
-    public Guid UnitId { get; set; }
+    public Guid? UnitId { get; set; }
     public string UnitSymbol { get; set; } = string.Empty;
     public decimal? InventoryQuantity { get; set; }
     public Guid? InventoryUnitId { get; set; }
@@ -99,6 +99,8 @@ public class PurchaseItemDto
     public decimal? TaxRatePercentage { get; set; }
     public decimal TaxAmount { get; set; }
     public decimal TotalPrice { get; set; }
+    public string CostTreatment { get; set; } = string.Empty;
+    public decimal AllocatedCost { get; set; }
     public string? Notes { get; set; }
 }
 
@@ -162,8 +164,8 @@ public class UpdatePurchaseDto
 
 public class PurchaseItemInputDto
 {
-    public Guid ArticleId { get; set; }
-    public Guid UnitId { get; set; }
+    public Guid? ArticleId { get; set; }
+    public Guid? UnitId { get; set; }
     public string? SupplierMainCode { get; set; }
     public string? SupplierAuxCode { get; set; }
     public string? SupplierDescription { get; set; }
@@ -175,6 +177,7 @@ public class PurchaseItemInputDto
     public decimal DiscountPct { get; set; }
     public decimal? DiscountAmount { get; set; }
     public Guid? TaxRateId { get; set; }
+    public int CostTreatment { get; set; } = 1;
     public string? Notes { get; set; }
 }
 

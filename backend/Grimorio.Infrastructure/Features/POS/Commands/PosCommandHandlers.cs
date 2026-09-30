@@ -1301,13 +1301,17 @@ internal static class PosPromotionCommandHelper
         entity.PayQuantity = dto.PayQuantity;
         entity.Priority = dto.Priority;
 
-        ReconcileMenuItems(entity, validMenuItemIds, branchId);
-        ReconcileMenuCategories(entity, validMenuCategoryIds, branchId);
+        ReconcileMenuItems(db, entity, validMenuItemIds, branchId);
+        ReconcileMenuCategories(db, entity, validMenuCategoryIds, branchId);
 
         PromotionEngine.Validate(entity);
     }
 
-    private static void ReconcileMenuItems(Promotion entity, IReadOnlyCollection<Guid> requestedIds, Guid branchId)
+    private static void ReconcileMenuItems(
+        GrimorioDbContext db,
+        Promotion entity,
+        IReadOnlyCollection<Guid> requestedIds,
+        Guid branchId)
     {
         var requestedIdSet = requestedIds.ToHashSet();
 
@@ -1324,17 +1328,23 @@ internal static class PosPromotionCommandHelper
 
         foreach (var menuItemId in requestedIdSet)
         {
-            entity.MenuItems.Add(new PromotionMenuItem
+            var association = new PromotionMenuItem
             {
                 Id = Guid.NewGuid(),
                 BranchId = branchId,
                 PromotionId = entity.Id,
                 MenuItemId = menuItemId,
-            });
+            };
+            entity.MenuItems.Add(association);
+            db.PromotionMenuItems.Add(association);
         }
     }
 
-    private static void ReconcileMenuCategories(Promotion entity, IReadOnlyCollection<Guid> requestedIds, Guid branchId)
+    private static void ReconcileMenuCategories(
+        GrimorioDbContext db,
+        Promotion entity,
+        IReadOnlyCollection<Guid> requestedIds,
+        Guid branchId)
     {
         var requestedIdSet = requestedIds.ToHashSet();
 
@@ -1351,13 +1361,15 @@ internal static class PosPromotionCommandHelper
 
         foreach (var menuCategoryId in requestedIdSet)
         {
-            entity.MenuCategories.Add(new PromotionMenuCategory
+            var association = new PromotionMenuCategory
             {
                 Id = Guid.NewGuid(),
                 BranchId = branchId,
                 PromotionId = entity.Id,
                 MenuCategoryId = menuCategoryId,
-            });
+            };
+            entity.MenuCategories.Add(association);
+            db.PromotionMenuCategories.Add(association);
         }
     }
 

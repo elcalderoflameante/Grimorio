@@ -1573,17 +1573,18 @@ export interface UpdateSupplierDto extends CreateSupplierDto {
 }
 
 export type PurchaseStatus = 'Registrada' | 'Anulada';
+export type PurchaseItemCostTreatment = 'Inventory' | 'AllocateToInventory' | 'Expense';
 
 export interface PurchaseItemDto {
   id: string;
-  articleId: string;
+  articleId?: string;
   articleName: string;
   internalCode?: string;
   supplierMainCode?: string;
   supplierAuxCode?: string;
   supplierDescription?: string;
   additionalDetail?: string;
-  unitId: string;
+  unitId?: string;
   unitSymbol: string;
   inventoryQuantity?: number;
   inventoryUnitId?: string;
@@ -1597,6 +1598,8 @@ export interface PurchaseItemDto {
   taxRatePercentage?: number;
   taxAmount: number;
   totalPrice: number;
+  costTreatment: PurchaseItemCostTreatment;
+  allocatedCost: number;
   notes?: string;
 }
 
@@ -1642,8 +1645,8 @@ export interface PurchaseDto {
 }
 
 export interface PurchaseItemInputDto {
-  articleId: string;
-  unitId: string;
+  articleId?: string;
+  unitId?: string;
   supplierMainCode?: string;
   supplierAuxCode?: string;
   supplierDescription?: string;
@@ -1655,6 +1658,7 @@ export interface PurchaseItemInputDto {
   discountPct: number;
   discountAmount?: number;
   taxRateId?: string;
+  costTreatment: number;
   notes?: string;
 }
 
