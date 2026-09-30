@@ -387,6 +387,7 @@ internal static class PurchasesHelper
         var existingPurchase = await db.Purchases
             .AsNoTracking()
             .Where(x => x.BranchId == branchId &&
+                        !x.IsDeleted &&
                         x.AccessKey == accessKey &&
                         (!excludedPurchaseId.HasValue || x.Id != excludedPurchaseId.Value))
             .Select(x => new { x.Status, x.DocumentNumber })
