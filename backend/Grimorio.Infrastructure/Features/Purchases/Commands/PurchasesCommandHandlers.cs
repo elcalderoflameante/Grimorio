@@ -76,13 +76,17 @@ public class CreatePurchaseHandler : IRequestHandler<CreatePurchaseCommand, Purc
 
     public async Task<PurchaseDto> Handle(CreatePurchaseCommand req, CancellationToken ct)
     {
+        var normalizedAccessKey = PurchasesHelper.NormalizeAccessKey(req.AccessKey);
+        await PurchasesHelper.EnsureAccessKeyAvailableAsync(
+            _db, req.BranchId, normalizedAccessKey, excludedPurchaseId: null, ct);
+
         var purchase = new Purchase
         {
             Id = Guid.NewGuid(), BranchId = req.BranchId,
             DocumentType = (PurchaseDocumentType)req.DocumentType,
             DocumentNumber = req.DocumentNumber?.Trim(),
             DocumentDate = req.DocumentDate,
-            AccessKey = PurchasesHelper.NormalizeAccessKey(req.AccessKey),
+            AccessKey = normalizedAccessKey,
             AuthorizationNumber = req.AuthorizationNumber?.Trim(),
             AuthorizationDate = req.AuthorizationDate,
             Environment = req.Environment?.Trim(),
@@ -178,6 +182,10 @@ public class UpdatePurchaseHandler : IRequestHandler<UpdatePurchaseCommand, Purc
         if (purchase.Status != PurchaseStatus.Registrada)
             throw new InvalidOperationException("Solo se pueden modificar compras con estado Registrada.");
 
+        var normalizedAccessKey = PurchasesHelper.NormalizeAccessKey(req.AccessKey);
+        await PurchasesHelper.EnsureAccessKeyAvailableAsync(
+            _db, req.BranchId, normalizedAccessKey, purchase.Id, ct);
+
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
         // Reversar stock anterior
@@ -206,7 +214,7 @@ public class UpdatePurchaseHandler : IRequestHandler<UpdatePurchaseCommand, Purc
         purchase.DocumentType = (PurchaseDocumentType)req.DocumentType;
         purchase.DocumentNumber = req.DocumentNumber?.Trim();
         purchase.DocumentDate = req.DocumentDate;
-        purchase.AccessKey = PurchasesHelper.NormalizeAccessKey(req.AccessKey);
+        purchase.AccessKey = normalizedAccessKey;
         purchase.AuthorizationNumber = req.AuthorizationNumber?.Trim();
         purchase.AuthorizationDate = req.AuthorizationDate;
         purchase.Environment = req.Environment?.Trim();
@@ -364,6 +372,40 @@ internal static class PurchasesHelper
             ? null
             : new string(accessKey.Where(char.IsDigit).ToArray());
         return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
+    internal static async Task EnsureAccessKeyAvailableAsync(
+        GrimorioDbContext db,
+        Guid branchId,
+        string? accessKey,
+        Guid? excludedPurchaseId,
+        CancellationToken ct)
+    {
+        if (accessKey == null)
+            return;
+
+        var existingPurchase = await db.Purchases
+            .AsNoTracking()
+            .Where(x => x.BranchId == branchId &&
+                        x.AccessKey == accessKey &&
+                        (!excludedPurchaseId.HasValue || x.Id != excludedPurchaseId.Value))
+            .Select(x => new { x.Status, x.DocumentNumber })
+            .FirstOrDefaultAsync(ct);
+
+        if (existingPurchase == null)
+            return;
+
+        var document = string.IsNullOrWhiteSpace(existingPurchase.DocumentNumber)
+            ? "esta factura"
+            : $"la factura {existingPurchase.DocumentNumber}";
+
+        if (existingPurchase.Status == PurchaseStatus.Anulada)
+        {
+            throw new InvalidOperationException(
+                $"{document} ya existe como anulada. Elimina la compra anulada desde el listado y luego vuelve a registrarla.");
+        }
+
+        throw new InvalidOperationException($"{document} ya se encuentra registrada.");
     }
 
     internal static void ApplyFiscalExtras(Purchase purchase, decimal? ice, decimal? irbpnr, decimal? tip)

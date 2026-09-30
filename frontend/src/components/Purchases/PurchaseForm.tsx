@@ -410,7 +410,8 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
   };
 
   const handleSave = async () => {
-    const values = await form.validateFields();
+    const values = await form.validateFields().catch(() => null);
+    if (!values) return;
     if (items.length === 0) { message.warning('Agrega al menos un ítem'); return; }
     if (items.some(i => !i.articleId || !i.unitId)) { message.warning('Completa todos los ítems'); return; }
 
@@ -472,8 +473,9 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
         message.success('Compra registrada');
       }
       onSaved();
-    } catch {
-      message.error('Error al guardar la compra');
+    } catch (error) {
+      const apiError = error as { response?: { data?: { message?: string } } };
+      message.error(apiError.response?.data?.message ?? 'Error al guardar la compra');
     } finally {
       setSaving(false);
     }

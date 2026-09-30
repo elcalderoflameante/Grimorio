@@ -106,36 +106,43 @@ public class PurchasesController : ControllerBase
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized("BranchId no valido en el token.");
 
-        var result = await _mediator.Send(new CreatePurchaseCommand
+        try
         {
-            BranchId = branchId,
-            DocumentType = dto.DocumentType,
-            DocumentNumber = dto.DocumentNumber,
-            DocumentDate = dto.DocumentDate,
-            AccessKey = dto.AccessKey,
-            AuthorizationNumber = dto.AuthorizationNumber,
-            AuthorizationDate = dto.AuthorizationDate,
-            Environment = dto.Environment,
-            EmissionType = dto.EmissionType,
-            SupplierCommercialName = dto.SupplierCommercialName,
-            SupplierMatrixAddress = dto.SupplierMatrixAddress,
-            SupplierBranchAddress = dto.SupplierBranchAddress,
-            SupplierSpecialTaxpayerNumber = dto.SupplierSpecialTaxpayerNumber,
-            SupplierObligatedAccounting = dto.SupplierObligatedAccounting,
-            PaymentMethodSriCode = dto.PaymentMethodSriCode,
-            PaymentMethodName = dto.PaymentMethodName,
-            PaymentAmount = dto.PaymentAmount,
-            Ice = dto.Ice,
-            Irbpnr = dto.Irbpnr,
-            Tip = dto.Tip,
-            XmlFileUrl = dto.XmlFileUrl,
-            PdfFileUrl = dto.PdfFileUrl,
-            SupplierId = dto.SupplierId,
-            Notes = dto.Notes,
-            DestinationWarehouseId = dto.DestinationWarehouseId,
-            Items = dto.Items,
-        }, ct);
-        return Ok(result);
+            var result = await _mediator.Send(new CreatePurchaseCommand
+            {
+                BranchId = branchId,
+                DocumentType = dto.DocumentType,
+                DocumentNumber = dto.DocumentNumber,
+                DocumentDate = dto.DocumentDate,
+                AccessKey = dto.AccessKey,
+                AuthorizationNumber = dto.AuthorizationNumber,
+                AuthorizationDate = dto.AuthorizationDate,
+                Environment = dto.Environment,
+                EmissionType = dto.EmissionType,
+                SupplierCommercialName = dto.SupplierCommercialName,
+                SupplierMatrixAddress = dto.SupplierMatrixAddress,
+                SupplierBranchAddress = dto.SupplierBranchAddress,
+                SupplierSpecialTaxpayerNumber = dto.SupplierSpecialTaxpayerNumber,
+                SupplierObligatedAccounting = dto.SupplierObligatedAccounting,
+                PaymentMethodSriCode = dto.PaymentMethodSriCode,
+                PaymentMethodName = dto.PaymentMethodName,
+                PaymentAmount = dto.PaymentAmount,
+                Ice = dto.Ice,
+                Irbpnr = dto.Irbpnr,
+                Tip = dto.Tip,
+                XmlFileUrl = dto.XmlFileUrl,
+                PdfFileUrl = dto.PdfFileUrl,
+                SupplierId = dto.SupplierId,
+                Notes = dto.Notes,
+                DestinationWarehouseId = dto.DestinationWarehouseId,
+                Items = dto.Items,
+            }, ct);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
     }
 
     [Authorize(Policy = "Purchases.Orders.Update")]
@@ -144,36 +151,43 @@ public class PurchasesController : ControllerBase
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized("BranchId no valido en el token.");
 
-        var result = await _mediator.Send(new UpdatePurchaseCommand
+        try
         {
-            Id = id, BranchId = branchId,
-            DocumentType = dto.DocumentType,
-            DocumentNumber = dto.DocumentNumber,
-            DocumentDate = dto.DocumentDate,
-            AccessKey = dto.AccessKey,
-            AuthorizationNumber = dto.AuthorizationNumber,
-            AuthorizationDate = dto.AuthorizationDate,
-            Environment = dto.Environment,
-            EmissionType = dto.EmissionType,
-            SupplierCommercialName = dto.SupplierCommercialName,
-            SupplierMatrixAddress = dto.SupplierMatrixAddress,
-            SupplierBranchAddress = dto.SupplierBranchAddress,
-            SupplierSpecialTaxpayerNumber = dto.SupplierSpecialTaxpayerNumber,
-            SupplierObligatedAccounting = dto.SupplierObligatedAccounting,
-            PaymentMethodSriCode = dto.PaymentMethodSriCode,
-            PaymentMethodName = dto.PaymentMethodName,
-            PaymentAmount = dto.PaymentAmount,
-            Ice = dto.Ice,
-            Irbpnr = dto.Irbpnr,
-            Tip = dto.Tip,
-            XmlFileUrl = dto.XmlFileUrl,
-            PdfFileUrl = dto.PdfFileUrl,
-            SupplierId = dto.SupplierId,
-            Notes = dto.Notes,
-            DestinationWarehouseId = dto.DestinationWarehouseId,
-            Items = dto.Items,
-        }, ct);
-        return Ok(result);
+            var result = await _mediator.Send(new UpdatePurchaseCommand
+            {
+                Id = id, BranchId = branchId,
+                DocumentType = dto.DocumentType,
+                DocumentNumber = dto.DocumentNumber,
+                DocumentDate = dto.DocumentDate,
+                AccessKey = dto.AccessKey,
+                AuthorizationNumber = dto.AuthorizationNumber,
+                AuthorizationDate = dto.AuthorizationDate,
+                Environment = dto.Environment,
+                EmissionType = dto.EmissionType,
+                SupplierCommercialName = dto.SupplierCommercialName,
+                SupplierMatrixAddress = dto.SupplierMatrixAddress,
+                SupplierBranchAddress = dto.SupplierBranchAddress,
+                SupplierSpecialTaxpayerNumber = dto.SupplierSpecialTaxpayerNumber,
+                SupplierObligatedAccounting = dto.SupplierObligatedAccounting,
+                PaymentMethodSriCode = dto.PaymentMethodSriCode,
+                PaymentMethodName = dto.PaymentMethodName,
+                PaymentAmount = dto.PaymentAmount,
+                Ice = dto.Ice,
+                Irbpnr = dto.Irbpnr,
+                Tip = dto.Tip,
+                XmlFileUrl = dto.XmlFileUrl,
+                PdfFileUrl = dto.PdfFileUrl,
+                SupplierId = dto.SupplierId,
+                Notes = dto.Notes,
+                DestinationWarehouseId = dto.DestinationWarehouseId,
+                Items = dto.Items,
+            }, ct);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
     }
 
     [Authorize(Policy = "Purchases.Orders.Cancel")]
