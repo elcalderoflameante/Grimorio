@@ -84,7 +84,12 @@ export default function MenuItemsList() {
       form.setFieldsValue(item);
     } else {
       form.resetFields();
-      form.setFieldsValue({ isActive: true, availableForSale: true, price: 0 });
+      form.setFieldsValue({
+        isActive: true,
+        availableForSale: true,
+        price: 0,
+        saleVisibility: 'MenuAndPromotions',
+      });
     }
     await loadCatalogos();
     setModal(true);
@@ -191,6 +196,7 @@ export default function MenuItemsList() {
                 {item.name}
                 {!item.isActive && <Tag>Inactivo</Tag>}
                 {!item.availableForSale && <Tag color="orange">No disponible</Tag>}
+                {item.saleVisibility === 'PromotionsOnly' && <Tag color="magenta">Solo promociones</Tag>}
               </Space>
             ),
           },
@@ -337,9 +343,15 @@ export default function MenuItemsList() {
             </Space>
           </Form.Item>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) 130px minmax(170px, 1fr) minmax(170px, 1fr)', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) minmax(180px, 1fr) 130px', gap: 12 }}>
             <Form.Item name="menuCategoryId" label="Categoría" rules={[{ required: true }]} style={{ flex: 1 }}>
               <Select options={categoriaOptions} placeholder="Seleccionar" />
+            </Form.Item>
+            <Form.Item name="saleVisibility" label="Visibilidad de venta" rules={[{ required: true }]}>
+              <Select options={[
+                { value: 'MenuAndPromotions', label: 'Menú y promociones' },
+                { value: 'PromotionsOnly', label: 'Solo promociones' },
+              ]} />
             </Form.Item>
             <Form.Item
               name="price"
@@ -350,6 +362,8 @@ export default function MenuItemsList() {
             >
               <InputNumber style={{ width: '100%' }} min={0} step={0.01} prefix="$" />
             </Form.Item>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
             <Form.Item name="taxRateId" label="Tarifa de IVA">
             <Select
               options={taxRateOptions}

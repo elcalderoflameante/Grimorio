@@ -377,7 +377,9 @@ export default function PublicTableRequest() {
       }
 
       if (selectedCategoryId === PROMOTIONS_CATEGORY_ID) return [];
-      return menuItems.filter(item => !selectedCategoryId || item.menuCategoryId === selectedCategoryId);
+      return menuItems.filter(item =>
+        item.saleVisibility !== 'PromotionsOnly'
+        && (!selectedCategoryId || item.menuCategoryId === selectedCategoryId));
     },
     [menuItems, promotions, selectedCategoryId, selectedPromotionId],
   );
@@ -959,6 +961,7 @@ export default function PublicTableRequest() {
                     categoryName: '',
                     name: 'Carrito',
                     price: 0,
+                    saleVisibility: 'MenuAndPromotions',
                     isAvailable: true,
                     hasModifiers: false,
                     modifierGroups: [],

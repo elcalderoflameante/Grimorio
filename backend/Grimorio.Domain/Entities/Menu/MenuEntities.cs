@@ -3,6 +3,12 @@ using Grimorio.SharedKernel;
 
 namespace Grimorio.Domain.Entities.Menu;
 
+public enum MenuItemSaleVisibility
+{
+    MenuAndPromotions = 1,
+    PromotionsOnly = 2,
+}
+
 public class MenuCategory : BaseEntity
 {
     public string Name { get; set; } = string.Empty;
@@ -26,6 +32,7 @@ public class MenuItem : BaseEntity
     public decimal Price { get; set; }
     public bool IsActive { get; set; } = true;
     public bool AvailableForSale { get; set; } = true;
+    public MenuItemSaleVisibility SaleVisibility { get; set; } = MenuItemSaleVisibility.MenuAndPromotions;
     public Guid? StationId { get; set; }
     public Guid? TaxRateId { get; set; }
 

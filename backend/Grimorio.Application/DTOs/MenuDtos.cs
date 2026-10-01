@@ -39,6 +39,7 @@ public class MenuItemDto
     public decimal Price { get; set; }
     public bool IsActive { get; set; }
     public bool AvailableForSale { get; set; }
+    public string SaleVisibility { get; set; } = "MenuAndPromotions";
     public int TotalIngredients { get; set; }
     public Guid? StationId { get; set; }
     public string? StationName { get; set; }
@@ -87,6 +88,7 @@ public class CreateMenuItemDto
     public string? InternalCode { get; set; }
     public string? ImageUrl { get; set; }
     public decimal Price { get; set; }
+    public string SaleVisibility { get; set; } = "MenuAndPromotions";
     public Guid? StationId { get; set; }
     public Guid? TaxRateId { get; set; }
 }
@@ -101,6 +103,7 @@ public class UpdateMenuItemDto
     public decimal Price { get; set; }
     public bool IsActive { get; set; }
     public bool AvailableForSale { get; set; }
+    public string SaleVisibility { get; set; } = "MenuAndPromotions";
     public Guid? StationId { get; set; }
     public Guid? TaxRateId { get; set; }
 }

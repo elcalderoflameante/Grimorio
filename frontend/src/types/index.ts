@@ -807,6 +807,7 @@ export interface PublicMenuItemDto {
   description?: string;
   imageUrl?: string;
   price: number;
+  saleVisibility: MenuItemSaleVisibility;
   isAvailable: boolean;
   hasModifiers: boolean;
   modifierGroups: PublicMenuItemModifierGroupDto[];
@@ -1114,6 +1115,8 @@ export interface CreateMenuCategoryDto {
   costCenterId?: string;
 }
 
+export type MenuItemSaleVisibility = 'MenuAndPromotions' | 'PromotionsOnly';
+
 export interface MenuItemDto {
   id: string;
   menuCategoryId: string;
@@ -1126,6 +1129,7 @@ export interface MenuItemDto {
   price: number;
   isActive: boolean;
   availableForSale: boolean;
+  saleVisibility: MenuItemSaleVisibility;
   totalIngredients: number;
   stationId?: string;
   stationName?: string;
@@ -1211,6 +1215,7 @@ export interface CreateMenuItemDto {
   internalCode?: string;
   imageUrl?: string;
   price: number;
+  saleVisibility: MenuItemSaleVisibility;
   stationId?: string;
   taxRateId?: string;
 }

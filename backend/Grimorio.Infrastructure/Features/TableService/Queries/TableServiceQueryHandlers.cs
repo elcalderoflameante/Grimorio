@@ -192,7 +192,8 @@ public class GetPublicTableMenuQueryHandler : IRequestHandler<GetPublicTableMenu
         return new PublicTableMenuDto
         {
             Categories = categories
-                .Where(category => items.Any(item => item.MenuCategoryId == category.Id))
+                .Where(category => items.Any(item => item.MenuCategoryId == category.Id
+                    && item.SaleVisibility == MenuItemSaleVisibility.MenuAndPromotions))
                 .ToList(),
             Items = items.Select(item => new PublicMenuItemDto
             {
@@ -204,6 +205,7 @@ public class GetPublicTableMenuQueryHandler : IRequestHandler<GetPublicTableMenu
                 Description = item.Description,
                 ImageUrl = item.ImageUrl,
                 Price = item.Price,
+                SaleVisibility = item.SaleVisibility.ToString(),
                 IsAvailable = availability.MenuItems.GetValueOrDefault(item.Id, true),
                 HasModifiers = item.ModifierGroups.Any(g => !g.IsDeleted && g.IsActive),
                 ModifierGroups = item.ModifierGroups

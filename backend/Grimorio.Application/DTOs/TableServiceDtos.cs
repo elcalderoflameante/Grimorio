@@ -87,6 +87,7 @@ public class PublicMenuItemDto
     public string? Description { get; set; }
     public string? ImageUrl { get; set; }
     public decimal Price { get; set; }
+    public string SaleVisibility { get; set; } = "MenuAndPromotions";
     public bool IsAvailable { get; set; }
     public bool HasModifiers { get; set; }
     public List<PublicMenuItemModifierGroupDto> ModifierGroups { get; set; } = [];

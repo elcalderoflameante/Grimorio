@@ -1474,7 +1474,12 @@ internal static class PosMapper
         IReadOnlyList<Promotion> activePromotions)
     {
         if (!promotionId.HasValue)
+        {
+            if (menuItem.SaleVisibility == Grimorio.Domain.Entities.Menu.MenuItemSaleVisibility.PromotionsOnly)
+                throw new InvalidOperationException($"{menuItem.Name} solo puede venderse mediante una promocion activa.");
+
             return null;
+        }
 
         var promotion = activePromotions.FirstOrDefault(x => x.Id == promotionId.Value)
             ?? throw new InvalidOperationException("La promocion seleccionada ya no esta activa.");

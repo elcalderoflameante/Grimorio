@@ -85,6 +85,7 @@ public class CreateItemMenuHandler : IRequestHandler<CreateMenuItemCommand, Menu
             BranchId = req.BranchId, MenuCategoryId = req.MenuCategoryId,
             Name = req.Name, Description = req.Description,
             InternalCode = req.InternalCode, ImageUrl = req.ImageUrl, Price = req.Price,
+            SaleVisibility = MenuMapper.ParseSaleVisibility(req.SaleVisibility),
             StationId = req.StationId, TaxRateId = req.TaxRateId,
         };
         _db.MenuItems.Add(item);
@@ -114,6 +115,7 @@ public class UpdateItemMenuHandler : IRequestHandler<UpdateMenuItemCommand, Menu
         item.Description = req.Description; item.InternalCode = req.InternalCode;
         item.ImageUrl = req.ImageUrl; item.Price = req.Price; item.IsActive = req.IsActive;
         item.AvailableForSale = req.AvailableForSale;
+        item.SaleVisibility = MenuMapper.ParseSaleVisibility(req.SaleVisibility);
         item.StationId = req.StationId;
         item.TaxRateId = req.TaxRateId;
         await _db.SaveChangesAsync(ct);
@@ -486,6 +488,17 @@ public class UpsertMenuItemPreparationHandler : IRequestHandler<UpsertMenuItemPr
 
 internal static class MenuMapper
 {
+    internal static MenuItemSaleVisibility ParseSaleVisibility(string value)
+    {
+        if (!Enum.TryParse<MenuItemSaleVisibility>(value, true, out var visibility)
+            || !Enum.IsDefined(visibility))
+        {
+            throw new InvalidOperationException("La visibilidad de venta no es valida.");
+        }
+
+        return visibility;
+    }
+
     internal static MenuItemDto MapItem(MenuItem item, string categoryName, string? categoriaColor,
         int totalIngredients = 0, string? stationName = null,
         Grimorio.Domain.Entities.Billing.TaxRate? taxRate = null) =>
@@ -496,6 +509,7 @@ internal static class MenuMapper
             Name = item.Name, Description = item.Description,
             InternalCode = item.InternalCode, ImageUrl = item.ImageUrl, Price = item.Price,
             IsActive = item.IsActive, AvailableForSale = item.AvailableForSale,
+            SaleVisibility = item.SaleVisibility.ToString(),
             TotalIngredients = totalIngredients,
             StationId = item.StationId, StationName = stationName,
             TaxRateId = item.TaxRateId,

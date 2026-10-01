@@ -140,7 +140,8 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
           promotion.menuItemIds.includes(item.id) ||
           promotion.menuCategoryIds.includes(item.menuCategoryId));
       }
-      return items.filter(i => i.menuCategoryId === activeCategory);
+      return items.filter(i =>
+        i.menuCategoryId === activeCategory && i.saleVisibility !== 'PromotionsOnly');
     },
     [activeCategory, items, promotions, selectedPromotionId]
   );

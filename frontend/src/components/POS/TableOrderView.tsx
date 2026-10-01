@@ -698,8 +698,9 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         selectedPromotion.menuItemIds.includes(item.id) ||
         selectedPromotion.menuCategoryIds.includes(item.menuCategoryId))
     : activeCategory
-      ? menuItems.filter(i => i.menuCategoryId === activeCategory)
-      : menuItems;
+      ? menuItems.filter(i =>
+          i.menuCategoryId === activeCategory && i.saleVisibility !== 'PromotionsOnly')
+      : menuItems.filter(i => i.saleVisibility !== 'PromotionsOnly');
 
   const methodOptions = methods.map(m => ({
     value: m.id,
