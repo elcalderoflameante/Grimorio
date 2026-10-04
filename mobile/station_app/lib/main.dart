@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:grimorio_voice/grimorio_voice.dart';
+import 'services/auth_service.dart';
 import 'providers/station_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/station_picker_screen.dart';
@@ -38,6 +40,17 @@ class StationApp extends StatelessWidget {
           scaffoldBackgroundColor: const Color(0xFF1A1A2E),
         ),
         home: const _RootNavigator(),
+        builder: (context, child) {
+          final station = context.watch<StationProvider>();
+          if (station.appState != AppState.ready) return child!;
+          return VoiceShell(
+            key: ValueKey(station.voiceSessionIdentity),
+            apiBaseUrl: station.serverUrl,
+            readToken: AuthService().getToken,
+            onChannelBusy: station.setVoiceBusy,
+            child: child!,
+          );
+        },
       ),
     );
   }

@@ -4,6 +4,7 @@ import { App as AntApp, ConfigProvider, Spin } from 'antd';
 import esES from 'antd/locale/es_ES';
 import { useAuth } from './context/useAuth';
 import Login from './pages/Login';
+import RestaurantHome from './pages/RestaurantHome';
 import PublicTableRequest from './pages/PublicTableRequest';
 import { grimorioAppTheme } from './theme/grimorioTheme';
 import type { ReactNode } from 'react';
@@ -56,7 +57,7 @@ export default function App() {
             }
           />
 
-          <Route path="/" element={<Navigate to="/dashboard" />} />
+          <Route path="/" element={<RestaurantHome />} />
         </Routes>
       </BrowserRouter>
       </AntApp>

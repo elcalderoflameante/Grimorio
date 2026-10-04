@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.20+21
+version: 1.0.21+22
 
 environment:
   sdk: ^3.11.4
@@ -28,6 +28,8 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  grimorio_voice:
+    path: ../packages/grimorio_voice
   flutter:
     sdk: flutter
 
@@ -53,7 +55,7 @@ dependencies:
 
   # Local alerts (notification, vibration, voice)
   flutter_local_notifications: ^17.2.3
-  vibration: ^2.0.1
+  vibration: ^3.2.1
   flutter_tts: ^4.2.2
 
   # Firebase push notifications

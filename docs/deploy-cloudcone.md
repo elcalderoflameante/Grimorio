@@ -6,6 +6,11 @@ Esta configuracion deja tres servicios en el VPS:
 - `api`: ASP.NET Core 10 en `:8080` interno
 - `web`: Caddy sirviendo el frontend y proxyando `/api` y `/hubs`
 
+El walkie-talkie añade un cuarto servicio `livekit` con
+`deploy/cloudcone/docker-compose.voice.yml`. Si se habilita voz, seguir
+[Deploy walkie-talkie](deploy-walkie-talkie.md) y usar ambos archivos Compose en
+las actualizaciones; los comandos base de esta guía no mantienen el overlay.
+
 ## 1. Requisitos del VPS
 
 - Ubuntu 24.04 LTS recomendado

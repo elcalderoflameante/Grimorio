@@ -67,6 +67,8 @@ class StationProvider extends ChangeNotifier {
   }
 
   String get serverUrl => ApiConfig.baseUrl;
+  String get voiceSessionIdentity => _token;
+  void setVoiceBusy(bool busy) => _tts.setVoiceBusy(busy);
 
   bool get ttsEnabled => _tts.enabled;
   void setTtsEnabled(bool value) {

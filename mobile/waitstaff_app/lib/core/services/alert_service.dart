@@ -24,6 +24,25 @@ class AlertService {
 
   bool _initialized = false;
   Future<void> _speakChain = Future.value();
+  Completer<void>? _voiceIdle;
+  Future<void> _voiceStop = Future.value();
+  int _voiceEpoch = 0;
+
+  void setVoiceBusy(bool busy) {
+    if (busy && _voiceIdle == null) {
+      _voiceEpoch++;
+      _voiceIdle = Completer<void>();
+      _voiceStop = _voiceStop.then((_) async {
+        try {
+          await _tts.stop();
+        } catch (_) {}
+      });
+    } else if (!busy && _voiceIdle != null) {
+      _voiceIdle!.complete();
+      _voiceIdle = null;
+    }
+  }
+
   DateTime? _lastAlertAt;
   String? _lastAlertSignature;
 
@@ -150,7 +169,16 @@ class AlertService {
 
     _speakChain = _speakChain.then((_) async {
       try {
-        await _tts.speak(message);
+        while (true) {
+          await _voiceStop;
+          while (_voiceIdle != null) {
+            await _voiceIdle!.future;
+            await _voiceStop;
+          }
+          final epoch = _voiceEpoch;
+          await _tts.speak(message);
+          if (epoch == _voiceEpoch) break;
+        }
       } catch (e) {
         debugPrint('[AlertService] TTS error: $e');
       }

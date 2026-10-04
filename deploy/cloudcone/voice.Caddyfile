@@ -1,0 +1,6 @@
+{$VOICE_DOMAIN} {
+    # RoomService is only for the API over the internal Docker network.
+    @admin path /twirp/*
+    respond @admin 404
+    reverse_proxy livekit:7880
+}

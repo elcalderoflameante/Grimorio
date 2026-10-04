@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { App as AntApp, Layout, Menu, Dropdown, Avatar, Space, Drawer, Button, Breadcrumb, Grid, Badge, Alert } from 'antd';
+import WalkieTalkie from '../components/Voice/WalkieTalkie';
 import { UserOutlined,
   LogoutOutlined,
   HomeOutlined,
@@ -636,6 +637,7 @@ case 'pos-estaciones':
               <span>Sucursal: {branch?.name || '—'}</span>
             </Space>
             )}
+            <WalkieTalkie />
             <Dropdown menu={{ items: userMenu }} placement="bottomRight">
               <Space style={{ cursor: 'pointer' }}>
                 <Avatar icon={<UserOutlined />} />

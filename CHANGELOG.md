@@ -8,12 +8,15 @@ El formato se basa en Keep a Changelog y Versionado Semantico.
 
 ### Agregado
 
+- Walkie-talkie por sucursal en meseros, estaciones y panel web, con control de turnos, reconexión y coordinación de avisos TTS; servidor LiveKit propio mediante overlay Docker.
+- Portada pública del restaurante en `/`, con identidad visual, fotos, filtros de platos, contacto y redes; acceso interno conservado en `/login` y `/dashboard`.
 - Flujo en tiempo real para solicitudes publicas de mesa con SignalR.
 - Endpoint para solicitud activa por mesa en canal publico.
 - Estructura de documentacion por modulo (`docs/`, `backend/docs/`, `mobile/`).
 
 ### Cambiado
 
+- APK de producción de meseros `1.0.21+22` y estaciones `1.0.8+9`, disponibles desde el frontend. La voz requiere configurar y desplegar el servicio en el VPS.
 - Estandar de clientes HTTP en frontend a nomenclatura `*Api`.
 - Refactor de contexto de autenticacion (`AuthContext` + `useAuth`).
 - Actualizacion de documentacion principal (README raiz y README frontend).

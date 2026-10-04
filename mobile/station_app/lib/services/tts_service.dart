@@ -9,6 +9,32 @@ class TtsService {
   bool _processing = false;
   int _generation = 0;
   bool enabled = true;
+  bool _voiceBusy = false;
+  String? _current;
+  Future<void> _voiceChanges = Future.value();
+
+  void setVoiceBusy(bool busy) {
+    _voiceChanges = _voiceChanges
+        .then((_) async {
+          if (_voiceBusy == busy) return;
+          _voiceBusy = busy;
+          if (busy) {
+            _generation++;
+            if (_current != null) _queue.addFirst(_current!);
+            _current = null;
+            try {
+              await _tts.stop();
+            } finally {
+              _processing = false;
+            }
+          } else if (enabled && !_processing && _queue.isNotEmpty) {
+            _processQueue();
+          }
+        })
+        .catchError((Object error) {
+          debugPrint('[TTS] Voice coordination: $error');
+        });
+  }
 
   Future<void> init() async {
     // Intentar locale ecuatoriano; el motor de Google puede tener es-EC o caer en es-US.
@@ -35,19 +61,26 @@ class TtsService {
   void enqueue(String text) {
     if (!enabled || text.trim().isEmpty) return;
     _queue.add(text);
-    if (!_processing) _processQueue();
+    if (!_processing && !_voiceBusy) _processQueue();
   }
 
   Future<void> _processQueue() async {
     _processing = true;
     final generation = _generation;
     try {
-      while (_queue.isNotEmpty && enabled && generation == _generation) {
+      while (_queue.isNotEmpty &&
+          enabled &&
+          !_voiceBusy &&
+          generation == _generation) {
         final text = _queue.removeFirst();
+        _current = text;
         try {
           await _tts.speak(text);
+          if (generation == _generation) _current = null;
         } catch (e) {
           debugPrint('[TTS] No se pudo reproducir el aviso: $e');
+        } finally {
+          if (generation == _generation) _current = null;
         }
       }
     } finally {
@@ -58,6 +91,7 @@ class TtsService {
   Future<void> stop() async {
     _generation++;
     _queue.clear();
+    _current = null;
     try {
       await _tts.stop();
     } catch (e) {

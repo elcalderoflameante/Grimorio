@@ -1,3 +1,5 @@
+import /etc/caddy/optional/*.caddy
+
 {$APP_DOMAIN} {
     encode zstd gzip
 

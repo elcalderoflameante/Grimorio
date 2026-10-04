@@ -1,0 +1,32 @@
+# Optional overlay, one API instance and one LiveKit instance.
+services:
+  livekit:
+    image: livekit/livekit-server:v1.13.7
+    command: --config /etc/livekit.yaml
+    restart: unless-stopped
+    environment:
+      LIVEKIT_KEYS: "${VOICE_API_KEY:?Set VOICE_API_KEY}: ${VOICE_API_SECRET:?Set VOICE_API_SECRET}"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7881:7881/tcp"
+      - "7882:7882/udp"
+      - "3478:3478/udp"
+    mem_limit: ${VOICE_MEMORY_LIMIT:-512m}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  api:
+    environment:
+      Voice__Enabled: "true"
+      Voice__PublicUrl: "wss://${VOICE_DOMAIN:?Set VOICE_DOMAIN}"
+      Voice__InternalUrl: "http://livekit:7880"
+      Voice__ApiKey: "${VOICE_API_KEY}"
+      Voice__ApiSecret: "${VOICE_API_SECRET}"
+  web:
+    environment:
+      VOICE_DOMAIN: "${VOICE_DOMAIN}"
+    volumes:
+      - ./voice.Caddyfile:/etc/caddy/optional/voice.caddy:ro

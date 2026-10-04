@@ -20,6 +20,7 @@ using System.Text;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Grimorio.API.Hubs;
+using Grimorio.API.Services.Voice;
 
 // Carga variables de entorno desde .env (solo en desarrollo)
 var envCandidates = new[] { "../../.env", "../.env", ".env" };
@@ -107,7 +108,8 @@ builder.Services.AddAuthentication(options =>
             var path = context.HttpContext.Request.Path;
 
             if (!string.IsNullOrEmpty(accessToken)
-                && path.StartsWithSegments(AppConstants.Hubs.TableServicePath))
+                && (path.StartsWithSegments(AppConstants.Hubs.TableServicePath)
+                    || path.StartsWithSegments("/hubs/voice")))
             {
                 context.Token = accessToken;
             }
@@ -174,6 +176,10 @@ builder.Services.AddSingleton<IAuthorizationHandler, Grimorio.API.Authorization.
 // === Authorization policies ===
 builder.Services.AddAuthorization(options =>
 {
+    options.AddPolicy("Voice.Access", policy => policy.RequireAuthenticatedUser().RequireAssertion(context =>
+        context.User.IsInRole(AppConstants.Roles.Admin) ||
+        context.User.FindAll(AppConstants.Claims.Permissions).Any(c =>
+            c.Value == AppConstants.Permissions.PosOrdersView || c.Value == AppConstants.Permissions.PosKitchenView)));
     options.AddPolicy("AdminOnly", policy =>
         policy.RequireRole(AppConstants.Roles.Admin));
 
@@ -215,6 +221,11 @@ builder.Services.AddScoped<Grimorio.Infrastructure.Services.Email.IEmailService,
 
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
+builder.Services.Configure<VoiceOptions>(builder.Configuration.GetSection("Voice"));
+builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+builder.Services.AddSingleton<IVoiceMediaClient, LiveKitVoiceClient>();
+builder.Services.AddSingleton<VoiceChannelService>();
+builder.Services.AddHostedService<VoiceLeaseWorker>();
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<Grimorio.Application.Features.Auth.Commands.LoginUserCommandValidator>();
 builder.Services.AddEndpointsApiExplorer();
@@ -308,6 +319,7 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<TableServiceHub>(AppConstants.Hubs.TableServicePath);
 app.MapHub<KitchenHub>(AppConstants.Hubs.KitchenPath);
+app.MapHub<VoiceHub>("/hubs/voice", options => options.CloseOnAuthenticationExpiration = true);
 
 app.Run();
 

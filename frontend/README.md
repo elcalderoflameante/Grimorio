@@ -2,6 +2,15 @@
 
 Aplicacion web administrativa para operaciones internas de Grimorio.
 
+## Web pública del restaurante
+
+- `/`: portada de El Caldero Flameante, adaptable a móvil, con selección de platos, experiencia, micheladas y contacto.
+- `/login` y `/dashboard`: acceso interno existente. `/mesa/:token`: atención QR existente.
+- Contenido y contacto: `src/pages/restaurantContent.ts`. El horario queda vacío hasta confirmación. WhatsApp usa el prefijo de Ecuador; las redes usan el identificador facilitado por el propietario. El mapa utiliza el enlace directo de Google Maps facilitado por el propietario.
+- Fotos: `public/restaurant/`. Pueden reemplazarse conservando los nombres o actualizando sus referencias. El logo y tres fotos son copias de los originales del propietario. `costillas-retocadas.png` es una variante generada con imagegen; consultar `docs/restaurant-images.md` para su prompt.
+- Esta primera fase es visual: no incluye carrito, pagos ni envío de pedidos al ERP. Los enlaces sociales y de mapa requieren comprobación del propietario antes de publicar.
+- Ejecutar `npm run dev` y abrir la raíz para revisar. La publicación en el dominio y su configuración DNS no forman parte del cambio local.
+
 ## Stack
 
 - React 19
