@@ -70,6 +70,8 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
         {
             return await query
                 .OrderBy(x => x.Category!.Order)
+                .ThenBy(x => x.DisplayOrder == 0)
+                .ThenBy(x => x.DisplayOrder)
                 .ThenBy(x => x.Name)
                 .Select(x => new MenuItemDto
                 {
@@ -82,6 +84,7 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
                     InternalCode = x.InternalCode,
                     ImageUrl = x.ImageUrl,
                     Price = x.Price,
+                    DisplayOrder = x.DisplayOrder,
                     IsActive = x.IsActive,
                     AvailableForSale = x.AvailableForSale,
                     SaleVisibility = x.SaleVisibility.ToString(),
@@ -99,7 +102,10 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
 
         var items = await query
             .AsSplitQuery()
-            .OrderBy(x => x.Category!.Order).ThenBy(x => x.Name)
+            .OrderBy(x => x.Category!.Order)
+            .ThenBy(x => x.DisplayOrder == 0)
+            .ThenBy(x => x.DisplayOrder)
+            .ThenBy(x => x.Name)
             .ToListAsync(ct);
 
         return items.Select(x => new MenuItemDto
@@ -113,6 +119,7 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
             InternalCode = x.InternalCode,
             ImageUrl = x.ImageUrl,
             Price = x.Price,
+            DisplayOrder = x.DisplayOrder,
             IsActive = x.IsActive,
             AvailableForSale = x.AvailableForSale,
             SaleVisibility = x.SaleVisibility.ToString(),
@@ -172,6 +179,7 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
             InternalCode = item.InternalCode,
             ImageUrl = item.ImageUrl,
             Price = item.Price,
+            DisplayOrder = item.DisplayOrder,
             IsActive = item.IsActive,
             AvailableForSale = item.AvailableForSale,
             SaleVisibility = item.SaleVisibility.ToString(),
@@ -573,6 +581,8 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
 
         var orderedItemIds = await query
             .OrderBy(x => x.Category!.Order)
+            .ThenBy(x => x.DisplayOrder == 0)
+            .ThenBy(x => x.DisplayOrder)
             .ThenBy(x => x.Name)
             .Select(x => x.Id)
             .ToListAsync(ct);

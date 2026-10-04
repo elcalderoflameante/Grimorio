@@ -85,6 +85,7 @@ public class CreateItemMenuHandler : IRequestHandler<CreateMenuItemCommand, Menu
             BranchId = req.BranchId, MenuCategoryId = req.MenuCategoryId,
             Name = req.Name, Description = req.Description,
             InternalCode = req.InternalCode, ImageUrl = req.ImageUrl, Price = req.Price,
+            DisplayOrder = req.DisplayOrder,
             SaleVisibility = MenuMapper.ParseSaleVisibility(req.SaleVisibility),
             StationId = req.StationId, TaxRateId = req.TaxRateId,
         };
@@ -114,6 +115,7 @@ public class UpdateItemMenuHandler : IRequestHandler<UpdateMenuItemCommand, Menu
         item.MenuCategoryId = req.MenuCategoryId; item.Name = req.Name;
         item.Description = req.Description; item.InternalCode = req.InternalCode;
         item.ImageUrl = req.ImageUrl; item.Price = req.Price; item.IsActive = req.IsActive;
+        item.DisplayOrder = req.DisplayOrder;
         item.AvailableForSale = req.AvailableForSale;
         item.SaleVisibility = MenuMapper.ParseSaleVisibility(req.SaleVisibility);
         item.StationId = req.StationId;
@@ -508,6 +510,7 @@ internal static class MenuMapper
             CategoryName = categoryName, CategoryColor = categoriaColor,
             Name = item.Name, Description = item.Description,
             InternalCode = item.InternalCode, ImageUrl = item.ImageUrl, Price = item.Price,
+            DisplayOrder = item.DisplayOrder,
             IsActive = item.IsActive, AvailableForSale = item.AvailableForSale,
             SaleVisibility = item.SaleVisibility.ToString(),
             TotalIngredients = totalIngredients,

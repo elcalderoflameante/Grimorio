@@ -169,6 +169,8 @@ public class GetPublicTableMenuQueryHandler : IRequestHandler<GetPublicTableMenu
                 !x.Category.IsDeleted)
             .AsSplitQuery()
             .OrderBy(x => x.Category!.Order)
+            .ThenBy(x => x.DisplayOrder == 0)
+            .ThenBy(x => x.DisplayOrder)
             .ThenBy(x => x.Name)
             .ToListAsync(cancellationToken);
 
@@ -205,6 +207,7 @@ public class GetPublicTableMenuQueryHandler : IRequestHandler<GetPublicTableMenu
                 Description = item.Description,
                 ImageUrl = item.ImageUrl,
                 Price = item.Price,
+                DisplayOrder = item.DisplayOrder,
                 SaleVisibility = item.SaleVisibility.ToString(),
                 IsAvailable = availability.MenuItems.GetValueOrDefault(item.Id, true),
                 HasModifiers = item.ModifierGroups.Any(g => !g.IsDeleted && g.IsActive),

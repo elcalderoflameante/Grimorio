@@ -807,6 +807,7 @@ export interface PublicMenuItemDto {
   description?: string;
   imageUrl?: string;
   price: number;
+  displayOrder: number;
   saleVisibility: MenuItemSaleVisibility;
   isAvailable: boolean;
   hasModifiers: boolean;
@@ -1127,6 +1128,7 @@ export interface MenuItemDto {
   internalCode?: string;
   imageUrl?: string;
   price: number;
+  displayOrder: number;
   isActive: boolean;
   availableForSale: boolean;
   saleVisibility: MenuItemSaleVisibility;
@@ -1215,6 +1217,7 @@ export interface CreateMenuItemDto {
   internalCode?: string;
   imageUrl?: string;
   price: number;
+  displayOrder: number;
   saleVisibility: MenuItemSaleVisibility;
   stationId?: string;
   taxRateId?: string;

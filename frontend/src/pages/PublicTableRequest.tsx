@@ -961,6 +961,7 @@ export default function PublicTableRequest() {
                     categoryName: '',
                     name: 'Carrito',
                     price: 0,
+                    displayOrder: 0,
                     saleVisibility: 'MenuAndPromotions',
                     isAvailable: true,
                     hasModifiers: false,

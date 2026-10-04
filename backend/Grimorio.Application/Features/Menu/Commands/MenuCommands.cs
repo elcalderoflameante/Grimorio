@@ -44,6 +44,7 @@ public class CreateMenuItemCommand : IRequest<MenuItemDto>
     public string? InternalCode { get; set; }
     public string? ImageUrl { get; set; }
     public decimal Price { get; set; }
+    public int DisplayOrder { get; set; }
     public string SaleVisibility { get; set; } = "MenuAndPromotions";
     public Guid? StationId { get; set; }
     public Guid? TaxRateId { get; set; }
@@ -59,6 +60,7 @@ public class UpdateMenuItemCommand : IRequest<MenuItemDto>
     public string? InternalCode { get; set; }
     public string? ImageUrl { get; set; }
     public decimal Price { get; set; }
+    public int DisplayOrder { get; set; }
     public bool IsActive { get; set; }
     public bool AvailableForSale { get; set; }
     public string SaleVisibility { get; set; } = "MenuAndPromotions";

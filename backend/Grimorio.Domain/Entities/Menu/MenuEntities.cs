@@ -30,6 +30,7 @@ public class MenuItem : BaseEntity
     public string? InternalCode { get; set; }
     public string? ImageUrl { get; set; }
     public decimal Price { get; set; }
+    public int DisplayOrder { get; set; }
     public bool IsActive { get; set; } = true;
     public bool AvailableForSale { get; set; } = true;
     public MenuItemSaleVisibility SaleVisibility { get; set; } = MenuItemSaleVisibility.MenuAndPromotions;

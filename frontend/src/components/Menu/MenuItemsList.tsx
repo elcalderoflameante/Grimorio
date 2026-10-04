@@ -88,6 +88,7 @@ export default function MenuItemsList() {
         isActive: true,
         availableForSale: true,
         price: 0,
+        displayOrder: 0,
         saleVisibility: 'MenuAndPromotions',
       });
     }
@@ -214,6 +215,7 @@ export default function MenuItemsList() {
             title: 'Precio', dataIndex: 'price', key: 'precio', width: 100,
             render: (v: number) => `$${v.toFixed(2)}`,
           },
+          { title: 'Orden', dataIndex: 'displayOrder', key: 'displayOrder', width: 75, align: 'center' },
           {
             title: 'Estación', key: 'estacion', width: 120,
             render: (_: unknown, item: MenuItemDto) =>
@@ -363,7 +365,15 @@ export default function MenuItemsList() {
               <InputNumber style={{ width: '100%' }} min={0} step={0.01} prefix="$" />
             </Form.Item>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '130px repeat(2, minmax(0, 1fr))', gap: 12 }}>
+            <Form.Item
+              name="displayOrder"
+              label="Orden en menú"
+              tooltip="Usa 1, 2, 3... Los ítems con orden 0 quedan después, ordenados alfabéticamente."
+              rules={[{ required: true }]}
+            >
+              <InputNumber style={{ width: '100%' }} min={0} precision={0} />
+            </Form.Item>
             <Form.Item name="taxRateId" label="Tarifa de IVA">
             <Select
               options={taxRateOptions}
