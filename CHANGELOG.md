@@ -18,7 +18,7 @@ El formato se basa en Keep a Changelog y Versionado Semantico.
 ### Cambiado
 
 - Separación por dominio: la raíz de `erp` dirige a login o dashboard según la sesión, mientras el dominio público muestra la portada del restaurante.
-- APK de producción de meseros `1.0.21+22` y estaciones `1.0.8+9`, disponibles desde el frontend. La voz requiere configurar y desplegar el servicio en el VPS.
+- APK de producción de meseros `1.0.22+23` y estaciones `1.0.9+10`, disponibles desde el frontend. Incluyen botón físico opcional y sonidos del walkie; la voz requiere configurar y desplegar el servicio en el VPS.
 - Estandar de clientes HTTP en frontend a nomenclatura `*Api`.
 - Refactor de contexto de autenticacion (`AuthContext` + `useAuth`).
 - Actualizacion de documentacion principal (README raiz y README frontend).

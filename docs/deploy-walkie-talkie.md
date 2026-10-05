@@ -6,8 +6,8 @@ El despliegue base continúa funcionando sin el overlay de voz.
 
 ## Publicación de esta versión
 
-- Meseros: `1.0.21+22`, `/downloads/grimorio-meseros.apk`.
-- Estaciones: `1.0.8+9`, `/downloads/grimorio-estaciones.apk`.
+- Meseros: `1.0.22+23`, `/downloads/grimorio-meseros.apk`.
+- Estaciones: `1.0.9+10`, `/downloads/grimorio-estaciones.apk`.
 - Ambas APK usan `https://erp.elcalderoflameante.com/api` y sus firmas existentes.
 - Incluye la portada pública pendiente del restaurante en `/`; el ERP continúa
   en `/login` y `/dashboard`.
