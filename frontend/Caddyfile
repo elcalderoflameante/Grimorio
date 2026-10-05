@@ -25,3 +25,7 @@ import /etc/caddy/optional/*.caddy
 {$PUBLIC_DOMAIN} {
     import grimorio_frontend
 }
+
+{$PUBLIC_WWW_DOMAIN} {
+    redir https://{$PUBLIC_DOMAIN}{uri} permanent
+}

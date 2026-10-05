@@ -66,8 +66,9 @@ services:
     depends_on:
       - api
     environment:
-      APP_DOMAIN: ${APP_DOMAIN}
-      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN}
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN}
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:?Set PUBLIC_DOMAIN}
+      PUBLIC_WWW_DOMAIN: ${PUBLIC_WWW_DOMAIN:?Set PUBLIC_WWW_DOMAIN}
     ports:
       - "80:80"
       - "443:443"

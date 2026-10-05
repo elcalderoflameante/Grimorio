@@ -22,7 +22,7 @@ las actualizaciones; los comandos base de esta guía no mantienen el overlay.
 ## 2. Preparar secretos y variables
 
 1. Copia `deploy/cloudcone/.env.example` a `deploy/cloudcone/.env`
-2. Ajusta `APP_DOMAIN`, `PUBLIC_DOMAIN`, `VITE_ERP_APP_URL`, `VITE_PUBLIC_APP_URL`, `CORS_ALLOWED_ORIGINS`, credenciales de DB, JWT, usuario admin inicial y `ALEXA_KITCHEN_COMMAND_KEY`. Para separar el sistema de la portada usa, por ejemplo, `APP_DOMAIN=erp.elcalderoflameante.com`, `PUBLIC_DOMAIN=elcalderoflameante.com`, `VITE_ERP_APP_URL=https://erp.elcalderoflameante.com` y `VITE_PUBLIC_APP_URL=https://elcalderoflameante.com`.
+2. Ajusta `APP_DOMAIN`, `PUBLIC_DOMAIN`, `PUBLIC_WWW_DOMAIN`, `VITE_ERP_APP_URL`, `VITE_PUBLIC_APP_URL`, `CORS_ALLOWED_ORIGINS`, credenciales de DB, JWT, usuario admin inicial y `ALEXA_KITCHEN_COMMAND_KEY`. Para separar el sistema de la portada usa, por ejemplo, `APP_DOMAIN=erp.elcalderoflameante.com`, `PUBLIC_DOMAIN=elcalderoflameante.com`, `PUBLIC_WWW_DOMAIN=www.elcalderoflameante.com`, `VITE_ERP_APP_URL=https://erp.elcalderoflameante.com` y `VITE_PUBLIC_APP_URL=https://elcalderoflameante.com`. Cada variable de dominio debe contener un solo host, sin comas; `www` se redirige al dominio público principal.
 3. Coloca tu Firebase Admin SDK en `backend/secrets/firebase-adminsdk.json`
 4. Mantén `DATA_PROTECTION_KEYS_PATH=/app/keys`; las llaves se guardan en un volumen persistente y no en `backend/secrets`
 
