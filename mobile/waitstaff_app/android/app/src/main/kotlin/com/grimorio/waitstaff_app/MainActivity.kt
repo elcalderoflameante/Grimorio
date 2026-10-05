@@ -5,11 +5,15 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.view.WindowManager
+import android.view.KeyEvent
+import com.grimorio.voice.GrimorioVoicePlugin
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean =
+        GrimorioVoicePlugin.dispatchKeyEvent(event) || super.dispatchKeyEvent(event)
 	private val overlayChannelName = "grimorio/overlay_bubble"
 	private val screenAwakeChannelName = "grimorio/screen_awake"
 

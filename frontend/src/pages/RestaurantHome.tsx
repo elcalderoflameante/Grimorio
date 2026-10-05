@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { restaurantContact as contact, restaurantDishes } from './restaurantContent';
 import './RestaurantHome.css';
 
 const categories = ['Todo', 'Parrilla', 'Bebidas'];
+const staffLoginUrl = `${((import.meta.env.VITE_ERP_APP_URL as string | undefined) ?? '').replace(/\/$/, '')}/login`;
 
 export default function RestaurantHome() {
   const [category, setCategory] = useState('Todo');
@@ -93,7 +93,7 @@ export default function RestaurantHome() {
           ) : <a className="caldero-button" href="#sabores">Encuentra tu próximo antojo <span aria-hidden="true">↑</span></a>}
         </section>
       </main>
-      <footer className="caldero-footer"><a href="#inicio"><img src="/restaurant/logo.png" alt="El Caldero Flameante" width="130" height="91" loading="lazy" /></a><p>Magia, fuego y buena comida.<br /><span>© {new Date().getFullYear()} El Caldero Flameante</span></p><Link to="/login">Acceso del personal <span aria-hidden="true">↗</span></Link></footer>
+      <footer className="caldero-footer"><a href="#inicio"><img src="/restaurant/logo.png" alt="El Caldero Flameante" width="130" height="91" loading="lazy" /></a><p>Magia, fuego y buena comida.<br /><span>© {new Date().getFullYear()} El Caldero Flameante</span></p><a href={staffLoginUrl}>Acceso del personal <span aria-hidden="true">↗</span></a></footer>
     </div>
   );
 }

@@ -11,6 +11,51 @@ import type { ReactNode } from 'react';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 
+const configuredErpHost = (() => {
+  const value = import.meta.env.VITE_ERP_APP_URL as string | undefined;
+  if (!value) return null;
+  try {
+    return new URL(value).host.toLowerCase();
+  } catch {
+    return null;
+  }
+})();
+
+function isErpHost() {
+  const currentHost = window.location.host.toLowerCase();
+  return configuredErpHost
+    ? currentHost === configuredErpHost
+    : window.location.hostname.toLowerCase().startsWith('erp.');
+}
+
+function FullPageSpinner() {
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: '100vh',
+    }}>
+      <Spin size="large" />
+    </div>
+  );
+}
+
+function RootRoute() {
+  const { token, loading } = useAuth();
+
+  if (!isErpHost()) return <RestaurantHome />;
+  if (loading) return <FullPageSpinner />;
+  return <Navigate to={token ? '/dashboard' : '/login'} replace />;
+}
+
+function LoginRoute() {
+  const { token, loading } = useAuth();
+
+  if (loading) return <FullPageSpinner />;
+  return token ? <Navigate to="/dashboard" replace /> : <Login />;
+}
+
 interface ProtectedRouteProps {
   children: ReactNode;
 }
@@ -20,16 +65,7 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { token, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-      }}>
-        <Spin size="large" />
-      </div>
-    );
+    return <FullPageSpinner />;
   }
 
   if (!token) {
@@ -45,7 +81,7 @@ export default function App() {
       <AntApp>
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={<Login />} />
+          <Route path="/login" element={<LoginRoute />} />
           <Route path="/mesa/:token" element={<PublicTableRequest />} />
           
           <Route
@@ -57,7 +93,7 @@ export default function App() {
             }
           />
 
-          <Route path="/" element={<RestaurantHome />} />
+          <Route path="/" element={<RootRoute />} />
         </Routes>
       </BrowserRouter>
       </AntApp>

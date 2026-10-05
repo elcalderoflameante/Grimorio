@@ -4,6 +4,7 @@ import 'package:flutter_background/flutter_background.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:signalr_netcore/signalr_client.dart';
+import 'voice_controls.dart';
 
 /// One authenticated voice session for the entire app, including pushed routes.
 class VoiceShell extends StatefulWidget {
@@ -27,6 +28,34 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
   Room? _room;
   EventsListener<RoomEvent>? _events;
   Timer? _retry, _heartbeat, _maximum;
+  Timer? _buttonHeartbeat;
+  final _controls = VoiceControls();
+  int? _hardwareId;
+  int _pressSequence = 0;
+  Future<void>? _stopping;
+  bool _cueBusy = false;
+  bool _controlsOpen = false;
+
+  void _notifyAudioBusy() => widget.onChannelBusy?.call(
+    !_closing &&
+        (_speaker != null ||
+            _acquiring ||
+            _speaking ||
+            _stopping != null ||
+            _cueBusy),
+  );
+
+  Future<void> _playCue(String kind) async {
+    _cueBusy = true;
+    _notifyAudioBusy();
+    try {
+      await _controls.tone(kind);
+    } finally {
+      _cueBusy = false;
+      _notifyAudioBusy();
+    }
+  }
+
   bool _enabled = false, _connected = false, _speaking = false;
   bool _held = false, _acquiring = false, _renewing = false, _closing = false;
   bool _activating = false, _deactivating = false;
@@ -39,6 +68,16 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _controls.listen((down, id) {
+      if (down) {
+        if (_hardwareId == null && !_held && !_acquiring && _stopping == null) {
+          unawaited(_talk(hardwareId: id));
+        }
+      } else if (_hardwareId == id) {
+        unawaited(_stopTalking());
+      }
+    });
+    unawaited(_controls.refresh());
   }
 
   void _update(VoidCallback update) {
@@ -47,7 +86,11 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) unawaited(_stopTalking());
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_controls.refresh());
+    } else if (_hardwareId == null || state == AppLifecycleState.detached) {
+      unawaited(_stopTalking());
+    }
   }
 
   @override
@@ -56,6 +99,9 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
     _closing = true;
     _enabled = false;
     _retry?.cancel();
+    _buttonHeartbeat?.cancel();
+    unawaited(_controls.arm(false));
+    _controls.dispose();
     unawaited(_teardown(disableBackground: true));
     super.dispose();
   }
@@ -162,6 +208,17 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
         _connected = true;
         _status = 'Escuchando · canal general';
       });
+      await _controls.arm(!_controlsOpen);
+      if (generation != _generation || _closing || !_enabled) {
+        await _controls.arm(false);
+        return;
+      }
+      _buttonHeartbeat?.cancel();
+      _buttonHeartbeat = Timer.periodic(const Duration(seconds: 2), (_) {
+        unawaited(
+          _controls.arm(_enabled && _connected && !_closing && !_controlsOpen),
+        );
+      });
     } catch (_) {
       if (generation != _generation) return;
       if (recovering && _enabled && !_closing) {
@@ -185,25 +242,46 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
       _speaker = speaker?['name'] as String?;
       _count = (state['participants'] as List).length;
     });
-    widget.onChannelBusy?.call(speaker != null);
+    _notifyAudioBusy();
     if (_lease != null &&
         (state['leaseId'] != _lease || speaker?['identity'] != _identity))
       unawaited(_stopTalking());
   }
 
-  Future<void> _talk() async {
-    if (!_enabled || _closing || !_connected || _acquiring || _lease != null)
+  Future<void> _talk({int? hardwareId}) async {
+    if (_controlsOpen ||
+        !_enabled ||
+        _closing ||
+        !_connected ||
+        _acquiring ||
+        _lease != null ||
+        _stopping != null ||
+        _held)
       return;
+    _hardwareId = hardwareId;
     _held = true;
     _acquiring = true;
+    _notifyAudioBusy();
+    final press = ++_pressSequence;
     final hub = _hub!, room = _room!, generation = _generation;
+    Future<bool> stillHeld() async =>
+        _held &&
+        press == _pressSequence &&
+        generation == _generation &&
+        (hardwareId == null || await _controls.isHeld(hardwareId)) &&
+        _held &&
+        press == _pressSequence &&
+        generation == _generation;
     try {
+      if (!await stillHeld()) return;
       final lease = await hub.invoke('Acquire') as String?;
       if (lease == null) {
+        if (!await stillHeld()) return;
         _update(() => _status = 'Canal ocupado. Espera tu turno.');
+        await _playCue('busy');
         return;
       }
-      if (!_held || generation != _generation) {
+      if (!await stillHeld()) {
         await hub.invoke('Release', args: [lease]);
         return;
       }
@@ -215,11 +293,14 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
       ) {
         await Future<void>.delayed(const Duration(milliseconds: 100));
       }
-      if (!_held || _lease != lease || generation != _generation) return;
+      if (!await stillHeld() || _lease != lease) return;
       if (room.localParticipant?.permissions.canPublish != true)
         throw StateError('Micrófono no habilitado');
+      // The cue finishes before opening capture so it is not sent to the channel.
+      await _playCue('start');
+      if (!await stillHeld() || _lease != lease) return;
       await room.localParticipant!.setMicrophoneEnabled(true);
-      if (!_held || _lease != lease || generation != _generation) {
+      if (!await stillHeld() || _lease != lease) {
         await room.localParticipant!.setMicrophoneEnabled(false);
         return;
       }
@@ -236,51 +317,77 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
         () => unawaited(_stopTalking()),
       );
     } catch (_) {
-      await _stopTalking();
-      _update(
-        () => _status =
-            'No se pudo transmitir. Revisa el micrófono y la conexión.',
-      );
+      if (generation == _generation && press == _pressSequence) {
+        await _stopTalking();
+        await _playCue('busy');
+        _update(
+          () => _status =
+              'No se pudo transmitir. Revisa el micrófono y la conexión.',
+        );
+      }
     } finally {
       _acquiring = false;
+      if (press == _pressSequence && !_speaking) await _stopTalking();
+      _notifyAudioBusy();
     }
   }
 
   Future<void> _renew() async {
     if (_renewing || _lease == null) return;
+    final lease = _lease, generation = _generation;
     _renewing = true;
     try {
-      if (await _hub?.invoke('Renew', args: [_lease!]) != true)
+      final hardwareId = _hardwareId;
+      final held = hardwareId == null || await _controls.isHeld(hardwareId);
+      if (lease != _lease || generation != _generation) return;
+      final renewed =
+          held && await _hub?.invoke('Renew', args: [lease!]) == true;
+      if (!renewed && lease == _lease && generation == _generation)
         await _stopTalking();
     } catch (_) {
-      await _stopTalking();
+      if (lease == _lease && generation == _generation) await _stopTalking();
     } finally {
       _renewing = false;
     }
   }
 
-  Future<void> _stopTalking() async {
+  Future<void> _stopTalking() {
+    return _stopping ??= _finishTalking().whenComplete(() {
+      _stopping = null;
+      _notifyAudioBusy();
+    });
+  }
+
+  Future<void> _finishTalking() async {
+    ++_pressSequence;
     _held = false;
+    _hardwareId = null;
     _heartbeat?.cancel();
     _maximum?.cancel();
     final lease = _lease;
+    final room = _room, hub = _hub;
+    final wasSpeaking = _speaking;
     _lease = null;
     _update(() => _speaking = false);
+    await _controls.cancel();
     try {
-      await _room?.localParticipant?.setMicrophoneEnabled(false);
+      await room?.localParticipant?.setMicrophoneEnabled(false);
     } catch (_) {
       try {
-        await _room?.disconnect();
+        await room?.disconnect();
       } catch (_) {}
     }
     if (lease != null) {
       try {
-        await _hub?.invoke('Release', args: [lease]);
+        await hub?.invoke('Release', args: [lease]);
       } catch (_) {
         /* The server expires the lease and revokes publishing. */
       }
     }
-    if (_connected) _update(() => _status = 'Escuchando · canal general');
+    if (wasSpeaking && _connected && _enabled && !_closing)
+      await _playCue('end');
+    if (_connected && (wasSpeaking || lease != null))
+      _update(() => _status = 'Escuchando · canal general');
   }
 
   Future<void> _teardown({bool disableBackground = false}) {
@@ -291,6 +398,8 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
   }
 
   Future<void> _cleanupSession(bool disableBackground) async {
+    _buttonHeartbeat?.cancel();
+    await _controls.arm(false);
     await _stopTalking();
     final room = _room, hub = _hub, events = _events;
     _room = null;
@@ -341,6 +450,79 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _showControls() async {
+    if (_controlsOpen) return;
+    _controlsOpen = true;
+    await _controls.arm(false);
+    await _stopTalking();
+    await _controls.refresh();
+    if (!mounted || _closing) {
+      _controlsOpen = false;
+      return;
+    }
+    var volume = _controls.volume, sounds = _controls.sounds;
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Botón y sonidos del walkie'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Hablar con volumen arriba'),
+                    subtitle: const Text(
+                      'Mantén para hablar y suelta para terminar. Con el canal activo, este botón deja de subir el volumen.',
+                    ),
+                    value: volume,
+                    onChanged: (value) => setDialogState(() => volume = value),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Sonidos de walkie-talkie'),
+                    subtitle: const Text(
+                      'Inicio, fin y canal ocupado. Empieza a hablar cuando termine el tono.',
+                    ),
+                    value: sounds,
+                    onChanged: (value) => setDialogState(() => sounds = value),
+                  ),
+                  const Text(
+                    'Para usar el botón fuera de la app, habilita «Grimorio · botón del walkie-talkie» en Accesibilidad. Solo procesa el botón; no lee la pantalla. Con pantalla apagada depende del teléfono y requiere una prueba.',
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      await _controls.openAccessibility();
+                    },
+                    child: const Text('Abrir Accesibilidad'),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  await _controls.save(volume, sounds);
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                },
+                child: const Text('Guardar'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      _controlsOpen = false;
+      await _controls.arm(_connected && _enabled && !_closing);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Column(
     children: [
@@ -373,6 +555,12 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
                     style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ),
+                if (_controls.supported)
+                  IconButton(
+                    tooltip: 'Botón y sonidos del walkie',
+                    onPressed: () => unawaited(_showControls()),
+                    icon: const Icon(Icons.tune, color: Colors.white70),
+                  ),
                 if (_connected)
                   Semantics(
                     label: 'Mantener presionado para hablar',

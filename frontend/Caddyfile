@@ -1,6 +1,6 @@
 import /etc/caddy/optional/*.caddy
 
-{$APP_DOMAIN} {
+(grimorio_frontend) {
     encode zstd gzip
 
     handle /api* {
@@ -16,4 +16,12 @@ import /etc/caddy/optional/*.caddy
         try_files {path} /index.html
         file_server
     }
+}
+
+{$APP_DOMAIN} {
+    import grimorio_frontend
+}
+
+{$PUBLIC_DOMAIN} {
+    import grimorio_frontend
 }
