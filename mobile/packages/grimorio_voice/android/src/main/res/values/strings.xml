@@ -1,4 +1,4 @@
 <resources>
     <string name="grimorio_ptt_label">Grimorio · botón del walkie-talkie</string>
-    <string name="grimorio_ptt_description">Permite mantener volumen arriba para hablar con el walkie activo fuera de la app. Solo procesa ese botón; no lee pantallas ni escribe o pulsa por ti. Con pantalla apagada depende del teléfono. Actívalo únicamente en la app de Grimorio que uses para hablar.</string>
+    <string name="grimorio_ptt_description">Permite mantener volumen arriba para hablar con el walkie activo mientras la pantalla está encendida, incluso fuera de la app. Solo procesa ese botón; no lee pantallas ni escribe o pulsa por ti.</string>
 </resources>

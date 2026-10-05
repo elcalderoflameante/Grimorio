@@ -1,6 +1,6 @@
 package com.grimorio.voice
 
-/** A release or timeout requires a fresh DOWN; repeats can never reopen the microphone. */
+/** A release or maximum transmission timeout requires a fresh DOWN. */
 internal class PttKeyGate {
     var held = false
         private set
@@ -8,7 +8,6 @@ internal class PttKeyGate {
         private set
     private var consumed = false
     private var startedAt = 0L
-    private var lastEventAt = 0L
 
     fun down(armed: Boolean, repeat: Boolean, now: Long): Boolean {
         if (!repeat) {
@@ -21,7 +20,6 @@ internal class PttKeyGate {
             pressId++
             startedAt = now
         }
-        if (consumed) lastEventAt = now
         return consumed
     }
 
@@ -35,7 +33,9 @@ internal class PttKeyGate {
     fun cancel() { held = false }
 
     fun isHeld(id: Long, now: Long): Boolean {
-        if (now - lastEventAt > 1500 || now - startedAt >= 28000) held = false
+        // Some Android vendors send only the initial DOWN and the final UP,
+        // without repeat events while the physical key remains pressed.
+        if (now - startedAt >= 28000) held = false
         return held && id == pressId
     }
 }

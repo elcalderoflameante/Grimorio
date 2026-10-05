@@ -29,14 +29,22 @@ class PttKeyGateTest {
         gate.down(true, false, 600)
         assertTrue(gate.isHeld(gate.pressId, 600))
     }
-    @Test fun missingReleaseTimesOutAndNextPressRecovers() {
+    @Test fun holdWithoutVendorRepeatsWaitsForRelease() {
         val gate = PttKeyGate()
         gate.down(true, false, 0)
-        assertFalse(gate.isHeld(gate.pressId, 1501))
-        gate.down(true, true, 1600)
-        assertFalse(gate.isHeld(gate.pressId, 1600))
-        gate.down(true, false, 1800)
-        assertTrue(gate.isHeld(gate.pressId, 1800))
+        assertTrue(gate.isHeld(gate.pressId, 1501))
+        assertTrue(gate.isHeld(gate.pressId, 5000))
+        assertTrue(gate.up())
+        assertFalse(gate.isHeld(gate.pressId, 5001))
+    }
+    @Test fun missingReleaseUsesMaximumAndNextPressRecovers() {
+        val gate = PttKeyGate()
+        gate.down(true, false, 0)
+        assertFalse(gate.isHeld(gate.pressId, 28000))
+        gate.down(true, true, 28100)
+        assertFalse(gate.isHeld(gate.pressId, 28100))
+        gate.down(true, false, 28200)
+        assertTrue(gate.isHeld(gate.pressId, 28200))
     }
     @Test fun longHoldCannotBypassMaximum() {
         val gate = PttKeyGate()

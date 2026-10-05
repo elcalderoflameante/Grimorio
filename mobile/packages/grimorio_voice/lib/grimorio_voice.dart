@@ -28,13 +28,13 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
   Room? _room;
   EventsListener<RoomEvent>? _events;
   Timer? _retry, _heartbeat, _maximum;
-  Timer? _buttonHeartbeat;
   final _controls = VoiceControls();
   int? _hardwareId;
   int _pressSequence = 0;
   Future<void>? _stopping;
   bool _cueBusy = false;
   bool _controlsOpen = false;
+  bool _draftVolume = false, _draftSounds = true;
 
   void _notifyAudioBusy() => widget.onChannelBusy?.call(
     !_closing &&
@@ -59,6 +59,7 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
   bool _enabled = false, _connected = false, _speaking = false;
   bool _held = false, _acquiring = false, _renewing = false, _closing = false;
   bool _activating = false, _deactivating = false;
+  bool _recovering = false;
   Future<void> _cleanup = Future.value();
   int _generation = 0, _revision = -1, _count = 0;
   String _status = 'Walkie-talkie apagado', _identity = '';
@@ -99,7 +100,6 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
     _closing = true;
     _enabled = false;
     _retry?.cancel();
-    _buttonHeartbeat?.cancel();
     unawaited(_controls.arm(false));
     _controls.dispose();
     unawaited(_teardown(disableBackground: true));
@@ -213,12 +213,6 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
         await _controls.arm(false);
         return;
       }
-      _buttonHeartbeat?.cancel();
-      _buttonHeartbeat = Timer.periodic(const Duration(seconds: 2), (_) {
-        unawaited(
-          _controls.arm(_enabled && _connected && !_closing && !_controlsOpen),
-        );
-      });
     } catch (_) {
       if (generation != _generation) return;
       if (recovering && _enabled && !_closing) {
@@ -371,15 +365,19 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
     _update(() => _speaking = false);
     await _controls.cancel();
     try {
-      await room?.localParticipant?.setMicrophoneEnabled(false);
+      await room?.localParticipant
+          ?.setMicrophoneEnabled(false)
+          .timeout(const Duration(seconds: 2));
     } catch (_) {
       try {
-        await room?.disconnect();
+        await room?.disconnect().timeout(const Duration(seconds: 2));
       } catch (_) {}
     }
     if (lease != null) {
       try {
-        await hub?.invoke('Release', args: [lease]);
+        await hub
+            ?.invoke('Release', args: [lease])
+            .timeout(const Duration(seconds: 2));
       } catch (_) {
         /* The server expires the lease and revokes publishing. */
       }
@@ -398,24 +396,28 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
   }
 
   Future<void> _cleanupSession(bool disableBackground) async {
-    _buttonHeartbeat?.cancel();
+    _update(() => _connected = false);
     await _controls.arm(false);
     await _stopTalking();
     final room = _room, hub = _hub, events = _events;
     _room = null;
     _hub = null;
     _events = null;
-    await events?.dispose();
     try {
-      await room?.disconnect();
-      await room?.dispose();
+      await events?.dispose().timeout(const Duration(seconds: 2));
     } catch (_) {}
     try {
-      await hub?.stop();
+      await room?.disconnect().timeout(const Duration(seconds: 2));
+      await room?.dispose().timeout(const Duration(seconds: 2));
+    } catch (_) {}
+    try {
+      await hub?.stop().timeout(const Duration(seconds: 2));
     } catch (_) {}
     if (disableBackground && FlutterBackground.isBackgroundExecutionEnabled) {
       try {
-        await FlutterBackground.disableBackgroundExecution();
+        await FlutterBackground.disableBackgroundExecution().timeout(
+          const Duration(seconds: 2),
+        );
       } catch (_) {}
     }
     widget.onChannelBusy?.call(false);
@@ -427,14 +429,23 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
   }
 
   Future<void> _recover() async {
-    if (!_enabled || _closing) return;
-    await _teardown();
-    if (!_enabled || _closing) return;
-    _update(() => _status = 'Reconectando voz…');
-    _retry?.cancel();
-    _retry = Timer(const Duration(seconds: 5), () {
-      if (_enabled && !_closing) unawaited(_connect(recovering: true));
+    if (!_enabled || _closing || _recovering) return;
+    _recovering = true;
+    _update(() {
+      _connected = false;
+      _status = 'Reconectando voz…';
     });
+    await _controls.arm(false);
+    try {
+      await _teardown();
+      if (!_enabled || _closing) return;
+      _retry?.cancel();
+      _retry = Timer(const Duration(seconds: 5), () {
+        if (_enabled && !_closing) unawaited(_connect(recovering: true));
+      });
+    } finally {
+      _recovering = false;
+    }
   }
 
   Future<void> _deactivate() async {
@@ -452,7 +463,11 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
 
   Future<void> _showControls() async {
     if (_controlsOpen) return;
-    _controlsOpen = true;
+    _update(() {
+      _controlsOpen = true;
+      _draftVolume = _controls.volume;
+      _draftSounds = _controls.sounds;
+    });
     await _controls.arm(false);
     await _stopTalking();
     await _controls.refresh();
@@ -460,68 +475,83 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
       _controlsOpen = false;
       return;
     }
-    var volume = _controls.volume, sounds = _controls.sounds;
-    try {
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (context, setDialogState) => AlertDialog(
-            title: const Text('Botón y sonidos del walkie'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Hablar con volumen arriba'),
-                    subtitle: const Text(
-                      'Mantén para hablar y suelta para terminar. Con el canal activo, este botón deja de subir el volumen.',
-                    ),
-                    value: volume,
-                    onChanged: (value) => setDialogState(() => volume = value),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Sonidos de walkie-talkie'),
-                    subtitle: const Text(
-                      'Inicio, fin y canal ocupado. Empieza a hablar cuando termine el tono.',
-                    ),
-                    value: sounds,
-                    onChanged: (value) => setDialogState(() => sounds = value),
-                  ),
-                  const Text(
-                    'Para usar el botón fuera de la app, habilita «Grimorio · botón del walkie-talkie» en Accesibilidad. Solo procesa el botón; no lee la pantalla. Con pantalla apagada depende del teléfono y requiere una prueba.',
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      await _controls.openAccessibility();
-                    },
-                    child: const Text('Abrir Accesibilidad'),
-                  ),
-                ],
+    _update(() {
+      _draftVolume = _controls.volume;
+      _draftSounds = _controls.sounds;
+    });
+  }
+
+  Future<void> _closeControls({required bool save}) async {
+    if (!_controlsOpen) return;
+    if (save) await _controls.save(_draftVolume, _draftSounds);
+    _update(() => _controlsOpen = false);
+    await _controls.arm(_connected && _enabled && !_closing);
+  }
+
+  Widget _controlsPanel() => Material(
+    color: const Color(0xff202e39),
+    child: ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.55,
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Botón y sonidos del walkie',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cancelar'),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Hablar con volumen arriba'),
+              subtitle: const Text(
+                'Mantén para hablar y suelta para terminar. Con el canal activo, este botón deja de subir el volumen.',
               ),
-              FilledButton(
-                onPressed: () async {
-                  await _controls.save(volume, sounds);
-                  if (dialogContext.mounted) Navigator.pop(dialogContext);
-                },
-                child: const Text('Guardar'),
+              value: _draftVolume,
+              onChanged: (value) => _update(() => _draftVolume = value),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Sonidos de walkie-talkie'),
+              subtitle: const Text(
+                'Inicio, fin y canal ocupado. Empieza a hablar cuando termine el tono.',
               ),
-            ],
-          ),
+              value: _draftSounds,
+              onChanged: (value) => _update(() => _draftSounds = value),
+            ),
+            const Text(
+              'Para usar el botón con otra app abierta, habilita «Grimorio · botón del walkie-talkie» en Accesibilidad. Solo funciona con la pantalla encendida y no lee su contenido.',
+              style: TextStyle(color: Colors.white70),
+            ),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              children: [
+                TextButton(
+                  onPressed: () => unawaited(_controls.openAccessibility()),
+                  child: const Text('Abrir Accesibilidad'),
+                ),
+                TextButton(
+                  onPressed: () => unawaited(_closeControls(save: false)),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () => unawaited(_closeControls(save: true)),
+                  child: const Text('Guardar'),
+                ),
+              ],
+            ),
+          ],
         ),
-      );
-    } finally {
-      _controlsOpen = false;
-      await _controls.arm(_connected && _enabled && !_closing);
-    }
-  }
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) => Column(
@@ -595,6 +625,7 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
           ),
         ),
       ),
+      if (_controlsOpen) _controlsPanel(),
       Expanded(child: widget.child),
     ],
   );

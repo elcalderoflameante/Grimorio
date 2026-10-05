@@ -3,9 +3,11 @@ package com.grimorio.voice
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
+import android.media.MediaPlayer
 import android.media.ToneGenerator
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
 import android.view.KeyEvent
@@ -28,10 +30,12 @@ class GrimorioVoicePlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Acti
     private val handler = Handler(Looper.getMainLooper())
     private val gate = PttKeyGate()
     private var connected = false
-    private var lastPing = 0L
     private var tone: ToneGenerator? = null
+    private var player: MediaPlayer? = null
     private var pendingTone: MethodChannel.Result? = null
     private val preferences get() = context.getSharedPreferences("grimorio_voice_controls", Context.MODE_PRIVATE)
+    private val isScreenInteractive: Boolean
+        get() = (context.getSystemService(Context.POWER_SERVICE) as PowerManager).isInteractive
     private val watchdog = object : Runnable {
         override fun run() {
             val wasHeld = gate.held
@@ -53,11 +57,12 @@ class GrimorioVoicePlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Acti
     // A headless Firebase engine must not steal the active app's key channel.
     override fun onAttachedToActivity(binding: ActivityPluginBinding) { current = this }
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) { current = this }
-    override fun onDetachedFromActivityForConfigChanges() = onDetachedFromActivity()
-    override fun onDetachedFromActivity() {
-        cancel()
-        if (current === this) current = null
-    }
+    override fun onDetachedFromActivityForConfigChanges() = Unit
+
+    // Keep routing physical keys to this engine while its foreground voice
+    // service remains alive. Android/XOS may detach the Activity shortly after
+    // the app is backgrounded or the screen turns off.
+    override fun onDetachedFromActivity() = Unit
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         connected = false
@@ -84,7 +89,6 @@ class GrimorioVoicePlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Acti
             }
             "arm" -> {
                 connected = call.argument<Boolean>("connected") == true
-                lastPing = SystemClock.elapsedRealtime()
                 if (!connected) cancel()
                 result.success(null)
             }
@@ -112,8 +116,7 @@ class GrimorioVoicePlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Acti
         val wasHeld = gate.held
         val handled = when (event.action) {
             KeyEvent.ACTION_DOWN -> gate.down(
-                connected && preferences.getBoolean("volume", false) &&
-                    SystemClock.elapsedRealtime() - lastPing < 6000,
+                connected && preferences.getBoolean("volume", false) && isScreenInteractive,
                 event.repeatCount != 0, SystemClock.elapsedRealtime())
             KeyEvent.ACTION_UP -> gate.up()
             else -> false
@@ -141,31 +144,56 @@ class GrimorioVoicePlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Acti
 
     private fun stopTone() {
         handler.removeCallbacks(endTone)
+        player?.setOnCompletionListener(null)
+        player?.setOnErrorListener(null)
+        try {
+            player?.stop()
+        } catch (_: IllegalStateException) {}
+        player?.release()
+        player = null
         tone?.stopTone()
         tone?.release()
         tone = null
-        pendingTone?.success(null)
+        val pending = pendingTone
         pendingTone = null
+        pending?.success(null)
     }
 
     private fun playTone(kind: String, result: MethodChannel.Result) {
         stopTone()
         if (!preferences.getBoolean("sounds", true)) { result.success(null); return }
         try {
-            tone = ToneGenerator(AudioManager.STREAM_MUSIC, 45)
-            val duration = if (kind == "start") 100 else 220
-            val type = when (kind) {
-                "start" -> ToneGenerator.TONE_PROP_BEEP
-                "busy" -> ToneGenerator.TONE_PROP_NACK
-                else -> ToneGenerator.TONE_PROP_BEEP2
+            if (kind == "start" || kind == "end") {
+                val media = MediaPlayer.create(context, R.raw.walkie_talkie)
+                if (media == null) {
+                    result.success(null)
+                    return
+                }
+                player = media
+                pendingTone = result
+                media.setOnCompletionListener { stopTone() }
+                media.setOnErrorListener { _, _, _ ->
+                    stopTone()
+                    true
+                }
+                media.start()
+                // Safety fallback in case a vendor omits the completion callback.
+                handler.postDelayed(endTone, 2000)
+                return
             }
+            tone = ToneGenerator(AudioManager.STREAM_MUSIC, 45)
+            val duration = 220
+            val type = ToneGenerator.TONE_PROP_NACK
             tone?.startTone(type, duration)
             pendingTone = result
             // Complete only after the sound and a short acoustic tail, before opening the mic.
             handler.postDelayed(endTone, duration.toLong() + 100)
         } catch (error: RuntimeException) {
+            player?.release()
+            player = null
             tone?.release()
             tone = null
+            pendingTone = null
             result.success(null)
         }
     }

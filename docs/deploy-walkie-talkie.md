@@ -6,8 +6,8 @@ El despliegue base continúa funcionando sin el overlay de voz.
 
 ## Publicación de esta versión
 
-- Meseros: `1.0.22+23`, `/downloads/grimorio-meseros.apk`.
-- Estaciones: `1.0.9+10`, `/downloads/grimorio-estaciones.apk`.
+- Meseros: `1.0.23+24`, `/downloads/grimorio-meseros.apk`.
+- Estaciones: `1.0.10+11`, `/downloads/grimorio-estaciones.apk`.
 - Ambas APK usan `https://erp.elcalderoflameante.com/api` y sus firmas existentes.
 - Incluye la portada pública pendiente del restaurante en `/`; el ERP continúa
   en `/login` y `/dashboard`.
@@ -92,9 +92,11 @@ Esto desactiva la voz en el servidor; no revierte el código del ERP ni las APK.
 - En web, activar audio si el navegador bloquea la reproducción automática.
 - Mantener pulsado para hablar. Máximo servidor 30 segundos, renovación del
   turno cada 2,5 segundos y caducidad a los 8 segundos sin renovación.
-- Al soltar, salir, bloquear la pantalla o perder conexión se detiene el envío.
+- Al soltar, bloquear la pantalla o perder conexión se detiene el envío.
   El servicio Android mantiene la recepción durante una sesión activada; debe
-  verificarse en los equipos del restaurante. No funciona tras forzar el cierre.
+  verificarse en los equipos del restaurante. El botón físico puede usarse con
+  otra app abierta mientras la pantalla siga encendida; no funciona tras forzar
+  el cierre ni con la pantalla apagada.
 - Los anuncios TTS de pedidos esperan al canal y se reanudan al finalizar.
 - Una sola instancia de API: el control de turnos está en memoria. No escalar
   réplicas sin incorporar un coordinador distribuido. Cada arranque de API usa
