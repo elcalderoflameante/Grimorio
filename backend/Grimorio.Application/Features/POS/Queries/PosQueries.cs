@@ -42,6 +42,7 @@ public class GetOrderDetailQuery : IRequest<OrderDto?>
 public class GetAlexaOrderRepeatQuery : IRequest<AlexaOrderRepeatResultDto>
 {
     public Guid BranchId { get; set; }
+    public List<string>? StationNames { get; set; }
     public string? TableCode { get; set; }
     public int? OrderNumber { get; set; }
     public string? StationText { get; set; }

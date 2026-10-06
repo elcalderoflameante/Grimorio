@@ -943,11 +943,14 @@ public class ProcessAlexaKitchenCommandHandler
 
         var candidates = items
             .Where(i => MatchesTarget(i, tableCode, orderNumber))
+            .Where(i => AlexaStationScope.Includes(i, req.StationNames))
             .Where(i => KitchenOrderState.CanAdvance(i.Status, targetStatus.Value))
             .ToList();
 
         if (candidates.Count == 0)
-            return Fail("No encontre esa mesa o pedido con platos pendientes.");
+            return Fail(req.StationNames == null
+                ? "No encontre esa mesa o pedido con platos pendientes."
+                : "No encontre platos pendientes de esa mesa o pedido en las estaciones de esta skill.");
 
         var itemText = NormalizeText(req.ItemText ?? ExtractItemText(rawText));
         var isWholeOrder = req.AllItems ||
@@ -980,7 +983,8 @@ public class ProcessAlexaKitchenCommandHandler
             .Include(i => i.Order).ThenInclude(o => o!.Items.Where(oi => !oi.IsDeleted))
             .Include(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .ToListAsync(ct);
-        if (selected.Count != selectedIds.Count || selected.Any(i => i.Order == null))
+        if (selected.Count != selectedIds.Count || selected.Any(i =>
+            i.Order == null || !AlexaStationScope.Includes(i, req.StationNames)))
             return Fail("El pedido cambio mientras se procesaba la solicitud. Intenta nuevamente.");
         try
         {

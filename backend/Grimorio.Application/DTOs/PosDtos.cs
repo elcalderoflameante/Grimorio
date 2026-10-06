@@ -199,6 +199,7 @@ public class UpsertPromotionDto
 public class AlexaKitchenCommandDto
 {
     public Guid BranchId { get; set; }
+    public List<string>? StationNames { get; set; }
     public string? RawText { get; set; }
     public string? Action { get; set; }
     public string? TableCode { get; set; }
@@ -219,6 +220,7 @@ public class AlexaKitchenCommandResultDto
 public class AlexaOrderRepeatRequestDto
 {
     public Guid BranchId { get; set; }
+    public List<string>? StationNames { get; set; }
     public string? TableCode { get; set; }
     public int? OrderNumber { get; set; }
     public string? StationText { get; set; }

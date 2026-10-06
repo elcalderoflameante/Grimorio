@@ -128,6 +128,7 @@ public class SetOrderItemStatusCommand : IRequest<OrderItemDto>
 public class ProcessAlexaKitchenCommand : IRequest<AlexaKitchenCommandResultDto>
 {
     public Guid BranchId { get; set; }
+    public List<string>? StationNames { get; set; }
     public string? RawText { get; set; }
     public string? Action { get; set; }
     public string? TableCode { get; set; }

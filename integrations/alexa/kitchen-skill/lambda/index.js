@@ -3,27 +3,33 @@ const https = require('https');
 const apiBaseUrl = process.env.GRIMORIO_API_BASE_URL;
 const branchId = process.env.GRIMORIO_BRANCH_ID;
 const integrationKey = process.env.GRIMORIO_ALEXA_KEY;
+const stationNames = (process.env.GRIMORIO_STATION_NAMES || '')
+  .split(',')
+  .map((name) => name.trim())
+  .filter(Boolean);
 
 exports.handler = async function handler(event) {
   const request = event.request || {};
 
-  if (request.type === 'LaunchRequest') {
-    return speak('Oido chef.', false);
+  if (request.type === 'SessionEndedRequest') {
+    return { version: '1.0', response: {} };
   }
 
-  if (request.type === 'SessionEndedRequest') {
-    return speak('Listo.', true);
+  if (request.type === 'LaunchRequest') {
+    return isConfigured()
+      ? speak('Oido chef.', false)
+      : speak(null, true);
   }
 
   if (request.type !== 'IntentRequest') {
-    return speak('No entendi el comando.', false);
+    return speak(null, false);
   }
 
   if (
     request.intent?.name === 'AMAZON.CancelIntent' ||
     request.intent?.name === 'AMAZON.StopIntent'
   ) {
-    return speak('Listo chef.', true);
+    return speak('Hasta luego chef.', true);
   }
 
   if (request.intent?.name !== 'KitchenCommandIntent') {
@@ -31,11 +37,11 @@ exports.handler = async function handler(event) {
       return repeatOrder(request.intent.slots || {});
     }
 
-    return speak('Dime preparando, listo, o repite pedido mesa y el numero.', false);
+    return speak(null, false);
   }
 
-  if (!apiBaseUrl || !branchId || !integrationKey) {
-    return speak('Grimorio no esta configurado para Alexa.', true);
+  if (!isConfigured()) {
+    return speak(null, true);
   }
 
   const slots = request.intent.slots || {};
@@ -51,6 +57,7 @@ exports.handler = async function handler(event) {
       `${apiBaseUrl.replace(/\/$/, '')}/alexa/kitchen-command`,
       {
         branchId,
+        stationNames,
         action,
         tableCode,
         orderNumber: Number.isNaN(orderNumber) ? null : orderNumber,
@@ -59,15 +66,16 @@ exports.handler = async function handler(event) {
       },
     );
 
-    return speak(result.message || 'Listo chef.', false);
+    return speak(result?.success === true ? 'Oido chef.' : null, false);
   } catch {
-    return speak('No pude comunicarme con Grimorio.', false);
+    console.warn('Grimorio kitchen-command request failed.');
+    return speak(null, false);
   }
 };
 
 async function repeatOrder(slots) {
-  if (!apiBaseUrl || !branchId || !integrationKey) {
-    return speak('Grimorio no esta configurado para Alexa.', true);
+  if (!isConfigured()) {
+    return speak(null, true);
   }
 
   const tableCode = slotValue(slots.tableCode);
@@ -80,6 +88,7 @@ async function repeatOrder(slots) {
       `${apiBaseUrl.replace(/\/$/, '')}/alexa/order-repeat`,
       {
         branchId,
+        stationNames,
         tableCode,
         orderNumber: Number.isNaN(orderNumber) ? null : orderNumber,
         stationText,
@@ -87,10 +96,19 @@ async function repeatOrder(slots) {
       },
     );
 
-    return speak(result.message || 'No encontre ese pedido.', false);
+    const message = result?.success === true && typeof result.message === 'string'
+      ? result.message.trim() : null;
+    return speak(message, false);
   } catch {
-    return speak('No pude consultar el pedido en Grimorio.', false);
+    console.warn('Grimorio order-repeat request failed.');
+    return speak(null, false);
   }
+}
+
+function isConfigured() {
+  const configured = Boolean(apiBaseUrl && branchId && integrationKey && stationNames.length);
+  if (!configured) console.warn('Grimorio Alexa configuration is incomplete.');
+  return configured;
 }
 
 function slotValue(slot) {
@@ -113,6 +131,7 @@ function postJson(url, body) {
   const payload = JSON.stringify(body);
 
   return new Promise((resolve, reject) => {
+    let timeout;
     const req = https.request(
       {
         hostname: parsed.hostname,
@@ -131,7 +150,12 @@ function postJson(url, body) {
         res.on('data', (chunk) => {
           data += chunk;
         });
+        res.on('error', (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        });
         res.on('end', () => {
+          clearTimeout(timeout);
           if (res.statusCode < 200 || res.statusCode >= 300) {
             reject(new Error(`HTTP ${res.statusCode}: ${data}`));
             return;
@@ -146,7 +170,12 @@ function postJson(url, body) {
       },
     );
 
-    req.on('error', reject);
+    // Leave time for a silent response before Alexa's request deadline.
+    timeout = setTimeout(() => req.destroy(new Error('Grimorio request timeout')), 4500);
+    req.on('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
     req.write(payload);
     req.end();
   });
@@ -156,16 +185,16 @@ function speak(outputSpeech, shouldEndSession) {
   return {
     version: '1.0',
     response: {
-      outputSpeech: {
+      ...(outputSpeech ? { outputSpeech: {
         type: 'PlainText',
         text: outputSpeech,
-      },
+      } } : {}),
       reprompt: shouldEndSession
         ? undefined
         : {
             outputSpeech: {
               type: 'PlainText',
-              text: 'Oido chef.',
+              text: 'Hasta luego chef.',
             },
           },
       shouldEndSession,

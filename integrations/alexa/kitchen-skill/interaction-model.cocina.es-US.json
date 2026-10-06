@@ -1,7 +1,7 @@
 {
   "interactionModel": {
     "languageModel": {
-      "invocationName": "grimorio",
+      "invocationName": "cocina caldero",
       "intents": [
         {
           "name": "KitchenCommandIntent",
@@ -111,13 +111,24 @@
             {
               "name": {
                 "value": "preparando",
-                "synonyms": ["prepara", "preparar", "en preparacion"]
+                "synonyms": [
+                  "prepara",
+                  "preparar",
+                  "en preparacion"
+                ]
               }
             },
             {
               "name": {
                 "value": "listo",
-                "synonyms": ["lista", "listos", "listas", "terminado", "terminada", "completo"]
+                "synonyms": [
+                  "lista",
+                  "listos",
+                  "listas",
+                  "terminado",
+                  "terminada",
+                  "completo"
+                ]
               }
             }
           ]
@@ -128,7 +139,13 @@
             {
               "name": {
                 "value": "todo",
-                "synonyms": ["toda", "todos", "todas", "todo el pedido", "pedido completo"]
+                "synonyms": [
+                  "toda",
+                  "todos",
+                  "todas",
+                  "todo el pedido",
+                  "pedido completo"
+                ]
               }
             }
           ]
@@ -139,19 +156,25 @@
             {
               "name": {
                 "value": "salchipapa",
-                "synonyms": ["salchipapas"]
+                "synonyms": [
+                  "salchipapas"
+                ]
               }
             },
             {
               "name": {
                 "value": "combo uno",
-                "synonyms": ["combo 1"]
+                "synonyms": [
+                  "combo 1"
+                ]
               }
             },
             {
               "name": {
                 "value": "combo seis",
-                "synonyms": ["combo 6"]
+                "synonyms": [
+                  "combo 6"
+                ]
               }
             },
             {
@@ -172,25 +195,36 @@
             {
               "name": {
                 "value": "bar",
-                "synonyms": ["bebidas"]
+                "synonyms": [
+                  "bebidas"
+                ]
               }
             },
             {
               "name": {
                 "value": "fritos",
-                "synonyms": ["frito", "freidora"]
+                "synonyms": [
+                  "frito",
+                  "freidora"
+                ]
               }
             },
             {
               "name": {
                 "value": "parrilla",
-                "synonyms": ["grill", "asados"]
+                "synonyms": [
+                  "grill",
+                  "asados"
+                ]
               }
             },
             {
               "name": {
                 "value": "emplatado",
-                "synonyms": ["pase", "despacho"]
+                "synonyms": [
+                  "pase",
+                  "despacho"
+                ]
               }
             },
             {

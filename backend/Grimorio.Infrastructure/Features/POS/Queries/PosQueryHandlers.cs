@@ -201,13 +201,17 @@ public class GetAlexaOrderRepeatQueryHandler
                 o.PaidAt == null &&
                 o.Status != OrderStatus.Cancelled &&
                 o.Status != OrderStatus.Delivered &&
-                o.Status != OrderStatus.Draft)
+                o.Status != OrderStatus.Draft &&
+                o.Status != OrderStatus.Ready)
             .Include(o => o.Table)
-            .Include(o => o.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled))
+            .Include(o => o.Items.Where(i => !i.IsDeleted &&
+                (i.Status == OrderItemStatus.Pending || i.Status == OrderItemStatus.InPreparation)))
                 .ThenInclude(i => i.MenuItem)
-            .Include(o => o.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled))
+            .Include(o => o.Items.Where(i => !i.IsDeleted &&
+                (i.Status == OrderItemStatus.Pending || i.Status == OrderItemStatus.InPreparation)))
                 .ThenInclude(i => i.Station)
-            .Include(o => o.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled))
+            .Include(o => o.Items.Where(i => !i.IsDeleted &&
+                (i.Status == OrderItemStatus.Pending || i.Status == OrderItemStatus.InPreparation)))
                 .ThenInclude(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .AsSplitQuery()
             .OrderByDescending(o => o.ConfirmedAt ?? o.CreatedAt)
@@ -220,13 +224,15 @@ public class GetAlexaOrderRepeatQueryHandler
         }
 
         var items = order.Items
-            .Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled)
+            .Where(i => !i.IsDeleted && AlexaStationScope.IsRepeatable(i, req.StationNames))
             .OrderBy(i => i.CreatedAt)
             .ToList();
 
         if (items.Count == 0)
         {
-            return Fail("Ese pedido no tiene platos activos.");
+            return Fail(req.StationNames == null
+                ? "Ese pedido no tiene platos pendientes."
+                : "Ese pedido no tiene platos pendientes en las estaciones de esta skill.");
         }
 
         var stationText = NormalizeStationAlias(NormalizeText(req.StationText ?? string.Empty));
@@ -237,7 +243,9 @@ public class GetAlexaOrderRepeatQueryHandler
             return Fail("Dime solo una estacion, o dime sin una estacion.");
         }
 
-        string? stationName = null;
+        string? stationName = req.StationNames == null
+            ? null
+            : string.Join(" y ", items.Select(i => i.Station!.Name).Distinct());
         string? excludedStationName = null;
 
         if (!string.IsNullOrWhiteSpace(stationText))
@@ -255,7 +263,7 @@ public class GetAlexaOrderRepeatQueryHandler
         }
         else if (!string.IsNullOrWhiteSpace(excludeStationText))
         {
-            var matchingStation = FindStation(items, excludeStationText);
+            var matchingStation = FindStation(order.Items.ToList(), excludeStationText);
             if (matchingStation == null)
             {
                 return Fail($"No encontre la estacion {req.ExcludeStationText} en ese pedido.");
@@ -280,11 +288,8 @@ public class GetAlexaOrderRepeatQueryHandler
             ? FormatTableLabel(order.Table.Code)
             : $"pedido {order.Number}";
         var itemText = string.Join("; ", items.Select(BuildItemText));
-        var scope = stationName != null
-            ? $", {stationName}"
-            : excludedStationName != null
-                ? $", sin {excludedStationName}"
-                : string.Empty;
+        var scope = (stationName != null ? $", {stationName}" : string.Empty) +
+            (excludedStationName != null ? $", sin {excludedStationName}" : string.Empty);
         var notes = string.IsNullOrWhiteSpace(order.Notes)
             ? string.Empty
             : $" Observacion general: {order.Notes.Trim()}.";

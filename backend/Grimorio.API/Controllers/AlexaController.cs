@@ -43,6 +43,7 @@ public class AlexaController : ControllerBase
         var result = await _mediator.Send(new ProcessAlexaKitchenCommand
         {
             BranchId = dto.BranchId,
+            StationNames = dto.StationNames,
             RawText = dto.RawText,
             Action = dto.Action,
             TableCode = dto.TableCode,
@@ -70,6 +71,7 @@ public class AlexaController : ControllerBase
         var result = await _mediator.Send(new GetAlexaOrderRepeatQuery
         {
             BranchId = dto.BranchId,
+            StationNames = dto.StationNames,
             TableCode = dto.TableCode,
             OrderNumber = dto.OrderNumber,
             StationText = dto.StationText,
