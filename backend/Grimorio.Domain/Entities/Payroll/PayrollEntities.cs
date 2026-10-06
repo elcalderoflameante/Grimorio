@@ -36,10 +36,14 @@ public class EmployeeConsumption : BaseEntity
     public new Guid BranchId { get; set; }
     public Guid EmployeeId { get; set; }
     public DateTime Date { get; set; }
+    public int PayrollYear { get; set; }
+    public int PayrollMonth { get; set; }
     public decimal Amount { get; set; }
     public string? Notes { get; set; }
+    public Guid? PaymentLineId { get; set; }
 
     public virtual Organization.Employee? Employee { get; set; }
+    public virtual Billing.PaymentLine? PaymentLine { get; set; }
 }
 
 public class PayrollAdjustment : BaseEntity

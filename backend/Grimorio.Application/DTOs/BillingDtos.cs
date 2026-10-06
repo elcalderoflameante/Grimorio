@@ -136,6 +136,7 @@ public class PaymentMethodConfigDto
     public string Color { get; set; } = "#1677ff";
     public bool IsCash { get; set; }
     public bool IsCard { get; set; }
+    public string Purpose { get; set; } = "Standard";
     public bool IsActive { get; set; }
     public int SortOrder { get; set; }
 }
@@ -146,6 +147,7 @@ public class CreatePaymentMethodConfigDto
     public string Color { get; set; } = "#1677ff";
     public bool IsCash { get; set; }
     public bool IsCard { get; set; }
+    public string Purpose { get; set; } = "Standard";
     public int SortOrder { get; set; }
 }
 
@@ -155,6 +157,7 @@ public class UpdatePaymentMethodConfigDto
     public string Color { get; set; } = "#1677ff";
     public bool IsCash { get; set; }
     public bool IsCard { get; set; }
+    public string Purpose { get; set; } = "Standard";
     public bool IsActive { get; set; }
     public int SortOrder { get; set; }
 }
@@ -306,6 +309,8 @@ public class PaymentLineDto
     public string? CardBankName { get; set; }
     public string? CardBrand { get; set; }
     public string? AuthorizationNumber { get; set; }
+    public Guid? EmployeeId { get; set; }
+    public string? EmployeeName { get; set; }
 }
 
 public class OrderPaymentDto
@@ -476,6 +481,7 @@ public class AddPaymentLineDto
     public Guid? CardBankId { get; set; }
     public string? CardBrand { get; set; }
     public string? AuthorizationNumber { get; set; }
+    public Guid? EmployeeId { get; set; }
 }
 
 public class AddOrderPaymentDto

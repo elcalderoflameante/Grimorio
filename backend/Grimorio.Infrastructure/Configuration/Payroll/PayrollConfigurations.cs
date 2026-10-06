@@ -66,8 +66,17 @@ public class EmployeeConsumptionConfiguration : IEntityTypeConfiguration<Employe
         builder.Property(x => x.Date)
             .HasColumnType("date");
 
-        builder.HasIndex(x => new { x.BranchId, x.EmployeeId, x.Date })
+        builder.HasIndex(x => new { x.BranchId, x.EmployeeId, x.PayrollYear, x.PayrollMonth })
             .HasFilter("\"IsDeleted\" = false");
+
+        builder.HasIndex(x => x.PaymentLineId)
+            .IsUnique()
+            .HasFilter("\"PaymentLineId\" IS NOT NULL AND \"IsDeleted\" = false");
+
+        builder.HasOne(x => x.PaymentLine)
+            .WithOne(x => x.EmployeeConsumption)
+            .HasForeignKey<EmployeeConsumption>(x => x.PaymentLineId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
 

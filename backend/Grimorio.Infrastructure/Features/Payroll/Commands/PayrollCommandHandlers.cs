@@ -191,6 +191,8 @@ public class CreateEmployeeConsumptionCommandHandler : IRequestHandler<CreateEmp
             BranchId = request.BranchId,
             EmployeeId = request.EmployeeId,
             Date = request.Date,
+            PayrollYear = consumptionYear,
+            PayrollMonth = consumptionMonth,
             Amount = request.Amount,
             Notes = request.Notes
         };
@@ -223,8 +225,8 @@ public class DeleteEmployeeConsumptionCommandHandler : IRequestHandler<DeleteEmp
             .AsNoTracking()
             .FirstOrDefaultAsync(r => r.BranchId == request.BranchId
                 && r.EmployeeId == consumption.EmployeeId
-                && r.Year == consumption.Date.Year
-                && r.Month == consumption.Date.Month
+                && r.Year == consumption.PayrollYear
+                && r.Month == consumption.PayrollMonth
                 && !r.IsDeleted, cancellationToken);
 
         if (role != null && role.Status != PayrollRoleStatus.Generated)
@@ -366,7 +368,8 @@ public class GenerateMonthlyPayrollRolesCommandHandler : IRequestHandler<Generat
 
         var consumptions = await _context.EmployeeConsumptions
             .AsNoTracking()
-            .Where(c => c.BranchId == request.BranchId && !c.IsDeleted && c.Date >= startDate && c.Date <= endDate)
+            .Where(c => c.BranchId == request.BranchId && !c.IsDeleted
+                && c.PayrollYear == request.Year && c.PayrollMonth == request.Month)
             .ToListAsync(cancellationToken);
 
         var adjustments = await _context.PayrollAdjustments

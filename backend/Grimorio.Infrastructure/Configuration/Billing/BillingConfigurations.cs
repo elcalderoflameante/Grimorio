@@ -144,6 +144,7 @@ public class PaymentMethodConfigConfiguration : IEntityTypeConfiguration<Payment
         builder.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
         builder.Property(x => x.Name).IsRequired().HasMaxLength(64);
         builder.Property(x => x.Color).HasMaxLength(32);
+        builder.Property(x => x.Purpose).HasConversion<string>().HasMaxLength(40);
         builder.Property(x => x.IsDeleted).HasDefaultValue(false);
         builder.HasQueryFilter(x => !x.IsDeleted);
         builder.HasIndex(x => x.SortOrder);

@@ -117,6 +117,7 @@ public class CreatePaymentMethodCommand : IRequest<PaymentMethodConfigDto>
     public string Color { get; set; } = "#1677ff";
     public bool IsCash { get; set; }
     public bool IsCard { get; set; }
+    public string Purpose { get; set; } = "Standard";
     public int SortOrder { get; set; }
 }
 
@@ -127,6 +128,7 @@ public class UpdatePaymentMethodCommand : IRequest<PaymentMethodConfigDto>
     public string Color { get; set; } = "#1677ff";
     public bool IsCash { get; set; }
     public bool IsCard { get; set; }
+    public string Purpose { get; set; } = "Standard";
     public bool IsActive { get; set; }
     public int SortOrder { get; set; }
 }
@@ -245,6 +247,7 @@ public class PaymentLineCommand
     public Guid? CardBankId { get; set; }
     public string? CardBrand { get; set; }
     public string? AuthorizationNumber { get; set; }
+    public Guid? EmployeeId { get; set; }
 }
 
 public class PayOrderCommand : IRequest<OrderPaymentDto>

@@ -150,6 +150,7 @@ public class GetActiveCashSessionHandler : IRequestHandler<GetActiveCashSessionQ
 
         var payments = await _db.OrderPayments
             .Include(p => p.Lines).ThenInclude(l => l.Config)
+            .Include(p => p.Lines).ThenInclude(l => l.EmployeeConsumption).ThenInclude(c => c!.Employee)
             .Include(p => p.Items).ThenInclude(i => i.OrderItem).ThenInclude(i => i!.MenuItem)
             .Where(p => p.BranchId == req.BranchId && !p.IsDeleted
                 && p.CashSessionId == session.Id)
@@ -247,6 +248,7 @@ public class GetOrderPaymentsHandler : IRequestHandler<GetOrderPaymentsQuery, Li
 
         var payments = await _db.OrderPayments
             .Include(p => p.Lines).ThenInclude(l => l.Config)
+            .Include(p => p.Lines).ThenInclude(l => l.EmployeeConsumption).ThenInclude(c => c!.Employee)
             .Include(p => p.Items).ThenInclude(i => i.OrderItem).ThenInclude(i => i!.MenuItem)
             .Include(p => p.Customer)
             .Include(p => p.CashSession).ThenInclude(s => s!.CashRegister)
@@ -399,6 +401,7 @@ public class GetSalesHandler : IRequestHandler<GetSalesQuery, List<OrderPaymentD
     {
         var query = _db.OrderPayments
             .Include(p => p.Lines).ThenInclude(l => l.Config)
+            .Include(p => p.Lines).ThenInclude(l => l.EmployeeConsumption).ThenInclude(c => c!.Employee)
             .Include(p => p.Items).ThenInclude(i => i.OrderItem).ThenInclude(i => i!.MenuItem)
             .Include(p => p.Customer)
             .Include(p => p.CashSession).ThenInclude(s => s!.CashRegister)

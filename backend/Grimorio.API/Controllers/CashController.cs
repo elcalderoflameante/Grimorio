@@ -30,7 +30,7 @@ public class CashController : ControllerBase
         var result = await _mediator.Send(new CreatePaymentMethodCommand
         {
             Name = dto.Name, Color = dto.Color,
-            IsCash = dto.IsCash, IsCard = dto.IsCard, SortOrder = dto.SortOrder,
+            IsCash = dto.IsCash, IsCard = dto.IsCard, Purpose = dto.Purpose, SortOrder = dto.SortOrder,
         });
         return Ok(result);
     }
@@ -42,7 +42,7 @@ public class CashController : ControllerBase
         var result = await _mediator.Send(new UpdatePaymentMethodCommand
         {
             Id = id, Name = dto.Name, Color = dto.Color,
-            IsCash = dto.IsCash, IsCard = dto.IsCard,
+            IsCash = dto.IsCash, IsCard = dto.IsCard, Purpose = dto.Purpose,
             IsActive = dto.IsActive, SortOrder = dto.SortOrder,
         });
         return Ok(result);
@@ -291,6 +291,7 @@ public class CashController : ControllerBase
                     CardBankId = l.CardBankId,
                     CardBrand = l.CardBrand,
                     AuthorizationNumber = l.AuthorizationNumber,
+                    EmployeeId = l.EmployeeId,
                 }).ToList(),
                 Items = dto.Items.Select(i => new PaymentItemCommand
                 {

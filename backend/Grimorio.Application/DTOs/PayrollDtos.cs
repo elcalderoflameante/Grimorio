@@ -63,8 +63,11 @@ public class EmployeeConsumptionDto
     public Guid Id { get; set; }
     public Guid EmployeeId { get; set; }
     public DateTime Date { get; set; }
+    public int PayrollYear { get; set; }
+    public int PayrollMonth { get; set; }
     public decimal Amount { get; set; }
     public string? Notes { get; set; }
+    public Guid? PaymentLineId { get; set; }
 }
 
 public class CreateEmployeeConsumptionDto

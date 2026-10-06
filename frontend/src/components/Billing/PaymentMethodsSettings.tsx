@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { App as AntApp, Table, Button, Modal, Form, Input, Switch, InputNumber,
-  Space, Tag, Popconfirm, Typography, ColorPicker, Divider } from 'antd';
+  Space, Tag, Popconfirm, Typography, ColorPicker, Divider, Select } from 'antd';
 import type { AggregationColor } from 'antd/es/color-picker/color';
 import { PlusOutlined, EditOutlined, DeleteOutlined, BankOutlined } from '@ant-design/icons';
 import type {
@@ -31,6 +31,7 @@ export default function PaymentMethodsSettings() {
   const [bankSaving, setBankSaving] = useState(false);
   const [form] = Form.useForm();
   const [bankForm] = Form.useForm();
+  const selectedPurpose = Form.useWatch('purpose', form);
   const canManage = hasPermission(PERMISSIONS.billing.paymentMethodsManage);
 
   const loadMethods = async () => {
@@ -62,7 +63,7 @@ export default function PaymentMethodsSettings() {
   const openCreate = () => {
     setEditing(null);
     form.resetFields();
-    form.setFieldsValue({ color: '#1677ff', isCash: false, isCard: false, isActive: true, sortOrder: methods.length + 1 });
+    form.setFieldsValue({ color: '#1677ff', purpose: 'Standard', isCash: false, isCard: false, isActive: true, sortOrder: methods.length + 1 });
     setModalOpen(true);
   };
 
@@ -70,7 +71,7 @@ export default function PaymentMethodsSettings() {
     setEditing(m);
     form.setFieldsValue({
       name: m.name, color: m.color, isCash: m.isCash,
-      isCard: m.isCard, isActive: m.isActive, sortOrder: m.sortOrder,
+      isCard: m.isCard, purpose: m.purpose, isActive: m.isActive, sortOrder: m.sortOrder,
     });
     setModalOpen(true);
   };
@@ -100,6 +101,7 @@ export default function PaymentMethodsSettings() {
         const dto: UpdatePaymentMethodConfigDto = {
           name: values.name, color,
           isCash: !!values.isCash, isCard: !!values.isCard,
+          purpose: values.purpose,
           isActive: values.isActive, sortOrder: values.sortOrder,
         };
         const r = await paymentMethodsApi.update(editing.id, dto);
@@ -109,6 +111,7 @@ export default function PaymentMethodsSettings() {
         const dto: CreatePaymentMethodConfigDto = {
           name: values.name, color,
           isCash: !!values.isCash, isCard: !!values.isCard,
+          purpose: values.purpose,
           sortOrder: values.sortOrder,
         };
         const r = await paymentMethodsApi.create(dto);
@@ -194,6 +197,7 @@ export default function PaymentMethodsSettings() {
                 <Text strong>{m.name}</Text>
                 {m.isCash && <Tag color="green">Efectivo</Tag>}
                 {m.isCard && <Tag color="blue">Tarjeta</Tag>}
+                {m.purpose === 'EmployeePayrollDeduction' && <Tag color="gold">Descuento a rol</Tag>}
               </Space>
             ),
           },
@@ -283,12 +287,21 @@ export default function PaymentMethodsSettings() {
             <ColorPicker presets={[{ label: 'Sugeridos', colors: DEFAULT_COLORS }]} showText format="hex" />
           </Form.Item>
 
+          <Form.Item name="purpose" label="Uso" rules={[{ required: true }]}>
+            <Select options={[
+              { value: 'Standard', label: 'Medio de pago normal' },
+              { value: 'EmployeePayrollDeduction', label: 'Consumo de empleado - descuento a rol' },
+            ]} onChange={value => {
+              if (value === 'EmployeePayrollDeduction') form.setFieldsValue({ isCash: false, isCard: false });
+            }} />
+          </Form.Item>
+
           <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
             <Form.Item name="isCash" label="Es efectivo" valuePropName="checked" tooltip="Marca si este metodo puede generar vuelto">
-              <Switch />
+              <Switch disabled={selectedPurpose === 'EmployeePayrollDeduction'} />
             </Form.Item>
             <Form.Item name="isCard" label="Es tarjeta" valuePropName="checked" tooltip="Pedira banco, tipo y autorizacion al cobrar">
-              <Switch />
+              <Switch disabled={selectedPurpose === 'EmployeePayrollDeduction'} />
             </Form.Item>
             {editing && (
               <Form.Item name="isActive" label="Activo" valuePropName="checked">

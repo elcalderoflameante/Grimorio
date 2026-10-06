@@ -12,6 +12,12 @@ public enum DocumentType { NotaDeVenta = 1, Factura = 2 }
 
 public enum CardPaymentType { Credit = 1, Debit = 2 }
 
+public enum PaymentMethodPurpose
+{
+    Standard = 1,
+    EmployeePayrollDeduction = 2,
+}
+
 // ── TaxRate ───────────────────────────────────────────────────────────────────
 // Tarifas de IVA configurables por sucursal (15%, 5%, 0% según SRI Ecuador)
 
@@ -141,6 +147,7 @@ public class PaymentMethodConfig
     public string Color { get; set; } = "#1677ff";
     public bool IsCash { get; set; }
     public bool IsCard { get; set; }
+    public PaymentMethodPurpose Purpose { get; set; } = PaymentMethodPurpose.Standard;
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }
     public bool IsDeleted { get; set; }
@@ -247,6 +254,7 @@ public class PaymentLine : BaseEntity
 
     public virtual OrderPayment? Payment { get; set; }
     public virtual PaymentMethodConfig? Config { get; set; }
+    public virtual Payroll.EmployeeConsumption? EmployeeConsumption { get; set; }
 }
 
 // ── InvoiceTemplate ───────────────────────────────────────────────────────────

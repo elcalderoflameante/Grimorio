@@ -7,9 +7,9 @@ import type {
   OrderDto, RestaurantTableDto, PaymentMethodConfigDto,
   OrderPaymentDto, AddOrderPaymentDto, CustomerDto, MenuCategoryDto,
   MenuItemDto, CreateOrderItemDto, CreateModifierSelectionDto, CardBankDto, PromotionDto,
-  MenuItemAvailabilityDto,
+  MenuItemAvailabilityDto, EmployeeDto,
 } from '../../types';
-import { cashApi, menuApi, paymentMethodsApi, posApi } from '../../services/api';
+import { cashApi, employeeApi, menuApi, paymentMethodsApi, posApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
 import { printThermalReceipt } from '../../utils/thermalReceiptPrinter';
 import CustomerSelector from '../Billing/CustomerSelector';
@@ -94,6 +94,7 @@ interface PayLine {
   cardBankId?: string;
   cardBrand?: string;
   authorizationNumber?: string;
+  employeeId?: string;
 }
 interface SplitRow { checked: boolean; qty: number }
 interface CartLine {
@@ -119,6 +120,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const [payments, setPayments] = useState<OrderPaymentDto[]>([]);
   const [methods, setMethods] = useState<PaymentMethodConfigDto[]>([]);
   const [cardBanks, setCardBanks] = useState<CardBankDto[]>([]);
+  const [employees, setEmployees] = useState<EmployeeDto[]>([]);
   const [categories, setCategories] = useState<MenuCategoryDto[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItemDto[]>([]);
   const [availability, setAvailability] = useState<MenuItemAvailabilityDto[]>([]);
@@ -177,11 +179,12 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [orderRes, paymentsRes, methodsRes, banksRes, catsRes, itemsRes, availabilityRes, sessionRes, promosRes] = await Promise.allSettled([
+      const [orderRes, paymentsRes, methodsRes, banksRes, employeesRes, catsRes, itemsRes, availabilityRes, sessionRes, promosRes] = await Promise.allSettled([
         posApi.getOrden(orderId),
         cashApi.getOrderPayments(orderId),
         paymentMethodsApi.getAll(true),
         paymentMethodsApi.getCardBanks(true),
+        employeeApi.getAll(1, 500, true),
         menuApi.getCategories(),
         menuApi.getItems({ activeOnly: true, lightweight: true }),
         menuApi.getAvailability({ activeOnly: true, availableOnly: true }),
@@ -199,6 +202,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       if (paymentsRes.status === 'fulfilled') setPayments(paymentsRes.value.data);
       if (methodsRes.status === 'fulfilled') setMethods(methodsRes.value.data);
       if (banksRes.status === 'fulfilled') setCardBanks(banksRes.value.data);
+      if (employeesRes.status === 'fulfilled') setEmployees(employeesRes.value.data);
       if (catsRes.status === 'fulfilled') {
         setCategories(catsRes.value.data);
         setActiveCategory(current => current ?? catsRes.value.data[0]?.id ?? null);
@@ -345,7 +349,12 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
     if (!method?.isCard) return true;
     return !!l.cardPaymentType && !!l.cardBankId && !!l.cardBrand && !!l.authorizationNumber?.trim();
   });
-  const canPay = targetAmount > 0.001 && !needsCustomer && tenderCoversAmount && cardDetailsComplete;
+  const employeeDetailsComplete = payLines.every(l => {
+    const method = getMethod(l.methodId);
+    return method?.purpose !== 'EmployeePayrollDeduction' || !!l.employeeId;
+  });
+  const canPay = targetAmount > 0.001 && !needsCustomer && tenderCoversAmount
+    && cardDetailsComplete && employeeDetailsComplete;
 
   const handlePrintPayment = useCallback(async (paymentId: string) => {
     try {
@@ -557,6 +566,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
           cardBankId: l.cardBankId,
           cardBrand: l.cardBrand,
           authorizationNumber: l.authorizationNumber?.trim(),
+          employeeId: l.employeeId,
         })),
       };
       // Persist the exact request before sending; ambiguous failures must reuse it unchanged.
@@ -809,12 +819,32 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                   </Col>
                 </Row>
               )}
+              {m?.purpose === 'EmployeePayrollDeduction' && (
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  style={{ width: '100%', marginTop: 8 }}
+                  placeholder="Selecciona el empleado"
+                  value={line.employeeId}
+                  options={employees.map(employee => ({
+                    value: employee.id,
+                    label: `${employee.firstName} ${employee.lastName}`.trim(),
+                  }))}
+                  onChange={value => setPayLines(prev => prev.map((current, i) =>
+                    i === idx ? { ...current, employeeId: value } : current))}
+                />
+              )}
             </div>
           );
         })}
         {!cardDetailsComplete && (
           <Text type="danger" style={{ fontSize: 12 }}>
             Completa banco, tipo y autorizacion de la tarjeta
+          </Text>
+        )}
+        {!employeeDetailsComplete && (
+          <Text type="danger" style={{ fontSize: 12 }}>
+            Selecciona el empleado al que se descontara el consumo
           </Text>
         )}
         {tenderCoversAmount && totalChange > 0 && !hasCashLine && (
@@ -1250,9 +1280,13 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                           {p.lines.map((l, li) => (
                             <Tooltip
                               key={li}
-                              title={l.isCard ? [l.cardPaymentType === 'Credit' ? 'Credito' : 'Debito', l.cardBankName, l.cardBrand, l.authorizationNumber].filter(Boolean).join(' - ') : undefined}
+                              title={l.employeeName ?? (l.isCard
+                                ? [l.cardPaymentType === 'Credit' ? 'Credito' : 'Debito', l.cardBankName, l.cardBrand, l.authorizationNumber].filter(Boolean).join(' - ')
+                                : undefined)}
                             >
-                              <Tag color={l.methodColor} style={{ fontSize: 11 }}>{l.methodName}</Tag>
+                              <Tag color={l.methodColor} style={{ fontSize: 11 }}>
+                                {l.employeeName ? `${l.methodName}: ${l.employeeName}` : l.methodName}
+                              </Tag>
                             </Tooltip>
                           ))}
                           {p.documentType === 'Factura' && (

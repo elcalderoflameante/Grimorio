@@ -234,8 +234,11 @@ export interface EmployeeConsumptionDto {
   id: string;
   employeeId: string;
   date: string;
+  payrollYear: number;
+  payrollMonth: number;
   amount: number;
   notes?: string;
+  paymentLineId?: string;
 }
 
 export interface CreateEmployeeConsumptionDto {
@@ -1919,6 +1922,7 @@ export interface PaymentMethodConfigDto {
   color: string;
   isCash: boolean;
   isCard: boolean;
+  purpose: 'Standard' | 'EmployeePayrollDeduction';
   isActive: boolean;
   sortOrder: number;
 }
@@ -1928,6 +1932,7 @@ export interface CreatePaymentMethodConfigDto {
   color: string;
   isCash: boolean;
   isCard: boolean;
+  purpose: 'Standard' | 'EmployeePayrollDeduction';
   sortOrder: number;
 }
 
@@ -1936,6 +1941,7 @@ export interface UpdatePaymentMethodConfigDto {
   color: string;
   isCash: boolean;
   isCard: boolean;
+  purpose: 'Standard' | 'EmployeePayrollDeduction';
   isActive: boolean;
   sortOrder: number;
 }
@@ -2040,6 +2046,8 @@ export interface PaymentLineDto {
   cardBankName?: string;
   cardBrand?: string;
   authorizationNumber?: string;
+  employeeId?: string;
+  employeeName?: string;
 }
 
 export interface OrderPaymentDto {
@@ -2235,6 +2243,7 @@ export interface AddPaymentLineDto {
   cardBankId?: string;
   cardBrand?: string;
   authorizationNumber?: string;
+  employeeId?: string;
 }
 
 export interface AddOrderPaymentDto {

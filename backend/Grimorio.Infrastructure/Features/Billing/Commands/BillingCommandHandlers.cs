@@ -5,11 +5,14 @@ using Grimorio.Domain.Entities.Billing;
 using Grimorio.Domain.Entities.Inventory;
 using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.POS;
+using Grimorio.Domain.Entities.Payroll;
+using Grimorio.Domain.Enums;
 using Grimorio.Infrastructure.Features.Billing.Queries;
 using Grimorio.Infrastructure.Features.Menu;
 using Grimorio.Infrastructure.Features.POS;
 using Grimorio.Infrastructure.Features.POS.Commands;
 using Grimorio.Infrastructure.Persistence;
+using Grimorio.Infrastructure.Services;
 using Grimorio.Infrastructure.Services.Email;
 using Grimorio.Infrastructure.Services.Sri;
 using MediatR;
@@ -278,6 +281,11 @@ public class CreatePaymentMethodHandler : IRequestHandler<CreatePaymentMethodCom
 
     public async Task<PaymentMethodConfigDto> Handle(CreatePaymentMethodCommand req, CancellationToken ct)
     {
+        if (!Enum.TryParse<PaymentMethodPurpose>(req.Purpose, true, out var purpose))
+            throw new InvalidOperationException("Uso de medio de pago no valido.");
+        if (purpose == PaymentMethodPurpose.EmployeePayrollDeduction && (req.IsCash || req.IsCard))
+            throw new InvalidOperationException("El consumo de empleado no puede configurarse como efectivo ni tarjeta.");
+
         var entity = new PaymentMethodConfig
         {
             Id = Guid.NewGuid(),
@@ -285,6 +293,7 @@ public class CreatePaymentMethodHandler : IRequestHandler<CreatePaymentMethodCom
             Color = req.Color,
             IsCash = req.IsCash,
             IsCard = req.IsCard,
+            Purpose = purpose,
             IsActive = true,
             SortOrder = req.SortOrder,
         };
@@ -301,6 +310,11 @@ public class UpdatePaymentMethodHandler : IRequestHandler<UpdatePaymentMethodCom
 
     public async Task<PaymentMethodConfigDto> Handle(UpdatePaymentMethodCommand req, CancellationToken ct)
     {
+        if (!Enum.TryParse<PaymentMethodPurpose>(req.Purpose, true, out var purpose))
+            throw new InvalidOperationException("Uso de medio de pago no valido.");
+        if (purpose == PaymentMethodPurpose.EmployeePayrollDeduction && (req.IsCash || req.IsCard))
+            throw new InvalidOperationException("El consumo de empleado no puede configurarse como efectivo ni tarjeta.");
+
         var entity = await _db.PaymentMethodConfigs
             .FirstOrDefaultAsync(x => x.Id == req.Id && !x.IsDeleted, ct)
             ?? throw new KeyNotFoundException("Método de pago no encontrado.");
@@ -309,6 +323,7 @@ public class UpdatePaymentMethodHandler : IRequestHandler<UpdatePaymentMethodCom
         entity.Color = req.Color;
         entity.IsCash = req.IsCash;
         entity.IsCard = req.IsCard;
+        entity.Purpose = purpose;
         entity.IsActive = req.IsActive;
         entity.SortOrder = req.SortOrder;
         await _db.SaveChangesAsync(ct);
@@ -663,6 +678,7 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
             throw new PaymentRejectedException("La solicitud de cobro no tiene una clave de idempotencia válida.");
 
         await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        var paymentUtcNow = DateTime.UtcNow;
 
         // Serializar cobros de la misma orden. El saldo y las cantidades pagadas deben
         // calcularse después de obtener este bloqueo para impedir cobros concurrentes duplicados.
@@ -689,6 +705,7 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
 
         var existingPayment = await _db.OrderPayments
             .Include(p => p.Lines).ThenInclude(l => l.Config)
+            .Include(p => p.Lines).ThenInclude(l => l.EmployeeConsumption).ThenInclude(c => c!.Employee)
             .Include(p => p.Items).ThenInclude(i => i.OrderItem).ThenInclude(i => i!.MenuItem)
             .Include(p => p.Customer)
             .Include(p => p.CashSession).ThenInclude(s => s!.CashRegister)
@@ -737,6 +754,48 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
             throw new PaymentRejectedException("Uno o más medios de pago no existen.");
 
         var methodMap = methods.ToDictionary(m => m.Id);
+        var employeeConsumptionLines = req.Lines
+            .Where(l => methodMap[l.MethodId].Purpose == PaymentMethodPurpose.EmployeePayrollDeduction)
+            .ToList();
+        if (req.Lines.Any(l => methodMap[l.MethodId].Purpose != PaymentMethodPurpose.EmployeePayrollDeduction
+            && l.EmployeeId.HasValue))
+            throw new PaymentRejectedException("El empleado solo puede asociarse al medio de consumo de empleados.");
+        if (employeeConsumptionLines.Any(l => !l.EmployeeId.HasValue))
+            throw new PaymentRejectedException("Selecciona el empleado para cada consumo descontado a rol.");
+
+        var employeeIds = employeeConsumptionLines
+            .Select(l => l.EmployeeId!.Value)
+            .Distinct()
+            .ToList();
+        var employeeMap = employeeIds.Count == 0
+            ? new Dictionary<Guid, Domain.Entities.Organization.Employee>()
+            : await _db.Employees
+                .Where(e => employeeIds.Contains(e.Id) && e.BranchId == req.BranchId && e.IsActive && !e.IsDeleted)
+                .ToDictionaryAsync(e => e.Id, ct);
+        if (employeeMap.Count != employeeIds.Count)
+            throw new PaymentRejectedException("Uno o mas empleados no existen o no estan activos en esta sucursal.");
+
+        var branchTimeZoneId = employeeConsumptionLines.Count == 0
+            ? null
+            : await _db.Branches
+                .Where(b => b.Id == req.BranchId && !b.IsDeleted)
+                .Select(b => b.TimeZoneId)
+                .FirstOrDefaultAsync(ct);
+        var consumptionDate = BranchTimeZone.FromUtc(paymentUtcNow, branchTimeZoneId).Date;
+        if (employeeIds.Count > 0)
+        {
+            var hasLockedPayroll = await _db.PayrollRoleHeaders
+                .AsNoTracking()
+                .AnyAsync(r => r.BranchId == req.BranchId
+                    && employeeIds.Contains(r.EmployeeId)
+                    && r.Year == consumptionDate.Year
+                    && r.Month == consumptionDate.Month
+                    && r.Status != PayrollRoleStatus.Generated
+                    && !r.IsDeleted, ct);
+            if (hasLockedPayroll)
+                throw new PaymentRejectedException("El rol del mes del consumo ya esta autorizado o pagado para uno de los empleados.");
+        }
+
         var cardLines = req.Lines.Where(l => methodMap[l.MethodId].IsCard).ToList();
         var bankIds = cardLines
             .Select(l => l.CardBankId)
@@ -908,7 +967,7 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
         if (req.OrderAmount > remaining + 0.01m)
             throw new PaymentRejectedException($"El monto ({req.OrderAmount:F2}) supera el saldo pendiente ({remaining:F2}).");
 
-        var paidAt = DateTime.UtcNow;
+        var paidAt = paymentUtcNow;
 
         // Si el frontend no envió sesión, auto-asignar la activa del sucursal
         var session = req.CashSessionId.HasValue
@@ -980,7 +1039,7 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
                 change = Math.Min(remainingChange, l.AmountTendered);
                 remainingChange -= change;
             }
-            return new PaymentLine
+            var line = new PaymentLine
             {
                 Id = Guid.NewGuid(),
                 OrderPaymentId = payment.Id,
@@ -994,6 +1053,25 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
                 AuthorizationNumber = authorizationNumber,
                 Config = method,
             };
+            if (method.Purpose == PaymentMethodPurpose.EmployeePayrollDeduction)
+            {
+                var employee = employeeMap[l.EmployeeId!.Value];
+                line.EmployeeConsumption = new EmployeeConsumption
+                {
+                    Id = Guid.NewGuid(),
+                    BranchId = req.BranchId,
+                    EmployeeId = employee.Id,
+                    Date = consumptionDate,
+                    PayrollYear = consumptionDate.Year,
+                    PayrollMonth = consumptionDate.Month,
+                    Amount = l.AmountTendered,
+                    Notes = $"Consumo POS - Orden #{order.Number}",
+                    PaymentLineId = line.Id,
+                    Employee = employee,
+                    PaymentLine = line,
+                };
+            }
+            return line;
         }).ToList();
 
         payment.Lines = lines;
@@ -1105,7 +1183,8 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
                 && string.Equals(l.CardPaymentType?.ToString(), line.CardPaymentType, StringComparison.OrdinalIgnoreCase)
                 && l.CardBankId == line.CardBankId
                 && l.CardBrand == line.CardBrand?.Trim()
-                && l.AuthorizationNumber == line.AuthorizationNumber?.Trim());
+                && l.AuthorizationNumber == line.AuthorizationNumber?.Trim()
+                && (l.EmployeeConsumption == null ? null : l.EmployeeConsumption.EmployeeId) == line.EmployeeId);
             if (match < 0) throw new PaymentIdempotencyConflictException();
             unmatchedLines.RemoveAt(match);
         }
@@ -1792,7 +1871,8 @@ internal static class BillingMapper
     internal static PaymentMethodConfigDto MapPaymentMethod(PaymentMethodConfig m) => new()
     {
         Id = m.Id, Name = m.Name, Color = m.Color,
-        IsCash = m.IsCash, IsCard = m.IsCard, IsActive = m.IsActive, SortOrder = m.SortOrder,
+        IsCash = m.IsCash, IsCard = m.IsCard, Purpose = m.Purpose.ToString(),
+        IsActive = m.IsActive, SortOrder = m.SortOrder,
     };
 
     internal static CardBankDto MapCardBank(CardBank b) => new()
@@ -1901,6 +1981,10 @@ internal static class BillingMapper
             CardBankName = l.CardBankName,
             CardBrand = l.CardBrand,
             AuthorizationNumber = l.AuthorizationNumber,
+            EmployeeId = l.EmployeeConsumption?.EmployeeId,
+            EmployeeName = l.EmployeeConsumption?.Employee == null
+                ? null
+                : $"{l.EmployeeConsumption.Employee.FirstName} {l.EmployeeConsumption.Employee.LastName}".Trim(),
         }).ToList(),
         Items = p.Items.Select(i => new OrderPaymentItemDto
         {
