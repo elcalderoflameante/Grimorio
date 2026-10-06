@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../Grimorio.Domain/Grimorio.Domain.csproj" />
+    <Compile Include="../../Grimorio.Infrastructure/Features/POS/AlexaStationScope.cs" Link="AlexaStationScope.cs" />
     <Compile Include="../../Grimorio.Infrastructure/Features/POS/KitchenOrderState.cs" Link="KitchenOrderState.cs" />
   </ItemGroup>
 </Project>

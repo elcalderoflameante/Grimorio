@@ -51,4 +51,36 @@ Check(aggregate.Status == OrderStatus.Ready, "Last ready item moves the order to
 other.Status = OrderItemStatus.Pending;
 KitchenOrderState.Recalculate(aggregate);
 Check(aggregate.Status == OrderStatus.Confirmed, "Pending items prevent an all-ready order.");
+
+var grill = new OrderItem { Station = new WorkStation { Name = "Parrilla" }, Status = OrderItemStatus.Pending };
+var fried = new OrderItem { Station = new WorkStation { Name = "Fritos" }, Status = OrderItemStatus.Pending };
+var bar = new OrderItem { Station = new WorkStation { Name = "Bar" }, Status = OrderItemStatus.Pending };
+var mixedOrder = new Order { Items = [grill, fried, bar], Status = OrderStatus.Confirmed };
+string[] kitchenStations = ["parrilla", "fritos"];
+
+var kitchenItems = mixedOrder.Items.Where(i => AlexaStationScope.Includes(i, kitchenStations)).ToList();
+Check(kitchenItems.Count == 2 && !kitchenItems.Contains(bar), "Kitchen scope only includes grill and fried items.");
+foreach (var item in kitchenItems) item.Status = OrderItemStatus.Ready;
+KitchenOrderState.Recalculate(mixedOrder);
+Check(bar.Status == OrderItemStatus.Pending, "Whole kitchen command leaves bar pending.");
+Check(mixedOrder.Status != OrderStatus.Ready, "Mixed order waits for bar.");
+
+var barItems = mixedOrder.Items.Where(i => AlexaStationScope.Includes(i, ["bar"])).ToList();
+Check(barItems.Count == 1 && barItems[0] == bar, "Bar scope only includes bar items.");
+barItems[0].Status = OrderItemStatus.Ready;
+KitchenOrderState.Recalculate(mixedOrder);
+Check(mixedOrder.Status == OrderStatus.Ready, "Mixed order is ready after both areas finish.");
+Check(!AlexaStationScope.Includes(bar, []), "Empty Alexa scope permits nothing.");
+Check(!AlexaStationScope.Includes(bar, ["unknown"]), "Unknown Alexa scope does not fall back to all items.");
+Check(!AlexaStationScope.Includes(bar, ["ba"]), "Alexa scope does not use partial station matching.");
+Check(!AlexaStationScope.Includes(new OrderItem(), kitchenStations), "Unassigned items are excluded from scoped skills.");
+Check(AlexaStationScope.Includes(bar, null), "Legacy Alexa requests keep full scope.");
+Check(AlexaStationScope.Includes(grill, [" PARRILLA "]), "Alexa station names ignore case and whitespace.");
+grill.Status = OrderItemStatus.Pending;
+Check(AlexaStationScope.IsRepeatable(grill, kitchenStations), "Alexa repeats pending kitchen items.");
+grill.Status = OrderItemStatus.InPreparation;
+Check(AlexaStationScope.IsRepeatable(grill, kitchenStations), "Alexa repeats items in preparation.");
+grill.Status = OrderItemStatus.Ready;
+Check(!AlexaStationScope.IsRepeatable(grill, kitchenStations), "Alexa does not repeat ready items.");
+Check(!AlexaStationScope.IsRepeatable(bar, kitchenStations), "Alexa does not repeat items outside its scope.");
 Console.WriteLine($"Kitchen order state checks passed: {checks}.");

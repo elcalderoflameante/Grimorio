@@ -5,6 +5,17 @@ const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 
+test('kitchen and bar models only differ by invocation name', () => {
+  const root = path.join(__dirname, '..');
+  const kitchen = JSON.parse(fs.readFileSync(path.join(root, 'interaction-model.cocina.es-US.json'), 'utf8'));
+  const bar = JSON.parse(fs.readFileSync(path.join(root, 'interaction-model.bar.es-US.json'), 'utf8'));
+  assert.equal(kitchen.interactionModel.languageModel.invocationName, 'cocina caldero');
+  assert.equal(bar.interactionModel.languageModel.invocationName, 'bar caldero');
+  kitchen.interactionModel.languageModel.invocationName = '<invocation>';
+  bar.interactionModel.languageModel.invocationName = '<invocation>';
+  assert.deepEqual(kitchen, bar);
+});
+
 function loadSkill(stations, { result = { success: true, message: 'Oido chef.' }, status = 200,
   networkError = false, responseError = false, invalidJson = false, hang = false } = {}) {
   const calls = [];

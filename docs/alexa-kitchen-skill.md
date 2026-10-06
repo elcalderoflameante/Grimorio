@@ -263,14 +263,14 @@ Respuesta:
 Scaffold incluido:
 
 - `integrations/alexa/kitchen-skill/lambda/index.js`
-- `integrations/alexa/kitchen-skill/interaction-model.es-US.json`
+- `integrations/alexa/kitchen-skill/lambda/index.test.js`
 - `integrations/alexa/kitchen-skill/interaction-model.cocina.es-US.json`
 - `integrations/alexa/kitchen-skill/interaction-model.bar.es-US.json`
 
-El modelo original es la fuente comun de intents y conserva la invocacion
-`grimorio` para instalaciones antiguas. Para cambiar frases o slots, editar esa
-fuente y ejecutar `node integrations/alexa/kitchen-skill/generate-models.js`;
-los modelos Cocina/Bar se regeneran cambiando solo el nombre de invocacion.
+Los dos modelos contienen los mismos intents, slots y frases; solo cambia el
+nombre de invocacion. Si se modifica el modelo de voz, aplicar el mismo cambio en
+ambos JSON y conservar `cocina caldero` o `bar caldero` segun corresponda. El
+modelo anterior de `grimorio` fue eliminado porque ya no se despliega.
 
 La Lambda debe:
 
@@ -314,6 +314,5 @@ confianza, no una credencial ni un permiso de seguridad independiente por skill.
 
 ```powershell
 node --test integrations/alexa/kitchen-skill/lambda/index.test.js
-node integrations/alexa/kitchen-skill/generate-models.js --check
-dotnet run --project backend/tests/AlexaStationScope.Checks/AlexaStationScope.Checks.csproj
+dotnet run --project backend/tests/KitchenOrderState.Checks/KitchenOrderState.Checks.csproj
 ```
