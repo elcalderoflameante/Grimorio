@@ -204,6 +204,9 @@ public class KdsLoginCommandHandler : IRequestHandler<KdsLoginCommand, AuthRespo
             FirstName = user.FirstName,
             LastName = user.LastName,
             Email = user.Email,
+            ClientType = request.RequireWaitstaffRole
+                ? AppConstants.ClientTypes.Waitstaff
+                : AppConstants.ClientTypes.Kds,
             Roles = activeRoleNames,
             Permissions = permissions
         };

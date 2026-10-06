@@ -25,6 +25,8 @@ Antes de distribuir una APK, comprobar en una tablet real:
 5. Avisos de voz para nuevos pedidos, adicionales y cambios de observaciones.
 
 La voz de la app reproduce avisos; los comandos de voz se gestionan con Alexa.
+El canal general funciona en modo de solo recepción: se conecta automáticamente
+después del login y no solicita micrófono ni muestra controles para transmitir.
 
 ## Build de produccion Android
 

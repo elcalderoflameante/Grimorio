@@ -12,6 +12,9 @@ var channels = new VoiceChannelService(media, hub, clock);
 var branch = Guid.NewGuid();
 await channels.JoinAsync(branch, "a", "Ana");
 await channels.JoinAsync(branch, "b", "Bar");
+await channels.JoinAsync(branch, "kds", "Cocina", canTransmit: false);
+try { await channels.AcquireAsync(branch, "kds"); throw new Exception("Receive-only station acquired the floor"); }
+catch (HubException) { checks++; }
 var results = await Task.WhenAll(channels.AcquireAsync(branch, "a"), channels.AcquireAsync(branch, "b"));
 Check(results.Count(x => x != null) == 1, "Only one simultaneous requester gets the floor");
 var owner = results[0] != null ? "a" : "b";

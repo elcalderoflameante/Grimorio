@@ -7,7 +7,8 @@ con dispositivos reales. Consultar `deploy-walkie-talkie.md` para activación.
 
 Un canal general por sucursal compartido por meseros, estaciones de cocina/barra
 y caja en el POS web. Todos los participantes conectados y con recepción activa
-escuchan al emisor. Mantener presionado para hablar; soltar para detener.
+escuchan al emisor. Los meseros mantienen presionado para hablar y sueltan para
+detener; las estaciones KDS son receptores y no pueden solicitar turno.
 No grabar conversaciones ni modificar pedidos mediante la voz.
 
 ## Arquitectura propuesta
@@ -44,8 +45,9 @@ certifica que alguien haya escuchado físicamente el mensaje.
 
 ### Estaciones
 
-Integrar en la pantalla KDS y asociar la etiqueta del dispositivo a las estaciones
-seleccionadas. El servicio TTS actual tiene una cola de anuncios: al recibir voz,
+La pantalla KDS se conecta automáticamente como receptor después del login, sin
+solicitar micrófono ni registrar controles PTT. El servicio TTS actual tiene una
+cola de anuncios: al recibir voz,
 pausar o interrumpir conservando el aviso pendiente, y reanudarlo al finalizar.
 No usar directamente `TtsService.stop()` para esto: actualmente vacía la cola.
 Mantener visibles los avisos de pedidos durante la conversación.

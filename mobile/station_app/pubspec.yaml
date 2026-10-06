@@ -2,7 +2,7 @@ name: station_app
 description: "KDS — Kitchen Display System para estaciones Grimorio"
 publish_to: 'none'
 
-version: 1.0.10+11
+version: 1.0.11+12
 
 environment:
   sdk: ^3.11.5
@@ -23,16 +23,11 @@ dependencies:
   # Estado
   provider: ^6.1.2
 
-  # UUID
-  uuid: ^4.5.1
-
   # Text-to-speech
   flutter_tts: ^4.2.0
 
   # Mantener pantalla encendida
   wakelock_plus: ^1.2.10
-
-  cupertino_icons: ^1.0.8
 
 dev_dependencies:
   flutter_test:

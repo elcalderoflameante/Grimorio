@@ -17,6 +17,7 @@ public sealed class VoiceChannelService(IVoiceMediaClient media, IHubContext<Voi
         public string Room { get; } = room;
         public SemaphoreSlim Gate { get; } = new(1, 1);
         public Dictionary<string, VoiceParticipant> Participants { get; } = [];
+        public HashSet<string> ReceiveOnly { get; } = [];
         public HashSet<string> Departed { get; } = [];
         public string? Owner;
         public string? Lease;
@@ -37,7 +38,7 @@ public sealed class VoiceChannelService(IVoiceMediaClient media, IHubContext<Voi
         return hub.Clients.Group(Group(branch)).SendAsync("voice:state", State(c));
     }
 
-    public async Task<VoiceSession> JoinAsync(Guid branch, string identity, string name)
+    public async Task<VoiceSession> JoinAsync(Guid branch, string identity, string name, bool canTransmit = true)
     {
         var c = Get(branch);
         await c.Gate.WaitAsync();
@@ -47,6 +48,8 @@ public sealed class VoiceChannelService(IVoiceMediaClient media, IHubContext<Voi
                 throw new HubException("El canal alcanzó su límite de participantes.");
             var token = media.CreateListenerToken(c.Room, identity, name);
             c.Participants[identity] = new(identity, name);
+            if (canTransmit) c.ReceiveOnly.Remove(identity);
+            else c.ReceiveOnly.Add(identity);
             await Broadcast(branch, c);
             return new(media.PublicUrl, token, identity, State(c));
         }
@@ -60,6 +63,7 @@ public sealed class VoiceChannelService(IVoiceMediaClient media, IHubContext<Voi
         try
         {
             if (!c.Participants.ContainsKey(identity)) throw new HubException("Primero conecta el walkie-talkie.");
+            if (c.ReceiveOnly.Contains(identity)) throw new HubException("Esta estacion solo puede escuchar.");
             await ExpireAsync(branch, c);
             if (c.Owner != null) return null;
             c.Owner = identity;
@@ -114,6 +118,7 @@ public sealed class VoiceChannelService(IVoiceMediaClient media, IHubContext<Voi
                 await RevokeAsync(branch, c);
             }
             if (c.Participants.Remove(identity)) await Broadcast(branch, c);
+            c.ReceiveOnly.Remove(identity);
             await media.RemoveAsync(c.Room, identity);
             c.Departed.Remove(identity);
         }

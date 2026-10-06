@@ -48,6 +48,8 @@ class StationApp extends StatelessWidget {
             apiBaseUrl: station.serverUrl,
             readToken: AuthService().getToken,
             onChannelBusy: station.setVoiceBusy,
+            canTransmit: false,
+            autoActivate: true,
             child: child!,
           );
         },

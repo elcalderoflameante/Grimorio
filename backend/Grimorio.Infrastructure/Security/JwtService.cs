@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Configuration;
 using Grimorio.Application.DTOs;
+using Grimorio.SharedKernel.Constants;
 
 namespace Grimorio.Infrastructure.Security;
 
@@ -55,6 +56,8 @@ public class JwtService : IJwtService
             claims.Add(new Claim("LastName", user.LastName));
         if (!string.IsNullOrWhiteSpace(user.Email))
             claims.Add(new Claim("email", user.Email));
+        if (!string.IsNullOrWhiteSpace(user.ClientType))
+            claims.Add(new Claim(AppConstants.Claims.ClientType, user.ClientType));
 
         // Agregar roles
         foreach (var role in user.Roles)
@@ -125,6 +128,8 @@ public class JwtService : IJwtService
             {
                 UserId = Guid.Parse(userIdClaim.Value),
                 BranchId = Guid.Parse(branchIdClaim.Value),
+                ClientType = jwtToken.Claims
+                    .FirstOrDefault(c => c.Type == AppConstants.Claims.ClientType)?.Value,
                 Roles = jwtToken.Claims
                     .Where(c => c.Type == ClaimTypes.Role)
                     .Select(c => c.Value)

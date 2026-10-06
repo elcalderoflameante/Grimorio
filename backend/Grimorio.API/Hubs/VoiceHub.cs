@@ -2,12 +2,16 @@ using System.Security.Claims;
 using Grimorio.API.Services.Voice;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Grimorio.SharedKernel.Constants;
 
 namespace Grimorio.API.Hubs;
 
 [Authorize(Policy = "Voice.Access")]
 public sealed class VoiceHub(VoiceChannelService channels, ILogger<VoiceHub> logger) : Hub
 {
+    private bool CanTransmit => Context.User?.FindFirst(AppConstants.Claims.ClientType)?.Value
+        != AppConstants.ClientTypes.Kds;
+
     private Guid Branch => Guid.TryParse(Context.User?.FindFirst("BranchId")?.Value, out var id)
         ? id : throw new HubException("La sesión no tiene una sucursal válida.");
 
@@ -18,7 +22,11 @@ public sealed class VoiceHub(VoiceChannelService channels, ILogger<VoiceHub> log
         if (!Guid.TryParse(userId, out _)) throw new HubException("Sesión inválida.");
         var name = $"{Context.User?.FindFirst("FirstName")?.Value} {Context.User?.FindFirst("LastName")?.Value}".Trim();
         await Groups.AddToGroupAsync(Context.ConnectionId, VoiceChannelService.Group(branch));
-        try { return await channels.JoinAsync(branch, Context.ConnectionId, name.Length > 0 ? name : "Personal"); }
+        try { return await channels.JoinAsync(
+            branch,
+            Context.ConnectionId,
+            name.Length > 0 ? name : "Personal",
+            CanTransmit); }
         catch (InvalidOperationException ex) { throw new HubException(ex.Message); }
     }
 

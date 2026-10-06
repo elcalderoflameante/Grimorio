@@ -14,11 +14,15 @@ class VoiceShell extends StatefulWidget {
     required this.apiBaseUrl,
     required this.readToken,
     this.onChannelBusy,
+    this.canTransmit = true,
+    this.autoActivate = false,
   });
   final Widget child;
   final String apiBaseUrl;
   final Future<String?> Function() readToken;
   final ValueChanged<bool>? onChannelBusy;
+  final bool canTransmit;
+  final bool autoActivate;
   @override
   State<VoiceShell> createState() => _VoiceShellState();
 }
@@ -62,23 +66,33 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
   bool _recovering = false;
   Future<void> _cleanup = Future.value();
   int _generation = 0, _revision = -1, _count = 0;
-  String _status = 'Walkie-talkie apagado', _identity = '';
+  String _status = 'Canal de voz apagado', _identity = '';
   String? _lease, _speaker;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _controls.listen((down, id) {
-      if (down) {
-        if (_hardwareId == null && !_held && !_acquiring && _stopping == null) {
-          unawaited(_talk(hardwareId: id));
+    if (widget.canTransmit) {
+      _controls.listen((down, id) {
+        if (down) {
+          if (_hardwareId == null &&
+              !_held &&
+              !_acquiring &&
+              _stopping == null) {
+            unawaited(_talk(hardwareId: id));
+          }
+        } else if (_hardwareId == id) {
+          unawaited(_stopTalking());
         }
-      } else if (_hardwareId == id) {
-        unawaited(_stopTalking());
-      }
-    });
-    unawaited(_controls.refresh());
+      });
+      unawaited(_controls.refresh());
+    }
+    if (widget.autoActivate) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => unawaited(_activate()),
+      );
+    }
   }
 
   void _update(VoidCallback update) {
@@ -88,8 +102,9 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      unawaited(_controls.refresh());
-    } else if (_hardwareId == null || state == AppLifecycleState.detached) {
+      if (widget.canTransmit) unawaited(_controls.refresh());
+    } else if (widget.canTransmit &&
+        (_hardwareId == null || state == AppLifecycleState.detached)) {
       unawaited(_stopTalking());
     }
   }
@@ -100,7 +115,7 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
     _closing = true;
     _enabled = false;
     _retry?.cancel();
-    unawaited(_controls.arm(false));
+    if (widget.canTransmit) unawaited(_controls.arm(false));
     _controls.dispose();
     unawaited(_teardown(disableBackground: true));
     super.dispose();
@@ -114,20 +129,24 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
       _status = 'Preparando audio…';
     });
     try {
-      if (!await Permission.microphone.request().isGranted) {
+      if (widget.canTransmit &&
+          !await Permission.microphone.request().isGranted) {
         throw StateError('Permite el micrófono para usar el walkie-talkie.');
       }
       if (_closing || !_enabled) return;
       if (Theme.of(context).platform == TargetPlatform.android) {
         await Permission.notification.request();
         final initialized = await FlutterBackground.initialize(
-          androidConfig: const FlutterBackgroundAndroidConfig(
+          androidConfig: FlutterBackgroundAndroidConfig(
             notificationTitle: 'Walkie-talkie · Grimorio',
-            notificationText: 'Canal general de la sucursal activo',
-            notificationIcon: AndroidResource(
+            notificationText: widget.canTransmit
+                ? 'Canal general de la sucursal activo'
+                : 'Escuchando el canal general de la sucursal',
+            notificationIcon: const AndroidResource(
               name: 'ic_launcher',
               defType: 'mipmap',
             ),
+            shouldRequestBatteryOptimizationsOff: widget.canTransmit,
           ),
         );
         if (!initialized ||
@@ -145,7 +164,9 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
       _update(
         () => _status = error is StateError
             ? error.message.toString()
-            : 'No se pudo activar la voz. Revisa los permisos.',
+            : widget.canTransmit
+            ? 'No se pudo activar la voz. Revisa los permisos.'
+            : 'No se pudo activar la recepción de voz.',
       );
     } finally {
       _activating = false;
@@ -208,9 +229,9 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
         _connected = true;
         _status = 'Escuchando · canal general';
       });
-      await _controls.arm(!_controlsOpen);
+      if (widget.canTransmit) await _controls.arm(!_controlsOpen);
       if (generation != _generation || _closing || !_enabled) {
-        await _controls.arm(false);
+        if (widget.canTransmit) await _controls.arm(false);
         return;
       }
     } catch (_) {
@@ -243,7 +264,8 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
   }
 
   Future<void> _talk({int? hardwareId}) async {
-    if (_controlsOpen ||
+    if (!widget.canTransmit ||
+        _controlsOpen ||
         !_enabled ||
         _closing ||
         !_connected ||
@@ -397,8 +419,10 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
 
   Future<void> _cleanupSession(bool disableBackground) async {
     _update(() => _connected = false);
-    await _controls.arm(false);
-    await _stopTalking();
+    if (widget.canTransmit) {
+      await _controls.arm(false);
+      await _stopTalking();
+    }
     final room = _room, hub = _hub, events = _events;
     _room = null;
     _hub = null;
@@ -435,7 +459,7 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
       _connected = false;
       _status = 'Reconectando voz…';
     });
-    await _controls.arm(false);
+    if (widget.canTransmit) await _controls.arm(false);
     try {
       await _teardown();
       if (!_enabled || _closing) return;
@@ -455,14 +479,14 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
     _retry?.cancel();
     try {
       await _teardown(disableBackground: true);
-      _update(() => _status = 'Walkie-talkie apagado');
+      _update(() => _status = 'Canal de voz apagado');
     } finally {
       _deactivating = false;
     }
   }
 
   Future<void> _showControls() async {
-    if (_controlsOpen) return;
+    if (!widget.canTransmit || _controlsOpen) return;
     _update(() {
       _controlsOpen = true;
       _draftVolume = _controls.volume;
@@ -567,7 +591,9 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
                 IconButton(
                   tooltip: _enabled
                       ? 'Salir del canal'
-                      : 'Activar walkie-talkie',
+                      : widget.canTransmit
+                      ? 'Activar walkie-talkie'
+                      : 'Activar recepción de voz',
                   onPressed: () =>
                       unawaited(_enabled ? _deactivate() : _activate()),
                   icon: Icon(
@@ -585,13 +611,13 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
                     style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ),
-                if (_controls.supported)
+                if (widget.canTransmit && _controls.supported)
                   IconButton(
                     tooltip: 'Botón y sonidos del walkie',
                     onPressed: () => unawaited(_showControls()),
                     icon: const Icon(Icons.tune, color: Colors.white70),
                   ),
-                if (_connected)
+                if (widget.canTransmit && _connected)
                   Semantics(
                     label: 'Mantener presionado para hablar',
                     button: true,

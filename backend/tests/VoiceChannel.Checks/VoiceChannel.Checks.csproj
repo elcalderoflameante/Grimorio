@@ -12,5 +12,6 @@
     <Compile Include="../../Grimorio.API/Hubs/VoiceHub.cs" Link="VoiceHub.cs" />
     <Compile Include="../../Grimorio.API/Services/Voice/VoiceChannelService.cs" Link="VoiceChannelService.cs" />
     <Compile Include="../../Grimorio.API/Services/Voice/IVoiceMediaClient.cs" Link="IVoiceMediaClient.cs" />
+    <Compile Include="../../Grimorio.SharedKernel/Constants/AppConstants.cs" Link="AppConstants.cs" />
   </ItemGroup>
 </Project>
