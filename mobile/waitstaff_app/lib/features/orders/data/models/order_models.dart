@@ -401,6 +401,7 @@ class MenuItemModifierGroupDto {
 }
 
 class MenuItemDto {
+  bool get isPromotionsOnly => saleVisibility == 'PromotionsOnly';
   final String id;
   final String name;
   final String? description;
@@ -411,6 +412,7 @@ class MenuItemDto {
   final String? categoryColor;
   final bool isActive;
   final bool hasModifiers;
+  final String saleVisibility;
   final List<MenuItemModifierGroupDto> modifierGroups;
 
   const MenuItemDto({
@@ -423,6 +425,7 @@ class MenuItemDto {
     required this.categoryName,
     this.categoryColor,
     required this.isActive,
+    this.saleVisibility = 'MenuAndPromotions',
     this.hasModifiers = false,
     this.modifierGroups = const [],
   });
@@ -437,6 +440,7 @@ class MenuItemDto {
     categoryName: j['categoryName'] as String? ?? '',
     categoryColor: j['categoryColor'] as String?,
     isActive: j['isActive'] as bool? ?? true,
+    saleVisibility: j['saleVisibility'] as String? ?? 'MenuAndPromotions',
     hasModifiers: j['hasModifiers'] as bool? ?? false,
     modifierGroups: (j['modifierGroups'] as List<dynamic>? ?? [])
         .map(
@@ -452,6 +456,7 @@ class MenuItemAvailabilityDto {
   final bool isAvailable;
   final double? availableQuantity;
   final String? limitingArticleName;
+  final List<MenuItemAvailabilityComponentDto> components;
 
   const MenuItemAvailabilityDto({
     required this.menuItemId,
@@ -459,7 +464,21 @@ class MenuItemAvailabilityDto {
     required this.isAvailable,
     this.availableQuantity,
     this.limitingArticleName,
+    this.components = const [],
   });
+
+  List<String> get missingIngredientNames {
+    final names = components
+        .where((component) => component.availableServings < 1)
+        .map((component) => component.articleName)
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .toList();
+    if (names.isEmpty && limitingArticleName?.isNotEmpty == true) {
+      names.add(limitingArticleName!);
+    }
+    return names;
+  }
 
   factory MenuItemAvailabilityDto.fromJson(Map<String, dynamic> j) =>
       MenuItemAvailabilityDto(
@@ -468,7 +487,31 @@ class MenuItemAvailabilityDto {
         isAvailable: j['isAvailable'] as bool? ?? true,
         availableQuantity: (j['availableQuantity'] as num?)?.toDouble(),
         limitingArticleName: j['limitingArticleName'] as String?,
+        components: (j['components'] as List<dynamic>? ?? [])
+            .map(
+              (e) => MenuItemAvailabilityComponentDto.fromJson(
+                e as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
       );
+}
+
+class MenuItemAvailabilityComponentDto {
+  final String articleName;
+  final double availableServings;
+
+  const MenuItemAvailabilityComponentDto({
+    required this.articleName,
+    required this.availableServings,
+  });
+
+  factory MenuItemAvailabilityComponentDto.fromJson(
+    Map<String, dynamic> json,
+  ) => MenuItemAvailabilityComponentDto(
+    articleName: json['articleName'] as String? ?? '',
+    availableServings: (json['availableServings'] as num?)?.toDouble() ?? 0,
+  );
 }
 
 class TableDto {
@@ -544,7 +587,7 @@ class CartModifierSelection {
 class CartItem {
   final String menuItemId;
   final String name;
-  final double price;
+  double price;
   String? promotionId;
   String? promotionName;
   int quantity;

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
@@ -9,6 +10,7 @@ import '../../../../core/constants/api_config.dart';
 import '../../../../core/network/api_error.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/models/order_models.dart';
+import '../../data/models/cart_catalog_validation.dart';
 import '../../data/models/pending_order_items_update.dart';
 import '../../data/services/order_api_service.dart';
 
@@ -49,7 +51,12 @@ class NewOrderPage extends ConsumerStatefulWidget {
   ConsumerState<NewOrderPage> createState() => _NewOrderPageState();
 }
 
-class _NewOrderPageState extends ConsumerState<NewOrderPage> {
+class _NewOrderPageState extends ConsumerState<NewOrderPage>
+    with WidgetsBindingObserver {
+  Timer? _catalogTimer;
+  Future<bool>? _catalogRefresh;
+  bool _selectingModifiers = false;
+  String? _catalogNotice;
   // ── Catálogo ──────────────────────────────────────────────────────────────
   List<MenuCategoryDto> _categories = [];
   List<MenuItemDto> _items = [];
@@ -98,10 +105,27 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _orderId = widget.orderId;
     _orderIsDraft = widget.orderId == null || widget.orderIsDraft;
     _loadDraftIntoCart();
     _loadCatalog();
+    _catalogTimer = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (!_cartLocked &&
+          !_selectingModifiers &&
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        unawaited(_loadCatalog(showLoading: false));
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        !_cartLocked &&
+        !_selectingModifiers) {
+      unawaited(_loadCatalog(showLoading: false));
+    }
   }
 
   void _loadDraftIntoCart() {
@@ -141,15 +165,25 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
 
   @override
   void dispose() {
+    _catalogTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _notesCtrl.dispose();
     super.dispose();
   }
 
   // ── Carga de datos ────────────────────────────────────────────────────────
 
-  Future<void> _loadCatalog() async {
+  Future<bool> _loadCatalog({bool showLoading = true}) {
+    final running = _catalogRefresh;
+    if (running != null) return running;
+    final refresh = _performCatalogRefresh(showLoading: showLoading);
+    _catalogRefresh = refresh;
+    return refresh.whenComplete(() => _catalogRefresh = null);
+  }
+
+  Future<bool> _performCatalogRefresh({required bool showLoading}) async {
     setState(() {
-      _loadingCatalog = true;
+      _loadingCatalog = showLoading;
       _catalogReady = false;
       _catalogError = null;
     });
@@ -161,16 +195,14 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
         api.getMenuAvailability(),
         api.getActivePromotions(),
       ).wait;
-      final modifierDetails = await _loadDraftModifierDetails(api);
-      if (!_refreshDraftModifierAvailability(modifierDetails)) {
-        throw StateError(
-          'Uno o más modificadores del borrador ya no están disponibles.',
-        );
-      }
+      final modifierDetails = await _loadDraftModifierDetails(api, items);
+      final currentItems = items
+          .map((item) => modifierDetails[item.id] ?? item)
+          .toList();
       if (mounted) {
         setState(() {
           _categories = cats;
-          _items = items;
+          _items = currentItems;
           _promotions = promotions;
           if (_selectedCategory != _promotionsCategoryId ||
               promotions.isEmpty) {
@@ -193,9 +225,18 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
           _availabilityByItemId = {
             for (final entry in availability) entry.menuItemId: entry,
           };
+          // Never alter the cart behind an ambiguous request awaiting a retry.
+          if (_pendingItemsUpdate == null && !_confirmationPending) {
+            final result = _validateCart();
+            if (result.changed) {
+              _catalogNotice =
+                  'Se actualizaron precios o promociones. Revisa el total antes de enviar.';
+            }
+          }
           _loadingCatalog = false;
           _catalogReady = true;
         });
+        return true;
       }
     } catch (e) {
       if (mounted) {
@@ -211,18 +252,27 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
           _catalogReady = false;
           _catalogError = message;
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        if (showLoading) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
+        }
       }
     }
+    return false;
   }
 
   Future<Map<String, MenuItemDto>> _loadDraftModifierDetails(
     OrderApiService api,
+    List<MenuItemDto> items,
   ) async {
+    final availableIds = items.map((item) => item.id).toSet();
     final menuItemIds = _cart
-        .where((item) => item.modifierSelections.isNotEmpty)
+        .where(
+          (item) =>
+              item.modifierSelections.isNotEmpty &&
+              availableIds.contains(item.menuItemId),
+        )
         .map((item) => item.menuItemId)
         .toSet();
     final details = <String, MenuItemDto>{};
@@ -235,50 +285,23 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
     return details;
   }
 
-  bool _refreshDraftModifierAvailability(
-    Map<String, MenuItemDto> detailsByMenuItemId,
-  ) {
-    var verified = true;
-    for (final cartItem in _cart) {
-      final detail = detailsByMenuItemId[cartItem.menuItemId];
-      if (cartItem.modifierSelections.isNotEmpty && detail == null) {
-        verified = false;
-        continue;
-      }
-      if (detail == null) continue;
-
-      final optionsById = <String, MenuItemModifierOptionDto>{
-        for (final group in detail.modifierGroups)
-          for (final option in group.options) option.id: option,
-      };
-      for (var index = 0; index < cartItem.modifierSelections.length; index++) {
-        final selection = cartItem.modifierSelections[index];
-        final currentOption = optionsById[selection.modifierOptionId];
-        if (currentOption == null) {
-          verified = false;
-          continue;
-        }
-
-        cartItem.modifierSelections[index] = CartModifierSelection(
-          modifierOptionId: selection.modifierOptionId,
-          groupName: selection.groupName,
-          optionName: selection.optionName,
-          quantity: selection.quantity,
-          unitPriceDelta: selection.unitPriceDelta,
-          isTracked: currentOption.isTracked,
-          availableQuantity: currentOption.availableQuantity,
-        );
-      }
-    }
-    return verified;
-  }
+  CartCatalogValidation _validateCart() => validateCartCatalog(
+    cart: _cart,
+    items: _items,
+    promotions: _promotions,
+    availability: _availabilityByItemId,
+  );
 
   List<MenuItemDto> get _filteredItems {
     final promotion = _selectedPromotion;
     if (promotion != null) {
       return _items.where(promotion.appliesTo).toList();
     }
-    return _items.where((i) => i.menuCategoryId == _selectedCategory).toList();
+    return _items
+        .where(
+          (i) => i.menuCategoryId == _selectedCategory && !i.isPromotionsOnly,
+        )
+        .toList();
   }
 
   PromotionDto? get _selectedPromotion {
@@ -290,7 +313,15 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
 
   PromotionDto? _promotionForItem(CartItem item) {
     for (final promotion in _promotions) {
-      if (promotion.id == item.promotionId) return promotion;
+      if (promotion.id == item.promotionId &&
+          promotion.isActive &&
+          promotion.isCurrentlyActive &&
+          _items.any(
+            (menuItem) =>
+                menuItem.id == item.menuItemId && promotion.appliesTo(menuItem),
+          )) {
+        return promotion;
+      }
     }
     return null;
   }
@@ -306,13 +337,13 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
     final promotion = _selectedPromotion;
     final availability = _availabilityByItemId[item.id];
     if (availability?.isTracked == true && !availability!.isAvailable) {
-      final reason = availability.limitingArticleName;
+      final reasons = availability.missingIngredientNames;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            reason == null
+            reasons.isEmpty
                 ? '${item.name} está agotado.'
-                : '${item.name} está agotado: falta $reason.',
+                : '${item.name} está agotado. Faltan: ${reasons.join(', ')}.',
           ),
         ),
       );
@@ -325,7 +356,12 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
             .read(orderApiServiceProvider)
             .getMenuItem(item.id);
         if (!mounted || !_canEditCart()) return;
-        await _showModifierDialog(detail, promotion: promotion);
+        _selectingModifiers = true;
+        try {
+          await _showModifierDialog(detail, promotion: promotion);
+        } finally {
+          _selectingModifiers = false;
+        }
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -831,7 +867,8 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
 
   Future<void> _saveOrder({required bool confirm}) async {
     if (_saving || _cart.isEmpty) return;
-    if (!_catalogReady) {
+    final retrying = _pendingItemsUpdate != null || _confirmationPending;
+    if (!_catalogReady && retrying == false && _catalogRefresh != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -844,6 +881,24 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
     setState(() => _saving = true);
     try {
       final api = ref.read(orderApiServiceProvider);
+      if (!retrying) {
+        _catalogNotice = null;
+        if (!await _loadCatalog(showLoading: false) || !mounted) return;
+        final validation = _validateCart();
+        if (validation.issues.isNotEmpty || _catalogNotice != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                validation.issues.isNotEmpty
+                    ? validation.issues.join('\n')
+                    : _catalogNotice!,
+              ),
+              duration: const Duration(seconds: 7),
+            ),
+          );
+          return;
+        }
+      }
       // A failed response does not guarantee confirmation failed on the server.
       // Check before replacing draft items, which would append on a confirmed order.
       if (_confirmationPending && _orderId != null) {
@@ -928,6 +983,8 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -962,6 +1019,13 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
             },
           ),
           actions: [
+            IconButton(
+              tooltip: 'Actualizar menú e inventario',
+              onPressed: _cartLocked || _catalogRefresh != null
+                  ? null
+                  : () => unawaited(_loadCatalog()),
+              icon: const Icon(Icons.refresh_rounded),
+            ),
             if (_totalItems > 0)
               TextButton.icon(
                 onPressed: () => setState(() => _cartExpanded = !_cartExpanded),
@@ -1089,11 +1153,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
         promotion: _selectedPromotion,
         availability: _availabilityByItemId[items[i].id],
         quantity: _quantityInCart(items[i].id),
-        onTap:
-            _availabilityByItemId[items[i].id]?.isTracked == true &&
-                _availabilityByItemId[items[i].id]?.isAvailable == false
-            ? null
-            : () => _addItem(items[i]),
+        onTap: () => _addItem(items[i]),
       ),
     );
   }
@@ -1241,6 +1301,14 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
                 'Envío pendiente de verificar. Reintenta antes de modificar el pedido.',
               ),
             ),
+          if (_catalogNotice != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                _catalogNotice!,
+                style: const TextStyle(color: Colors.amber),
+              ),
+            ),
           if (_catalogError != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -1270,7 +1338,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
                 if (_orderIsDraft) ...[
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: _saving || !_catalogReady
+                      onPressed: _saving || (!_catalogReady && !_cartLocked)
                           ? null
                           : () => _saveOrder(confirm: false),
                       icon: const Icon(Icons.save_outlined),
@@ -1281,7 +1349,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage> {
                 ],
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: _saving || !_catalogReady
+                    onPressed: _saving || (!_catalogReady && !_cartLocked)
                         ? null
                         : () => _saveOrder(confirm: true),
                     icon: _saving
