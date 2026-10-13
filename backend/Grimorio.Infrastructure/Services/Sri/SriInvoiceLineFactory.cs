@@ -1,4 +1,5 @@
 using Grimorio.Domain.Entities.Billing;
+using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.POS;
 
 namespace Grimorio.Infrastructure.Services.Sri;
@@ -76,11 +77,27 @@ public static class SriInvoiceLineFactory
 
         return new SriInvoiceLine(
             itemCode ?? item.MenuItem?.InternalCode ?? fallbackCode,
-            itemName ?? item.MenuItem?.Name ?? fallbackCode,
+            itemName ?? BuildDescription(item.MenuItem) ?? fallbackCode,
             quantity,
             unitPrice,
             taxRateSriCode ?? taxRate?.SriCode ?? "6",
             taxRatePercentage ?? taxRate?.Percentage ?? 0m);
+    }
+
+    public static string? BuildDescription(MenuItem? item)
+    {
+        if (item is null) return null;
+
+        var thematicName = item.Name.Trim();
+        var generalName = item.GeneralName?.Trim();
+        if (string.IsNullOrWhiteSpace(generalName)
+            || string.Equals(thematicName, generalName, StringComparison.OrdinalIgnoreCase))
+        {
+            return thematicName;
+        }
+
+        var description = $"{thematicName} - {generalName}";
+        return description.Length <= 300 ? description : description[..300];
     }
 }
 

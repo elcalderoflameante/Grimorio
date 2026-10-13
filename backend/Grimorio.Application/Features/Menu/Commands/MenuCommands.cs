@@ -40,6 +40,7 @@ public class CreateMenuItemCommand : IRequest<MenuItemDto>
     public Guid BranchId { get; set; }
     public Guid MenuCategoryId { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? GeneralName { get; set; }
     public string? Description { get; set; }
     public string? InternalCode { get; set; }
     public string? ImageUrl { get; set; }
@@ -56,6 +57,7 @@ public class UpdateMenuItemCommand : IRequest<MenuItemDto>
     public Guid BranchId { get; set; }
     public Guid MenuCategoryId { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? GeneralName { get; set; }
     public string? Description { get; set; }
     public string? InternalCode { get; set; }
     public string? ImageUrl { get; set; }

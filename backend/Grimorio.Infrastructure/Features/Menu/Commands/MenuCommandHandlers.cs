@@ -83,12 +83,16 @@ public class CreateItemMenuHandler : IRequestHandler<CreateMenuItemCommand, Menu
         var item = new MenuItem
         {
             BranchId = req.BranchId, MenuCategoryId = req.MenuCategoryId,
-            Name = req.Name, Description = req.Description,
-            InternalCode = req.InternalCode, ImageUrl = req.ImageUrl, Price = req.Price,
+            Name = MenuMapper.NormalizeRequiredName(req.Name, "nombre tematico"),
+            GeneralName = MenuMapper.NormalizeGeneralName(req.GeneralName, req.Name),
+            Description = req.Description,
+            ImageUrl = req.ImageUrl, Price = req.Price,
             DisplayOrder = req.DisplayOrder,
             SaleVisibility = MenuMapper.ParseSaleVisibility(req.SaleVisibility),
             StationId = req.StationId, TaxRateId = req.TaxRateId,
         };
+        item.InternalCode = await MenuMapper.ResolveInternalCodeAsync(
+            _db, req.BranchId, item.Id, req.InternalCode, ct);
         _db.MenuItems.Add(item);
         await _db.SaveChangesAsync(ct);
 
@@ -112,8 +116,12 @@ public class UpdateItemMenuHandler : IRequestHandler<UpdateMenuItemCommand, Menu
             .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId, ct)
             ?? throw new KeyNotFoundException("Item no encontrado");
 
-        item.MenuCategoryId = req.MenuCategoryId; item.Name = req.Name;
-        item.Description = req.Description; item.InternalCode = req.InternalCode;
+        item.MenuCategoryId = req.MenuCategoryId;
+        item.Name = MenuMapper.NormalizeRequiredName(req.Name, "nombre tematico");
+        item.GeneralName = MenuMapper.NormalizeGeneralName(req.GeneralName, req.Name);
+        item.Description = req.Description;
+        item.InternalCode = await MenuMapper.ResolveInternalCodeAsync(
+            _db, req.BranchId, item.Id, req.InternalCode, ct);
         item.ImageUrl = req.ImageUrl; item.Price = req.Price; item.IsActive = req.IsActive;
         item.DisplayOrder = req.DisplayOrder;
         item.AvailableForSale = req.AvailableForSale;
@@ -490,6 +498,48 @@ public class UpsertMenuItemPreparationHandler : IRequestHandler<UpsertMenuItemPr
 
 internal static class MenuMapper
 {
+    internal static string NormalizeRequiredName(string? value, string fieldName)
+    {
+        var normalized = value?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+            throw new InvalidOperationException($"El {fieldName} es obligatorio.");
+        if (normalized.Length > 150)
+            throw new InvalidOperationException($"El {fieldName} admite maximo 150 caracteres.");
+        return normalized;
+    }
+
+    internal static string NormalizeGeneralName(string? generalName, string thematicName)
+    {
+        var value = string.IsNullOrWhiteSpace(generalName) ? thematicName : generalName;
+        return NormalizeRequiredName(value, "nombre general");
+    }
+
+    internal static async Task<string> ResolveInternalCodeAsync(
+        GrimorioDbContext db,
+        Guid branchId,
+        Guid itemId,
+        string? requestedCode,
+        CancellationToken ct)
+    {
+        var code = string.IsNullOrWhiteSpace(requestedCode)
+            ? $"MENU-{itemId:N}"[..13].ToUpperInvariant()
+            : requestedCode.Trim().ToUpperInvariant();
+
+        if (code.Length > 25)
+            throw new InvalidOperationException("El codigo interno admite maximo 25 caracteres.");
+
+        var duplicated = await db.MenuItems.AnyAsync(x =>
+            x.BranchId == branchId
+            && x.Id != itemId
+            && x.InternalCode != null
+            && x.InternalCode.ToUpper() == code,
+            ct);
+        if (duplicated)
+            throw new InvalidOperationException($"El codigo interno {code} ya esta asignado a otro item.");
+
+        return code;
+    }
+
     internal static MenuItemSaleVisibility ParseSaleVisibility(string value)
     {
         if (!Enum.TryParse<MenuItemSaleVisibility>(value, true, out var visibility)
@@ -508,7 +558,7 @@ internal static class MenuMapper
         {
             Id = item.Id, MenuCategoryId = item.MenuCategoryId,
             CategoryName = categoryName, CategoryColor = categoriaColor,
-            Name = item.Name, Description = item.Description,
+            Name = item.Name, GeneralName = item.GeneralName, Description = item.Description,
             InternalCode = item.InternalCode, ImageUrl = item.ImageUrl, Price = item.Price,
             DisplayOrder = item.DisplayOrder,
             IsActive = item.IsActive, AvailableForSale = item.AvailableForSale,

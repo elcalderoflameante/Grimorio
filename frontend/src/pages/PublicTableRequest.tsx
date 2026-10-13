@@ -827,6 +827,9 @@ export default function PublicTableRequest() {
                           )}
                           <div className="min-w-0 flex-1">
                             <h3 className="text-xs font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif]">{item.name}</h3>
+                            {item.generalName && item.generalName.toLocaleLowerCase() !== item.name.toLocaleLowerCase() && (
+                              <p className="mt-0.5 text-[11px] font-semibold text-[#5d4037]">{item.generalName}</p>
+                            )}
                             {item.description && <p className="mt-0.5 text-[11px] text-[#6d4c3d]">{item.description}</p>}
                             {!item.isAvailable && <p className="mt-1 text-xs font-bold text-[#8B2E2E]">No disponible</p>}
                           </div>
@@ -960,6 +963,7 @@ export default function PublicTableRequest() {
                     menuCategoryId: '',
                     categoryName: '',
                     name: 'Carrito',
+                    generalName: 'Carrito',
                     price: 0,
                     displayOrder: 0,
                     saleVisibility: 'MenuAndPromotions',
@@ -1072,6 +1076,9 @@ export default function PublicTableRequest() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-base font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif]">{itemDraft.item.name}</h3>
+                {itemDraft.item.generalName && itemDraft.item.generalName.toLocaleLowerCase() !== itemDraft.item.name.toLocaleLowerCase() && (
+                  <p className="mt-0.5 text-xs font-semibold text-[#5d4037]">{itemDraft.item.generalName}</p>
+                )}
                 <p className="mt-0.5 text-xs font-bold text-[#8B5E3C]">{money(itemDraft.item.price)}</p>
               </div>
               <button className="text-xs font-bold text-[#6d4c3d]" onClick={() => setItemDraft(null)}>Cerrar</button>

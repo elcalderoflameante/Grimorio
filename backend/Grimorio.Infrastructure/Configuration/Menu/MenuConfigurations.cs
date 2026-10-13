@@ -36,6 +36,7 @@ public class ItemMenuConfiguration : BaseEntityConfiguration<MenuItem>
         builder.ToTable("MenuItems", "menu");
 
         builder.Property(x => x.Name).IsRequired().HasMaxLength(150);
+        builder.Property(x => x.GeneralName).IsRequired().HasMaxLength(150);
         builder.Property(x => x.Description).HasMaxLength(500);
         builder.Property(x => x.InternalCode).HasMaxLength(50);
         builder.Property(x => x.ImageUrl).HasMaxLength(500);

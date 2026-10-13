@@ -33,6 +33,7 @@ public class MenuItemDto
     public string CategoryName { get; set; } = string.Empty;
     public string? CategoryColor { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string GeneralName { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? InternalCode { get; set; }
     public string? ImageUrl { get; set; }
@@ -85,6 +86,7 @@ public class CreateMenuItemDto
 {
     public Guid MenuCategoryId { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? GeneralName { get; set; }
     public string? Description { get; set; }
     public string? InternalCode { get; set; }
     public string? ImageUrl { get; set; }
@@ -99,6 +101,7 @@ public class UpdateMenuItemDto
 {
     public Guid MenuCategoryId { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? GeneralName { get; set; }
     public string? Description { get; set; }
     public string? InternalCode { get; set; }
     public string? ImageUrl { get; set; }

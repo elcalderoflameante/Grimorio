@@ -576,6 +576,11 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
                   styles={{ body: { padding: '8px 10px' } }}
                 >
                   <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.3 }}>{item.name}</div>
+                  {item.generalName && item.generalName.toLocaleLowerCase() !== item.name.toLocaleLowerCase() && (
+                    <div title={item.generalName} style={{ fontSize: 11, color: '#8c8c8c', lineHeight: 1.25, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.generalName}
+                    </div>
+                  )}
                   <div style={{ fontSize: 12, color: '#1677ff', marginTop: 4 }}>${item.price.toFixed(2)}</div>
                   <Tooltip
                     title={missingIngredients.length > 0 ? (

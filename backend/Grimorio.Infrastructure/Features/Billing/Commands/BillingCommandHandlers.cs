@@ -936,7 +936,8 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
                     OrderPaymentId = Guid.Empty,
                     OrderItemId = item.Id,
                     ItemCode = item.MenuItem?.InternalCode ?? item.MenuItemId.ToString()[..8],
-                    ItemName = item.MenuItem?.Name ?? item.MenuItemId.ToString()[..8],
+                    ItemName = SriInvoiceLineFactory.BuildDescription(item.MenuItem)
+                        ?? item.MenuItemId.ToString()[..8],
                     Quantity = selected.Quantity,
                     UnitPrice = netUnitPrice,
                     Total = selectedTotal,

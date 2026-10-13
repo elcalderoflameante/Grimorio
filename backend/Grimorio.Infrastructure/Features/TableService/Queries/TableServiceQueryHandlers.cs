@@ -204,6 +204,7 @@ public class GetPublicTableMenuQueryHandler : IRequestHandler<GetPublicTableMenu
                 CategoryName = item.Category?.Name ?? string.Empty,
                 CategoryColor = item.Category?.Color,
                 Name = item.Name,
+                GeneralName = item.GeneralName,
                 Description = item.Description,
                 ImageUrl = item.ImageUrl,
                 Price = item.Price,

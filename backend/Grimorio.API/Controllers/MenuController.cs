@@ -157,7 +157,7 @@ public class MenuController : ControllerBase
         var result = await _mediator.Send(new CreateMenuItemCommand
         {
             BranchId = branchId, MenuCategoryId = dto.MenuCategoryId,
-            Name = dto.Name, Description = dto.Description,
+            Name = dto.Name, GeneralName = dto.GeneralName, Description = dto.Description,
             InternalCode = dto.InternalCode, ImageUrl = dto.ImageUrl, Price = dto.Price,
             DisplayOrder = dto.DisplayOrder,
             SaleVisibility = dto.SaleVisibility,
@@ -174,7 +174,7 @@ public class MenuController : ControllerBase
         var result = await _mediator.Send(new UpdateMenuItemCommand
         {
             Id = id, BranchId = branchId, MenuCategoryId = dto.MenuCategoryId,
-            Name = dto.Name, Description = dto.Description,
+            Name = dto.Name, GeneralName = dto.GeneralName, Description = dto.Description,
             InternalCode = dto.InternalCode, ImageUrl = dto.ImageUrl, Price = dto.Price,
             DisplayOrder = dto.DisplayOrder,
             IsActive = dto.IsActive, AvailableForSale = dto.AvailableForSale,

@@ -84,6 +84,7 @@ public class PublicMenuItemDto
     public string CategoryName { get; set; } = string.Empty;
     public string? CategoryColor { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string GeneralName { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? ImageUrl { get; set; }
     public decimal Price { get; set; }

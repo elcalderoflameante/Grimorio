@@ -807,6 +807,7 @@ export interface PublicMenuItemDto {
   categoryName: string;
   categoryColor?: string;
   name: string;
+  generalName: string;
   description?: string;
   imageUrl?: string;
   price: number;
@@ -1148,6 +1149,7 @@ export interface MenuItemDto {
   categoryName: string;
   categoryColor?: string;
   name: string;
+  generalName: string;
   description?: string;
   internalCode?: string;
   imageUrl?: string;
@@ -1237,6 +1239,7 @@ export interface MenuItemProfitabilityDto {
 export interface CreateMenuItemDto {
   menuCategoryId: string;
   name: string;
+  generalName: string;
   description?: string;
   internalCode?: string;
   imageUrl?: string;

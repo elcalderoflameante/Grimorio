@@ -191,14 +191,17 @@ export default function MenuItemsList() {
             ) : <span style={{ color: '#999' }}>-</span>,
           },
           {
-            title: 'Nombre', key: 'nombre',
+            title: 'Nombres', key: 'nombre',
             render: (_: unknown, item: MenuItemDto) => (
-              <Space>
-                {item.name}
-                {!item.isActive && <Tag>Inactivo</Tag>}
-                {!item.availableForSale && <Tag color="orange">No disponible</Tag>}
-                {item.saleVisibility === 'PromotionsOnly' && <Tag color="magenta">Solo promociones</Tag>}
-              </Space>
+              <div>
+                <Space>
+                  <strong>{item.name}</strong>
+                  {!item.isActive && <Tag>Inactivo</Tag>}
+                  {!item.availableForSale && <Tag color="orange">No disponible</Tag>}
+                  {item.saleVisibility === 'PromotionsOnly' && <Tag color="magenta">Solo promociones</Tag>}
+                </Space>
+                <div style={{ color: '#8c8c8c', fontSize: 12 }}>{item.generalName}</div>
+              </div>
             ),
           },
           { title: 'Código', dataIndex: 'internalCode', key: 'codigo', width: 100 },
@@ -303,9 +306,23 @@ export default function MenuItemsList() {
         width={760}
       >
         <Form form={form} layout="vertical">
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(160px, 0.6fr)', gap: 12 }}>
-            <Form.Item name="name" label="Nombre" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="internalCode" label="Código interno"><Input /></Form.Item>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(220px, 1fr)', gap: 12 }}>
+            <Form.Item name="name" label="Nombre temático" rules={[{ required: true }, { max: 150 }]}>
+              <Input maxLength={150} placeholder="Ej. Pluma mística" />
+            </Form.Item>
+            <Form.Item name="generalName" label="Nombre general / fiscal" rules={[{ required: true }, { max: 150 }]}>
+              <Input maxLength={150} placeholder="Ej. Filete de pollo" />
+            </Form.Item>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(220px, 1fr)', gap: 12 }}>
+            <Form.Item
+              name="internalCode"
+              label="Código interno"
+              extra="Si lo dejas vacío, se generará automáticamente."
+              rules={[{ max: 25, message: 'Máximo 25 caracteres' }]}
+            >
+              <Input maxLength={25} placeholder="Automático al guardar" />
+            </Form.Item>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 280px', gap: 12, alignItems: 'start' }}>
           <Form.Item name="description" label="Descripción"><Input.TextArea rows={4} /></Form.Item>
