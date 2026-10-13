@@ -12,9 +12,19 @@ import {
   Switch,
   Table,
   Tag,
+  Tabs,
+  Tooltip,
   Typography,
 } from 'antd';
-import { PlayCircleOutlined, PlusOutlined, ReloadOutlined, ToolOutlined } from '@ant-design/icons';
+import {
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  DeleteOutlined,
+  PlayCircleOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  ToolOutlined,
+} from '@ant-design/icons';
 import { inventoryApi } from '../../services/api';
 import type {
   InventoryArticleDto,
@@ -43,6 +53,12 @@ type RecipeFormValues = {
     quantity: number;
     unitId: string;
     notes?: string;
+  }>;
+  preparationSteps: Array<{
+    stepNumber: number;
+    instructions: string;
+    estimatedMinutes?: number;
+    temperature?: string;
   }>;
 };
 
@@ -151,9 +167,20 @@ export default function Production() {
           unitId: i.unitId,
           notes: i.notes,
         })),
+        preparationSteps: recipe.preparationSteps.map(step => ({
+          stepNumber: step.stepNumber,
+          instructions: step.instructions,
+          estimatedMinutes: step.estimatedMinutes,
+          temperature: step.temperature,
+        })),
       });
     } else {
-      recipeForm.setFieldsValue({ outputQuantity: 1, isActive: true, ingredients: [{} as RecipeFormValues['ingredients'][number]] });
+      recipeForm.setFieldsValue({
+        outputQuantity: 1,
+        isActive: true,
+        ingredients: [{} as RecipeFormValues['ingredients'][number]],
+        preparationSteps: [],
+      });
     }
     setRecipeModal(true);
   };
@@ -168,7 +195,13 @@ export default function Production() {
     const values = await recipeForm.validateFields();
     setSavingRecipe(true);
     try {
-      await inventoryApi.upsertProductionRecipe(values);
+      await inventoryApi.upsertProductionRecipe({
+        ...values,
+        preparationSteps: (values.preparationSteps ?? []).map((step, index) => ({
+          ...step,
+          stepNumber: index + 1,
+        })),
+      });
       message.success('Receta de producción guardada');
       closeRecipeModal();
       load();
@@ -262,6 +295,12 @@ export default function Production() {
             width: 90,
           },
           {
+            title: 'Pasos',
+            key: 'steps',
+            render: (_: unknown, r: ProductionRecipeDto) => r.preparationSteps.length,
+            width: 80,
+          },
+          {
             title: 'Estado',
             key: 'status',
             render: (_: unknown, r: ProductionRecipeDto) => <Tag color={r.isActive ? 'green' : 'default'}>{r.isActive ? 'Activa' : 'Inactiva'}</Tag>,
@@ -287,20 +326,49 @@ export default function Production() {
         ]}
         expandable={{
           expandedRowRender: r => (
-            <Table
-              dataSource={r.ingredients}
-              rowKey="id"
+            <Tabs
               size="small"
-              pagination={false}
-              columns={[
-                { title: 'Insumo', dataIndex: 'articleName', key: 'articleName' },
+              items={[
                 {
-                  title: 'Cantidad',
-                  key: 'quantity',
-                  render: (_: unknown, i) => `${i.quantity} ${i.unitSymbol}`,
-                  width: 140,
+                  key: 'ingredients',
+                  label: `Insumos (${r.ingredients.length})`,
+                  children: (
+                    <Table
+                      dataSource={r.ingredients}
+                      rowKey="id"
+                      size="small"
+                      pagination={false}
+                      columns={[
+                        { title: 'Insumo', dataIndex: 'articleName', key: 'articleName' },
+                        {
+                          title: 'Cantidad',
+                          key: 'quantity',
+                          render: (_: unknown, i) => `${i.quantity} ${i.unitSymbol}`,
+                          width: 140,
+                        },
+                        { title: 'Observación', dataIndex: 'notes', key: 'notes' },
+                      ]}
+                    />
+                  ),
                 },
-                { title: 'Observación', dataIndex: 'notes', key: 'notes' },
+                {
+                  key: 'preparation',
+                  label: `Preparación (${r.preparationSteps.length})`,
+                  children: r.preparationSteps.length > 0 ? (
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      {r.preparationSteps.map(step => (
+                        <div key={step.id} style={{ display: 'grid', gridTemplateColumns: '72px minmax(0, 1fr) auto', gap: 12, alignItems: 'start' }}>
+                          <Tag color="blue" style={{ margin: 0, textAlign: 'center' }}>Paso {step.stepNumber}</Tag>
+                          <Text>{step.instructions}</Text>
+                          <Space size={6} wrap>
+                            {step.estimatedMinutes != null && <Tag>{step.estimatedMinutes} min</Tag>}
+                            {step.temperature && <Tag>{step.temperature}</Tag>}
+                          </Space>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <Text type="secondary">Sin pasos de preparación registrados.</Text>,
+                },
               ]}
             />
           ),
@@ -416,65 +484,120 @@ export default function Production() {
             <Input.TextArea rows={2} />
           </Form.Item>
 
-          <Text strong>Insumos</Text>
-          <Form.List name="ingredients">
-            {(fields, { add, remove }) => (
-              <div style={{ marginTop: 8 }}>
-                {fields.map(field => (
-                  <div
-                    key={field.key}
-                    style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 110px minmax(150px, 180px) minmax(0, 1fr) 72px', gap: 10, alignItems: 'start' }}
-                  >
-                    <Form.Item name={[field.name, 'articleId']} rules={[{ required: true }]} style={{ marginBottom: 10 }}>
-                      <Select
-                        placeholder="Insumo"
-                        options={articles
-                          .filter(a => a.isActive)
-                          .map(a => ({ label: `${a.name} (${a.baseUnitSymbol})`, value: a.id }))}
-                        showSearch
-                        optionFilterProp="label"
-                        onChange={(articleId: string) => {
-                          const article = articles.find(a => a.id === articleId);
-                          recipeForm.setFieldValue(['ingredients', field.name, 'unitId'], article?.baseUnitId);
-                        }}
-                      />
-                    </Form.Item>
-                    <Form.Item name={[field.name, 'quantity']} rules={[{ required: true }]} style={{ marginBottom: 10 }}>
-                      <InputNumber style={{ width: '100%' }} min={0.0001} step={0.01} placeholder="Cant." />
-                    </Form.Item>
-                    <Form.Item
-                      noStyle
-                      shouldUpdate={(prev, current) =>
-                        prev.ingredients?.[field.name]?.articleId !== current.ingredients?.[field.name]?.articleId
-                      }
-                    >
-                      {({ getFieldValue }) => {
-                        const ingredientArticleId = getFieldValue(['ingredients', field.name, 'articleId']);
-                        return (
-                          <Form.Item name={[field.name, 'unitId']} rules={[{ required: true }]} style={{ marginBottom: 10 }}>
-                            <Select
-                              options={unitOptionsFor(ingredientArticleId)}
-                              placeholder={ingredientArticleId ? 'Unidad' : 'Selecciona insumo'}
-                              disabled={!ingredientArticleId}
-                            />
-                          </Form.Item>
-                        );
-                      }}
-                    </Form.Item>
-                    <Form.Item name={[field.name, 'notes']} style={{ marginBottom: 10 }}>
-                      <Input placeholder="Observación" />
-                    </Form.Item>
-                    <Button danger onClick={() => remove(field.name)}>
-                      Quitar
-                    </Button>
-                  </div>
-                ))}
-                <Button icon={<PlusOutlined />} onClick={() => add()}>
-                  Agregar insumo
-                </Button>
-              </div>
-            )}
-          </Form.List>
+          <Tabs
+            items={[
+              {
+                key: 'ingredients',
+                label: 'Insumos',
+                children: (
+                  <Form.List name="ingredients">
+                    {(fields, { add, remove }) => (
+                      <div>
+                        {fields.map(field => (
+                          <div
+                            key={field.key}
+                            style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 110px minmax(150px, 180px) minmax(0, 1fr) 42px', gap: 10, alignItems: 'start' }}
+                          >
+                            <Form.Item name={[field.name, 'articleId']} rules={[{ required: true }]} style={{ marginBottom: 10 }}>
+                              <Select
+                                placeholder="Insumo"
+                                options={articles
+                                  .filter(a => a.isActive)
+                                  .map(a => ({ label: `${a.name} (${a.baseUnitSymbol})`, value: a.id }))}
+                                showSearch
+                                optionFilterProp="label"
+                                onChange={(articleId: string) => {
+                                  const article = articles.find(a => a.id === articleId);
+                                  recipeForm.setFieldValue(['ingredients', field.name, 'unitId'], article?.baseUnitId);
+                                }}
+                              />
+                            </Form.Item>
+                            <Form.Item name={[field.name, 'quantity']} rules={[{ required: true }]} style={{ marginBottom: 10 }}>
+                              <InputNumber style={{ width: '100%' }} min={0.0001} step={0.01} placeholder="Cant." />
+                            </Form.Item>
+                            <Form.Item
+                              noStyle
+                              shouldUpdate={(prev, current) =>
+                                prev.ingredients?.[field.name]?.articleId !== current.ingredients?.[field.name]?.articleId
+                              }
+                            >
+                              {({ getFieldValue }) => {
+                                const ingredientArticleId = getFieldValue(['ingredients', field.name, 'articleId']);
+                                return (
+                                  <Form.Item name={[field.name, 'unitId']} rules={[{ required: true }]} style={{ marginBottom: 10 }}>
+                                    <Select
+                                      options={unitOptionsFor(ingredientArticleId)}
+                                      placeholder={ingredientArticleId ? 'Unidad' : 'Selecciona insumo'}
+                                      disabled={!ingredientArticleId}
+                                    />
+                                  </Form.Item>
+                                );
+                              }}
+                            </Form.Item>
+                            <Form.Item name={[field.name, 'notes']} style={{ marginBottom: 10 }}>
+                              <Input placeholder="Observación" />
+                            </Form.Item>
+                            <Tooltip title="Quitar insumo">
+                              <Button danger icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+                            </Tooltip>
+                          </div>
+                        ))}
+                        <Button icon={<PlusOutlined />} onClick={() => add()}>
+                          Agregar insumo
+                        </Button>
+                      </div>
+                    )}
+                  </Form.List>
+                ),
+              },
+              {
+                key: 'preparation',
+                label: 'Preparación',
+                children: (
+                  <Form.List name="preparationSteps">
+                    {(fields, { add, remove, move }) => (
+                      <div style={{ display: 'grid', gap: 10 }}>
+                        {fields.map((field, index) => (
+                          <div key={field.key} style={{ border: '1px solid #f0f0f0', borderRadius: 8, padding: 12 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '76px minmax(0, 1fr) 125px 150px auto', gap: 8, alignItems: 'start' }}>
+                              <Tag color="blue" style={{ margin: 5, textAlign: 'center' }}>Paso {index + 1}</Tag>
+                              <Form.Item
+                                name={[field.name, 'instructions']}
+                                rules={[{ required: true, whitespace: true, message: 'Ingresa las instrucciones' }]}
+                                style={{ marginBottom: 0 }}
+                              >
+                                <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} placeholder="Qué debe hacerse" />
+                              </Form.Item>
+                              <Form.Item name={[field.name, 'estimatedMinutes']} style={{ marginBottom: 0 }}>
+                                <InputNumber min={0} precision={0} addonAfter="min" placeholder="Tiempo" style={{ width: '100%' }} />
+                              </Form.Item>
+                              <Form.Item name={[field.name, 'temperature']} style={{ marginBottom: 0 }}>
+                                <Input placeholder="Ej: 180 C" />
+                              </Form.Item>
+                              <Space size={2}>
+                                <Tooltip title="Subir paso">
+                                  <Button icon={<ArrowUpOutlined />} disabled={index === 0} onClick={() => move(index, index - 1)} />
+                                </Tooltip>
+                                <Tooltip title="Bajar paso">
+                                  <Button icon={<ArrowDownOutlined />} disabled={index === fields.length - 1} onClick={() => move(index, index + 1)} />
+                                </Tooltip>
+                                <Tooltip title="Quitar paso">
+                                  <Button danger icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+                                </Tooltip>
+                              </Space>
+                            </div>
+                          </div>
+                        ))}
+                        <Button icon={<PlusOutlined />} onClick={() => add({ stepNumber: fields.length + 1 })} style={{ justifySelf: 'start' }}>
+                          Agregar paso
+                        </Button>
+                      </div>
+                    )}
+                  </Form.List>
+                ),
+              },
+            ]}
+          />
         </Form>
       </Modal>
 
@@ -499,6 +622,23 @@ export default function Production() {
               onChange={handleProductionRecipeChange}
             />
           </Form.Item>
+          {selectedProductionRecipe && selectedProductionRecipe.preparationSteps.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <Text strong style={{ display: 'block', marginBottom: 8 }}>Preparación</Text>
+              <div style={{ display: 'grid', gap: 8, maxHeight: 220, overflowY: 'auto', paddingRight: 4 }}>
+                {selectedProductionRecipe.preparationSteps.map(step => (
+                  <div key={step.id} style={{ display: 'grid', gridTemplateColumns: '72px minmax(0, 1fr) auto', gap: 10, alignItems: 'start' }}>
+                    <Tag color="blue" style={{ margin: 0, textAlign: 'center' }}>Paso {step.stepNumber}</Tag>
+                    <Text>{step.instructions}</Text>
+                    <Space size={4} wrap>
+                      {step.estimatedMinutes != null && <Tag>{step.estimatedMinutes} min</Tag>}
+                      {step.temperature && <Tag>{step.temperature}</Tag>}
+                    </Space>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
             <Form.Item name="sourceWarehouseId" label="Bodega origen insumos" rules={[{ required: true }]}>
               <Select options={warehouses.map(w => ({ label: w.name, value: w.id }))} />

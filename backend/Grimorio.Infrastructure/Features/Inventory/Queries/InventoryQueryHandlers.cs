@@ -365,6 +365,7 @@ public class GetProductionRecipesHandler : IRequestHandler<GetProductionRecipesQ
             .Include(x => x.OutputUnit)
             .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Article).ThenInclude(x => x!.BaseUnit)
             .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Unit)
+            .Include(x => x.PreparationSteps.Where(s => !s.IsDeleted))
             .Where(x => x.BranchId == req.BranchId);
 
         if (req.ActiveOnly == true) query = query.Where(x => x.IsActive);
@@ -386,6 +387,7 @@ public class GetProductionRecipeByArticleHandler : IRequestHandler<GetProduction
             .Include(x => x.OutputUnit)
             .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Article).ThenInclude(x => x!.BaseUnit)
             .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Unit)
+            .Include(x => x.PreparationSteps.Where(s => !s.IsDeleted))
             .FirstOrDefaultAsync(x => x.BranchId == req.BranchId && x.OutputArticleId == req.OutputArticleId, ct);
 
         return recipe is null ? null : InventoryProductionMapper.MapRecipe(recipe);
@@ -449,6 +451,18 @@ internal static class InventoryProductionMapper
                 UnitSymbol = x.Unit?.Symbol ?? string.Empty,
                 BaseUnitSymbol = x.Article?.BaseUnit?.Symbol ?? string.Empty,
                 Notes = x.Notes,
+            })
+            .ToList(),
+        PreparationSteps = recipe.PreparationSteps
+            .Where(x => !x.IsDeleted)
+            .OrderBy(x => x.StepNumber)
+            .Select(x => new ProductionRecipePreparationStepDto
+            {
+                Id = x.Id,
+                StepNumber = x.StepNumber,
+                Instructions = x.Instructions,
+                EstimatedMinutes = x.EstimatedMinutes,
+                Temperature = x.Temperature,
             })
             .ToList(),
     };

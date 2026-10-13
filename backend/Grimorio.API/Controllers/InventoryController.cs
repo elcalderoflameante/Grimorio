@@ -364,6 +364,7 @@ public class InventoryController : ControllerBase
                 Notes = dto.Notes,
                 IsActive = dto.IsActive,
                 Ingredients = dto.Ingredients,
+                PreparationSteps = dto.PreparationSteps,
             });
             return Ok(result);
         }

@@ -119,6 +119,7 @@ public class GrimorioDbContext : DbContext
     public DbSet<StockReservation> StockReservations { get; set; } = null!;
     public DbSet<ProductionRecipe> ProductionRecipes { get; set; } = null!;
     public DbSet<ProductionRecipeIngredient> ProductionRecipeIngredients { get; set; } = null!;
+    public DbSet<ProductionRecipePreparationStep> ProductionRecipePreparationSteps { get; set; } = null!;
     public DbSet<ProductionOrder> ProductionOrders { get; set; } = null!;
     public DbSet<ProductionOrderIngredient> ProductionOrderIngredients { get; set; } = null!;
     public DbSet<ProductionOrderMovement> ProductionOrderMovements { get; set; } = null!;

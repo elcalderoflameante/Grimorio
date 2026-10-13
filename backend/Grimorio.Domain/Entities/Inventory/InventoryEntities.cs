@@ -162,6 +162,7 @@ public class ProductionRecipe : BaseEntity
     public virtual InventoryArticle? OutputArticle { get; set; }
     public virtual MeasurementUnit? OutputUnit { get; set; }
     public virtual ICollection<ProductionRecipeIngredient> Ingredients { get; set; } = [];
+    public virtual ICollection<ProductionRecipePreparationStep> PreparationSteps { get; set; } = [];
     public virtual ICollection<ProductionOrder> ProductionOrders { get; set; } = [];
 }
 
@@ -176,6 +177,17 @@ public class ProductionRecipeIngredient : BaseEntity
     public virtual ProductionRecipe? ProductionRecipe { get; set; }
     public virtual InventoryArticle? Article { get; set; }
     public virtual MeasurementUnit? Unit { get; set; }
+}
+
+public class ProductionRecipePreparationStep : BaseEntity
+{
+    public Guid ProductionRecipeId { get; set; }
+    public int StepNumber { get; set; }
+    public string Instructions { get; set; } = string.Empty;
+    public int? EstimatedMinutes { get; set; }
+    public string? Temperature { get; set; }
+
+    public virtual ProductionRecipe? ProductionRecipe { get; set; }
 }
 
 public enum ProductionOrderStatus

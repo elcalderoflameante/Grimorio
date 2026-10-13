@@ -1024,6 +1024,7 @@ export interface ProductionRecipeDto {
   notes?: string;
   isActive: boolean;
   ingredients: ProductionRecipeIngredientDto[];
+  preparationSteps: ProductionRecipePreparationStepDto[];
 }
 
 export interface ProductionRecipeIngredientDto {
@@ -1045,6 +1046,7 @@ export interface UpsertProductionRecipeDto {
   notes?: string;
   isActive: boolean;
   ingredients: UpsertProductionRecipeIngredientDto[];
+  preparationSteps: UpsertProductionRecipePreparationStepDto[];
 }
 
 export interface UpsertProductionRecipeIngredientDto {
@@ -1052,6 +1054,21 @@ export interface UpsertProductionRecipeIngredientDto {
   quantity: number;
   unitId: string;
   notes?: string;
+}
+
+export interface ProductionRecipePreparationStepDto {
+  id: string;
+  stepNumber: number;
+  instructions: string;
+  estimatedMinutes?: number;
+  temperature?: string;
+}
+
+export interface UpsertProductionRecipePreparationStepDto {
+  stepNumber: number;
+  instructions: string;
+  estimatedMinutes?: number;
+  temperature?: string;
 }
 
 export interface ProductionOrderDto {

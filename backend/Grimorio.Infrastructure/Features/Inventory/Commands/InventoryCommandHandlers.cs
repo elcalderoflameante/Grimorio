@@ -540,8 +540,20 @@ public class UpsertProductionRecipeHandler : IRequestHandler<UpsertProductionRec
                 _db, req.BranchId, ingredientArticles[ingredient.ArticleId], ingredient.Quantity, ingredient.UnitId, ct);
         }
 
+        var preparationSteps = req.PreparationSteps
+            .OrderBy(x => x.StepNumber)
+            .ToList();
+        foreach (var step in preparationSteps)
+        {
+            if (string.IsNullOrWhiteSpace(step.Instructions))
+                throw new InvalidOperationException("Cada paso de preparación debe tener instrucciones.");
+            if (step.EstimatedMinutes < 0)
+                throw new InvalidOperationException("El tiempo estimado de un paso no puede ser negativo.");
+        }
+
         var recipe = await _db.ProductionRecipes
             .Include(x => x.Ingredients)
+            .Include(x => x.PreparationSteps)
             .FirstOrDefaultAsync(x => x.BranchId == req.BranchId && x.OutputArticleId == req.OutputArticleId, ct);
 
         if (recipe is null)
@@ -562,6 +574,8 @@ public class UpsertProductionRecipeHandler : IRequestHandler<UpsertProductionRec
 
         foreach (var oldIngredient in recipe.Ingredients.Where(x => !x.IsDeleted))
             oldIngredient.IsDeleted = true;
+        foreach (var oldStep in recipe.PreparationSteps.Where(x => !x.IsDeleted))
+            oldStep.IsDeleted = true;
 
         foreach (var ingredient in req.Ingredients)
         {
@@ -577,6 +591,21 @@ public class UpsertProductionRecipeHandler : IRequestHandler<UpsertProductionRec
             });
         }
 
+        for (var index = 0; index < preparationSteps.Count; index++)
+        {
+            var step = preparationSteps[index];
+            _db.ProductionRecipePreparationSteps.Add(new ProductionRecipePreparationStep
+            {
+                Id = Guid.NewGuid(),
+                BranchId = req.BranchId,
+                ProductionRecipeId = recipe.Id,
+                StepNumber = index + 1,
+                Instructions = step.Instructions.Trim(),
+                EstimatedMinutes = step.EstimatedMinutes,
+                Temperature = string.IsNullOrWhiteSpace(step.Temperature) ? null : step.Temperature.Trim(),
+            });
+        }
+
         await _db.SaveChangesAsync(ct);
 
         var saved = await _db.ProductionRecipes
@@ -584,6 +613,7 @@ public class UpsertProductionRecipeHandler : IRequestHandler<UpsertProductionRec
             .Include(x => x.OutputUnit)
             .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Article).ThenInclude(x => x!.BaseUnit)
             .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Unit)
+            .Include(x => x.PreparationSteps.Where(s => !s.IsDeleted))
             .FirstAsync(x => x.Id == recipe.Id, ct);
 
         return InventoryProductionMapper.MapRecipe(saved);

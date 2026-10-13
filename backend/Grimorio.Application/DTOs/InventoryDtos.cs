@@ -215,6 +215,7 @@ public class ProductionRecipeDto
     public string? Notes { get; set; }
     public bool IsActive { get; set; }
     public List<ProductionRecipeIngredientDto> Ingredients { get; set; } = [];
+    public List<ProductionRecipePreparationStepDto> PreparationSteps { get; set; } = [];
 }
 
 public class ProductionRecipeIngredientDto
@@ -238,6 +239,7 @@ public class UpsertProductionRecipeDto
     public string? Notes { get; set; }
     public bool IsActive { get; set; } = true;
     public List<UpsertProductionRecipeIngredientDto> Ingredients { get; set; } = [];
+    public List<UpsertProductionRecipePreparationStepDto> PreparationSteps { get; set; } = [];
 }
 
 public class UpsertProductionRecipeIngredientDto
@@ -246,6 +248,23 @@ public class UpsertProductionRecipeIngredientDto
     public decimal Quantity { get; set; }
     public Guid UnitId { get; set; }
     public string? Notes { get; set; }
+}
+
+public class ProductionRecipePreparationStepDto
+{
+    public Guid Id { get; set; }
+    public int StepNumber { get; set; }
+    public string Instructions { get; set; } = string.Empty;
+    public int? EstimatedMinutes { get; set; }
+    public string? Temperature { get; set; }
+}
+
+public class UpsertProductionRecipePreparationStepDto
+{
+    public int StepNumber { get; set; }
+    public string Instructions { get; set; } = string.Empty;
+    public int? EstimatedMinutes { get; set; }
+    public string? Temperature { get; set; }
 }
 
 public class ProductionOrderDto

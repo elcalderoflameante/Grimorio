@@ -164,6 +164,7 @@ public class UpsertProductionRecipeCommand : IRequest<ProductionRecipeDto>
     public string? Notes { get; set; }
     public bool IsActive { get; set; } = true;
     public List<UpsertProductionRecipeIngredientDto> Ingredients { get; set; } = [];
+    public List<UpsertProductionRecipePreparationStepDto> PreparationSteps { get; set; } = [];
 }
 
 public class RegisterProductionCommand : IRequest<ProductionOrderDto>

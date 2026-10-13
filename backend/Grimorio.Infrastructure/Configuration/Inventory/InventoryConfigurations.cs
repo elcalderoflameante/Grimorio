@@ -268,6 +268,26 @@ public class ProductionRecipeIngredientConfiguration : BaseEntityConfiguration<P
     }
 }
 
+public class ProductionRecipePreparationStepConfiguration : BaseEntityConfiguration<ProductionRecipePreparationStep>
+{
+    public override void Configure(EntityTypeBuilder<ProductionRecipePreparationStep> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("ProductionRecipePreparationSteps", "inv");
+
+        builder.Property(x => x.Instructions).IsRequired().HasMaxLength(2000);
+        builder.Property(x => x.Temperature).HasMaxLength(80);
+
+        builder.HasOne(x => x.ProductionRecipe)
+            .WithMany(x => x.PreparationSteps)
+            .HasForeignKey(x => x.ProductionRecipeId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(x => new { x.BranchId, x.ProductionRecipeId, x.StepNumber })
+            .HasFilter("\"IsDeleted\" = false");
+    }
+}
+
 public class ProductionOrderConfiguration : BaseEntityConfiguration<ProductionOrder>
 {
     public override void Configure(EntityTypeBuilder<ProductionOrder> builder)

@@ -2444,6 +2444,75 @@ namespace Grimorio.Infrastructure.Migrations
                     b.ToTable("ProductionRecipeIngredients", "inv");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.ProductionRecipePreparationStep", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("EstimatedMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Instructions")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("ProductionRecipeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("StepNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Temperature")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("ProductionRecipeId");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("BranchId", "ProductionRecipeId", "StepNumber")
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("ProductionRecipePreparationSteps", "inv");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.StockMovement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6794,6 +6863,17 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("Unit");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.ProductionRecipePreparationStep", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Inventory.ProductionRecipe", "ProductionRecipe")
+                        .WithMany("PreparationSteps")
+                        .HasForeignKey("ProductionRecipeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProductionRecipe");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.StockMovement", b =>
                 {
                     b.HasOne("Grimorio.Domain.Entities.Inventory.InventoryArticle", "Article")
@@ -7601,6 +7681,8 @@ namespace Grimorio.Infrastructure.Migrations
             modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.ProductionRecipe", b =>
                 {
                     b.Navigation("Ingredients");
+
+                    b.Navigation("PreparationSteps");
 
                     b.Navigation("ProductionOrders");
                 });
