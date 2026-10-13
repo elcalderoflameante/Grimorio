@@ -151,6 +151,12 @@ public class StockReservation : BaseEntity
     public virtual MeasurementUnit? Unit { get; set; }
 }
 
+public enum ProductionRecipeAccessLevel
+{
+    General = 1,
+    Restricted = 2,
+}
+
 public class ProductionRecipe : BaseEntity
 {
     public Guid OutputArticleId { get; set; }
@@ -158,6 +164,7 @@ public class ProductionRecipe : BaseEntity
     public Guid OutputUnitId { get; set; }
     public string? Notes { get; set; }
     public bool IsActive { get; set; } = true;
+    public ProductionRecipeAccessLevel AccessLevel { get; set; } = ProductionRecipeAccessLevel.Restricted;
 
     public virtual InventoryArticle? OutputArticle { get; set; }
     public virtual MeasurementUnit? OutputUnit { get; set; }

@@ -1023,6 +1023,7 @@ export interface ProductionRecipeDto {
   outputUnitSymbol: string;
   notes?: string;
   isActive: boolean;
+  accessLevel: ProductionRecipeAccessLevel;
   ingredients: ProductionRecipeIngredientDto[];
   preparationSteps: ProductionRecipePreparationStepDto[];
 }
@@ -1045,9 +1046,12 @@ export interface UpsertProductionRecipeDto {
   outputUnitId: string;
   notes?: string;
   isActive: boolean;
+  accessLevel: ProductionRecipeAccessLevel;
   ingredients: UpsertProductionRecipeIngredientDto[];
   preparationSteps: UpsertProductionRecipePreparationStepDto[];
 }
+
+export type ProductionRecipeAccessLevel = 'General' | 'Restricted';
 
 export interface UpsertProductionRecipeIngredientDto {
   articleId: string;

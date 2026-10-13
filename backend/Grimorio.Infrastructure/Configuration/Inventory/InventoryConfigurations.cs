@@ -222,6 +222,11 @@ public class ProductionRecipeConfiguration : BaseEntityConfiguration<ProductionR
 
         builder.Property(x => x.OutputQuantity).HasColumnType("numeric(18,4)").IsRequired();
         builder.Property(x => x.Notes).HasMaxLength(500);
+        builder.Property(x => x.AccessLevel)
+            .HasConversion<string>()
+            .HasMaxLength(30)
+            .HasDefaultValue(ProductionRecipeAccessLevel.Restricted)
+            .IsRequired();
 
         builder.HasOne(x => x.OutputArticle)
             .WithOne(x => x.ProductionRecipe)

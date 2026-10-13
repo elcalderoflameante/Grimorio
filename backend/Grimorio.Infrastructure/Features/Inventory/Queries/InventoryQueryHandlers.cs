@@ -1,7 +1,9 @@
 ﻿using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Inventory.Queries;
 using Grimorio.Domain.Entities.Inventory;
+using Grimorio.Infrastructure.Features.Inventory;
 using Grimorio.Infrastructure.Persistence;
+using Grimorio.Infrastructure.Services;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -368,6 +370,9 @@ public class GetProductionRecipesHandler : IRequestHandler<GetProductionRecipesQ
             .Include(x => x.PreparationSteps.Where(s => !s.IsDeleted))
             .Where(x => x.BranchId == req.BranchId);
 
+        if (!req.IncludeRestricted)
+            query = query.Where(x => x.AccessLevel == ProductionRecipeAccessLevel.General);
+
         if (req.ActiveOnly == true) query = query.Where(x => x.IsActive);
 
         var recipes = await query.OrderBy(x => x.OutputArticle!.Name).ToListAsync(ct);
@@ -388,7 +393,9 @@ public class GetProductionRecipeByArticleHandler : IRequestHandler<GetProduction
             .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Article).ThenInclude(x => x!.BaseUnit)
             .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Unit)
             .Include(x => x.PreparationSteps.Where(s => !s.IsDeleted))
-            .FirstOrDefaultAsync(x => x.BranchId == req.BranchId && x.OutputArticleId == req.OutputArticleId, ct);
+            .FirstOrDefaultAsync(x => x.BranchId == req.BranchId
+                && x.OutputArticleId == req.OutputArticleId
+                && (req.IncludeRestricted || x.AccessLevel == ProductionRecipeAccessLevel.General), ct);
 
         return recipe is null ? null : InventoryProductionMapper.MapRecipe(recipe);
     }
@@ -425,6 +432,80 @@ public class GetProductionOrdersHandler : IRequestHandler<GetProductionOrdersQue
     }
 }
 
+public class GenerateProductionRecipeOperationalSheetPdfHandler
+    : IRequestHandler<GenerateProductionRecipeOperationalSheetPdfQuery, byte[]?>
+{
+    private readonly GrimorioDbContext _db;
+    public GenerateProductionRecipeOperationalSheetPdfHandler(GrimorioDbContext db) => _db = db;
+
+    public async Task<byte[]?> Handle(GenerateProductionRecipeOperationalSheetPdfQuery req, CancellationToken ct)
+    {
+        var recipe = await _db.ProductionRecipes
+            .AsNoTracking()
+            .Include(x => x.OutputArticle)
+            .Include(x => x.OutputUnit)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Article)
+            .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Unit)
+            .Include(x => x.PreparationSteps.Where(s => !s.IsDeleted))
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(x => x.Id == req.Id
+                && x.BranchId == req.BranchId
+                && x.IsActive
+                && (req.IncludeRestricted || x.AccessLevel == ProductionRecipeAccessLevel.General), ct);
+
+        if (recipe is null) return null;
+
+        var branch = await _db.Branches.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == req.BranchId && !x.IsDeleted, ct);
+        var taxConfig = await _db.BranchTaxConfigs.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.BranchId == req.BranchId && !x.IsDeleted, ct);
+        var invoiceTemplate = await _db.InvoiceTemplates.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.BranchId == req.BranchId && !x.IsDeleted, ct);
+
+        var restaurantName = taxConfig is null
+            ? "Restaurante"
+            : string.IsNullOrWhiteSpace(taxConfig.NombreComercial)
+                ? taxConfig.RazonSocial
+                : taxConfig.NombreComercial!;
+        var logoBytes = TryReadImage(req.WebRootPath, branch?.LogoUrl)
+            ?? TryParseLogo(invoiceTemplate?.LogoBase64);
+        var generatedAtLocal = BranchTimeZone.FromUtc(DateTime.UtcNow, branch?.TimeZoneId);
+
+        return ProductionRecipeOperationalSheetPdfGenerator.Generate(
+            recipe, logoBytes, restaurantName, generatedAtLocal);
+    }
+
+    private static byte[]? TryReadImage(string? webRootPath, string? imageUrl)
+    {
+        if (string.IsNullOrWhiteSpace(webRootPath)
+            || string.IsNullOrWhiteSpace(imageUrl)
+            || !imageUrl.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var relativePath = imageUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+        var fullPath = Path.GetFullPath(Path.Combine(webRootPath, relativePath));
+        var uploadsRoot = Path.GetFullPath(Path.Combine(webRootPath, "uploads"));
+        if (!fullPath.StartsWith(uploadsRoot, StringComparison.OrdinalIgnoreCase)) return null;
+        return File.Exists(fullPath) ? File.ReadAllBytes(fullPath) : null;
+    }
+
+    private static byte[]? TryParseLogo(string? logoBase64)
+    {
+        if (string.IsNullOrWhiteSpace(logoBase64)) return null;
+        try
+        {
+            var data = logoBase64.Contains(',', StringComparison.Ordinal)
+                ? logoBase64.Split(',', 2)[1]
+                : logoBase64;
+            return Convert.FromBase64String(data);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+}
+
 internal static class InventoryProductionMapper
 {
     internal static ProductionRecipeDto MapRecipe(ProductionRecipe recipe) => new()
@@ -437,6 +518,7 @@ internal static class InventoryProductionMapper
         OutputUnitSymbol = recipe.OutputUnit?.Symbol ?? string.Empty,
         Notes = recipe.Notes,
         IsActive = recipe.IsActive,
+        AccessLevel = recipe.AccessLevel.ToString(),
         Ingredients = recipe.Ingredients
             .Where(x => !x.IsDeleted)
             .OrderBy(x => x.Article!.Name)

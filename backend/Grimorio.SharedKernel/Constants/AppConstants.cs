@@ -100,6 +100,9 @@ public static class AppConstants
         public const string InventoryStockView = "Inventory.Stock.View";
         public const string InventoryMovementsView = "Inventory.Movements.View";
         public const string InventoryMovementsCreate = "Inventory.Movements.Create";
+        public const string InventoryProductionRecipesView = "Inventory.ProductionRecipes.View";
+        public const string InventoryProductionRecipesManage = "Inventory.ProductionRecipes.Manage";
+        public const string InventoryProductionRecipesRestrictedView = "Inventory.ProductionRecipes.Restricted.View";
 
         public const string PurchasesSuppliersView = "Purchases.Suppliers.View";
         public const string PurchasesSuppliersManage = "Purchases.Suppliers.Manage";
@@ -186,6 +189,9 @@ public static class AppConstants
             new(InventoryStockView, "Ver stock y alertas", "Inventory"),
             new(InventoryMovementsView, "Ver movimientos de inventario", "Inventory"),
             new(InventoryMovementsCreate, "Registrar movimientos de inventario", "Inventory"),
+            new(InventoryProductionRecipesView, "Ver recetario de producción general", "Inventory"),
+            new(InventoryProductionRecipesManage, "Administrar recetas de producción", "Inventory"),
+            new(InventoryProductionRecipesRestrictedView, "Ver recetas de producción restringidas", "Inventory"),
 
             new(PurchasesSuppliersView, "Ver proveedores", "Purchases"),
             new(PurchasesSuppliersManage, "Administrar proveedores", "Purchases"),

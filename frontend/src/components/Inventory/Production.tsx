@@ -20,6 +20,7 @@ import {
   ArrowDownOutlined,
   ArrowUpOutlined,
   DeleteOutlined,
+  FilePdfOutlined,
   PlayCircleOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -48,6 +49,7 @@ type RecipeFormValues = {
   outputUnitId: string;
   notes?: string;
   isActive: boolean;
+  accessLevel: 'General' | 'Restricted';
   ingredients: Array<{
     articleId: string;
     quantity: number;
@@ -94,6 +96,7 @@ export default function Production() {
   const selectedOutputArticleId = Form.useWatch('outputArticleId', recipeForm);
   const selectedProductionRecipeId = Form.useWatch('productionRecipeId', productionForm);
   const canCreate = hasPermission(PERMISSIONS.inventory.movementsCreate);
+  const canManageRecipes = hasPermission(PERMISSIONS.inventory.productionRecipesManage);
 
   const elaboratedProducts = useMemo(
     () => articles.filter(a => a.type === 'ElaboratedProduct' && a.isActive),
@@ -161,6 +164,7 @@ export default function Production() {
         outputUnitId: recipe.outputUnitId,
         notes: recipe.notes,
         isActive: recipe.isActive,
+        accessLevel: recipe.accessLevel,
         ingredients: recipe.ingredients.map(i => ({
           articleId: i.articleId,
           quantity: i.quantity,
@@ -178,6 +182,7 @@ export default function Production() {
       recipeForm.setFieldsValue({
         outputQuantity: 1,
         isActive: true,
+        accessLevel: 'Restricted',
         ingredients: [{} as RecipeFormValues['ingredients'][number]],
         preparationSteps: [],
       });
@@ -255,6 +260,17 @@ export default function Production() {
     });
   };
 
+  const openOperationalSheet = async (recipe: ProductionRecipeDto) => {
+    try {
+      const response = await inventoryApi.getProductionRecipeOperationalSheetPdf(recipe.id);
+      const url = URL.createObjectURL(response.data);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      message.error(formatError(e));
+    }
+  };
+
   const selectedProductionRecipe = recipes.find(r => r.id === selectedProductionRecipeId);
 
   return (
@@ -263,7 +279,7 @@ export default function Production() {
         <Title level={5} style={{ margin: 0 }}>Producción</Title>
         <Space>
           <Button icon={<ReloadOutlined />} onClick={load} loading={loading} />
-          {canCreate && (
+          {canManageRecipes && (
             <>
               <Button icon={<ToolOutlined />} onClick={() => openRecipeModal()}>
                 Nueva receta
@@ -301,6 +317,16 @@ export default function Production() {
             width: 80,
           },
           {
+            title: 'Acceso',
+            key: 'accessLevel',
+            render: (_: unknown, r: ProductionRecipeDto) => (
+              <Tag color={r.accessLevel === 'Restricted' ? 'red' : 'green'}>
+                {r.accessLevel === 'Restricted' ? 'Restringida' : 'General'}
+              </Tag>
+            ),
+            width: 110,
+          },
+          {
             title: 'Estado',
             key: 'status',
             render: (_: unknown, r: ProductionRecipeDto) => <Tag color={r.isActive ? 'green' : 'default'}>{r.isActive ? 'Activa' : 'Inactiva'}</Tag>,
@@ -311,10 +337,15 @@ export default function Production() {
             key: 'actions',
             width: 190,
             render: (_: unknown, r: ProductionRecipeDto) => (
-              <Space>
-                <Button size="small" icon={<ToolOutlined />} onClick={() => openRecipeModal(r)}>
-                  Editar
-                </Button>
+              <Space size={4}>
+                <Tooltip title="Abrir ficha operativa">
+                  <Button size="small" icon={<FilePdfOutlined />} onClick={() => openOperationalSheet(r)} />
+                </Tooltip>
+                {canManageRecipes && (
+                  <Button size="small" icon={<ToolOutlined />} onClick={() => openRecipeModal(r)}>
+                    Editar
+                  </Button>
+                )}
                 {canCreate && (
                   <Button size="small" type="primary" icon={<PlayCircleOutlined />} onClick={() => openProductionModal(r)}>
                     Producir
@@ -480,9 +511,17 @@ export default function Production() {
               <Switch />
             </Form.Item>
           </div>
-          <Form.Item name="notes" label="Observación">
-            <Input.TextArea rows={2} />
-          </Form.Item>
+          <div style={{ display: 'grid', gridTemplateColumns: '220px minmax(0, 1fr)', gap: 12 }}>
+            <Form.Item name="accessLevel" label="Acceso" rules={[{ required: true }]}>
+              <Select options={[
+                { label: 'Todo el personal autorizado', value: 'General' },
+                { label: 'Personal con permiso especial', value: 'Restricted' },
+              ]} />
+            </Form.Item>
+            <Form.Item name="notes" label="Observación">
+              <Input.TextArea rows={2} />
+            </Form.Item>
+          </div>
 
           <Tabs
             items={[

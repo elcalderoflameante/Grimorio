@@ -66,12 +66,22 @@ public class GetProductionRecipesQuery : IRequest<List<ProductionRecipeDto>>
 {
     public Guid BranchId { get; set; }
     public bool? ActiveOnly { get; set; }
+    public bool IncludeRestricted { get; set; }
 }
 
 public class GetProductionRecipeByArticleQuery : IRequest<ProductionRecipeDto?>
 {
     public Guid BranchId { get; set; }
     public Guid OutputArticleId { get; set; }
+    public bool IncludeRestricted { get; set; }
+}
+
+public class GenerateProductionRecipeOperationalSheetPdfQuery : IRequest<byte[]?>
+{
+    public Guid Id { get; set; }
+    public Guid BranchId { get; set; }
+    public bool IncludeRestricted { get; set; }
+    public string? WebRootPath { get; set; }
 }
 
 public class GetProductionOrdersQuery : IRequest<List<ProductionOrderDto>>

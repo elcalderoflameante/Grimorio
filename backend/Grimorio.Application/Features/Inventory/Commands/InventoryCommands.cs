@@ -163,6 +163,7 @@ public class UpsertProductionRecipeCommand : IRequest<ProductionRecipeDto>
     public Guid OutputUnitId { get; set; }
     public string? Notes { get; set; }
     public bool IsActive { get; set; } = true;
+    public ProductionRecipeAccessLevel AccessLevel { get; set; } = ProductionRecipeAccessLevel.Restricted;
     public List<UpsertProductionRecipeIngredientDto> Ingredients { get; set; } = [];
     public List<UpsertProductionRecipePreparationStepDto> PreparationSteps { get; set; } = [];
 }
@@ -170,6 +171,7 @@ public class UpsertProductionRecipeCommand : IRequest<ProductionRecipeDto>
 public class RegisterProductionCommand : IRequest<ProductionOrderDto>
 {
     public Guid BranchId { get; set; }
+    public bool IncludeRestrictedRecipes { get; set; }
     public Guid ProductionRecipeId { get; set; }
     public Guid SourceWarehouseId { get; set; }
     public Guid DestinationWarehouseId { get; set; }

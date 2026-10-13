@@ -2309,6 +2309,13 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<string>("AccessLevel")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasDefaultValue("Restricted");
+
                     b.Property<Guid>("BranchId")
                         .HasColumnType("uuid");
 

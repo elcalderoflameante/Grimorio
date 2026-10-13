@@ -15,8 +15,13 @@ namespace Grimorio.API.Controllers;
 public class InventoryController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IWebHostEnvironment _environment;
 
-    public InventoryController(IMediator mediator) => _mediator = mediator;
+    public InventoryController(IMediator mediator, IWebHostEnvironment environment)
+    {
+        _mediator = mediator;
+        _environment = environment;
+    }
 
     // ── Unidades de medida ────────────────────────────────────────────────
 
@@ -331,28 +336,40 @@ public class InventoryController : ControllerBase
 
     // ── Producción ───────────────────────────────────────────────────────
 
-    [Authorize(Policy = "Inventory.Movements.View")]
+    [Authorize(Policy = AppConstants.Permissions.InventoryProductionRecipesView)]
     [HttpGet("produccion/recetas")]
     public async Task<IActionResult> GetProductionRecipes([FromQuery] bool? activeOnly)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
-        return Ok(await _mediator.Send(new GetProductionRecipesQuery { BranchId = branchId, ActiveOnly = activeOnly }));
+        return Ok(await _mediator.Send(new GetProductionRecipesQuery
+        {
+            BranchId = branchId,
+            ActiveOnly = activeOnly,
+            IncludeRestricted = CanViewRestrictedProductionRecipes(),
+        }));
     }
 
-    [Authorize(Policy = "Inventory.Movements.View")]
+    [Authorize(Policy = AppConstants.Permissions.InventoryProductionRecipesView)]
     [HttpGet("produccion/recetas/articulo/{articleId:guid}")]
     public async Task<IActionResult> GetProductionRecipeByArticle(Guid articleId)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
-        var result = await _mediator.Send(new GetProductionRecipeByArticleQuery { BranchId = branchId, OutputArticleId = articleId });
+        var result = await _mediator.Send(new GetProductionRecipeByArticleQuery
+        {
+            BranchId = branchId,
+            OutputArticleId = articleId,
+            IncludeRestricted = CanViewRestrictedProductionRecipes(),
+        });
         return result is null ? NotFound() : Ok(result);
     }
 
-    [Authorize(Policy = "Inventory.Movements.Create")]
+    [Authorize(Policy = AppConstants.Permissions.InventoryProductionRecipesManage)]
     [HttpPut("produccion/recetas")]
     public async Task<IActionResult> UpsertProductionRecipe([FromBody] UpsertProductionRecipeDto dto)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        if (!Enum.TryParse<ProductionRecipeAccessLevel>(dto.AccessLevel, true, out var accessLevel))
+            return BadRequest(new { message = "El nivel de acceso de la receta no es válido." });
         try
         {
             var result = await _mediator.Send(new UpsertProductionRecipeCommand
@@ -363,6 +380,7 @@ public class InventoryController : ControllerBase
                 OutputUnitId = dto.OutputUnitId,
                 Notes = dto.Notes,
                 IsActive = dto.IsActive,
+                AccessLevel = accessLevel,
                 Ingredients = dto.Ingredients,
                 PreparationSteps = dto.PreparationSteps,
             });
@@ -372,6 +390,26 @@ public class InventoryController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    [Authorize(Policy = AppConstants.Permissions.InventoryProductionRecipesView)]
+    [HttpGet("produccion/recetas/{id:guid}/ficha-operativa/pdf")]
+    public async Task<IActionResult> GetProductionRecipeOperationalSheetPdf(Guid id, CancellationToken ct)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+
+        var webRoot = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
+        var pdf = await _mediator.Send(new GenerateProductionRecipeOperationalSheetPdfQuery
+        {
+            Id = id,
+            BranchId = branchId,
+            IncludeRestricted = CanViewRestrictedProductionRecipes(),
+            WebRootPath = webRoot,
+        }, ct);
+
+        return pdf is null
+            ? NotFound()
+            : File(pdf, "application/pdf", $"ficha-produccion-{id:N}.pdf");
     }
 
     [Authorize(Policy = "Inventory.Movements.View")]
@@ -403,6 +441,7 @@ public class InventoryController : ControllerBase
             var result = await _mediator.Send(new RegisterProductionCommand
             {
                 BranchId = branchId,
+                IncludeRestrictedRecipes = CanViewRestrictedProductionRecipes(),
                 ProductionRecipeId = dto.ProductionRecipeId,
                 SourceWarehouseId = dto.SourceWarehouseId,
                 DestinationWarehouseId = dto.DestinationWarehouseId,
@@ -425,4 +464,8 @@ public class InventoryController : ControllerBase
         var claim = User.FindFirst(AppConstants.Claims.BranchId)?.Value;
         return Guid.TryParse(claim, out branchId);
     }
+
+    private bool CanViewRestrictedProductionRecipes() =>
+        User.HasClaim(AppConstants.Claims.Permissions,
+            AppConstants.Permissions.InventoryProductionRecipesRestrictedView);
 }

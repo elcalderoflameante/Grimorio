@@ -176,7 +176,8 @@ public static class AuthSeeder
                 AppConstants.Permissions.BillingSriGenerate,
                 AppConstants.Permissions.FinanceExpensesView,
                 AppConstants.Permissions.FinanceExpensesCreate,
-                AppConstants.Permissions.FinanceExpensesCancel
+                AppConstants.Permissions.FinanceExpensesCancel,
+                AppConstants.Permissions.InventoryProductionRecipesView
             ],
             [AppConstants.Roles.Waiter] =
             [
@@ -188,14 +189,16 @@ public static class AuthSeeder
                 AppConstants.Permissions.PosOrdersCreate,
                 AppConstants.Permissions.PosOrdersUpdate,
                 AppConstants.Permissions.PosTableRequestsView,
-                AppConstants.Permissions.PosTableRequestsUpdate
+                AppConstants.Permissions.PosTableRequestsUpdate,
+                AppConstants.Permissions.InventoryProductionRecipesView
             ],
             [AppConstants.Roles.Kitchen] =
             [
                 AppConstants.Permissions.AdminBranchView,
                 AppConstants.Permissions.PosKitchenView,
                 AppConstants.Permissions.PosKitchenUpdate,
-                AppConstants.Permissions.PosStationsView
+                AppConstants.Permissions.PosStationsView,
+                AppConstants.Permissions.InventoryProductionRecipesView
             ],
             [AppConstants.Roles.Warehouse] =
             [
@@ -207,6 +210,7 @@ public static class AuthSeeder
                 AppConstants.Permissions.InventoryStockView,
                 AppConstants.Permissions.InventoryMovementsView,
                 AppConstants.Permissions.InventoryMovementsCreate,
+                AppConstants.Permissions.InventoryProductionRecipesView,
                 AppConstants.Permissions.PurchasesSuppliersView,
                 AppConstants.Permissions.PurchasesOrdersView
             ],

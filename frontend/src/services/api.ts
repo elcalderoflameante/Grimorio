@@ -593,6 +593,8 @@ export const inventoryApi = {
     apiClient.get<ProductionRecipeDto>(`/inventory/produccion/recetas/articulo/${articleId}`),
   upsertProductionRecipe: (data: UpsertProductionRecipeDto): Promise<AxiosResponse<ProductionRecipeDto>> =>
     apiClient.put<ProductionRecipeDto>('/inventory/produccion/recetas', data),
+  getProductionRecipeOperationalSheetPdf: (id: string): Promise<AxiosResponse<Blob>> =>
+    apiClient.get<Blob>(`/inventory/produccion/recetas/${id}/ficha-operativa/pdf`, { responseType: 'blob' }),
   getProductionOrders: (params?: {
     outputArticleId?: string;
     warehouseId?: string;

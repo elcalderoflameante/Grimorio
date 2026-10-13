@@ -214,6 +214,7 @@ public class ProductionRecipeDto
     public string OutputUnitSymbol { get; set; } = string.Empty;
     public string? Notes { get; set; }
     public bool IsActive { get; set; }
+    public string AccessLevel { get; set; } = string.Empty;
     public List<ProductionRecipeIngredientDto> Ingredients { get; set; } = [];
     public List<ProductionRecipePreparationStepDto> PreparationSteps { get; set; } = [];
 }
@@ -238,6 +239,7 @@ public class UpsertProductionRecipeDto
     public Guid OutputUnitId { get; set; }
     public string? Notes { get; set; }
     public bool IsActive { get; set; } = true;
+    public string AccessLevel { get; set; } = nameof(ProductionRecipeAccessLevel.Restricted);
     public List<UpsertProductionRecipeIngredientDto> Ingredients { get; set; } = [];
     public List<UpsertProductionRecipePreparationStepDto> PreparationSteps { get; set; } = [];
 }

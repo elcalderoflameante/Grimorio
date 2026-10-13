@@ -571,6 +571,7 @@ public class UpsertProductionRecipeHandler : IRequestHandler<UpsertProductionRec
         recipe.OutputUnitId = req.OutputUnitId;
         recipe.Notes = req.Notes?.Trim();
         recipe.IsActive = req.IsActive;
+        recipe.AccessLevel = req.AccessLevel;
 
         foreach (var oldIngredient in recipe.Ingredients.Where(x => !x.IsDeleted))
             oldIngredient.IsDeleted = true;
@@ -636,7 +637,10 @@ public class RegisterProductionHandler : IRequestHandler<RegisterProductionComma
             .Include(x => x.OutputUnit)
             .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Article).ThenInclude(x => x!.BaseUnit)
             .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Unit)
-            .FirstOrDefaultAsync(x => x.Id == req.ProductionRecipeId && x.BranchId == req.BranchId && x.IsActive, ct)
+            .FirstOrDefaultAsync(x => x.Id == req.ProductionRecipeId
+                && x.BranchId == req.BranchId
+                && x.IsActive
+                && (req.IncludeRestrictedRecipes || x.AccessLevel == ProductionRecipeAccessLevel.General), ct)
             ?? throw new InvalidOperationException("Receta de producción no encontrada o inactiva.");
 
         if (recipe.Ingredients.Count == 0)
