@@ -48,6 +48,7 @@ services:
       - ../../backend/secrets:/app/secrets:ro
       - data_protection_keys:/app/keys
       - api_logs:/app/logs
+      - api_uploads:/app/wwwroot/uploads
     logging:
       driver: json-file
       options:
@@ -84,6 +85,7 @@ services:
 volumes:
   postgres_data:
   api_logs:
+  api_uploads:
   data_protection_keys:
   caddy_data:
   caddy_config:

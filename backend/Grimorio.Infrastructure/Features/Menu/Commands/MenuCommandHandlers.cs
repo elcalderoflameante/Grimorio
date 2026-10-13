@@ -122,7 +122,7 @@ public class UpdateItemMenuHandler : IRequestHandler<UpdateMenuItemCommand, Menu
         item.Description = req.Description;
         item.InternalCode = await MenuMapper.ResolveInternalCodeAsync(
             _db, req.BranchId, item.Id, req.InternalCode, ct);
-        item.ImageUrl = req.ImageUrl; item.Price = req.Price; item.IsActive = req.IsActive;
+        item.Price = req.Price; item.IsActive = req.IsActive;
         item.DisplayOrder = req.DisplayOrder;
         item.AvailableForSale = req.AvailableForSale;
         item.SaleVisibility = MenuMapper.ParseSaleVisibility(req.SaleVisibility);

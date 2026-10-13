@@ -60,6 +60,25 @@ cd deploy/cloudcone
 docker compose --env-file .env up -d --build
 ```
 
+### Primera actualizacion con el volumen de archivos
+
+La primera vez que se despliegue una version que incluya el volumen `api_uploads`,
+copia antes los archivos del contenedor actual. Esto conserva imagenes del menu,
+logos y adjuntos de compras que todavia existan:
+
+```bash
+git pull
+cd deploy/cloudcone
+mkdir -p uploads-backup
+docker compose --env-file .env cp api:/app/wwwroot/uploads/. ./uploads-backup
+docker compose --env-file .env up -d --build
+docker compose --env-file .env cp ./uploads-backup/. api:/app/wwwroot/uploads
+rm -rf uploads-backup
+```
+
+Este procedimiento se realiza una sola vez. Las siguientes actualizaciones usan
+el volumen persistente automaticamente.
+
 Detener:
 
 ```bash
@@ -67,7 +86,8 @@ cd deploy/cloudcone
 docker compose down
 ```
 
-No uses `docker compose down -v` en produccion: elimina los volumenes persistentes, incluida la base de datos.
+No uses `docker compose down -v` en produccion: elimina los volumenes persistentes,
+incluidas la base de datos y las imagenes o documentos cargados.
 
 Backup manual de PostgreSQL:
 
