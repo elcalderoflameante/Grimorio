@@ -521,24 +521,47 @@ internal static class MenuMapper
         string? requestedCode,
         CancellationToken ct)
     {
-        var code = string.IsNullOrWhiteSpace(requestedCode)
-            ? $"MENU-{itemId:N}"[..13].ToUpperInvariant()
-            : requestedCode.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(requestedCode))
+        {
+            var id = itemId.ToString("N").ToUpperInvariant();
+            for (var offset = 0; offset <= 24; offset += 6)
+            {
+                var generatedCode = $"M-{id.Substring(offset, 6)}";
+                if (!await InternalCodeExistsAsync(db, branchId, itemId, generatedCode, ct))
+                    return generatedCode;
+            }
+
+            while (true)
+            {
+                var generatedCode = $"M-{Guid.NewGuid():N}"[..8].ToUpperInvariant();
+                if (!await InternalCodeExistsAsync(db, branchId, itemId, generatedCode, ct))
+                    return generatedCode;
+            }
+        }
+
+        var code = requestedCode.Trim().ToUpperInvariant();
 
         if (code.Length > 25)
             throw new InvalidOperationException("El codigo interno admite maximo 25 caracteres.");
 
-        var duplicated = await db.MenuItems.AnyAsync(x =>
+        if (await InternalCodeExistsAsync(db, branchId, itemId, code, ct))
+            throw new InvalidOperationException($"El codigo interno {code} ya esta asignado a otro item.");
+
+        return code;
+    }
+
+    private static Task<bool> InternalCodeExistsAsync(
+        GrimorioDbContext db,
+        Guid branchId,
+        Guid itemId,
+        string code,
+        CancellationToken ct) =>
+        db.MenuItems.AnyAsync(x =>
             x.BranchId == branchId
             && x.Id != itemId
             && x.InternalCode != null
             && x.InternalCode.ToUpper() == code,
             ct);
-        if (duplicated)
-            throw new InvalidOperationException($"El codigo interno {code} ya esta asignado a otro item.");
-
-        return code;
-    }
 
     internal static MenuItemSaleVisibility ParseSaleVisibility(string value)
     {
