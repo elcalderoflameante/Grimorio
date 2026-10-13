@@ -201,14 +201,20 @@ export default function ElectronicInvoices() {
     }
   };
 
-  const handleDownload = (url: string, filename: string) => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const handleDownload = async (request: () => Promise<{ data: Blob }>, filename: string) => {
+    try {
+      const response = await request();
+      const url = URL.createObjectURL(response.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      message.error('No se pudo descargar el archivo');
+    }
   };
 
   return (
@@ -317,7 +323,7 @@ export default function ElectronicInvoices() {
                       size="small"
                       icon={<FilePdfOutlined />}
                       onClick={() => handleDownload(
-                        sriApi.downloadRideUrl(r.id),
+                        () => sriApi.downloadRide(r.id),
                         `RIDE-${r.numeroFactura}.pdf`
                       )}
                     />
@@ -329,7 +335,7 @@ export default function ElectronicInvoices() {
                       size="small"
                       icon={<FileTextOutlined />}
                       onClick={() => handleDownload(
-                        sriApi.downloadXmlUrl(r.id),
+                        () => sriApi.downloadXml(r.id),
                         `FE-${r.numeroFactura}.xml`
                       )}
                     />
@@ -398,7 +404,7 @@ export default function ElectronicInvoices() {
           <Button
             icon={<FileTextOutlined />}
             onClick={() => xmlModal && handleDownload(
-              sriApi.downloadRespuestaSriUrl(xmlModal.doc.id),
+              () => sriApi.downloadRespuestaSri(xmlModal.doc.id),
               `RespuestaSRI-${xmlModal.doc.numeroFactura}.xml`
             )}
           >

@@ -916,12 +916,12 @@ export const sriApi = {
     apiClient.post<ElectronicDocumentDto>(`/sri/documentos/${id}/reintentar`),
   resendInvoiceEmail: (id: string): Promise<AxiosResponse<ElectronicDocumentDto>> =>
     apiClient.post<ElectronicDocumentDto>(`/sri/documentos/${id}/correo/reintentar`),
-  downloadRideUrl: (id: string): string =>
-    `${apiClient.defaults.baseURL}/sri/documentos/${id}/ride`,
-  downloadXmlUrl: (id: string): string =>
-    `${apiClient.defaults.baseURL}/sri/documentos/${id}/xml`,
-  downloadRespuestaSriUrl: (id: string): string =>
-    `${apiClient.defaults.baseURL}/sri/documentos/${id}/respuesta-sri`,
+  downloadRide: (id: string): Promise<AxiosResponse<Blob>> =>
+    apiClient.get<Blob>(`/sri/documentos/${id}/ride`, { responseType: 'blob' }),
+  downloadXml: (id: string): Promise<AxiosResponse<Blob>> =>
+    apiClient.get<Blob>(`/sri/documentos/${id}/xml`, { responseType: 'blob' }),
+  downloadRespuestaSri: (id: string): Promise<AxiosResponse<Blob>> =>
+    apiClient.get<Blob>(`/sri/documentos/${id}/respuesta-sri`, { responseType: 'blob' }),
   getRespuestaSriText: (id: string): Promise<AxiosResponse<string>> =>
     apiClient.get<string>(`/sri/documentos/${id}/respuesta-sri`, { responseType: 'text' }),
 
