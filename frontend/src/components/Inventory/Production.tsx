@@ -75,7 +75,7 @@ type ProductionFormValues = {
 
 export default function Production() {
   const { message } = AntApp.useApp();
-  const { hasPermission } = useAuth();
+  const { hasPermission, userRoles } = useAuth();
   const [recipes, setRecipes] = useState<ProductionRecipeDto[]>([]);
   const [orders, setOrders] = useState<ProductionOrderDto[]>([]);
   const [articles, setArticles] = useState<InventoryArticleDto[]>([]);
@@ -95,8 +95,8 @@ export default function Production() {
   const [productionForm] = Form.useForm<ProductionFormValues>();
   const selectedOutputArticleId = Form.useWatch('outputArticleId', recipeForm);
   const selectedProductionRecipeId = Form.useWatch('productionRecipeId', productionForm);
-  const canCreate = hasPermission(PERMISSIONS.inventory.movementsCreate);
-  const canManageRecipes = hasPermission(PERMISSIONS.inventory.productionRecipesManage);
+  const canCreate = hasPermission(PERMISSIONS.inventory.productionCreate) || hasPermission(PERMISSIONS.inventory.movementsCreate);
+  const canManageRecipes = userRoles.includes('Administrador') && hasPermission(PERMISSIONS.inventory.productionRecipesManage);
 
   const elaboratedProducts = useMemo(
     () => articles.filter(a => a.type === 'ElaboratedProduct' && a.isActive),
@@ -106,8 +106,8 @@ export default function Production() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [recipeRes, orderRes, articleRes, warehouseRes, unitRes, conversionRes] = await Promise.all([
-        inventoryApi.getProductionRecipes(),
+      const [recipeRes, orderRes, optionsRes] = await Promise.all([
+        inventoryApi.getProductionRecipes(canManageRecipes ? undefined : true),
         inventoryApi.getProductionOrders({
           outputArticleId: filterArticle,
           warehouseId: filterWarehouse,
@@ -115,23 +115,20 @@ export default function Production() {
           to: filterRange?.[1],
           pageSize: 100,
         }),
-        inventoryApi.getArticles({ activeOnly: true }),
-        inventoryApi.getWarehouses(true),
-        inventoryApi.getUnits(),
-        inventoryApi.getConversions(),
+        inventoryApi.getProductionOptions(),
       ]);
       setRecipes(recipeRes.data);
       setOrders(orderRes.data);
-      setArticles(articleRes.data);
-      setWarehouses(warehouseRes.data);
-      setUnits(unitRes.data);
-      setConversions(conversionRes.data);
+      setArticles(optionsRes.data.articles);
+      setWarehouses(optionsRes.data.warehouses);
+      setUnits(optionsRes.data.units);
+      setConversions(optionsRes.data.conversions);
     } catch (e) {
       message.error(formatError(e));
     } finally {
       setLoading(false);
     }
-  }, [filterArticle, filterRange, filterWarehouse, message]);
+  }, [canManageRecipes, filterArticle, filterRange, filterWarehouse, message]);
 
   useEffect(() => { load(); }, [load]);
 

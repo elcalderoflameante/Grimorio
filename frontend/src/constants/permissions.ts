@@ -54,6 +54,7 @@ export const PERMISSIONS = {
     stockView: 'Inventory.Stock.View',
     movementsView: 'Inventory.Movements.View',
     movementsCreate: 'Inventory.Movements.Create',
+    productionCreate: 'Inventory.Production.Create',
     productionRecipesView: 'Inventory.ProductionRecipes.View',
     productionRecipesManage: 'Inventory.ProductionRecipes.Manage',
     productionRecipesRestrictedView: 'Inventory.ProductionRecipes.Restricted.View',

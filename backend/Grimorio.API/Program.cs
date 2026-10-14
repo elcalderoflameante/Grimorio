@@ -176,6 +176,7 @@ builder.Services.AddSingleton<IAuthorizationHandler, Grimorio.API.Authorization.
 // === Authorization policies ===
 builder.Services.AddAuthorization(options =>
 {
+    Grimorio.API.Authorization.ProductionAuthorization.AddPolicies(options);
     options.AddPolicy("Voice.Access", policy => policy.RequireAuthenticatedUser().RequireAssertion(context =>
         context.User.IsInRole(AppConstants.Roles.Admin) ||
         context.User.FindAll(AppConstants.Claims.Permissions).Any(c =>

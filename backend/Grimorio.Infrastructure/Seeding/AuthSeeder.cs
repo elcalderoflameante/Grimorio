@@ -177,6 +177,7 @@ public static class AuthSeeder
                 AppConstants.Permissions.FinanceExpensesView,
                 AppConstants.Permissions.FinanceExpensesCreate,
                 AppConstants.Permissions.FinanceExpensesCancel,
+                AppConstants.Permissions.InventoryProductionCreate,
                 AppConstants.Permissions.InventoryProductionRecipesView
             ],
             [AppConstants.Roles.Waiter] =

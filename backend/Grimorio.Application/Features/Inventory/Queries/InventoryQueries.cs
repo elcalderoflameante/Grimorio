@@ -87,6 +87,7 @@ public class GenerateProductionRecipeOperationalSheetPdfQuery : IRequest<byte[]?
 public class GetProductionOrdersQuery : IRequest<List<ProductionOrderDto>>
 {
     public Guid BranchId { get; set; }
+    public bool IncludeRestricted { get; set; }
     public Guid? OutputArticleId { get; set; }
     public Guid? WarehouseId { get; set; }
     public DateTime? FromUtc { get; set; }

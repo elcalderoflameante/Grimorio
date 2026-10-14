@@ -72,7 +72,6 @@ import CurrentStock from '../components/Inventory/CurrentStock';
 import StockMovements from '../components/Inventory/StockMovements';
 import InventoryReconciliation from '../components/Inventory/InventoryReconciliation';
 import Production from '../components/Inventory/Production';
-import ProductionRecipeBook from '../components/Inventory/ProductionRecipeBook';
 import SuppliersList from '../components/Purchases/SuppliersList';
 import PurchasesList from '../components/Purchases/PurchaseOrdersList';
 import PurchaseForm from '../components/Purchases/PurchaseForm';
@@ -334,8 +333,7 @@ export default function Dashboard() {
           { key: 'inv-stock', label: 'Stock actual', icon: <WarningOutlined />, permission: PERMISSIONS.inventory.stockView },
           { key: 'inv-movimientos', label: 'Movimientos', icon: <SwapOutlined />, permission: PERMISSIONS.inventory.movementsView },
           { key: 'inv-conciliacion', label: 'Conciliación', icon: <SearchOutlined />, permission: PERMISSIONS.inventory.movementsView },
-          { key: 'inv-recetario-produccion', label: 'Recetario', icon: <ReadOutlined />, permission: PERMISSIONS.inventory.productionRecipesView },
-          { key: 'inv-produccion', label: 'Producción', icon: <ToolOutlined />, permission: PERMISSIONS.inventory.movementsCreate },
+          { key: 'inv-produccion', label: 'Producción', icon: <ToolOutlined />, permission: hasPermission(PERMISSIONS.inventory.productionCreate) ? PERMISSIONS.inventory.productionCreate : PERMISSIONS.inventory.movementsCreate },
         ],
       },
       {
@@ -486,8 +484,6 @@ case 'pos-estaciones':
         return <InventoryReconciliation />;
       case 'inv-produccion':
         return <Production />;
-      case 'inv-recetario-produccion':
-        return <ProductionRecipeBook />;
       case 'inv-articulos':
         return <ArticlesList />;
       case 'inv-config':

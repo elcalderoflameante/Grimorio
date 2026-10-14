@@ -1,5 +1,6 @@
 ﻿using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Inventory.Commands;
+using Grimorio.API.Authorization;
 using Grimorio.Application.Features.Inventory.Queries;
 using Grimorio.Domain.Entities.Inventory;
 using Grimorio.SharedKernel.Constants;
@@ -336,6 +337,27 @@ public class InventoryController : ControllerBase
 
     // ── Producción ───────────────────────────────────────────────────────
 
+    [Authorize(Policy = ProductionAuthorization.RegisterPolicy)]
+    [HttpGet("produccion/opciones")]
+    public async Task<IActionResult> GetProductionOptions()
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var articles = await _mediator.Send(new GetInventoryArticlesQuery { BranchId = branchId, ActiveOnly = true });
+        if (!User.IsInRole(AppConstants.Roles.Admin))
+        {
+            var recipes = await _mediator.Send(new GetProductionRecipesQuery
+            {
+                BranchId = branchId, ActiveOnly = true, IncludeRestricted = false,
+            });
+            var outputIds = recipes.Select(r => r.OutputArticleId).ToHashSet();
+            articles = articles.Where(a => outputIds.Contains(a.Id)).ToList();
+        }
+        var warehouses = await _mediator.Send(new GetWarehousesQuery { BranchId = branchId, ActiveOnly = true });
+        var units = await _mediator.Send(new GetMeasurementUnitsQuery { BranchId = branchId });
+        var conversions = await _mediator.Send(new GetUnitConversionsQuery { BranchId = branchId });
+        return Ok(new { Articles = articles, Warehouses = warehouses, Units = units, Conversions = conversions });
+    }
+
     [Authorize(Policy = AppConstants.Permissions.InventoryProductionRecipesView)]
     [HttpGet("produccion/recetas")]
     public async Task<IActionResult> GetProductionRecipes([FromQuery] bool? activeOnly)
@@ -364,6 +386,7 @@ public class InventoryController : ControllerBase
     }
 
     [Authorize(Policy = AppConstants.Permissions.InventoryProductionRecipesManage)]
+    [Authorize(Policy = "AdminOnly")]
     [HttpPut("produccion/recetas")]
     public async Task<IActionResult> UpsertProductionRecipe([FromBody] UpsertProductionRecipeDto dto)
     {
@@ -412,7 +435,7 @@ public class InventoryController : ControllerBase
             : File(pdf, "application/pdf", $"ficha-produccion-{id:N}.pdf");
     }
 
-    [Authorize(Policy = "Inventory.Movements.View")]
+    [Authorize(Policy = ProductionAuthorization.HistoryPolicy)]
     [HttpGet("produccion/ordenes")]
     public async Task<IActionResult> GetProductionOrders(
         [FromQuery] Guid? outputArticleId, [FromQuery] Guid? warehouseId,
@@ -423,6 +446,7 @@ public class InventoryController : ControllerBase
         return Ok(await _mediator.Send(new GetProductionOrdersQuery
         {
             BranchId = branchId,
+            IncludeRestricted = CanViewRestrictedProductionRecipes(),
             OutputArticleId = outputArticleId,
             WarehouseId = warehouseId,
             FromUtc = from,
@@ -431,7 +455,7 @@ public class InventoryController : ControllerBase
         }));
     }
 
-    [Authorize(Policy = "Inventory.Movements.Create")]
+    [Authorize(Policy = ProductionAuthorization.RegisterPolicy)]
     [HttpPost("produccion/ordenes")]
     public async Task<IActionResult> RegisterProduction([FromBody] RegisterProductionDto dto)
     {
@@ -466,6 +490,5 @@ public class InventoryController : ControllerBase
     }
 
     private bool CanViewRestrictedProductionRecipes() =>
-        User.HasClaim(AppConstants.Claims.Permissions,
-            AppConstants.Permissions.InventoryProductionRecipesRestrictedView);
+        ProductionAuthorization.CanAccessRestrictedRecipes(User);
 }

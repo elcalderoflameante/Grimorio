@@ -587,6 +587,10 @@ export const inventoryApi = {
     apiClient.post<StockMovementDto[]>('/inventory/movimientos/inventario-inicial', data),
 
   // Producción
+  getProductionOptions: (): Promise<AxiosResponse<{
+    articles: InventoryArticleDto[]; warehouses: WarehouseDto[];
+    units: MeasurementUnitDto[]; conversions: UnitConversionDto[];
+  }>> => apiClient.get('/inventory/produccion/opciones'),
   getProductionRecipes: (activeOnly?: boolean): Promise<AxiosResponse<ProductionRecipeDto[]>> =>
     apiClient.get<ProductionRecipeDto[]>('/inventory/produccion/recetas', { params: { activeOnly } }),
   getProductionRecipeByArticle: (articleId: string): Promise<AxiosResponse<ProductionRecipeDto>> =>

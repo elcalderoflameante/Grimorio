@@ -417,6 +417,10 @@ public class GetProductionOrdersHandler : IRequestHandler<GetProductionOrdersQue
             .Include(x => x.Ingredients.Where(i => !i.IsDeleted)).ThenInclude(x => x.Unit)
             .Where(x => x.BranchId == req.BranchId);
 
+        if (!req.IncludeRestricted)
+            query = query.Where(x => x.ProductionRecipe != null
+                && x.ProductionRecipe.AccessLevel == ProductionRecipeAccessLevel.General);
+
         if (req.OutputArticleId.HasValue) query = query.Where(x => x.OutputArticleId == req.OutputArticleId.Value);
         if (req.WarehouseId.HasValue)
             query = query.Where(x => x.SourceWarehouseId == req.WarehouseId.Value || x.DestinationWarehouseId == req.WarehouseId.Value);
