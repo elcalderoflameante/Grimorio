@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
-import { Alert, Button, Space, Table, Tag } from 'antd';
-import { EyeOutlined, ReloadOutlined } from '@ant-design/icons';
+import { useEffect, useRef, useState } from 'react';
+import { App as AntApp, Alert, Button, Popconfirm, Space, Table, Tag, Tooltip } from 'antd';
+import { EyeOutlined, ReloadOutlined, StopOutlined } from '@ant-design/icons';
 import { posApi } from '../../services/api';
 import type { ActiveOrderSummaryDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const statuses: Record<string, { label: string; color: string }> = {
   Draft: { label: 'Borrador', color: 'default' },
@@ -20,10 +22,32 @@ interface Props {
 }
 
 export default function NonTableOrders({ branchId, refreshKey, onOpen }: Props) {
+  const { message } = AntApp.useApp();
+  const { hasPermission } = useAuth();
   const [orders, setOrders] = useState<ActiveOrderSummaryDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const cancellationInFlight = useRef(false);
+  const canCancel = hasPermission(PERMISSIONS.pos.ordersCancel);
+
+  const cancelDraft = async (order: ActiveOrderSummaryDto) => {
+    if (cancellationInFlight.current || !canCancel || order.status !== 'Draft') return;
+    cancellationInFlight.current = true;
+    setCancellingId(order.id);
+    try {
+      await posApi.cancelOrder(order.id);
+      message.success(`Borrador #${order.number} cancelado`);
+      setReloadKey(key => key + 1);
+    } catch (e) {
+      message.error(formatError(e));
+    } finally {
+      cancellationInFlight.current = false;
+      setCancellingId(null);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -53,7 +77,7 @@ export default function NonTableOrders({ branchId, refreshKey, onOpen }: Props) 
 
   return <div>
     <Space style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-      <Button icon={<ReloadOutlined />} loading={loading} onClick={() => setReloadKey(key => key + 1)}>Actualizar</Button>
+      <Button icon={<ReloadOutlined />} loading={loading} disabled={!!cancellingId} onClick={() => setReloadKey(key => key + 1)}>Actualizar</Button>
     </Space>
     {error && <Alert type="error" showIcon title={error} style={{ marginBottom: 12 }} />}
     <Table<ActiveOrderSummaryDto>
@@ -66,7 +90,22 @@ export default function NonTableOrders({ branchId, refreshKey, onOpen }: Props) 
         { title: 'Cliente', dataIndex: 'customerName', render: name => name || 'Sin nombre' },
         { title: 'Estado', dataIndex: 'status', width: 140, render: status => <Tag color={statuses[status]?.color}>{statuses[status]?.label ?? status}</Tag> },
         { title: 'Total del pedido', dataIndex: 'total', width: 125, align: 'right', render: total => `$${total.toFixed(2)}` },
-        { title: 'Acciones', width: 90, render: (_, order) => <Button icon={<EyeOutlined />} onClick={() => onOpen(order)}>Abrir</Button> },
+        { title: 'Acciones', width: 135, render: (_, order) => <Space size={4}>
+          <Button icon={<EyeOutlined />} disabled={!!cancellingId} onClick={() => onOpen(order)}>Abrir</Button>
+          {canCancel && order.status === 'Draft' && <Popconfirm
+            title={`¿Cancelar el borrador #${order.number}?`}
+            description="El pedido dejará de aparecer en pendientes."
+            okText="Cancelar borrador" cancelText="Volver"
+            okButtonProps={{ danger: true, loading: cancellingId === order.id }}
+            onOpenChange={open => setConfirmingId(open ? order.id : null)}
+            onConfirm={() => cancelDraft(order)}
+          >
+            <Tooltip title="Cancelar borrador" open={confirmingId === order.id ? false : undefined}>
+              <Button danger icon={<StopOutlined />} aria-label={`Cancelar borrador #${order.number}`}
+                loading={cancellingId === order.id} disabled={!!cancellingId} />
+            </Tooltip>
+          </Popconfirm>}
+        </Space> },
       ]}
     />
   </div>;
