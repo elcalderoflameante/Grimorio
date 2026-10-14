@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { App as AntApp, Button, Modal, Space, Typography, Alert } from 'antd';
+import { App as AntApp, Button, Modal, Space, Typography, Alert, Tabs } from 'antd';
 import { ShoppingCartOutlined, CarOutlined } from '@ant-design/icons';
 import { useAuth } from '../../context/useAuth';
-import type { OrderDto, RestaurantTableDto, OrderType } from '../../types';
+import type { ActiveOrderSummaryDto, OrderDto, RestaurantTableDto, OrderType } from '../../types';
 import { cashApi, posApi } from '../../services/api';
 import TablesMap from './TablesMap';
 import TakeOrder from './TakeOrder';
 import TableOrderView from './TableOrderView';
+import NonTableOrders from './NonTableOrders';
 import { PERMISSIONS } from '../../constants/permissions';
 
 const { Title, Text } = Typography;
@@ -18,6 +19,7 @@ export default function PosOrderModule() {
 
   const { branchId, hasPermission } = useAuth();
   const [view, setView] = useState<View>('map');
+  const [mapTab, setMapTab] = useState('tables');
   const [selectedTable, setSelectedTable] = useState<RestaurantTableDto | null>(null);
   const [orderType, setOrderType] = useState<OrderType>('DineIn');
   const [showTypeModal, setShowTypeModal] = useState(false);
@@ -82,6 +84,7 @@ export default function PosOrderModule() {
     }
     setSelectedTable(null);
     setOrderType(type);
+    setMapTab('non-table');
     setActiveOrder(null);
     setDirectSaleMode(false);
     setShowTypeModal(false);
@@ -106,11 +109,12 @@ export default function PosOrderModule() {
   };
 
   const handleOrderConfirmed = (order: OrderDto) => {
-    if (directSaleMode) {
+    if (directSaleMode || order.type !== 'DineIn') {
       setDetailOrderId(order.id);
       setSelectedTable(null);
       setActiveOrder(null);
       setDirectSaleMode(false);
+      setMapTab('non-table');
       setView('table-detail');
       refreshTables();
       return;
@@ -134,6 +138,25 @@ export default function PosOrderModule() {
 
   const refreshTables = () => setTablesRefreshKey(k => k + 1);
 
+  const handleOpenNonTableOrder = async (summary: ActiveOrderSummaryDto) => {
+    setSelectedTable(null);
+    setDirectSaleMode(false);
+    if (summary.status === 'Draft') {
+      try {
+        const { data } = await posApi.getOrden(summary.id);
+        setOrderType(data.type);
+        setActiveOrder(data);
+        setView('order');
+      } catch {
+        message.error('No se pudo cargar el borrador del pedido');
+      }
+    } else {
+      setActiveOrder(null);
+      setDetailOrderId(summary.id);
+      setView('table-detail');
+    }
+  };
+
   return (
     <div style={{ height: '100%' }}>
       {view === 'map' && (
@@ -147,9 +170,9 @@ export default function PosOrderModule() {
               style={{ marginBottom: 16 }}
             />
           )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <Title level={5} style={{ margin: 0 }}>Mapa de Mesas</Title>
-            <Space>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+            <Title level={5} style={{ margin: 0 }}>Pedidos</Title>
+            <Space wrap>
               {canDirectSale && (
                 <Button type="primary" icon={<ShoppingCartOutlined />} onClick={handleDirectSale}>
                   Venta directa
@@ -162,7 +185,10 @@ export default function PosOrderModule() {
               )}
             </Space>
           </div>
-          <TablesMap branchId={branchId} onSelectTable={handleSelectTable} refreshKey={tablesRefreshKey} />
+          <Tabs activeKey={mapTab} onChange={setMapTab} items={[
+            { key: 'tables', label: 'Mesas', children: <TablesMap branchId={branchId} onSelectTable={handleSelectTable} refreshKey={tablesRefreshKey} /> },
+            { key: 'non-table', label: 'Para llevar y domicilio', children: <NonTableOrders branchId={branchId} refreshKey={tablesRefreshKey} onOpen={handleOpenNonTableOrder} /> },
+          ]} />
         </div>
       )}
 

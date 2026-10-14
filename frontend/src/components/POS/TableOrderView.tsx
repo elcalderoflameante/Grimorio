@@ -931,8 +931,8 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         <Space>
-          <Button icon={<ArrowLeftOutlined />} disabled={paying} onClick={onClose}>Volver al mapa</Button>
-          <Title level={5} style={{ margin: 0 }}>{table ? `Mesa ${table.code}` : 'Venta directa'}</Title>
+          <Button icon={<ArrowLeftOutlined />} disabled={paying} onClick={onClose}>{table ? 'Volver al mapa' : 'Volver a pedidos'}</Button>
+          <Title level={5} style={{ margin: 0 }}>{table ? `Mesa ${table.code}` : order.type === 'Delivery' ? 'Domicilio' : 'Para llevar'}</Title>
           <Tag>Orden #{order.number}</Tag>
           <Tag color={STATUS_COLORS[order.status]}>{STATUS_LABELS[order.status] ?? order.status}</Tag>
         </Space>
