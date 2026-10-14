@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { App as AntApp, Table, Button, Modal, Form, Input, InputNumber, Select, Switch,
-  Popconfirm, Space, Typography, Tag, Badge, Tooltip, Alert, Upload, Image } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, UnorderedListOutlined, ControlOutlined, UploadOutlined, FileTextOutlined, ReloadOutlined, ClearOutlined } from '@ant-design/icons';
+  Dropdown, Space, Typography, Tag, Tooltip, Alert, Upload, Image } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, UnorderedListOutlined, ControlOutlined, UploadOutlined, FileTextOutlined, ReloadOutlined, ClearOutlined, MoreOutlined } from '@ant-design/icons';
 import { menuApi, posApi, resolveMediaUrl, taxApi } from '../../services/api';
 import type { MenuItemDto, MenuCategoryDto, CreateMenuItemDto, UpdateMenuItemDto, WorkStationDto, TaxRateDto, MenuItemSaleVisibility } from '../../types';
 import type { UploadFile } from 'antd/es/upload/interface';
@@ -27,7 +27,7 @@ interface ItemFilters {
 const normalizeSearch = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 export default function MenuItemsList() {
-  const { message } = AntApp.useApp();
+  const { message, modal: dialogs } = AntApp.useApp();
 
   const { hasPermission } = useAuth();
   const [items, setItems] = useState<MenuItemDto[]>([]);
@@ -299,7 +299,7 @@ export default function MenuItemsList() {
         rowKey="id"
         loading={loading}
         size="small"
-        scroll={{ x: 1400 }}
+        scroll={{ x: 1000 }}
         pagination={{
           current: page,
           pageSize,
@@ -325,7 +325,7 @@ export default function MenuItemsList() {
             title: 'Nombres', key: 'nombre',
             render: (_: unknown, item: MenuItemDto) => (
               <div>
-                <Space>
+                <Space wrap>
                   <strong>{item.name}</strong>
                   {item.isCombo && <Tag color="cyan">Combo</Tag>}
                   {!item.isActive && <Tag>Inactivo</Tag>}
@@ -359,76 +359,59 @@ export default function MenuItemsList() {
                 : item.stationName ? <Tag>{item.stationName}</Tag> : <span style={{ color: '#999' }}>—</span>,
           },
           {
-            title: 'IVA', key: 'iva', width: 90,
-            render: (_: unknown, item: MenuItemDto) =>
-              item.taxRateName
-                ? <Tag color="blue">{item.taxRateName}</Tag>
-                : <span style={{ color: '#999' }}>—</span>,
-          },
-          ...(canManage ? [{
-            title: 'Receta', key: 'receta', width: 90,
+            title: 'Acciones', key: 'acc', width: 80, fixed: 'right',
             render: (_: unknown, item: MenuItemDto) => (
-              <Tooltip title={item.isCombo ? 'Ver/editar componentes' : 'Ver/editar receta'}>
-                <Badge count={item.isCombo ? item.comboComponents?.length ?? 0 : item.totalIngredients} size="small" showZero>
-                  <Button
-                    size="small"
-                    icon={<UnorderedListOutlined />}
-                    onClick={() => item.isCombo ? openModal(item) : setRecetaItem(item)}
-                  />
-                </Badge>
-              </Tooltip>
-            ),
-          }] : []),
-          ...(canManage ? [{
-            title: 'Opciones', key: 'modifiers', width: 95,
-            render: (_: unknown, item: MenuItemDto) => (
-              <Tooltip title="Ver/editar modificadores">
-                <Badge count={item.modifierGroups?.length ?? 0} size="small" showZero>
-                  <Button
-                    size="small"
-                    icon={<ControlOutlined />}
-                    disabled={item.isCombo}
-                    onClick={() => setModifierItem(item)}
-                  />
-                </Badge>
-              </Tooltip>
-            ),
-          }] : []),
-          ...(canManage ? [{
-            title: 'Preparación', key: 'preparation', width: 105,
-            render: (_: unknown, item: MenuItemDto) => (
-              <Tooltip title="Ver/editar preparación">
-                <Button
-                  size="small"
-                  icon={<FileTextOutlined />}
-                  onClick={() => setPreparationItem(item)}
-                />
-              </Tooltip>
-            ),
-          }] : []),
-          {
-            title: 'Ficha', key: 'operationalSheet', width: 80,
-            render: (_: unknown, item: MenuItemDto) => (
-              <Tooltip title="Abrir ficha operativa">
-                <Button
-                  size="small"
-                  icon={<FileTextOutlined />}
-                  onClick={() => openOperationalSheet(item)}
-                />
-              </Tooltip>
+              <Dropdown
+                trigger={['click']}
+                menu={{
+                  style: { minWidth: 210 },
+                  items: [
+                    ...(canManage ? [
+                      { key: 'edit', label: 'Editar ítem', icon: <EditOutlined /> },
+                      { key: 'recipe', icon: <UnorderedListOutlined />, label: (
+                        <span style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                          <span>{item.isCombo ? 'Componentes' : 'Receta'}</span>
+                          <Tag style={{ marginInlineEnd: 0 }}>{item.isCombo ? item.comboComponents?.length ?? 0 : item.totalIngredients}</Tag>
+                        </span>
+                      ) },
+                      { key: 'modifiers', icon: <ControlOutlined />, disabled: item.isCombo, label: (
+                        <span style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                          <span>Opciones</span><Tag style={{ marginInlineEnd: 0 }}>{item.modifierGroups?.length ?? 0}</Tag>
+                        </span>
+                      ) },
+                      { key: 'preparation', label: 'Preparación', icon: <FileTextOutlined /> },
+                    ] : []),
+                    { key: 'sheet', label: 'Ficha operativa', icon: <FileTextOutlined /> },
+                    ...(canManage ? [
+                      { type: 'divider' as const },
+                      { key: 'delete', label: 'Eliminar ítem', icon: <DeleteOutlined />, danger: true },
+                    ] : []),
+                  ],
+                  onClick: ({ key }) => {
+                    switch (key) {
+                      case 'edit': void openModal(item); break;
+                      case 'recipe': if (item.isCombo) void openModal(item); else setRecetaItem(item); break;
+                      case 'modifiers': setModifierItem(item); break;
+                      case 'preparation': setPreparationItem(item); break;
+                      case 'sheet': void openOperationalSheet(item); break;
+                      case 'delete':
+                        dialogs.confirm({
+                          title: 'Eliminar ítem',
+                          content: item.name,
+                          okText: 'Eliminar', cancelText: 'Cancelar', okButtonProps: { danger: true },
+                          onOk: () => remove(item.id),
+                        });
+                        break;
+                    }
+                  },
+                }}
+              >
+                <Tooltip title="Acciones">
+                  <Button size="small" aria-label={`Acciones de ${item.name}`} icon={<MoreOutlined />} />
+                </Tooltip>
+              </Dropdown>
             ),
           },
-          ...(canManage ? [{
-            title: 'Acciones', key: 'acc', width: 100,
-            render: (_: unknown, item: MenuItemDto) => (
-              <Space>
-                <Button size="small" icon={<EditOutlined />} onClick={() => openModal(item)} />
-                <Popconfirm title="¿Eliminar?" onConfirm={() => remove(item.id)}>
-                  <Button size="small" danger icon={<DeleteOutlined />} />
-                </Popconfirm>
-              </Space>
-            ),
-          }] : []),
         ]}
       />
 
