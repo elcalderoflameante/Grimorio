@@ -6,5 +6,6 @@ namespace Grimorio.Application.Features.Users.Commands;
 public class UpdateUserCommand : IRequest<UserDto>
 {
     public Guid UserId { get; set; }
+    public Guid BranchId { get; set; }
     public UpdateUserDto Dto { get; set; } = new();
 }

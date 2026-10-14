@@ -14,6 +14,9 @@ public class MappingProfile : Profile
     {
         // Employee mappings
         CreateMap<Employee, EmployeeDto>()
+            .ForMember(dest => dest.UserId, opt => opt.MapFrom(e => e.UserAccount == null ? (Guid?)null : e.UserAccount.Id))
+            .ForMember(dest => dest.UserEmail, opt => opt.MapFrom(e => e.UserAccount == null ? null : e.UserAccount.Email))
+            .ForMember(dest => dest.UserIsActive, opt => opt.MapFrom(e => e.UserAccount == null ? (bool?)null : e.UserAccount.IsActive))
               // Removed explicit mapping for BranchId since property names now match
             .ForMember(dest => dest.PositionName, opt => opt.Ignore()); // Se asigna manualmente en handlers
 

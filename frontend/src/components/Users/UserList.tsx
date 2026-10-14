@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { App as AntApp, Table, Button, Space, Modal, Form, Input, Switch, Select, Popconfirm, Tag } from 'antd';
 import { KeyOutlined, PlusOutlined, EditOutlined, DeleteOutlined, LockOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { userApi, roleApi } from '../../services/api';
-import type { UserDto, RoleDto, CreateUserDto, UpdateUserDto } from '../../types';
+import type { UserDto, RoleDto, CreateUserDto, UpdateUserDto, UserEmployeeOptionDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
 interface UserFormValues {
+  employeeId?: string | null;
   firstName: string;
   lastName: string;
   email: string;
@@ -29,6 +30,10 @@ export default function UserList() {
   const { hasPermission } = useAuth();
   const [users, setUsers] = useState<UserDto[]>([]);
   const [roles, setRoles] = useState<RoleDto[]>([]);
+  const [employees, setEmployees] = useState<UserEmployeeOptionDto[]>([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const saveInFlight = useRef(false);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [assignModalVisible, setAssignModalVisible] = useState(false);
@@ -37,6 +42,7 @@ export default function UserList() {
   const [assigningUserId, setAssigningUserId] = useState<string | null>(null);
   const [kdsPinUser, setKdsPinUser] = useState<UserDto | null>(null);
   const [form] = Form.useForm<UserFormValues>();
+  const selectedEmployeeId = Form.useWatch('employeeId', form);
   const [assignForm] = Form.useForm<AssignFormValues>();
   const [kdsPinForm] = Form.useForm<KdsPinFormValues>();
   const canCreate = hasPermission(PERMISSIONS.admin.usersCreate);
@@ -69,10 +75,25 @@ export default function UserList() {
     loadRoles();
   }, []);
 
+  useEffect(() => {
+    if (!modalVisible) return;
+    let active = true;
+    setEmployeesLoading(true);
+    userApi.getEmployeeOptions().then(response => {
+      if (active) setEmployees(response.data);
+    }).catch(error => { if (active) message.error(formatError(error)); })
+      .finally(() => { if (active) setEmployeesLoading(false); });
+    return () => { active = false; };
+  }, [modalVisible, message]);
+
   const handleSave = async (values: UserFormValues) => {
+    if (saveInFlight.current) return;
+    saveInFlight.current = true;
+    setSaving(true);
     try {
       if (editingId) {
         const updateData: UpdateUserDto = {
+          employeeId: values.employeeId ?? null,
           firstName: values.firstName,
           lastName: values.lastName,
           isActive: values.isActive ?? true,
@@ -81,6 +102,7 @@ export default function UserList() {
         message.success('Usuario actualizado');
       } else {
         const createData: CreateUserDto = {
+          employeeId: values.employeeId ?? null,
           firstName: values.firstName,
           lastName: values.lastName,
           email: values.email,
@@ -96,6 +118,9 @@ export default function UserList() {
       loadUsers();
     } catch (error: unknown) {
       message.error(formatError(error));
+    } finally {
+      saveInFlight.current = false;
+      setSaving(false);
     }
   };
 
@@ -149,7 +174,9 @@ export default function UserList() {
 
   const handleEdit = (user: UserDto) => {
     setEditingId(user.id);
+    form.resetFields();
     form.setFieldsValue({
+      employeeId: user.employeeId ?? null,
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
@@ -169,6 +196,10 @@ export default function UserList() {
   };
 
   const columns: ColumnsType<UserDto> = [
+    {
+      title: 'Empleado vinculado', key: 'employee',
+      render: (_, record) => record.employeeName || (record.employeeId ? 'Empleado inactivo/eliminado' : 'Sin vínculo'),
+    },
     {
       title: 'Nombre',
       key: 'name',
@@ -246,6 +277,7 @@ export default function UserList() {
         dataSource={users}
         loading={loading}
         rowKey="id"
+        scroll={{ x: 1100 }}
         pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
       />
 
@@ -253,9 +285,36 @@ export default function UserList() {
         title={editingId ? 'Editar Usuario' : 'Nuevo Usuario'}
         open={modalVisible}
         onOk={() => form.submit()}
-        onCancel={() => setModalVisible(false)}
+        onCancel={() => { if (!saving) setModalVisible(false); }}
+        confirmLoading={saving}
+        okText="Guardar"
+        cancelText="Cancelar"
+        closable={!saving}
+        maskClosable={!saving}
+        keyboard={!saving}
       >
         <Form form={form} layout="vertical" onFinish={handleSave}>
+          <Form.Item label="Empleado vinculado" name="employeeId">
+            <Select allowClear showSearch loading={employeesLoading} optionFilterProp="label"
+              placeholder="Sin empleado vinculado"
+              options={[
+                ...employees.filter(employee => employee.id === selectedEmployeeId
+                  || (employee.isActive && (!employee.linkedUserId || employee.linkedUserId === editingId)))
+                  .map(employee => ({ value: employee.id,
+                    label: `${employee.firstName} ${employee.lastName} - ${employee.identificationNumber}${employee.isActive ? '' : ' (inactivo)'}`,
+                    disabled: !employee.isActive,
+                  })),
+                ...(selectedEmployeeId && !employees.some(employee => employee.id === selectedEmployeeId)
+                  ? [{ value: selectedEmployeeId, label: users.find(user => user.id === editingId)?.employeeName ?? 'Empleado inactivo/eliminado', disabled: true }]
+                  : []),
+              ]}
+              onChange={id => {
+                if (editingId || !id) return;
+                const employee = employees.find(item => item.id === id);
+                if (employee) form.setFieldsValue({ firstName: employee.firstName, lastName: employee.lastName, email: employee.email });
+              }}
+            />
+          </Form.Item>
           <Form.Item
             label="Nombre"
             name="firstName"

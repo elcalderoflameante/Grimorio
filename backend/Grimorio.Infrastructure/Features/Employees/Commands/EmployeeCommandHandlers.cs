@@ -5,6 +5,7 @@ using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Employees.Commands;
 using Grimorio.Infrastructure.Persistence;
 using Grimorio.Domain.Entities.Organization;
+using Grimorio.Infrastructure.Features.Users;
 
 namespace Grimorio.Infrastructure.Features.Employees.Commands;
 
@@ -92,7 +93,10 @@ public class UpdateEmployeeCommandHandler : IRequestHandler<UpdateEmployeeComman
 
     public async Task<EmployeeDto> Handle(UpdateEmployeeCommand request, CancellationToken cancellationToken)
     {
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await UserEmployeeLink.LockEmployeeAsync(_dbContext, request.BranchId, request.EmployeeId, cancellationToken);
         var employee = await _dbContext.Employees
+            .Include(e => e.UserAccount)
             .FirstOrDefaultAsync(e => e.Id == request.EmployeeId && e.BranchId == request.BranchId && !e.IsDeleted, cancellationToken);
 
         if (employee == null)
@@ -114,6 +118,8 @@ public class UpdateEmployeeCommandHandler : IRequestHandler<UpdateEmployeeComman
         employee.FreeDaysPerMonth = request.FreeDaysPerMonth;
         employee.TerminationDate = request.TerminationDate;
         employee.IsActive = request.IsActive;
+        if (!employee.IsActive && employee.UserAccount != null)
+            employee.UserAccount.IsActive = false;
         employee.ContractType = request.ContractType;
         employee.WeeklyMinHours = request.WeeklyMinHours;
         employee.WeeklyMaxHours = request.WeeklyMaxHours;
@@ -132,6 +138,7 @@ public class UpdateEmployeeCommandHandler : IRequestHandler<UpdateEmployeeComman
         employee.EmergencyContactPhone = request.EmergencyContactPhone;
         _dbContext.Employees.Update(employee);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         // Recargar para obtener la posición actualizada
         employee = await _dbContext.Employees
@@ -155,7 +162,10 @@ public class DeleteEmployeeCommandHandler : IRequestHandler<DeleteEmployeeComman
 
     public async Task<bool> Handle(DeleteEmployeeCommand request, CancellationToken cancellationToken)
     {
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await UserEmployeeLink.LockEmployeeAsync(_dbContext, request.BranchId, request.EmployeeId, cancellationToken);
         var employee = await _dbContext.Employees
+            .Include(e => e.UserAccount)
             .FirstOrDefaultAsync(e => e.Id == request.EmployeeId && e.BranchId == request.BranchId && !e.IsDeleted, cancellationToken);
 
         if (employee == null)
@@ -163,9 +173,11 @@ public class DeleteEmployeeCommandHandler : IRequestHandler<DeleteEmployeeComman
 
         employee.IsDeleted = true;
         employee.IsActive = false;
+        if (employee.UserAccount != null) employee.UserAccount.IsActive = false;
 
         _dbContext.Employees.Update(employee);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return true;
     }

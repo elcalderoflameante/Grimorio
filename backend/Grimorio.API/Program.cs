@@ -102,6 +102,19 @@ builder.Services.AddAuthentication(options =>
     // Permite recibir el JWT desde query string para conexiones SignalR
     options.Events = new JwtBearerEvents
     {
+        OnTokenValidated = async context =>
+        {
+            var principal = context.Principal;
+            if (!Guid.TryParse(principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var userId)
+                || !Guid.TryParse(principal?.FindFirst(AppConstants.Claims.BranchId)?.Value, out var branchId))
+            {
+                context.Fail("La cuenta no es valida.");
+                return;
+            }
+            var db = context.HttpContext.RequestServices.GetRequiredService<GrimorioDbContext>();
+            if (!await UserAccessPolicy.HasActiveAccountAsync(db, userId, branchId, context.HttpContext.RequestAborted))
+                context.Fail("La cuenta o el empleado vinculado esta inactivo.");
+        },
         OnMessageReceived = context =>
         {
             var accessToken = context.Request.Query["access_token"];

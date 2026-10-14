@@ -7,6 +7,9 @@ namespace Grimorio.Application.DTOs;
 /// </summary>
 public class EmployeeDto
 {
+    public Guid? UserId { get; set; }
+    public string? UserEmail { get; set; }
+    public bool? UserIsActive { get; set; }
     public Guid Id { get; set; }
     public Guid BranchId { get; set; }
     public string FirstName { get; set; } = string.Empty;

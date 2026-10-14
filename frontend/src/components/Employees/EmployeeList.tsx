@@ -78,6 +78,10 @@ export default function EmployeeList({ onViewEmployee, onCreateEmployee }: Emplo
       key: 'positionName',
     },
     {
+      title: 'Usuario vinculado', dataIndex: 'userEmail', key: 'userEmail',
+      render: (email?: string | null) => email || 'Sin usuario',
+    },
+    {
       title: 'Activo',
       dataIndex: 'isActive',
       key: 'isActive',

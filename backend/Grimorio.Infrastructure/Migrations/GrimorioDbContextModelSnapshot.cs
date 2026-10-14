@@ -242,6 +242,9 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<Guid?>("EmployeeId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("FirstName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -286,6 +289,10 @@ namespace Grimorio.Infrastructure.Migrations
 
                     b.HasIndex("Email")
                         .IsUnique();
+
+                    b.HasIndex("EmployeeId")
+                        .IsUnique()
+                        .HasFilter("\"EmployeeId\" IS NOT NULL AND NOT \"IsDeleted\"");
 
                     b.HasIndex("IsDeleted");
 
@@ -6568,6 +6575,16 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("Role");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Auth.User", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Organization.Employee", "Employee")
+                        .WithOne("UserAccount")
+                        .HasForeignKey("Grimorio.Domain.Entities.Auth.User", "EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Employee");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Auth.UserPushToken", b =>
                 {
                     b.HasOne("Grimorio.Domain.Entities.Auth.User", "User")
@@ -7753,6 +7770,8 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("EmployeeShifts");
 
                     b.Navigation("FacialTemplates");
+
+                    b.Navigation("UserAccount");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Organization.EmployeeClocking", b =>

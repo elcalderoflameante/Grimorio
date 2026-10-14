@@ -34,9 +34,10 @@ public class LoginUserCommandHandler : IRequestHandler<LoginUserCommand, AuthRes
     public async Task<AuthResponse> Handle(LoginUserCommand request, CancellationToken cancellationToken)
     {
         var user = await _dbContext.Users
+            .Include(u => u.Employee)
             .FirstOrDefaultAsync(u => u.Email == request.Email, cancellationToken);
 
-        if (user == null || !user.IsActive)
+        if (user == null || !UserAccessPolicy.CanAuthenticate(user))
             throw new UnauthorizedAccessException("Usuario o contraseña inválido.");
 
         if (!_passwordHashingService.VerifyPassword(request.Password, user.PasswordHash))
@@ -142,13 +143,14 @@ public class KdsLoginCommandHandler : IRequestHandler<KdsLoginCommand, AuthRespo
     public async Task<AuthResponse> Handle(KdsLoginCommand request, CancellationToken cancellationToken)
     {
         var user = await _dbContext.Users
+            .Include(u => u.Employee)
             .FirstOrDefaultAsync(u =>
                 u.Id == request.UserId &&
                 u.BranchId == request.BranchId &&
                 !u.IsDeleted,
                 cancellationToken);
 
-        if (user == null || !user.IsActive || string.IsNullOrWhiteSpace(user.KdsPinHash))
+        if (user == null || !UserAccessPolicy.CanAuthenticate(user) || string.IsNullOrWhiteSpace(user.KdsPinHash))
             throw new UnauthorizedAccessException("PIN inválido.");
 
         if (!_passwordHashingService.VerifyPassword(request.Pin, user.KdsPinHash))

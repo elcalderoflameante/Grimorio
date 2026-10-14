@@ -6,4 +6,5 @@ namespace Grimorio.Application.Features.Users.Queries;
 public class GetUserByIdQuery : IRequest<UserDto>
 {
     public Guid UserId { get; set; }
+    public Guid BranchId { get; set; }
 }

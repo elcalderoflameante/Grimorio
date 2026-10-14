@@ -1,6 +1,7 @@
 import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import type {
   UserDto,
+  UserEmployeeOptionDto,
   CreateUserDto,
   UpdateUserDto,
   RoleDto,
@@ -231,6 +232,8 @@ export const branchApi = {
 
 // ======== USERS ========
 export const userApi = {
+  getEmployeeOptions: (): Promise<AxiosResponse<UserEmployeeOptionDto[]>> =>
+    apiClient.get<UserEmployeeOptionDto[]>('/users/employee-options'),
   getAll: (): Promise<AxiosResponse<UserDto[]>> => 
     apiClient.get<UserDto[]>('/users'),
   getById: (id: string): Promise<AxiosResponse<UserDto>> => 

@@ -5,6 +5,8 @@ using Grimorio.Application.Features.Users.Commands;
 using Grimorio.Domain.Entities.Auth;
 using Grimorio.Infrastructure.Persistence;
 using Grimorio.Infrastructure.Security;
+using Grimorio.Infrastructure.Features.Users;
+using Npgsql;
 
 namespace Grimorio.Infrastructure.Features.Users.Commands;
 
@@ -21,6 +23,7 @@ public class CreateUserCommandHandler : IRequestHandler<CreateUserCommand, UserD
 
     public async Task<UserDto> Handle(CreateUserCommand request, CancellationToken cancellationToken)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
         var existingUser = await _context.Users
             .FirstOrDefaultAsync(u => u.Email == request.Dto.Email && !u.IsDeleted, cancellationToken);
 
@@ -40,12 +43,22 @@ public class CreateUserCommandHandler : IRequestHandler<CreateUserCommand, UserD
             CreatedBy = Guid.Empty
         };
 
+        user.Employee = await UserEmployeeLink.ValidateAsync(_context, user.BranchId, user.Id,
+            request.Dto.EmployeeId, null, user.IsActive, cancellationToken);
+        user.EmployeeId = user.Employee?.Id;
+
         _context.Users.Add(user);
-        await _context.SaveChangesAsync(cancellationToken);
+        try { await _context.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+            { SqlState: "23505", ConstraintName: "IX_Users_EmployeeId" })
+        { throw new InvalidOperationException("El empleado ya tiene un usuario vinculado.", ex); }
+        await transaction.CommitAsync(cancellationToken);
 
         return new UserDto
         {
             Id = user.Id,
+            EmployeeId = user.EmployeeId,
+            EmployeeName = user.Employee == null ? null : $"{user.Employee.FirstName} {user.Employee.LastName}",
             Email = user.Email,
             FirstName = user.FirstName,
             LastName = user.LastName,
@@ -65,25 +78,36 @@ public class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand, UserD
 
     public async Task<UserDto> Handle(UpdateUserCommand request, CancellationToken cancellationToken)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
         var user = await _context.Users
             .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
-            .FirstOrDefaultAsync(u => u.Id == request.UserId && !u.IsDeleted, cancellationToken);
+            .FirstOrDefaultAsync(u => u.Id == request.UserId && u.BranchId == request.BranchId && !u.IsDeleted, cancellationToken);
 
         if (user == null)
             throw new InvalidOperationException("Usuario no encontrado.");
 
+        var employeeId = request.Dto.EmployeeLinkProvided ? request.Dto.EmployeeId : user.EmployeeId;
+        user.Employee = await UserEmployeeLink.ValidateAsync(_context, user.BranchId, user.Id,
+            employeeId, user.EmployeeId, request.Dto.IsActive, cancellationToken);
+        user.EmployeeId = employeeId;
         user.FirstName = request.Dto.FirstName;
         user.LastName = request.Dto.LastName;
         user.IsActive = request.Dto.IsActive;
         user.UpdatedAt = DateTime.UtcNow;
         user.UpdatedBy = Guid.Empty;
 
-        await _context.SaveChangesAsync(cancellationToken);
+        try { await _context.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+            { SqlState: "23505", ConstraintName: "IX_Users_EmployeeId" })
+        { throw new InvalidOperationException("El empleado ya tiene un usuario vinculado.", ex); }
+        await transaction.CommitAsync(cancellationToken);
 
         return new UserDto
         {
             Id = user.Id,
+            EmployeeId = user.EmployeeId,
+            EmployeeName = user.Employee == null ? null : $"{user.Employee.FirstName} {user.Employee.LastName}",
             Email = user.Email,
             FirstName = user.FirstName,
             LastName = user.LastName,

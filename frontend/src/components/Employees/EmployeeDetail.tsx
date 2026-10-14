@@ -100,6 +100,7 @@ export default function EmployeeDetail({ employeeId, onSaved, onCancel }: Employ
   const [positions, setPositions] = useState<PositionDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [linkedUser, setLinkedUser] = useState<Pick<EmployeeDto, 'userId' | 'userEmail' | 'userIsActive'> | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
@@ -126,6 +127,7 @@ export default function EmployeeDetail({ employeeId, onSaved, onCancel }: Employ
     try {
       const response = await employeeApi.getById(id);
       const employee: EmployeeDto = response.data;
+      setLinkedUser(employee);
       form.setFieldsValue({
         firstName: employee.firstName,
         lastName: employee.lastName,
@@ -823,12 +825,19 @@ export default function EmployeeDetail({ employeeId, onSaved, onCancel }: Employ
 
                           {isEdit && (
                             <Col xs={24} sm={12}>
-                              <Form.Item label="Estado" name="isActive" valuePropName="checked">
+                              <Form.Item label="Estado" name="isActive" valuePropName="checked"
+                                extra={linkedUser?.userId ? 'Al desactivar al empleado, también se desactiva su usuario.' : undefined}>
                                 <Switch checkedChildren="Activo" unCheckedChildren="Inactivo" />
                               </Form.Item>
                             </Col>
                           )}
                         </Row>
+                        {isEdit && <Form.Item label="Usuario vinculado">
+                          {linkedUser?.userId ? <Space wrap>
+                            <Typography.Text>{linkedUser.userEmail}</Typography.Text>
+                            <Tag color={linkedUser.userIsActive ? 'green' : 'default'}>{linkedUser.userIsActive ? 'Activo' : 'Inactivo'}</Tag>
+                          </Space> : <Typography.Text type="secondary">Sin usuario vinculado</Typography.Text>}
+                        </Form.Item>}
                       </Col>
                     </Row>
 

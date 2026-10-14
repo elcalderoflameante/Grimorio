@@ -1,5 +1,7 @@
 ﻿// DTOs del backend
 export interface UserDto {
+  employeeId?: string | null;
+  employeeName?: string | null;
   id: string;
   email: string;
   firstName: string;
@@ -15,7 +17,18 @@ export interface UserRoleDto {
   roleName: string;
 }
 
+export interface UserEmployeeOptionDto {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  identificationNumber: string;
+  isActive: boolean;
+  linkedUserId?: string | null;
+}
+
 export interface CreateUserDto {
+  employeeId?: string | null;
   email: string;
   firstName: string;
   lastName: string;
@@ -23,6 +36,7 @@ export interface CreateUserDto {
 }
 
 export interface UpdateUserDto {
+  employeeId?: string | null;
   firstName: string;
   lastName: string;
   isActive: boolean;
@@ -98,6 +112,9 @@ export const PayrollAdjustmentCategory = {
 export type PayrollAdjustmentCategoryValue = (typeof PayrollAdjustmentCategory)[keyof typeof PayrollAdjustmentCategory];
 
 export interface EmployeeDto {
+  userId?: string | null;
+  userEmail?: string | null;
+  userIsActive?: boolean | null;
   id: string;
   firstName: string;
   lastName: string;

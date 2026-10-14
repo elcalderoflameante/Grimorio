@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Auth.Queries;
 using Grimorio.Infrastructure.Persistence;
+using Grimorio.Infrastructure.Security;
 using Grimorio.SharedKernel.Constants;
 
 namespace Grimorio.Infrastructure.Features.Auth.Queries;
@@ -57,6 +58,7 @@ public class GetKdsUsersQueryHandler : IRequestHandler<GetKdsUsersQuery, List<Kd
 
         return await _context.Users
             .AsNoTracking()
+            .Where(UserAccessPolicy.ActiveAccount)
             .Where(u =>
                 userIds.Contains(u.Id) &&
                 u.BranchId == request.BranchId &&
@@ -98,6 +100,7 @@ public class GetWaitstaffUsersQueryHandler : IRequestHandler<GetWaitstaffUsersQu
 
         return await _context.Users
             .AsNoTracking()
+            .Where(UserAccessPolicy.ActiveAccount)
             .Where(u => userIds.Contains(u.Id) && u.BranchId == request.BranchId && !u.IsDeleted && u.IsActive)
             .OrderBy(u => u.FirstName)
             .ThenBy(u => u.LastName)

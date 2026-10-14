@@ -24,7 +24,19 @@ public class UsersController : ControllerBase
     /// </summary>
     [Authorize(Policy = "Admin.Users.View")]
     [HttpGet]
-    public async Task<IActionResult> GetAll() => Ok(await _mediator.Send(new GetUsersQuery()));
+    public async Task<IActionResult> GetAll()
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        return Ok(await _mediator.Send(new GetUsersQuery { BranchId = branchId }));
+    }
+
+    [Authorize(Policy = "Admin.Users.View")]
+    [HttpGet("employee-options")]
+    public async Task<IActionResult> GetEmployeeOptions()
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        return Ok(await _mediator.Send(new GetUserEmployeeOptionsQuery { BranchId = branchId }));
+    }
 
     /// <summary>
     /// Obtiene un usuario por su ID.
@@ -33,7 +45,8 @@ public class UsersController : ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(Guid id)
     {
-        var result = await _mediator.Send(new GetUserByIdQuery { UserId = id });
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new GetUserByIdQuery { UserId = id, BranchId = branchId });
         if (result == null)
             return NotFound(new { message = "Usuario no encontrado." });
 
@@ -73,9 +86,10 @@ public class UsersController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateUserDto dto)
     {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
         try
         {
-            var result = await _mediator.Send(new UpdateUserCommand { UserId = id, Dto = dto });
+            var result = await _mediator.Send(new UpdateUserCommand { UserId = id, BranchId = branchId, Dto = dto });
             return Ok(result);
         }
         catch (InvalidOperationException ex)
@@ -195,6 +209,8 @@ public class UsersController : ControllerBase
             return StatusCode(500, new { success = false, message = "Error interno del servidor" });
         }
     }
+    private bool TryGetBranchId(out Guid branchId) =>
+        Guid.TryParse(User.FindFirst("BranchId")?.Value, out branchId);
 }
 
 public class ChangePasswordRequest

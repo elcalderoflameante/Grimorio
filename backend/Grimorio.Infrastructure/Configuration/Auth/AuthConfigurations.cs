@@ -37,6 +37,10 @@ public class UserConfiguration : BaseEntityConfiguration<User>
         // Índices
         builder.HasIndex(u => u.Email).IsUnique();
         builder.HasIndex(u => new { u.BranchId, u.IsActive });
+        builder.HasIndex(u => u.EmployeeId).IsUnique()
+            .HasFilter("\"EmployeeId\" IS NOT NULL AND NOT \"IsDeleted\"");
+        builder.HasOne(u => u.Employee).WithOne(e => e.UserAccount)
+            .HasForeignKey<User>(u => u.EmployeeId).OnDelete(DeleteBehavior.Restrict);
 
         // Relaciones
         builder.HasMany(u => u.UserRoles)

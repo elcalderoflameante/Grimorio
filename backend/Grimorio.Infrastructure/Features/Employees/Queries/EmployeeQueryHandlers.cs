@@ -25,6 +25,7 @@ public class GetEmployeeQueryHandler : IRequestHandler<GetEmployeeQuery, Employe
             .AsNoTracking()
             .Where(e => e.Id == request.EmployeeId && e.BranchId == request.BranchId && !e.IsDeleted)
             .Include(e => e.Position)
+            .Include(e => e.UserAccount)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (employee == null)
@@ -58,6 +59,7 @@ public class GetEmployeesQueryHandler : IRequestHandler<GetEmployeesQuery, List<
 
         var employees = await query
             .Include(e => e.Position)
+            .Include(e => e.UserAccount)
             .OrderBy(e => e.FirstName)
             .Skip((request.PageNumber - 1) * request.PageSize)
             .Take(request.PageSize)
