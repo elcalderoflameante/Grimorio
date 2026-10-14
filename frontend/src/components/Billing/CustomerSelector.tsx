@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { App as AntApp, Select, Button, Modal, Form, Input, Space } from 'antd';
+import { App as AntApp, Select, Button, Modal, Form, Input, Space, Row, Col } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import type { CustomerDto, CreateCustomerDto } from '../../types';
 import { customersApi } from '../../services/api';
@@ -87,27 +87,42 @@ export default function CustomerSelector({ value, onChange }: Props) {
         confirmLoading={saving}
         okText="Guardar"
         cancelText="Cancelar"
-        width={480}
+        width={720}
+        style={{ top: 24 }}
       >
         <Form form={createForm} layout="vertical" initialValues={{ taxIdType: 'FinalConsumer' }}>
-          <Form.Item name="name" label="Nombre / Razón social" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="taxIdType" label="Tipo de identificación">
-            <Select options={TAX_ID_TYPES} />
-          </Form.Item>
-          <Form.Item name="taxId" label="RUC / Cédula">
-            <Input placeholder="0000000000" />
-          </Form.Item>
-          <Form.Item name="address" label="Dirección">
-            <Input />
-          </Form.Item>
-          <Form.Item name="phone" label="Teléfono">
-            <Input />
-          </Form.Item>
-          <Form.Item name="email" label="Email">
-            <Input type="email" />
-          </Form.Item>
+          <Row gutter={16}>
+            <Col xs={24} sm={12}>
+              <Form.Item name="taxIdType" label="Tipo de identificación">
+                <Select options={TAX_ID_TYPES} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="taxId" label="Número de identificación">
+                <Input placeholder="0000000000" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="name" label="Nombre / Razón social" rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="address" label="Dirección">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="phone" label="Teléfono">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="email" label="Email">
+                <Input type="email" />
+              </Form.Item>
+            </Col>
+          </Row>
         </Form>
       </Modal>
     </>
