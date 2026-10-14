@@ -486,7 +486,7 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
         var articleIds = payments
             .SelectMany(p => p.Order?.Items ?? [])
             .Where(i => i.MenuItem != null)
-            .SelectMany(i => MenuRecipeExpansion.Expand(i.MenuItem!, 1, conversions).Select(r => r.ArticleId))
+            .SelectMany(i => MenuRecipeExpansion.ExpandOrderItem(i, 1, conversions).Select(r => r.ArticleId))
             .Distinct()
             .ToList();
 
@@ -739,7 +739,7 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
 
         if (item.MenuItem is null) return total;
 
-        foreach (var ingredient in MenuRecipeExpansion.Expand(item.MenuItem, 1, conversions))
+        foreach (var ingredient in MenuRecipeExpansion.ExpandOrderItem(item, 1, conversions))
         {
             var articleId = ingredient.ArticleId;
             var baseUnitId = baseUnitByArticle.GetValueOrDefault(articleId, ingredient.BaseUnitId);

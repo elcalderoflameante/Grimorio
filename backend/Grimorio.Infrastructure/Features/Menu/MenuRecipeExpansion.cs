@@ -1,5 +1,7 @@
 using Grimorio.Domain.Entities.Inventory;
 using Grimorio.Domain.Entities.Menu;
+using Grimorio.Domain.Entities.POS;
+using System.Text.Json;
 using Grimorio.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,8 +28,11 @@ internal static class MenuRecipeExpansion
         IReadOnlyCollection<Guid> menuItemIds,
         CancellationToken ct)
     {
-        return await db.MenuItems
+        var items = await db.MenuItems
             .AsNoTracking()
+            .Include(x => x.Station)
+            .Include(x => x.ComboComponents.Where(c => !c.IsDeleted)).ThenInclude(c => c.ComponentItem)
+            .Include(x => x.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
             .Include(x => x.Category)
             .Include(x => x.TaxRate)
             .Include(x => x.Recipe.Where(r => !r.IsDeleted))
@@ -50,6 +55,16 @@ internal static class MenuRecipeExpansion
             .Where(x => x.BranchId == branchId && menuItemIds.Contains(x.Id) && !x.IsDeleted)
             .AsSplitQuery()
             .ToListAsync(ct);
+        var components = items.Where(x => x.IsCombo).SelectMany(x => x.ComboComponents).ToList();
+        if (components.Any(x => x.ComponentItem is null || x.ComponentItem.IsCombo))
+            throw new InvalidOperationException("El combo contiene un plato eliminado o un combo anidado.");
+        if (components.Count > 0)
+        {
+            var children = await LoadMenuItemsWithRecipeAsync(db, branchId, components.Select(x => x.ComponentItemId).Distinct().ToList(), ct);
+            var byId = children.ToDictionary(x => x.Id);
+            foreach (var component in components) component.ComponentItem = byId.GetValueOrDefault(component.ComponentItemId);
+        }
+        return items;
     }
 
     public static List<MenuRecipeRequirement> Expand(
@@ -58,6 +73,18 @@ internal static class MenuRecipeExpansion
         IReadOnlyCollection<UnitConversionInfo> conversions)
     {
         var result = new List<MenuRecipeRequirement>();
+
+        if (item.IsCombo)
+        {
+            foreach (var component in item.ComboComponents.Where(x => !x.IsDeleted))
+            {
+                if (component.ComponentItem is null || component.ComponentItem.IsCombo)
+                    throw new InvalidOperationException("Componente de combo no valido.");
+                result.AddRange(Expand(component.ComponentItem, itemQuantity * component.Quantity, conversions)
+                    .Select(x => x with { SourceName = component.ComponentItem.Name }));
+            }
+            return result;
+        }
 
         foreach (var ingredient in item.Recipe.Where(r => !r.IsDeleted))
         {
@@ -90,6 +117,17 @@ internal static class MenuRecipeExpansion
         }
 
         return result;
+    }
+
+    public static List<MenuRecipeRequirement> ExpandOrderItem(OrderItem item, decimal quantity,
+        IReadOnlyCollection<UnitConversionInfo> conversions, MenuItem? loadedMenuItem = null)
+    {
+        var tasks = item.PreparationTasks.Where(x => !x.IsDeleted).ToList();
+        if (tasks.Count == 0)
+            return (loadedMenuItem ?? item.MenuItem) is { } menuItem ? Expand(menuItem, quantity, conversions) : [];
+        return tasks.SelectMany(task => (JsonSerializer.Deserialize<List<MenuRecipeRequirement>>(task.RecipeSnapshot) ?? [])
+            .Select(x => x with { Quantity = x.Quantity * quantity * task.QuantityPerCombo,
+                BaseQuantity = x.BaseQuantity * quantity * task.QuantityPerCombo, SourceName = task.ComponentName })).ToList();
     }
 
     public static decimal ConvertQuantity(

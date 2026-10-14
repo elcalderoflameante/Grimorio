@@ -37,6 +37,8 @@ public class DeleteMenuCategoryCommand : IRequest<bool>
 
 public class CreateMenuItemCommand : IRequest<MenuItemDto>
 {
+    public bool IsCombo { get; set; }
+    public List<UpsertMenuComboComponentDto> ComboComponents { get; set; } = [];
     public Guid BranchId { get; set; }
     public Guid MenuCategoryId { get; set; }
     public string Name { get; set; } = string.Empty;
@@ -53,6 +55,8 @@ public class CreateMenuItemCommand : IRequest<MenuItemDto>
 
 public class UpdateMenuItemCommand : IRequest<MenuItemDto>
 {
+    public bool? IsCombo { get; set; }
+    public List<UpsertMenuComboComponentDto>? ComboComponents { get; set; }
     public Guid Id { get; set; }
     public Guid BranchId { get; set; }
     public Guid MenuCategoryId { get; set; }

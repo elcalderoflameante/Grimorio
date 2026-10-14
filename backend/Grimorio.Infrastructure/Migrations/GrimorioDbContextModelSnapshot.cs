@@ -3006,6 +3006,70 @@ namespace Grimorio.Infrastructure.Migrations
                     b.ToTable("MenuCategories", "menu");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Menu.MenuComboComponent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ComboId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ComponentItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("ComponentItemId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("ComboId", "ComponentItemId")
+                        .IsUnique()
+                        .HasFilter("NOT \"IsDeleted\"");
+
+                    b.ToTable("MenuComboComponents", "menu", t =>
+                        {
+                            t.HasCheckConstraint("CK_MenuComboComponents_Quantity", "\"Quantity\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Menu.MenuItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3056,6 +3120,9 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasColumnType("character varying(50)");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsCombo")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsDeleted")
@@ -4854,6 +4921,95 @@ namespace Grimorio.Infrastructure.Migrations
                     b.HasIndex("BranchId", "ModifierGroupId");
 
                     b.ToTable("OrderItemModifierSelections", "pos");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderItemPreparationTask", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ComboName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid>("ComponentItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ComponentName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("OrderItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("QuantityPerCombo")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RecipeSnapshot")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<Guid>("StationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("ComponentItemId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("StationId");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("OrderItemId", "ComponentItemId")
+                        .IsUnique();
+
+                    b.HasIndex("BranchId", "StationId", "Status");
+
+                    b.ToTable("OrderItemPreparationTasks", "pos", t =>
+                        {
+                            t.HasCheckConstraint("CK_OrderItemPreparationTasks_Quantity", "\"QuantityPerCombo\" > 0");
+                        });
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.POS.Promotion", b =>
@@ -7020,6 +7176,25 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("CostCenter");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Menu.MenuComboComponent", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Menu.MenuItem", "Combo")
+                        .WithMany("ComboComponents")
+                        .HasForeignKey("ComboId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.Menu.MenuItem", "ComponentItem")
+                        .WithMany()
+                        .HasForeignKey("ComponentItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Combo");
+
+                    b.Navigation("ComponentItem");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Menu.MenuItem", b =>
                 {
                     b.HasOne("Grimorio.Domain.Entities.Menu.MenuCategory", "Category")
@@ -7354,6 +7529,33 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("OrderItem");
 
                     b.Navigation("Unit");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderItemPreparationTask", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Menu.MenuItem", "ComponentItem")
+                        .WithMany()
+                        .HasForeignKey("ComponentItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.POS.OrderItem", "OrderItem")
+                        .WithMany("PreparationTasks")
+                        .HasForeignKey("OrderItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.POS.WorkStation", "Station")
+                        .WithMany()
+                        .HasForeignKey("StationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ComponentItem");
+
+                    b.Navigation("OrderItem");
+
+                    b.Navigation("Station");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.POS.PromotionMenuCategory", b =>
@@ -7732,6 +7934,8 @@ namespace Grimorio.Infrastructure.Migrations
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Menu.MenuItem", b =>
                 {
+                    b.Navigation("ComboComponents");
+
                     b.Navigation("ModifierGroups");
 
                     b.Navigation("Preparation");
@@ -7794,6 +7998,8 @@ namespace Grimorio.Infrastructure.Migrations
             modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderItem", b =>
                 {
                     b.Navigation("ModifierSelections");
+
+                    b.Navigation("PreparationTasks");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.POS.Promotion", b =>

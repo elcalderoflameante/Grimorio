@@ -271,7 +271,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
 
         var itemMenuIds = req.Items.Select(i => i.MenuItemId).Distinct().ToList();
         var menuItems = await _db.MenuItems
-            .Where(m => itemMenuIds.Contains(m.Id) && !m.IsDeleted)
+            .Where(m => itemMenuIds.Contains(m.Id) && m.BranchId == req.BranchId && !m.IsDeleted)
             .Include(m => m.Station)
             .Include(m => m.TaxRate)
             .Include(m => m.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
@@ -331,6 +331,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
         order.Total = subtotal - discountTotal;
 
         _db.Orders.Add(order);
+        await ComboPreparation.InitializeAsync(_db, req.BranchId, order.Items.ToList(), ct);
         await _db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
@@ -384,7 +385,7 @@ public class CreateDirectSaleCommandHandler : IRequestHandler<CreateDirectSaleCo
 
         var itemMenuIds = req.Items.Select(i => i.MenuItemId).Distinct().ToList();
         var menuItems = await _db.MenuItems
-            .Where(m => itemMenuIds.Contains(m.Id) && !m.IsDeleted)
+            .Where(m => itemMenuIds.Contains(m.Id) && m.BranchId == req.BranchId && !m.IsDeleted)
             .Include(m => m.Station)
             .Include(m => m.TaxRate)
             .Include(m => m.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
@@ -445,6 +446,7 @@ public class CreateDirectSaleCommandHandler : IRequestHandler<CreateDirectSaleCo
         order.Total = subtotal - discountTotal;
 
         _db.Orders.Add(order);
+        await ComboPreparation.InitializeAsync(_db, req.BranchId, order.Items.ToList(), ct);
         await StockReservationService.ReserveOrderItemsAsync(_db, req.BranchId, order.Id, order.Items.ToList(), ct);
         await _db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
@@ -511,7 +513,7 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
 
         var itemMenuIds = req.Items.Select(i => i.MenuItemId).Distinct().ToList();
         var menuItems = await _db.MenuItems
-            .Where(m => itemMenuIds.Contains(m.Id) && !m.IsDeleted)
+            .Where(m => itemMenuIds.Contains(m.Id) && m.BranchId == req.BranchId && !m.IsDeleted)
             .Include(m => m.Station)
             .Include(m => m.TaxRate)
             .Include(m => m.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
@@ -563,6 +565,7 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
             newItems.Add(newItem);
         }
 
+        await ComboPreparation.InitializeAsync(_db, req.BranchId, newItems, ct);
         if (order.Status == OrderStatus.Draft)
         {
             order.Subtotal = addedSubtotal;
@@ -641,6 +644,8 @@ public class ConfirmOrderCommandHandler : IRequestHandler<ConfirmOrderCommand, O
         if (!order.Items.Any(i => !i.IsDeleted))
             throw new InvalidOperationException("La orden no tiene ítems.");
 
+        await ComboPreparation.ValidateStationsAsync(_db, req.BranchId, order.Items.ToList(), ct);
+
         order.Status = OrderStatus.Confirmed;
         order.ConfirmedAt = DateTime.UtcNow;
         await StockReservationService.ReserveOrderItemsAsync(_db, req.BranchId, order.Id, order.Items.ToList(), ct);
@@ -659,6 +664,8 @@ public class DeliverOrderCommandHandler : IRequestHandler<DeliverOrderCommand, O
 
     public async Task<OrderDto> Handle(DeliverOrderCommand req, CancellationToken ct)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        await PosOrderLock.AcquireAsync(_db, req.BranchId, req.OrderId, ct);
         var order = await _db.Orders
             .Include(o => o.Table)
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem)
@@ -668,9 +675,12 @@ public class DeliverOrderCommandHandler : IRequestHandler<DeliverOrderCommand, O
             .FirstOrDefaultAsync(o => o.Id == req.OrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
             ?? throw new InvalidOperationException("Orden no encontrada.");
 
+        if (order.Items.Any(i => i.Status != OrderItemStatus.Cancelled && i.PreparationTasks.Count > 0 && i.Status != OrderItemStatus.Ready))
+            throw new InvalidOperationException("Todos los componentes del combo deben estar listos antes de entregar el pedido.");
         order.Status = OrderStatus.Delivered;
         order.DeliveredAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return PosMapper.MapOrder(order);
     }
 }
@@ -774,6 +784,7 @@ public class CancelOrderItemCommandHandler : IRequestHandler<CancelOrderItemComm
             throw new InvalidOperationException("No se puede cancelar el ultimo item activo de una orden con pagos registrados.");
 
         item.Status = OrderItemStatus.Cancelled;
+        foreach (var task in item.PreparationTasks) task.Status = OrderItemStatus.Cancelled;
         await StockReservationService.ReleaseOrderItemReservationsAsync(_db, req.BranchId, item.Id, ct);
 
         PosMapper.RecalculateOrderTotals(order);
@@ -853,6 +864,29 @@ public class SetOrderItemStatusCommandHandler : IRequestHandler<SetOrderItemStat
             throw new InvalidOperationException($"Estado no valido: {req.Status}");
 
         await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        var taskOrderId = await _db.OrderItemPreparationTasks
+            .Where(t => t.Id == req.OrderItemId && t.BranchId == req.BranchId && !t.IsDeleted)
+            .Select(t => (Guid?)t.OrderItem!.OrderId).FirstOrDefaultAsync(ct);
+        if (taskOrderId.HasValue)
+        {
+            await PosOrderLock.AcquireAsync(_db, req.BranchId, taskOrderId.Value, ct);
+            var comboOrder = await _db.Orders.Include(o => o.Items.Where(i => !i.IsDeleted))
+                .FirstOrDefaultAsync(o => o.Id == taskOrderId && o.BranchId == req.BranchId && !o.IsDeleted, ct)
+                ?? throw new InvalidOperationException("Orden no encontrada.");
+            var parent = comboOrder.Items.FirstOrDefault(i => i.PreparationTasks.Any(t => t.Id == req.OrderItemId))
+                ?? throw new InvalidOperationException("Componente no encontrado.");
+            var task = parent.PreparationTasks.Single(t => t.Id == req.OrderItemId);
+            var stateItem = new OrderItem { Status = task.Status, IsDeleted = task.IsDeleted || parent.IsDeleted };
+            KitchenOrderState.Validate(comboOrder, stateItem, status);
+            if (parent.Status == OrderItemStatus.Cancelled)
+                throw new InvalidOperationException("El combo esta cancelado.");
+            task.Status = status;
+            ComboPreparation.RecalculateItem(parent);
+            KitchenOrderState.Recalculate(comboOrder);
+            await _db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return ComboPreparation.MapTask(task, PosMapper.MapOrderItem(parent));
+        }
         var orderId = await _db.OrderItems
             .Where(i => i.Id == req.OrderItemId && i.BranchId == req.BranchId && !i.IsDeleted)
             .Select(i => (Guid?)i.OrderId)
@@ -873,6 +907,8 @@ public class SetOrderItemStatusCommandHandler : IRequestHandler<SetOrderItemStat
             ?? throw new InvalidOperationException("Orden no encontrada.");
 
         KitchenOrderState.Validate(order, item, status);
+        if (item.PreparationTasks.Count > 0)
+            throw new InvalidOperationException("Marca cada componente del combo desde su estacion.");
         item.Status = status;
         KitchenOrderState.Recalculate(order);
 
@@ -942,10 +978,16 @@ public class ProcessAlexaKitchenCommandHandler
             .ToListAsync(ct);
 
         var candidates = items
+            .Where(i => i.PreparationTasks.Count == 0)
             .Where(i => MatchesTarget(i, tableCode, orderNumber))
             .Where(i => AlexaStationScope.Includes(i, req.StationNames))
             .Where(i => KitchenOrderState.CanAdvance(i.Status, targetStatus.Value))
             .ToList();
+
+        var voiceTasks = await ComboPreparation.VoiceTasks(_db, req.BranchId).AsNoTrackingWithIdentityResolution().AsSplitQuery().ToListAsync(ct);
+        candidates.AddRange(voiceTasks.Select(ComboPreparation.VoiceItem)
+            .Where(i => MatchesTarget(i, tableCode, orderNumber) && AlexaStationScope.Includes(i, req.StationNames)
+                && KitchenOrderState.CanAdvance(i.Status, targetStatus.Value)));
 
         if (candidates.Count == 0)
             return Fail(req.StationNames == null
@@ -983,6 +1025,9 @@ public class ProcessAlexaKitchenCommandHandler
             .Include(i => i.Order).ThenInclude(o => o!.Items.Where(oi => !oi.IsDeleted))
             .Include(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .ToListAsync(ct);
+        var selectedTasks = await ComboPreparation.VoiceTasks(_db, req.BranchId)
+            .Where(t => selectedIds.Contains(t.Id)).AsSplitQuery().ToListAsync(ct);
+        selected = selected.Concat(selectedTasks.Select(ComboPreparation.VoiceItem)).ToList();
         if (selected.Count != selectedIds.Count || selected.Any(i =>
             i.Order == null || !AlexaStationScope.Includes(i, req.StationNames)))
             return Fail("El pedido cambio mientras se procesaba la solicitud. Intenta nuevamente.");
@@ -998,6 +1043,11 @@ public class ProcessAlexaKitchenCommandHandler
 
         foreach (var item in selected)
             item.Status = targetStatus.Value;
+        foreach (var task in selectedTasks)
+        {
+            task.Status = targetStatus.Value;
+            ComboPreparation.RecalculateItem(task.OrderItem!);
+        }
 
         foreach (var order in selected.Select(i => i.Order!).DistinctBy(o => o.Id))
             KitchenOrderState.Recalculate(order);
@@ -1477,6 +1527,8 @@ internal static class PosMapper
         Grimorio.Domain.Entities.Menu.MenuItem menuItem,
         IReadOnlyList<Promotion> activePromotions)
     {
+        if (menuItem.SaleVisibility == Grimorio.Domain.Entities.Menu.MenuItemSaleVisibility.ComponentsOnly)
+            throw new InvalidOperationException($"{menuItem.Name} solo puede venderse dentro de un combo.");
         if (!promotionId.HasValue)
         {
             if (menuItem.SaleVisibility == Grimorio.Domain.Entities.Menu.MenuItemSaleVisibility.PromotionsOnly)
@@ -1664,7 +1716,9 @@ internal static class PosMapper
         };
     }
 
-    public static OrderItemDto MapOrderItem(OrderItem i) => new()
+    public static OrderItemDto MapOrderItem(OrderItem i)
+    {
+        var dto = new OrderItemDto
     {
         Id = i.Id,
         OrderId = i.OrderId,
@@ -1699,7 +1753,11 @@ internal static class PosMapper
                 UnitPriceDelta = s.UnitPriceDelta,
                 TotalPriceDelta = s.UnitPriceDelta * s.Quantity,
             }).ToList(),
-    };
+        };
+        dto.PreparationTasks = i.PreparationTasks.Where(x => !x.IsDeleted)
+            .Select(x => ComboPreparation.MapTask(x, dto)).ToList();
+        return dto;
+    }
 }
 
 internal sealed record PosItemPricing(

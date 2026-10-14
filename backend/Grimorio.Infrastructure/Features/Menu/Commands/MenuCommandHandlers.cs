@@ -80,6 +80,8 @@ public class CreateItemMenuHandler : IRequestHandler<CreateMenuItemCommand, Menu
 
     public async Task<MenuItemDto> Handle(CreateMenuItemCommand req, CancellationToken ct)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        await _db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtext({req.BranchId.ToString()}), 7301)", ct);
         var item = new MenuItem
         {
             BranchId = req.BranchId, MenuCategoryId = req.MenuCategoryId,
@@ -94,7 +96,9 @@ public class CreateItemMenuHandler : IRequestHandler<CreateMenuItemCommand, Menu
         item.InternalCode = await MenuMapper.ResolveInternalCodeAsync(
             _db, req.BranchId, item.Id, req.InternalCode, ct);
         _db.MenuItems.Add(item);
+        await MenuComboDefinition.ApplyAsync(_db, item, req.IsCombo, req.ComboComponents, ct);
         await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         var cat = await _db.MenuCategories.FindAsync([req.MenuCategoryId], ct);
         var est = req.StationId.HasValue ? await _db.WorkStations.FindAsync([req.StationId.Value], ct) : null;
@@ -110,7 +114,10 @@ public class UpdateItemMenuHandler : IRequestHandler<UpdateMenuItemCommand, Menu
 
     public async Task<MenuItemDto> Handle(UpdateMenuItemCommand req, CancellationToken ct)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        await _db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtext({req.BranchId.ToString()}), 7301)", ct);
         var item = await _db.MenuItems
+            .Include(x => x.ComboComponents.Where(c => !c.IsDeleted)).ThenInclude(c => c.ComponentItem)!.ThenInclude(c => c!.Station)
             .Include(x => x.Category)
             .Include(x => x.Station)
             .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId, ct)
@@ -128,7 +135,9 @@ public class UpdateItemMenuHandler : IRequestHandler<UpdateMenuItemCommand, Menu
         item.SaleVisibility = MenuMapper.ParseSaleVisibility(req.SaleVisibility);
         item.StationId = req.StationId;
         item.TaxRateId = req.TaxRateId;
+        await MenuComboDefinition.ApplyAsync(_db, item, req.IsCombo ?? item.IsCombo, req.ComboComponents, ct);
         await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         string? stationName = item.StationId.HasValue
             ? (await _db.WorkStations.FindAsync([item.StationId.Value], ct))?.Name
@@ -146,6 +155,7 @@ public class UpdateMenuItemImageHandler : IRequestHandler<UpdateMenuItemImageCom
     public async Task<MenuItemDto> Handle(UpdateMenuItemImageCommand req, CancellationToken ct)
     {
         var item = await _db.MenuItems
+            .Include(x => x.ComboComponents.Where(c => !c.IsDeleted)).ThenInclude(c => c.ComponentItem)!.ThenInclude(c => c!.Station)
             .Include(x => x.Category)
             .Include(x => x.Station)
             .Include(x => x.TaxRate)
@@ -172,10 +182,17 @@ public class DeleteItemMenuHandler : IRequestHandler<DeleteMenuItemCommand, bool
 
     public async Task<bool> Handle(DeleteMenuItemCommand req, CancellationToken ct)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        await _db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtext({req.BranchId.ToString()}), 7301)", ct);
+        if (await _db.MenuComboComponents.AnyAsync(x => x.ComponentItemId == req.Id && !x.IsDeleted && !x.Combo!.IsDeleted, ct))
+            throw new InvalidOperationException("Este plato forma parte de un combo. Retiralo de sus componentes antes de eliminarlo.");
         var item = await _db.MenuItems.FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId, ct)
             ?? throw new KeyNotFoundException("Item no encontrado");
+        if (item.IsCombo && await _db.OrderItems.AnyAsync(x => x.MenuItemId == item.Id, ct))
+            throw new InvalidOperationException("El combo ya tiene pedidos. Desactivalo para conservar sus referencias e historial.");
         item.IsDeleted = true;
         await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return true;
     }
 }
@@ -189,6 +206,8 @@ public class UpsertRecipeHandler : IRequestHandler<UpsertRecipeCommand, List<Rec
     {
         var itemExists = await _db.MenuItems.AnyAsync(x => x.Id == req.MenuItemId && x.BranchId == req.BranchId && !x.IsDeleted, ct);
         if (!itemExists) throw new KeyNotFoundException("Item no encontrado");
+        if (await _db.MenuItems.AnyAsync(x => x.Id == req.MenuItemId && x.IsCombo, ct))
+            throw new InvalidOperationException("Los combos utilizan las recetas de sus componentes y no admiten una receta propia.");
 
         var existentes = await _db.RecipeIngredients
             .Where(x => x.MenuItemId == req.MenuItemId && x.BranchId == req.BranchId)
@@ -342,6 +361,8 @@ public class UpsertMenuItemModifiersHandler : IRequestHandler<UpsertMenuItemModi
 
     public async Task<List<MenuItemModifierGroupDto>> Handle(UpsertMenuItemModifiersCommand req, CancellationToken ct)
     {
+        if (await _db.MenuItems.AnyAsync(x => x.Id == req.MenuItemId && x.BranchId == req.BranchId && x.IsCombo, ct))
+            throw new InvalidOperationException("Los combos fijos no admiten modificadores propios.");
         var itemExists = await _db.MenuItems
             .AnyAsync(x => x.Id == req.MenuItemId && x.BranchId == req.BranchId && !x.IsDeleted, ct);
         if (!itemExists)
@@ -580,6 +601,7 @@ internal static class MenuMapper
         new()
         {
             Id = item.Id, MenuCategoryId = item.MenuCategoryId,
+            IsCombo = item.IsCombo, ComboComponents = MenuComboDefinition.Map(item),
             CategoryName = categoryName, CategoryColor = categoriaColor,
             Name = item.Name, GeneralName = item.GeneralName, Description = item.Description,
             InternalCode = item.InternalCode, ImageUrl = item.ImageUrl, Price = item.Price,

@@ -156,6 +156,22 @@ public class OrderItem : BaseEntity
     public virtual Promotion? Promotion { get; set; }
     public virtual Billing.TaxRate? TaxRate { get; set; }
     public virtual ICollection<OrderItemModifierSelection> ModifierSelections { get; set; } = [];
+    public virtual ICollection<OrderItemPreparationTask> PreparationTasks { get; set; } = [];
+}
+
+public class OrderItemPreparationTask : BaseEntity
+{
+    public Guid OrderItemId { get; set; }
+    public Guid ComponentItemId { get; set; }
+    public Guid StationId { get; set; }
+    public string ComponentName { get; set; } = string.Empty;
+    public string ComboName { get; set; } = string.Empty;
+    public int QuantityPerCombo { get; set; }
+    public OrderItemStatus Status { get; set; } = OrderItemStatus.Pending;
+    public string RecipeSnapshot { get; set; } = "[]";
+    public virtual OrderItem? OrderItem { get; set; }
+    public virtual Menu.MenuItem? ComponentItem { get; set; }
+    public virtual WorkStation? Station { get; set; }
 }
 
 public class Promotion : BaseEntity

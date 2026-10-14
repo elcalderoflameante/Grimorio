@@ -28,6 +28,8 @@ public class CreateMenuCategoryDto
 
 public class MenuItemDto
 {
+    public bool IsCombo { get; set; }
+    public List<MenuComboComponentDto> ComboComponents { get; set; } = [];
     public Guid Id { get; set; }
     public Guid MenuCategoryId { get; set; }
     public string CategoryName { get; set; } = string.Empty;
@@ -84,6 +86,8 @@ public class MenuItemAvailabilityComponentDto
 
 public class CreateMenuItemDto
 {
+    public bool IsCombo { get; set; }
+    public List<UpsertMenuComboComponentDto> ComboComponents { get; set; } = [];
     public Guid MenuCategoryId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? GeneralName { get; set; }
@@ -99,6 +103,8 @@ public class CreateMenuItemDto
 
 public class UpdateMenuItemDto
 {
+    public bool? IsCombo { get; set; }
+    public List<UpsertMenuComboComponentDto>? ComboComponents { get; set; }
     public Guid MenuCategoryId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? GeneralName { get; set; }
@@ -115,6 +121,20 @@ public class UpdateMenuItemDto
 }
 
 // ── Recipe ────────────────────────────────────────────────────────────────
+
+public class UpsertMenuComboComponentDto
+{
+    public Guid ComponentItemId { get; set; }
+    public int Quantity { get; set; } = 1;
+}
+
+public class MenuComboComponentDto : UpsertMenuComboComponentDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string GeneralName { get; set; } = string.Empty;
+    public Guid? StationId { get; set; }
+    public string? StationName { get; set; }
+}
 
 public class RecipeIngredientDto
 {

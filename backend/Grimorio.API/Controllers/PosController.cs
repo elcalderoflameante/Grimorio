@@ -246,6 +246,7 @@ public class PosController : ControllerBase
 
         var confirmedAt = result.ConfirmedAt ?? result.CreatedAt;
         var itemsByStation = result.Items
+            .SelectMany(i => i.PreparationTasks.Count > 0 ? i.PreparationTasks : [i])
             .Where(i => i.StationId.HasValue)
             .GroupBy(i => i.StationId!.Value);
         foreach (var group in itemsByStation)
@@ -309,7 +310,9 @@ public class PosController : ControllerBase
             var confirmedAt = result.ConfirmedAt ?? result.CreatedAt;
             var addedItemIds = result.AddedItemIds.ToHashSet();
             var newItemsByStation = result.Items
-                .Where(i => addedItemIds.Contains(i.Id) && i.StationId.HasValue && i.Status == "Pending")
+                .Where(i => addedItemIds.Contains(i.Id))
+                .SelectMany(i => i.PreparationTasks.Count > 0 ? i.PreparationTasks : [i])
+                .Where(i => i.StationId.HasValue && i.Status == "Pending")
                 .GroupBy(i => i.StationId!.Value);
             foreach (var group in newItemsByStation)
             {
@@ -362,6 +365,7 @@ public class PosController : ControllerBase
         // Notificar a cada estación sus nuevos ítems
         var confirmedAt = result.ConfirmedAt ?? result.CreatedAt;
         var itemsByStation = result.Items
+            .SelectMany(i => i.PreparationTasks.Count > 0 ? i.PreparationTasks : [i])
             .Where(i => i.StationId.HasValue)
             .GroupBy(i => i.StationId!.Value);
         foreach (var group in itemsByStation)
@@ -436,6 +440,9 @@ public class PosController : ControllerBase
                 orderId = result.Id,
                 status = "Cancelled",
             });
+        foreach (var task in result.Items.FirstOrDefault(i => i.Id == id)?.PreparationTasks ?? [])
+            await _kitchenHub.Clients.Group(KitchenHub.GetStationGroup(task.StationId!.Value))
+                .SendAsync(KitchenHub.ItemUpdatedEvent, new { orderItemId = task.Id, orderId = result.Id, status = "Cancelled" });
 
         return Ok(result);
     }
@@ -452,15 +459,16 @@ public class PosController : ControllerBase
             Notes = dto.Notes,
         });
 
-        if (result.StationId.HasValue)
+        foreach (var preparation in result.PreparationTasks.Count > 0 ? result.PreparationTasks : [result])
         {
+            if (!preparation.StationId.HasValue) continue;
             await _kitchenHub.Clients
-                .Group(KitchenHub.GetStationGroup(result.StationId.Value))
+                .Group(KitchenHub.GetStationGroup(preparation.StationId.Value))
                 .SendAsync(KitchenHub.ItemUpdatedEvent, new
                 {
-                    orderItemId = result.Id,
+                    orderItemId = preparation.Id,
                     orderId = result.OrderId,
-                    status = result.Status,
+                    status = preparation.Status,
                     notes = result.Notes ?? string.Empty,
                 });
         }

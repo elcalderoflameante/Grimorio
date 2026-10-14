@@ -461,6 +461,7 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
         };
 
         _context.Orders.Add(order);
+        await ComboPreparation.InitializeAsync(_context, table.BranchId, order.Items.ToList(), cancellationToken);
         _context.TableServiceRequests.Add(notification);
         await _context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

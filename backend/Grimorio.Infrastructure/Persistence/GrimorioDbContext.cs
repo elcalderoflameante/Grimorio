@@ -95,6 +95,8 @@ public class GrimorioDbContext : DbContext
     // === Menú ===
     public DbSet<MenuCategory> MenuCategories { get; set; } = null!;
     public DbSet<MenuItem> MenuItems { get; set; } = null!;
+    public DbSet<MenuComboComponent> MenuComboComponents { get; set; } = null!;
+    public DbSet<OrderItemPreparationTask> OrderItemPreparationTasks { get; set; } = null!;
     public DbSet<MenuItemModifierGroup> MenuItemModifierGroups { get; set; } = null!;
     public DbSet<MenuItemModifierOption> MenuItemModifierOptions { get; set; } = null!;
     public DbSet<MenuItemPreparation> MenuItemPreparations { get; set; } = null!;

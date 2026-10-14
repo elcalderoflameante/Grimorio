@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { App as AntApp, Table, Button, Modal, Form, Input, InputNumber, Select, Switch,
   Popconfirm, Space, Typography, Tag, Badge, Tooltip, Alert, Upload, Image } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, UnorderedListOutlined, ControlOutlined, UploadOutlined, FileTextOutlined, ReloadOutlined, ClearOutlined } from '@ant-design/icons';
@@ -9,6 +9,7 @@ import { formatError } from '../../utils/errorHandler';
 import RecipeEditor from './RecipeEditor';
 import ModifierEditor from './ModifierEditor';
 import PreparationEditor from './PreparationEditor';
+import ComboComponentsEditor from './ComboComponentsEditor';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
 
@@ -34,6 +35,8 @@ export default function MenuItemsList() {
   const [estaciones, setEstaciones] = useState<WorkStationDto[]>([]);
   const [taxRates, setTaxRates] = useState<TaxRateDto[]>([]);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [filters, setFilters] = useState<ItemFilters>({});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -50,6 +53,7 @@ export default function MenuItemsList() {
 
   const formPrice = Form.useWatch('price', form) as number | undefined;
   const formTaxRateId = Form.useWatch('taxRateId', form) as string | undefined;
+  const formIsCombo = Form.useWatch('isCombo', form) as boolean | undefined;
 
   const updateFilters = (changes: Partial<ItemFilters>) => {
     setFilters(current => ({ ...current, ...changes }));
@@ -62,7 +66,9 @@ export default function MenuItemsList() {
       const searchable = normalizeSearch([item.name, item.generalName, item.internalCode].filter(Boolean).join(' '));
       return terms.every(term => searchable.includes(term))
         && (!filters.categoryId || item.menuCategoryId === filters.categoryId)
-        && (!filters.stationId || (filters.stationId === '__none__' ? !item.stationId : item.stationId === filters.stationId))
+        && (!filters.stationId || (filters.stationId === '__none__'
+          ? !item.stationId && !item.isCombo
+          : item.stationId === filters.stationId || item.comboComponents?.some(c => c.stationId === filters.stationId)))
         && (filters.isActive === undefined || item.isActive === filters.isActive)
         && (filters.availableForSale === undefined || item.availableForSale === filters.availableForSale)
         && (!filters.saleVisibility || item.saleVisibility === filters.saleVisibility);
@@ -113,7 +119,7 @@ export default function MenuItemsList() {
     setImagePreview(resolveMediaUrl(item?.imageUrl));
     setRemoveImage(false);
     if (item) {
-      form.setFieldsValue(item);
+      form.setFieldsValue({ ...item, isCombo: item.isCombo ?? false, comboComponents: item.comboComponents ?? [] });
     } else {
       form.resetFields();
       form.setFieldsValue({
@@ -122,6 +128,8 @@ export default function MenuItemsList() {
         price: 0,
         displayOrder: 0,
         saleVisibility: 'MenuAndPromotions',
+        isCombo: false,
+        comboComponents: [],
       });
     }
     await loadCatalogos();
@@ -129,8 +137,13 @@ export default function MenuItemsList() {
   };
 
   const save = async () => {
-    const values = await form.validateFields();
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
     try {
+      const values = await form.validateFields();
+      values.comboComponents = values.isCombo ? values.comboComponents : [];
+      if (values.isCombo) values.stationId = null;
       if (editing && removeImage && !imageFile && editing.imageUrl) {
         await menuApi.deleteItemImage(editing.id);
       }
@@ -148,7 +161,12 @@ export default function MenuItemsList() {
       message.success('Guardado');
       setModal(false);
       load();
-    } catch (e) { message.error(formatError(e)); }
+    } catch (e) {
+      if (!(e && typeof e === 'object' && 'errorFields' in e)) message.error(formatError(e));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   const remove = async (id: string) => {
@@ -259,6 +277,7 @@ export default function MenuItemsList() {
           options={[
             { label: 'Menú y promociones', value: 'MenuAndPromotions' },
             { label: 'Solo promociones', value: 'PromotionsOnly' },
+            { label: 'Solo combos', value: 'ComponentsOnly' },
           ]}
           value={filters.saleVisibility}
           onChange={saleVisibility => updateFilters({ saleVisibility })}
@@ -308,9 +327,11 @@ export default function MenuItemsList() {
               <div>
                 <Space>
                   <strong>{item.name}</strong>
+                  {item.isCombo && <Tag color="cyan">Combo</Tag>}
                   {!item.isActive && <Tag>Inactivo</Tag>}
                   {!item.availableForSale && <Tag color="orange">No disponible</Tag>}
                   {item.saleVisibility === 'PromotionsOnly' && <Tag color="magenta">Solo promociones</Tag>}
+                  {item.saleVisibility === 'ComponentsOnly' && <Tag color="cyan">Solo combos</Tag>}
                 </Space>
                 <div style={{ color: '#8c8c8c', fontSize: 12 }}>{item.generalName}</div>
               </div>
@@ -334,7 +355,8 @@ export default function MenuItemsList() {
           {
             title: 'Estación', key: 'estacion', width: 120,
             render: (_: unknown, item: MenuItemDto) =>
-              item.stationName ? <Tag>{item.stationName}</Tag> : <span style={{ color: '#999' }}>—</span>,
+              item.isCombo ? <Space wrap>{[...new Set(item.comboComponents?.map(c => c.stationName).filter(Boolean))].map(name => <Tag key={name}>{name}</Tag>)}</Space>
+                : item.stationName ? <Tag>{item.stationName}</Tag> : <span style={{ color: '#999' }}>—</span>,
           },
           {
             title: 'IVA', key: 'iva', width: 90,
@@ -346,12 +368,12 @@ export default function MenuItemsList() {
           ...(canManage ? [{
             title: 'Receta', key: 'receta', width: 90,
             render: (_: unknown, item: MenuItemDto) => (
-              <Tooltip title="Ver/editar receta">
-                <Badge count={item.totalIngredients} size="small" showZero>
+              <Tooltip title={item.isCombo ? 'Ver/editar componentes' : 'Ver/editar receta'}>
+                <Badge count={item.isCombo ? item.comboComponents?.length ?? 0 : item.totalIngredients} size="small" showZero>
                   <Button
                     size="small"
                     icon={<UnorderedListOutlined />}
-                    onClick={() => setRecetaItem(item)}
+                    onClick={() => item.isCombo ? openModal(item) : setRecetaItem(item)}
                   />
                 </Badge>
               </Tooltip>
@@ -365,6 +387,7 @@ export default function MenuItemsList() {
                   <Button
                     size="small"
                     icon={<ControlOutlined />}
+                    disabled={item.isCombo}
                     onClick={() => setModifierItem(item)}
                   />
                 </Badge>
@@ -413,12 +436,19 @@ export default function MenuItemsList() {
         title={editing ? 'Editar ítem del menú' : 'Nuevo ítem del menú'}
         open={modal}
         onOk={save}
-        onCancel={() => setModal(false)}
+        onCancel={() => { if (!savingRef.current) setModal(false); }}
+        confirmLoading={saving}
+        closable={!saving}
+        keyboard={!saving}
         okText="Guardar"
         width={760}
       >
         <Form form={form} layout="vertical">
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(220px, 1fr)', gap: 12 }}>
+          <Form.Item name="isCombo" label="Tipo de ítem">
+            <Select options={[{ label: 'Plato individual', value: false }, { label: 'Combo', value: true }]} />
+          </Form.Item>
+          {formIsCombo && <ComboComponentsEditor items={items} editingId={editing?.id} />}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 12 }}>
             <Form.Item name="name" label="Nombre temático" rules={[{ required: true }, { max: 150 }]}>
               <Input maxLength={150} placeholder="Ej. Pluma mística" />
             </Form.Item>
@@ -426,7 +456,7 @@ export default function MenuItemsList() {
               <Input maxLength={150} placeholder="Ej. Filete de pollo" />
             </Form.Item>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(220px, 1fr)', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 12 }}>
             <Form.Item
               name="internalCode"
               label="Código interno"
@@ -436,7 +466,7 @@ export default function MenuItemsList() {
               <Input maxLength={25} placeholder="Automático al guardar" />
             </Form.Item>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 280px', gap: 12, alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 12, alignItems: 'start' }}>
           <Form.Item name="description" label="Descripción"><Input.TextArea rows={4} /></Form.Item>
           <Form.Item name="imageUrl" hidden><Input /></Form.Item>
           <Form.Item label="Imagen del plato">
@@ -474,7 +504,7 @@ export default function MenuItemsList() {
             </Space>
           </Form.Item>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) minmax(180px, 1fr) 130px', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 12 }}>
             <Form.Item name="menuCategoryId" label="Categoría" rules={[{ required: true }]} style={{ flex: 1 }}>
               <Select options={categoriaOptions} placeholder="Seleccionar" />
             </Form.Item>
@@ -482,6 +512,7 @@ export default function MenuItemsList() {
               <Select options={[
                 { value: 'MenuAndPromotions', label: 'Menú y promociones' },
                 { value: 'PromotionsOnly', label: 'Solo promociones' },
+                { value: 'ComponentsOnly', label: 'Solo combos' },
               ]} />
             </Form.Item>
             <Form.Item
@@ -494,7 +525,7 @@ export default function MenuItemsList() {
               <InputNumber style={{ width: '100%' }} min={0} step={0.01} prefix="$" />
             </Form.Item>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '130px repeat(2, minmax(0, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 12 }}>
             <Form.Item
               name="displayOrder"
               label="Orden en menú"
@@ -513,6 +544,7 @@ export default function MenuItemsList() {
             <Form.Item name="stationId" label="Estación destino">
               <Select
                 options={estacionOptions}
+                disabled={formIsCombo}
                 placeholder="Sin estación asignada"
                 allowClear
               />

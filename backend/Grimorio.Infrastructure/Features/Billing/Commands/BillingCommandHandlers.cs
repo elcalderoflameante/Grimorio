@@ -1339,7 +1339,7 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
         {
             if (item.MenuItem?.Recipe == null) continue;
 
-            foreach (var ingredient in MenuRecipeExpansion.Expand(item.MenuItem, item.Quantity, conversions))
+            foreach (var ingredient in MenuRecipeExpansion.ExpandOrderItem(item, item.Quantity, conversions))
             {
                 // Ingrediente variable: usar el artículo elegido por el cliente
                 var articleId = ingredient.ArticleId;

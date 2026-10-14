@@ -125,6 +125,17 @@ internal static class MenuItemOperationalSheetPdfGenerator
 
     private static void Recipe(IContainer container, MenuItem item)
     {
+        if (item.IsCombo)
+        {
+            container.Column(column =>
+            {
+                column.Spacing(5);
+                column.Item().Element(c => SectionTitle(c, "Componentes del combo"));
+                foreach (var component in item.ComboComponents.Where(x => !x.IsDeleted))
+                    column.Item().Text($"{component.Quantity} x {component.ComponentItem?.Name} - {component.ComponentItem?.Station?.Name}");
+            });
+            return;
+        }
         container.Column(column =>
         {
             column.Spacing(5);

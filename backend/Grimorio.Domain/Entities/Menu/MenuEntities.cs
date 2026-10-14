@@ -7,6 +7,7 @@ public enum MenuItemSaleVisibility
 {
     MenuAndPromotions = 1,
     PromotionsOnly = 2,
+    ComponentsOnly = 3,
 }
 
 public class MenuCategory : BaseEntity
@@ -37,6 +38,8 @@ public class MenuItem : BaseEntity
     public MenuItemSaleVisibility SaleVisibility { get; set; } = MenuItemSaleVisibility.MenuAndPromotions;
     public Guid? StationId { get; set; }
     public Guid? TaxRateId { get; set; }
+    public bool IsCombo { get; set; }
+    public virtual ICollection<MenuComboComponent> ComboComponents { get; set; } = [];
 
     public virtual MenuCategory? Category { get; set; }
     public virtual ICollection<RecipeIngredient> Recipe { get; set; } = [];
@@ -44,6 +47,15 @@ public class MenuItem : BaseEntity
     public virtual MenuItemPreparation? Preparation { get; set; }
     public virtual POS.WorkStation? Station { get; set; }
     public virtual Billing.TaxRate? TaxRate { get; set; }
+}
+
+public class MenuComboComponent : BaseEntity
+{
+    public Guid ComboId { get; set; }
+    public Guid ComponentItemId { get; set; }
+    public int Quantity { get; set; } = 1;
+    public virtual MenuItem? Combo { get; set; }
+    public virtual MenuItem? ComponentItem { get; set; }
 }
 
 public class MenuItemPreparation : BaseEntity

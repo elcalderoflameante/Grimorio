@@ -1124,6 +1124,13 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                         <Text strong style={{ minWidth: 24, fontSize: 13 }}>{item.quantity}×</Text>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <Text ellipsis style={{ fontSize: 13 }}>{item.itemName}</Text>
+                          {!!item.preparationTasks?.length && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
+                              {item.preparationTasks.map(task => <Text key={task.id} type="secondary" style={{ fontSize: 11 }}>
+                                {task.quantity} x {task.itemName} · {ITEM_STATUS_LABELS[task.status] ?? task.status}
+                              </Text>)}
+                            </div>
+                          )}
                           {item.modifierSelections?.length > 0 && (
                             <div>
                               {item.modifierSelections.map((s, i) => (

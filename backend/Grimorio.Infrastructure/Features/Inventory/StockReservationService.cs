@@ -42,7 +42,7 @@ internal static class StockReservationService
             .ToList();
         var recipeArticleIds = items
             .Where(i => menuItemsById.ContainsKey(i.MenuItemId))
-            .SelectMany(i => MenuRecipeExpansion.Expand(menuItemsById[i.MenuItemId], i.Quantity, conversions).Select(r => r.ArticleId))
+            .SelectMany(i => MenuRecipeExpansion.ExpandOrderItem(i, i.Quantity, conversions, menuItemsById[i.MenuItemId]).Select(r => r.ArticleId))
             .ToList();
 
         var articleIdsForRequirements = recipeArticleIds
@@ -195,7 +195,7 @@ internal static class StockReservationService
         {
             if (!menuItemsById.TryGetValue(item.MenuItemId, out var menuItem)) continue;
 
-            foreach (var ingredient in MenuRecipeExpansion.Expand(menuItem, item.Quantity, conversions))
+            foreach (var ingredient in MenuRecipeExpansion.ExpandOrderItem(item, item.Quantity, conversions, menuItem))
             {
                 var articleId = ingredient.ArticleId;
 

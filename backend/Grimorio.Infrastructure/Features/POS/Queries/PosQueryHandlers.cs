@@ -224,9 +224,12 @@ public class GetAlexaOrderRepeatQueryHandler
         }
 
         var items = order.Items
-            .Where(i => !i.IsDeleted && AlexaStationScope.IsRepeatable(i, req.StationNames))
+            .Where(i => !i.IsDeleted && i.PreparationTasks.Count == 0 && AlexaStationScope.IsRepeatable(i, req.StationNames))
             .OrderBy(i => i.CreatedAt)
             .ToList();
+        var tasks = await ComboPreparation.VoiceTasks(_db, req.BranchId).AsNoTrackingWithIdentityResolution()
+            .Where(t => t.OrderItem!.OrderId == order.Id).AsSplitQuery().ToListAsync(ct);
+        items.AddRange(tasks.Select(ComboPreparation.VoiceItem).Where(i => AlexaStationScope.IsRepeatable(i, req.StationNames)));
 
         if (items.Count == 0)
         {
@@ -263,7 +266,7 @@ public class GetAlexaOrderRepeatQueryHandler
         }
         else if (!string.IsNullOrWhiteSpace(excludeStationText))
         {
-            var matchingStation = FindStation(order.Items.ToList(), excludeStationText);
+            var matchingStation = FindStation(items, excludeStationText);
             if (matchingStation == null)
             {
                 return Fail($"No encontre la estacion {req.ExcludeStationText} en ese pedido.");
@@ -496,7 +499,34 @@ public class GetItemsByStationQueryHandler : IRequestHandler<GetItemsByStationQu
             .OrderBy(i => i.Order!.ConfirmedAt)
             .ToListAsync(ct);
 
-        return entities.Select(i => MapStationItem(i)).ToList();
+        var result = entities.Select(i => MapStationItem(i)).ToList();
+        result.AddRange(await LoadComboTasksAsync(_db, req.BranchId, req.StationId, null, null, ct));
+        return result.OrderBy(x => x.ConfirmedAt).ToList();
+    }
+
+    internal static async Task<List<StationItemDto>> LoadComboTasksAsync(GrimorioDbContext db, Guid branchId,
+        Guid stationId, DateTime? dayStart, DateTime? dayEnd, CancellationToken ct)
+    {
+        var query = db.OrderItemPreparationTasks.IgnoreAutoIncludes().AsNoTracking()
+            .Include(t => t.OrderItem)!.ThenInclude(i => i!.Order)!.ThenInclude(o => o!.Table)
+            .Where(t => t.BranchId == branchId && t.StationId == stationId && !t.IsDeleted
+                && !t.OrderItem!.IsDeleted && t.OrderItem.Status != OrderItemStatus.Cancelled
+                && !t.OrderItem.Order!.IsDeleted && t.OrderItem.Order.Status != OrderStatus.Cancelled
+                && t.OrderItem.Order.Status != OrderStatus.Draft);
+        query = dayStart.HasValue
+            ? query.Where(t => t.Status == OrderItemStatus.Ready && t.OrderItem!.Order!.ConfirmedAt >= dayStart && t.OrderItem.Order.ConfirmedAt < dayEnd)
+            : query.Where(t => (t.Status == OrderItemStatus.Pending || t.Status == OrderItemStatus.InPreparation)
+                && t.OrderItem!.Order!.Status != OrderStatus.Delivered);
+        var tasks = await query.AsSplitQuery().ToListAsync(ct);
+        return tasks.Select(t => new StationItemDto
+        {
+            OrderItemId = t.Id, OrderId = t.OrderItem!.OrderId, OrderNumber = t.OrderItem.Order!.Number,
+            OrderType = t.OrderItem.Order.Type.ToString(), TableCode = t.OrderItem.Order.Table?.Code,
+            CustomerName = t.OrderItem.Order.CustomerName, OrderNotes = t.OrderItem.Order.Notes,
+            ItemName = $"{t.ComponentName} - {t.ComboName}", Quantity = checked(t.QuantityPerCombo * t.OrderItem.Quantity),
+            Notes = t.OrderItem.Notes, IsTakeout = t.OrderItem.IsTakeout, Status = t.Status.ToString(),
+            ConfirmedAt = t.OrderItem.Order.ConfirmedAt ?? t.OrderItem.Order.CreatedAt, UpdatedAt = t.UpdatedAt,
+        }).ToList();
     }
 
     internal static StationItemDto MapStationItem(OrderItem i) => new()
@@ -563,6 +593,8 @@ public class GetCompletedStationItemsQueryHandler
             .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt)
             .ToListAsync(ct);
 
-        return entities.Select(GetItemsByStationQueryHandler.MapStationItem).ToList();
+        var result = entities.Select(GetItemsByStationQueryHandler.MapStationItem).ToList();
+        result.AddRange(await GetItemsByStationQueryHandler.LoadComboTasksAsync(_db, req.BranchId, req.StationId, dayStart, dayEnd, ct));
+        return result.OrderByDescending(x => x.UpdatedAt ?? x.ConfirmedAt).ToList();
     }
 }

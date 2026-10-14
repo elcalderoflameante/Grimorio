@@ -90,6 +90,7 @@ public class CreateModifierSelectionDto
 
 public class OrderItemDto
 {
+    public List<OrderItemDto> PreparationTasks { get; set; } = [];
     public Guid Id { get; set; }
     public Guid OrderId { get; set; }
     public Guid MenuItemId { get; set; }

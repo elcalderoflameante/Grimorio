@@ -78,6 +78,7 @@ public class OrdenItemConfiguration : IEntityTypeConfiguration<OrderItem>
     public void Configure(EntityTypeBuilder<OrderItem> builder)
     {
         builder.ToTable("OrderItems", "pos");
+        builder.Navigation(x => x.PreparationTasks).AutoInclude();
 
         builder.Property(x => x.Status)
             .HasConversion<string>()

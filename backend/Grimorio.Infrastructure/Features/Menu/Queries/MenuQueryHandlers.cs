@@ -45,6 +45,7 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
     {
         var query = _db.MenuItems
             .AsNoTracking()
+            .Include(x => x.ComboComponents.Where(c => !c.IsDeleted)).ThenInclude(c => c.ComponentItem)!.ThenInclude(c => c!.Station)
             .Include(x => x.Category)
             .Include(x => x.Station)
             .Include(x => x.TaxRate)
@@ -64,7 +65,7 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
 
         if (req.CategoryId.HasValue) query = query.Where(x => x.MenuCategoryId == req.CategoryId.Value);
         if (req.ActiveOnly == true) query = query.Where(x => x.IsActive);
-        if (req.AvailableOnly == true) query = query.Where(x => x.AvailableForSale);
+        if (req.AvailableOnly == true) query = query.Where(x => x.AvailableForSale && x.SaleVisibility != MenuItemSaleVisibility.ComponentsOnly);
 
         if (req.Lightweight)
         {
@@ -75,6 +76,13 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
                 .ThenBy(x => x.Name)
                 .Select(x => new MenuItemDto
                 {
+                    IsCombo = x.IsCombo,
+                    ComboComponents = x.ComboComponents.Where(c => !c.IsDeleted).Select(c => new MenuComboComponentDto
+                    {
+                        ComponentItemId = c.ComponentItemId, Quantity = c.Quantity, Name = c.ComponentItem!.Name,
+                        GeneralName = c.ComponentItem.GeneralName, StationId = c.ComponentItem.StationId,
+                        StationName = c.ComponentItem.Station != null ? c.ComponentItem.Station.Name : null,
+                    }).ToList(),
                     Id = x.Id,
                     MenuCategoryId = x.MenuCategoryId,
                     CategoryName = x.Category != null ? x.Category.Name : string.Empty,
@@ -111,6 +119,7 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
 
         return items.Select(x => new MenuItemDto
         {
+            IsCombo = x.IsCombo, ComboComponents = MenuComboDefinition.Map(x),
             Id = x.Id,
             MenuCategoryId = x.MenuCategoryId,
             CategoryName = x.Category?.Name ?? string.Empty,
@@ -150,6 +159,7 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
     public async Task<MenuItemDetailDto?> Handle(GetMenuItemDetailQuery req, CancellationToken ct)
     {
         var item = await _db.MenuItems
+            .Include(x => x.ComboComponents.Where(c => !c.IsDeleted)).ThenInclude(c => c.ComponentItem)!.ThenInclude(c => c!.Station)
             .Include(x => x.Category)
             .Include(x => x.Station)
             .Include(x => x.Recipe.Where(r => !r.IsDeleted))
@@ -172,6 +182,7 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
 
         var dto = new MenuItemDetailDto
         {
+            IsCombo = item.IsCombo, ComboComponents = MenuComboDefinition.Map(item),
             Id = item.Id,
             MenuCategoryId = item.MenuCategoryId,
             CategoryName = item.Category?.Name ?? string.Empty,
@@ -344,6 +355,7 @@ public class GenerateMenuItemOperationalSheetPdfHandler : IRequestHandler<Genera
     public async Task<byte[]?> Handle(GenerateMenuItemOperationalSheetPdfQuery req, CancellationToken ct)
     {
         var item = await _db.MenuItems
+            .Include(x => x.ComboComponents.Where(c => !c.IsDeleted)).ThenInclude(c => c.ComponentItem)!.ThenInclude(c => c!.Station)
             .AsNoTracking()
             .Include(x => x.Category)
             .Include(x => x.Station)
@@ -498,7 +510,15 @@ public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQue
         IReadOnlyDictionary<Guid, decimal> stockByArticle,
         IReadOnlyCollection<global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo> conversions)
     {
-        var requirements = MenuRecipeExpansion.Expand(item, 1, conversions);
+        if (item.IsCombo && (item.ComboComponents.Count == 0 || item.ComboComponents.Any(c => c.ComponentItem is null
+            || !c.ComponentItem.IsActive || !c.ComponentItem.AvailableForSale || c.ComponentItem.Station is null || !c.ComponentItem.Station.IsActive
+            || c.ComponentItem.ModifierGroups.Any(g => g.IsRequired || g.MinSelections > 0))))
+            return new MenuItemAvailabilityDto { MenuItemId = item.Id, IsTracked = true, IsAvailable = false,
+                AvailableQuantity = 0, LimitingArticleName = "Componente no disponible" };
+        var requirements = MenuRecipeExpansion.Expand(item, 1, conversions)
+            .GroupBy(x => new { x.ArticleId, x.BaseUnitId })
+            .Select(g => g.First() with { BaseQuantity = g.Sum(x => x.BaseQuantity),
+                Quantity = g.Sum(x => x.BaseQuantity), UnitId = g.Key.BaseUnitId, UnitSymbol = g.First().BaseUnitSymbol }).ToList();
         if (requirements.Count == 0)
         {
             return new MenuItemAvailabilityDto
@@ -705,7 +725,7 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
             TaxPercentage = taxPct,
             NetSalePrice = Math.Round(netSalePrice, 2),
             TaxAmount = Math.Round(taxAmount, 2),
-            HasRecipe = item.Recipe.Any(r => !r.IsDeleted),
+            HasRecipe = item.IsCombo ? item.ComboComponents.Any(c => !c.IsDeleted) : item.Recipe.Any(r => !r.IsDeleted),
         };
 
         foreach (var ingredient in MenuRecipeExpansion.Expand(item, 1, conversions))

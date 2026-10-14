@@ -156,6 +156,7 @@ public class MenuController : ControllerBase
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
         var result = await _mediator.Send(new CreateMenuItemCommand
         {
+            IsCombo = dto.IsCombo, ComboComponents = dto.ComboComponents,
             BranchId = branchId, MenuCategoryId = dto.MenuCategoryId,
             Name = dto.Name, GeneralName = dto.GeneralName, Description = dto.Description,
             InternalCode = dto.InternalCode, ImageUrl = dto.ImageUrl, Price = dto.Price,
@@ -173,6 +174,7 @@ public class MenuController : ControllerBase
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
         var result = await _mediator.Send(new UpdateMenuItemCommand
         {
+            IsCombo = dto.IsCombo, ComboComponents = dto.ComboComponents,
             Id = id, BranchId = branchId, MenuCategoryId = dto.MenuCategoryId,
             Name = dto.Name, GeneralName = dto.GeneralName, Description = dto.Description,
             InternalCode = dto.InternalCode, ImageUrl = dto.ImageUrl, Price = dto.Price,

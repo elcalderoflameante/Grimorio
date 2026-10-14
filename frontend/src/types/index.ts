@@ -1158,9 +1158,11 @@ export interface CreateMenuCategoryDto {
   costCenterId?: string;
 }
 
-export type MenuItemSaleVisibility = 'MenuAndPromotions' | 'PromotionsOnly';
+export type MenuItemSaleVisibility = 'MenuAndPromotions' | 'PromotionsOnly' | 'ComponentsOnly';
 
 export interface MenuItemDto {
+  isCombo?: boolean;
+  comboComponents?: MenuComboComponentDto[];
   id: string;
   menuCategoryId: string;
   categoryName: string;
@@ -1254,6 +1256,8 @@ export interface MenuItemProfitabilityDto {
 }
 
 export interface CreateMenuItemDto {
+  isCombo?: boolean;
+  comboComponents?: { componentItemId: string; quantity: number }[];
   menuCategoryId: string;
   name: string;
   generalName: string;
@@ -1270,6 +1274,15 @@ export interface CreateMenuItemDto {
 export interface UpdateMenuItemDto extends CreateMenuItemDto {
   isActive: boolean;
   availableForSale: boolean;
+}
+
+export interface MenuComboComponentDto {
+  componentItemId: string;
+  quantity: number;
+  name: string;
+  generalName: string;
+  stationId?: string;
+  stationName?: string;
 }
 
 export interface RecipeIngredientDto {
@@ -1469,6 +1482,7 @@ export interface UpdateWorkStationDto {
 }
 
 export interface OrderItemDto {
+  preparationTasks?: OrderItemDto[];
   id: string;
   menuItemId: string;
   itemName: string;
