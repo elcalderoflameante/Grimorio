@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { App as AntApp, Table, Button, Modal, Form, Input, InputNumber, Select, Switch,
   Popconfirm, Space, Typography, Tag, Badge, Tooltip, Alert, Upload, Image } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, UnorderedListOutlined, ControlOutlined, UploadOutlined, FileTextOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, UnorderedListOutlined, ControlOutlined, UploadOutlined, FileTextOutlined, ReloadOutlined, ClearOutlined } from '@ant-design/icons';
 import { menuApi, posApi, resolveMediaUrl, taxApi } from '../../services/api';
-import type { MenuItemDto, MenuCategoryDto, CreateMenuItemDto, UpdateMenuItemDto, WorkStationDto, TaxRateDto } from '../../types';
+import type { MenuItemDto, MenuCategoryDto, CreateMenuItemDto, UpdateMenuItemDto, WorkStationDto, TaxRateDto, MenuItemSaleVisibility } from '../../types';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { formatError } from '../../utils/errorHandler';
 import RecipeEditor from './RecipeEditor';
@@ -14,6 +14,17 @@ import { PERMISSIONS } from '../../constants/permissions';
 
 const { Title } = Typography;
 
+interface ItemFilters {
+  search?: string;
+  categoryId?: string;
+  stationId?: string;
+  isActive?: boolean;
+  availableForSale?: boolean;
+  saleVisibility?: MenuItemSaleVisibility;
+}
+
+const normalizeSearch = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
 export default function MenuItemsList() {
   const { message } = AntApp.useApp();
 
@@ -23,6 +34,9 @@ export default function MenuItemsList() {
   const [estaciones, setEstaciones] = useState<WorkStationDto[]>([]);
   const [taxRates, setTaxRates] = useState<TaxRateDto[]>([]);
   const [loading, setLoading] = useState(false);
+  const [filters, setFilters] = useState<ItemFilters>({});
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<MenuItemDto | null>(null);
   const [recetaItem, setRecetaItem] = useState<MenuItemDto | null>(null);
@@ -36,6 +50,24 @@ export default function MenuItemsList() {
 
   const formPrice = Form.useWatch('price', form) as number | undefined;
   const formTaxRateId = Form.useWatch('taxRateId', form) as string | undefined;
+
+  const updateFilters = (changes: Partial<ItemFilters>) => {
+    setFilters(current => ({ ...current, ...changes }));
+    setPage(1);
+  };
+
+  const filteredItems = useMemo(() => {
+    const terms = normalizeSearch(filters.search ?? '').trim().split(/\s+/).filter(Boolean);
+    return items.filter(item => {
+      const searchable = normalizeSearch([item.name, item.generalName, item.internalCode].filter(Boolean).join(' '));
+      return terms.every(term => searchable.includes(term))
+        && (!filters.categoryId || item.menuCategoryId === filters.categoryId)
+        && (!filters.stationId || (filters.stationId === '__none__' ? !item.stationId : item.stationId === filters.stationId))
+        && (filters.isActive === undefined || item.isActive === filters.isActive)
+        && (filters.availableForSale === undefined || item.availableForSale === filters.availableForSale)
+        && (!filters.saleVisibility || item.saleVisibility === filters.saleVisibility);
+    });
+  }, [items, filters]);
 
   const priceBreakdown = useMemo(() => {
     if (!formPrice || formPrice <= 0) return null;
@@ -166,17 +198,97 @@ export default function MenuItemsList() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
         <Title level={5} style={{ margin: 0 }}>Ítems del Menú</Title>
         {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>Nuevo ítem</Button>}
       </div>
 
+      <Space wrap style={{ marginBottom: 16, width: '100%' }}>
+        <Input.Search
+          aria-label="Buscar ítems"
+          placeholder="Buscar por nombre o código"
+          allowClear
+          value={filters.search ?? ''}
+          onChange={event => updateFilters({ search: event.target.value })}
+          style={{ width: 280, maxWidth: '100%' }}
+        />
+        <Select
+          aria-label="Filtrar por categoría"
+          placeholder="Categoría"
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          options={categoriaOptions}
+          value={filters.categoryId}
+          onChange={categoryId => updateFilters({ categoryId })}
+          style={{ width: 200 }}
+        />
+        <Select
+          aria-label="Filtrar por estación"
+          placeholder="Estación"
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          options={[{ label: 'Sin estación asignada', value: '__none__' }, ...estacionOptions]}
+          value={filters.stationId}
+          onChange={stationId => updateFilters({ stationId })}
+          style={{ width: 200 }}
+        />
+        <Select
+          aria-label="Filtrar por estado"
+          placeholder="Estado"
+          allowClear
+          options={[{ label: 'Activos', value: true }, { label: 'Inactivos', value: false }]}
+          value={filters.isActive}
+          onChange={isActive => updateFilters({ isActive })}
+          style={{ width: 140 }}
+        />
+        <Select
+          aria-label="Filtrar por disponibilidad"
+          placeholder="Disponibilidad"
+          allowClear
+          options={[{ label: 'Disponibles', value: true }, { label: 'No disponibles', value: false }]}
+          value={filters.availableForSale}
+          onChange={availableForSale => updateFilters({ availableForSale })}
+          style={{ width: 170 }}
+        />
+        <Select
+          aria-label="Filtrar por visibilidad de venta"
+          placeholder="Visibilidad de venta"
+          allowClear
+          options={[
+            { label: 'Menú y promociones', value: 'MenuAndPromotions' },
+            { label: 'Solo promociones', value: 'PromotionsOnly' },
+          ]}
+          value={filters.saleVisibility}
+          onChange={saleVisibility => updateFilters({ saleVisibility })}
+          style={{ width: 190 }}
+        />
+        <Tooltip title="Limpiar filtros">
+          <Button
+            aria-label="Limpiar filtros"
+            icon={<ClearOutlined />}
+            disabled={!Object.values(filters).some(value => value !== undefined && value !== '')}
+            onClick={() => { setFilters({}); setPage(1); }}
+          />
+        </Tooltip>
+        <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>Actualizar</Button>
+      </Space>
+
       <Table
-        dataSource={items}
+        dataSource={filteredItems}
         rowKey="id"
         loading={loading}
         size="small"
-        pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
+        scroll={{ x: 1400 }}
+        pagination={{
+          current: page,
+          pageSize,
+          showSizeChanger: true,
+          pageSizeOptions: ['10', '20', '50'],
+          showTotal: total => `${total} ítems`,
+          onChange: (current, size) => { setPage(size === pageSize ? current : 1); setPageSize(size); },
+        }}
         columns={[
           {
             title: 'Foto', key: 'image', width: 72,
