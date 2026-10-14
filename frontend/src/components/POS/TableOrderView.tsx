@@ -152,6 +152,16 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const [paymentStorageError, setPaymentStorageError] = useState(false);
 
   useEffect(() => {
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      if (!paymentInFlight.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeLeaving);
+    return () => window.removeEventListener('beforeunload', warnBeforeLeaving);
+  }, []);
+
+  useEffect(() => {
     const restore = () => {
       try {
         setPendingPayment(readPendingPayment(paymentStorageKey));
@@ -583,7 +593,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         } else if (payment.electronicDocumentStatus === 'Rejected') {
           message.warning('Cobro registrado. La factura requiere revisión antes de reenviarla');
         } else {
-          message.warning('Cobro registrado. La factura quedó pendiente y se reintentará automáticamente');
+          message.success('Cobro registrado. La factura se enviará automáticamente al SRI en aproximadamente 5 minutos');
         }
       } else {
         message.success('Cobro registrado');
@@ -921,7 +931,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         <Space>
-          <Button icon={<ArrowLeftOutlined />} onClick={onClose}>Volver al mapa</Button>
+          <Button icon={<ArrowLeftOutlined />} disabled={paying} onClick={onClose}>Volver al mapa</Button>
           <Title level={5} style={{ margin: 0 }}>{table ? `Mesa ${table.code}` : 'Venta directa'}</Title>
           <Tag>Orden #{order.number}</Tag>
           <Tag color={STATUS_COLORS[order.status]}>{STATUS_LABELS[order.status] ?? order.status}</Tag>

@@ -98,6 +98,7 @@ docker compose --env-file .env exec -T db pg_dump -U "$DB_USER" "$DB_NAME" > "ba
 
 ## Notas
 
+- Las facturas creadas al cobrar quedan guardadas como pendientes junto con el pago. El servicio del API las procesa automaticamente despues de 5 minutos, revisando la cola cada 30 segundos; los intentos posteriores esperan 2 minutos. Si el API se reinicia, retoma los pendientes guardados. La autorizacion y el correo al cliente se completan en segundo plano y pueden tardar mas segun la respuesta del SRI. El reintento manual sigue disponible en Documentos electronicos.
 - Esta configuracion usa Postgres dentro del VPS para simplificar el primer despliegue.
 - En un VPS de 4 GB, evita agregar Adminer, Redis o procesos extra hasta medir consumo real.
 - Si luego migras la base a un proveedor externo, basta con cambiar `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD`.

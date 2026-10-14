@@ -1147,25 +1147,7 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
 
         await transaction.CommitAsync(ct);
 
-        if (electronicDocument != null)
-        {
-            try
-            {
-                var processed = await _mediator.Send(new RetryElectronicInvoiceCommand
-                {
-                    DocumentId = electronicDocument.Id,
-                    BranchId = req.BranchId,
-                }, ct);
-                electronicDocument.Status = Enum.Parse<ElectronicDocumentStatus>(processed.Status);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex,
-                    "El cobro {PaymentId} fue confirmado, pero la factura {DocumentId} quedo pendiente de procesamiento.",
-                    payment.Id, electronicDocument.Id);
-            }
-        }
-
+        // The persisted pending document is processed by the background worker.
         return BillingMapper.MapPayment(payment, order.Number, customer, elDoc: electronicDocument);
     }
 

@@ -9,6 +9,7 @@ namespace Grimorio.API.Services;
 public sealed class SriInvoiceRetryBackgroundService : BackgroundService
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan InitialSendDelay = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan RetryDelay = TimeSpan.FromMinutes(2);
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SriInvoiceRetryBackgroundService> _logger;
@@ -49,13 +50,18 @@ public sealed class SriInvoiceRetryBackgroundService : BackgroundService
         await using var scope = _scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<GrimorioDbContext>();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-        var retryBefore = DateTime.UtcNow.Subtract(RetryDelay);
+        var now = DateTime.UtcNow;
+        var initialSendBefore = now.Subtract(InitialSendDelay);
+        var retryBefore = now.Subtract(RetryDelay);
+        var staleProcessingBefore = now.AddMinutes(-5);
 
         var pending = await db.ElectronicDocuments
             .AsNoTracking()
             .Where(d => !d.IsDeleted
                 && (d.Status == ElectronicDocumentStatus.Pending || d.Status == ElectronicDocumentStatus.Sent)
-                && (d.SentAt == null || d.SentAt <= retryBefore))
+                && ((d.SentAt == null && d.CreatedAt <= initialSendBefore)
+                    || (d.SentAt != null && d.SentAt <= retryBefore))
+                && (d.ProcessingStartedAt == null || d.ProcessingStartedAt <= staleProcessingBefore))
             .OrderBy(d => d.CreatedAt)
             .Select(d => new { d.Id, d.BranchId })
             .Take(10)
