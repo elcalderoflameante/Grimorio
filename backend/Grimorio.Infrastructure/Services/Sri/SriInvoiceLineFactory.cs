@@ -76,12 +76,26 @@ public static class SriInvoiceLineFactory
         var fallbackCode = item.MenuItemId.ToString()[..8];
 
         return new SriInvoiceLine(
-            itemCode ?? item.MenuItem?.InternalCode ?? fallbackCode,
+            ResolveCode(item.MenuItem?.Name ?? itemName ?? item.MenuItemId.ToString(), itemCode, item.MenuItem?.InternalCode),
             itemName ?? BuildDescription(item.MenuItem) ?? fallbackCode,
             quantity,
             unitPrice,
             taxRateSriCode ?? taxRate?.SriCode ?? "6",
             taxRatePercentage ?? taxRate?.Percentage ?? 0m);
+    }
+
+    public static string ResolveCode(string itemName, string? savedCode, string? currentCode = null)
+    {
+        // Preserve valid payment snapshots; recover legacy codes rejected by the XML schema.
+        foreach (var candidate in new[] { savedCode, currentCode })
+        {
+            var code = candidate?.Trim();
+            if (!string.IsNullOrEmpty(code) && code.Length <= 25)
+                return code;
+        }
+
+        throw new InvalidOperationException(
+            $"El item '{itemName}' no tiene un codigo valido para facturar. Corrige su codigo interno en Items y recetas: debe tener entre 1 y 25 caracteres. Luego reintenta la factura.");
     }
 
     public static string? BuildDescription(MenuItem? item)

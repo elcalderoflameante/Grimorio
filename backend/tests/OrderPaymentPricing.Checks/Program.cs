@@ -1,5 +1,8 @@
 using Grimorio.Domain.Entities.POS;
 using Grimorio.Infrastructure.Features.Billing;
+using Grimorio.Domain.Entities.Billing;
+using Grimorio.Domain.Entities.Menu;
+using Grimorio.Infrastructure.Services.Sri;
 
 static void Equal(decimal expected, decimal actual)
 {
@@ -45,3 +48,46 @@ Equal(6.66m, OrderPaymentPricing.AllocateTotal(total, 3, 1, 1));
 Equal(6.67m, OrderPaymentPricing.AllocateTotal(total, 3, 2, 1));
 Equal(total, Enumerable.Range(0, 3).Sum(paid => OrderPaymentPricing.AllocateTotal(total, 3, paid, 1)));
 Console.WriteLine("Payment promotion pricing checks passed.");
+
+var menuItemId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
+var invoiceItem = new OrderItem
+{
+    MenuItemId = menuItemId,
+    MenuItem = new MenuItem { InternalCode = "M-ABCDEF", Name = "Costillas ahumadas del reino" },
+};
+var invoicePayment = new OrderPayment
+{
+    OrderAmount = 3.50m,
+    Items = [new OrderPaymentItem
+    {
+        OrderItem = invoiceItem, Quantity = 1m, UnitPrice = 3.50m,
+        ItemCode = "Costillas ahumadas del reino", ItemName = "Costillas",
+        TaxRateSriCode = "4", TaxRatePercentage = 15m,
+    }],
+};
+var invoiceOrder = new Order();
+var recoveredLine = SriInvoiceLineFactory.Build(invoicePayment, invoiceOrder).Single();
+if (recoveredLine.Code != "M-ABCDEF" || recoveredLine.Description != "Costillas")
+    throw new Exception("Legacy invoice code was not recovered without changing its description.");
+Equal(3.50m, SriInvoiceLineFactory.CalculateTotals([recoveredLine], 3.50m).Total);
+invoicePayment.Items.Single().ItemCode = new string('A', 25);
+if (SriInvoiceLineFactory.Build(invoicePayment, invoiceOrder).Single().Code != new string('A', 25))
+    throw new Exception("A valid saved invoice code must remain unchanged.");
+invoicePayment.Items.Single().ItemCode = new string('A', 26);
+invoiceItem.MenuItem.InternalCode = new string('B', 26);
+static void RequiresManualCode(Action action)
+{
+    try { action(); }
+    catch (InvalidOperationException ex) when (ex.Message.Contains("Costillas") && ex.Message.Contains("25"))
+    {
+        return;
+    }
+    throw new Exception("Invalid or missing invoice codes must require manual correction.");
+}
+RequiresManualCode(() => SriInvoiceLineFactory.Build(invoicePayment, invoiceOrder));
+if (invoiceItem.MenuItem.InternalCode != new string('B', 26))
+    throw new Exception("Invalid menu codes must not be replaced automatically.");
+RequiresManualCode(() => SriInvoiceLineFactory.ResolveCode("Costillas", null, " "));
+if (SriInvoiceLineFactory.ResolveCode("Costillas", " ", " M-ABCDEF ") != "M-ABCDEF")
+    throw new Exception("Blank codes must fall back to the trimmed current code.");
+Console.WriteLine("Invoice legacy code recovery checks passed.");

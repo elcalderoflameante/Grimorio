@@ -935,7 +935,7 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
                     BranchId = req.BranchId,
                     OrderPaymentId = Guid.Empty,
                     OrderItemId = item.Id,
-                    ItemCode = item.MenuItem?.InternalCode ?? item.MenuItemId.ToString()[..8],
+                    ItemCode = SriInvoiceLineFactory.ResolveCode(item.MenuItem?.Name ?? item.MenuItemId.ToString(), item.MenuItem?.InternalCode),
                     ItemName = SriInvoiceLineFactory.BuildDescription(item.MenuItem)
                         ?? item.MenuItemId.ToString()[..8],
                     Quantity = selected.Quantity,
@@ -1649,7 +1649,7 @@ public class RetryElectronicInvoiceHandler : IRequestHandler<RetryElectronicInvo
             if (doc == null) throw;
             if (doc.Status != ElectronicDocumentStatus.Authorized)
             {
-                if (doc.Status != ElectronicDocumentStatus.Sent)
+                if (doc.Status is not (ElectronicDocumentStatus.Sent or ElectronicDocumentStatus.Rejected))
                     doc.Status = ElectronicDocumentStatus.Pending;
                 doc.ErrorMessage = $"Error tecnico; resultado pendiente de verificar: {ex.Message}";
                 await _db.SaveChangesAsync(ct);
