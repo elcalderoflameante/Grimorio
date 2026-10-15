@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { App as AntApp, Button, Grid, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Tooltip, Typography } from 'antd';
 import { DeleteOutlined, DownOutlined, PlusOutlined, SaveOutlined, UpOutlined } from '@ant-design/icons';
 import { inventoryApi, menuApi } from '../../services/api';
@@ -56,9 +56,22 @@ const nextDisplayOrder = (items: { displayOrder: number }[]) =>
 const normalizeDisplayOrder = <T extends { displayOrder: number }>(items: T[]) =>
   items.map((item, index) => ({ ...item, displayOrder: index + 1 }));
 
+function OptionField({ area, label, showLabel, children }: { area: string; label: string; showLabel: boolean; children: ReactNode }) {
+  return <div style={{ gridArea: area, minWidth: 0, display: 'grid', gap: 4 }}>
+    {showLabel && <Text type="secondary" style={{ fontSize: 12 }}>{label}</Text>}
+    {children}
+  </div>;
+}
+
 export default function ModifierEditor({ itemId, itemName, open, onClose }: Props) {
   const { message } = AntApp.useApp();
   const screens = Grid.useBreakpoint();
+  const optionColumns = screens.lg
+    ? '56px 120px 110px minmax(160px, 1fr) 96px 140px 32px'
+    : 'repeat(2, minmax(0, 1fr))';
+  const optionAreas = screens.lg
+    ? '"move name price article quantity unit remove" "additional additional additional additional additional additional additional"'
+    : '"move remove" "name price" "article article" "quantity unit" "additional additional"';
 
   const [groups, setGroups] = useState<UpsertMenuItemModifierGroupDto[]>([]);
   const [articles, setArticles] = useState<InventoryArticleDto[]>([]);
@@ -170,7 +183,7 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
       await menuApi.upsertModifiers(itemId, groups.map(group => {
         const rules = group.quantitySourceGroupId ? groups.find(g => g.id === group.quantitySourceGroupId)!.options.filter(o => o.isActive)
           .map(o => ({ sourceOptionId: o.id!, quantity: group.quantityRules!.find(r => r.sourceOptionId === o.id)!.quantity })) : [];
-        return { ...group, quantityRules: rules, options: group.options.map(option => ({ ...option,
+        return { ...group, quantityRules: rules, options: normalizeDisplayOrder(group.options).map(option => ({ ...option,
           quantity: rules.length ? Math.min(...rules.map(r => r.quantity)) : option.quantity })) };
       }));
       message.success('Modificadores guardados');
@@ -192,17 +205,13 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
         <Button key="save" type="primary" icon={<SaveOutlined />} loading={saving} onClick={save}>Guardar modificadores</Button>,
       ]}
     >
-      <Text type="secondary" style={{ display: 'block', marginBottom: 14 }}>
-        Define grupos como Salsas, Cerveza o Toppings, con mínimos, máximos y precios adicionales.
-      </Text>
-
       <Space orientation="vertical" style={{ width: '100%' }} size={12}>
         {groups.map((group, groupIdx) => (
           <div key={groupIdx} style={{ border: '1px solid #f0f0f0', borderRadius: 8, padding: 12 }}>
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: screens.lg ? 'minmax(170px, 1fr) 92px 104px 104px 120px 96px 34px' : 'repeat(2, minmax(0, 1fr))',
+                gridTemplateColumns: screens.lg ? 'minmax(140px, 1fr) 112px 104px 104px 122px 100px 32px' : 'repeat(2, minmax(0, 1fr))',
                 gap: 8,
                 alignItems: 'center',
                 marginBottom: 10,
@@ -210,11 +219,13 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
             >
               <Input
                 placeholder="Nombre del grupo"
+                aria-label={`Nombre del grupo ${groupIdx + 1}`}
                 value={group.name}
                 onChange={e => updateGroup(groupIdx, { name: e.target.value })}
                 style={{ width: '100%' }}
               />
               <InputNumber
+                aria-label={`Orden del grupo ${groupIdx + 1}`}
                 min={0}
                 value={group.displayOrder}
                 onChange={v => updateGroup(groupIdx, { displayOrder: v ?? 0 })}
@@ -248,6 +259,10 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
                 </label>)}
               </div>}
             </div>
+            {screens.lg && <div style={{ display: 'grid', gridTemplateColumns: optionColumns, gap: 8, marginBottom: 6 }}>
+              {['', 'Nombre', 'Precio adicional', 'Artículo inventario', 'Cantidad', 'Unidad', ''].map((label, index) =>
+                <Text key={index} type="secondary" style={{ fontSize: 12 }}>{label}</Text>)}
+            </div>}
             <Space orientation="vertical" style={{ width: '100%' }} size={8}>
               {group.options.map((option, optionIdx) => {
                 const compatibleUnitIds = getCompatibleUnitIds(option.articleId);
@@ -256,19 +271,21 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
                   .map(u => ({ label: `${u.name} (${u.symbol})`, value: u.id }));
                 return (
                   <div
-                    key={optionIdx}
+                    key={option.id ?? optionIdx}
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: screens.lg ? '64px 92px minmax(130px, 1fr) 110px minmax(180px, 1.4fr) 86px 118px 34px' : 'repeat(2, minmax(0, 1fr))',
+                      gridTemplateColumns: optionColumns,
+                      gridTemplateAreas: optionAreas,
                       gap: 8,
                       alignItems: 'center',
                       width: '100%',
                     }}
                   >
-                    <Space.Compact>
+                    <Space.Compact style={{ gridArea: 'move', alignSelf: 'center' }}>
                       <Tooltip title="Subir opción">
                         <Button
                           size="small"
+                          aria-label={`Subir opción ${option.name || optionIdx + 1} de ${group.name || groupIdx + 1}`}
                           icon={<UpOutlined />}
                           disabled={optionIdx === 0}
                           onClick={() => moveOption(groupIdx, optionIdx, -1)}
@@ -277,64 +294,75 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
                       <Tooltip title="Bajar opción">
                         <Button
                           size="small"
+                          aria-label={`Bajar opción ${option.name || optionIdx + 1} de ${group.name || groupIdx + 1}`}
                           icon={<DownOutlined />}
                           disabled={optionIdx === group.options.length - 1}
                           onClick={() => moveOption(groupIdx, optionIdx, 1)}
                         />
                       </Tooltip>
                     </Space.Compact>
-                    <InputNumber
-                      min={0}
-                      value={option.displayOrder}
-                      onChange={v => updateOption(groupIdx, optionIdx, { displayOrder: v ?? 0 })}
-                      addonBefore="Orden"
-                      style={{ width: '100%' }}
-                    />
-                    <Input
-                      placeholder="Opción"
-                      value={option.name}
-                      onChange={e => updateOption(groupIdx, optionIdx, { name: e.target.value })}
-                      style={{ width: '100%' }}
-                    />
-                    <InputNumber
-                      min={0}
-                      step={0.01}
-                      value={option.priceDelta}
-                      onChange={v => updateOption(groupIdx, optionIdx, { priceDelta: v ?? 0 })}
-                      addonBefore="+$"
-                      style={{ width: '100%' }}
-                    />
-                    <Select
-                      allowClear
-                      showSearch
-                      optionFilterProp="label"
-                      placeholder="Artículo inventario"
-                      value={option.articleId}
-                      options={articleOptions}
-                      onChange={v => updateOption(groupIdx, optionIdx, { articleId: v, unitId: undefined, quantity: v ? option.quantity : 0 })}
-                      style={{ width: '100%' }}
-                    />
-                    <InputNumber
-                      min={0}
-                      step={0.01}
-                      value={group.quantitySourceGroupId ? (group.quantityRules?.length ? Math.min(...group.quantityRules.map(r => r.quantity)) : 0) : option.quantity}
-                      disabled={!option.articleId || !!group.quantitySourceGroupId}
-                      onChange={v => updateOption(groupIdx, optionIdx, { quantity: v ?? 0 })}
-                      style={{ width: '100%' }}
-                    />
-                    <Select
-                      allowClear
-                      placeholder="Unidad"
-                      value={option.unitId}
-                      disabled={!option.articleId}
-                      options={unitOptions}
-                      onChange={v => updateOption(groupIdx, optionIdx, { unitId: v })}
-                      style={{ width: '100%' }}
-                    />
-                    <Popconfirm title="Quitar opción" onConfirm={() => updateGroup(groupIdx, { options: group.options.filter((_, i) => i !== optionIdx) })}>
-                      <Button danger size="small" icon={<DeleteOutlined />} />
-                    </Popconfirm>
-                    <div style={{ gridColumn: '1 / -1', padding: '0 0 8px 8px', borderBottom: '1px solid #f0f0f0' }}>
+                    <OptionField area="name" label="Nombre" showLabel={!screens.lg}>
+                      <Input
+                        aria-label={`Nombre de opción ${optionIdx + 1} de ${group.name || groupIdx + 1}`}
+                        placeholder="Opción"
+                        value={option.name}
+                        onChange={e => updateOption(groupIdx, optionIdx, { name: e.target.value })}
+                        style={{ width: '100%' }}
+                      />
+                    </OptionField>
+                    <OptionField area="price" label="Precio adicional" showLabel={!screens.lg}>
+                      <InputNumber
+                        aria-label={`Precio adicional de ${option.name || optionIdx + 1} de ${group.name || groupIdx + 1}`}
+                        min={0}
+                        step={0.01}
+                        value={option.priceDelta}
+                        onChange={v => updateOption(groupIdx, optionIdx, { priceDelta: v ?? 0 })}
+                        addonBefore="+$"
+                        style={{ width: '100%' }}
+                      />
+                    </OptionField>
+                    <OptionField area="article" label="Artículo inventario" showLabel={!screens.lg}>
+                      <Select
+                        aria-label={`Artículo de ${option.name || optionIdx + 1} de ${group.name || groupIdx + 1}`}
+                        allowClear
+                        showSearch
+                        optionFilterProp="label"
+                        placeholder="Artículo inventario"
+                        value={option.articleId}
+                        options={articleOptions}
+                        onChange={v => updateOption(groupIdx, optionIdx, { articleId: v, unitId: undefined, quantity: v ? option.quantity : 0 })}
+                        style={{ width: '100%' }}
+                      />
+                    </OptionField>
+                    <OptionField area="quantity" label="Cantidad" showLabel={!screens.lg}>
+                      <InputNumber
+                        aria-label={`Cantidad de ${option.name || optionIdx + 1} de ${group.name || groupIdx + 1}`}
+                        min={0}
+                        step={0.01}
+                        value={group.quantitySourceGroupId ? (group.quantityRules?.length ? Math.min(...group.quantityRules.map(r => r.quantity)) : 0) : option.quantity}
+                        disabled={!option.articleId || !!group.quantitySourceGroupId}
+                        onChange={v => updateOption(groupIdx, optionIdx, { quantity: v ?? 0 })}
+                        style={{ width: '100%' }}
+                      />
+                    </OptionField>
+                    <OptionField area="unit" label="Unidad" showLabel={!screens.lg}>
+                      <Select
+                        aria-label={`Unidad de ${option.name || optionIdx + 1} de ${group.name || groupIdx + 1}`}
+                        allowClear
+                        placeholder="Unidad"
+                        value={option.unitId}
+                        disabled={!option.articleId}
+                        options={unitOptions}
+                        onChange={v => updateOption(groupIdx, optionIdx, { unitId: v })}
+                        style={{ width: '100%' }}
+                      />
+                    </OptionField>
+                    <div style={{ gridArea: 'remove', justifySelf: 'end', alignSelf: 'center' }}>
+                      <Popconfirm title="Quitar opción" onConfirm={() => updateGroup(groupIdx, { options: group.options.filter((_, i) => i !== optionIdx) })}>
+                        <Button aria-label={`Quitar opción ${option.name || optionIdx + 1} de ${group.name || groupIdx + 1}`} danger size="small" icon={<DeleteOutlined />} />
+                      </Popconfirm>
+                    </div>
+                    <div style={{ gridArea: 'additional', padding: '0 0 8px 8px', borderBottom: '1px solid #f0f0f0' }}>
                       {(option.additionalIngredients ?? []).map((ingredient, ingredientIdx) => {
                         const update = (patch: Partial<typeof ingredient>) => updateOption(groupIdx, optionIdx, {
                           additionalIngredients: option.additionalIngredients!.map((current, idx) => idx === ingredientIdx ? { ...current, ...patch } : current),
