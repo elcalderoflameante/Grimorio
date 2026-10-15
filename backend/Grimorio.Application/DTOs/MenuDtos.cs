@@ -126,6 +126,7 @@ public class UpdateMenuItemDto
 
 public class UpsertMenuComboComponentDto
 {
+    public List<Guid> SelectableModifierGroupIds { get; set; } = [];
     public List<FixedComboModifier> ModifierSelections { get; set; } = [];
     public Guid ComponentItemId { get; set; }
     public int Quantity { get; set; } = 1;
@@ -177,6 +178,8 @@ public class MenuItemModifierOptionDto
 
 public class MenuItemModifierGroupDto
 {
+    public Guid? QuantitySourceGroupId { get; set; }
+    public List<ModifierQuantityRule> QuantityRules { get; set; } = [];
     public Guid Id { get; set; }
     public Guid MenuItemId { get; set; }
     public string Name { get; set; } = string.Empty;
@@ -204,6 +207,8 @@ public class UpsertMenuItemModifierOptionDto
 
 public class UpsertMenuItemModifierGroupDto
 {
+    public Guid? QuantitySourceGroupId { get; set; }
+    public List<ModifierQuantityRule> QuantityRules { get; set; } = [];
     public Guid? Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public int MinSelections { get; set; }

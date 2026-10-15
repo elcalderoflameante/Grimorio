@@ -1,4 +1,5 @@
 using Grimorio.Domain.Entities.Inventory;
+using Grimorio.Application.DTOs;
 using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.POS;
 using System.Text.Json;
@@ -131,19 +132,19 @@ internal static class MenuRecipeExpansion
     }
 
     public static List<MenuRecipeRequirement> ExpandComponent(MenuComboComponent component, decimal quantity,
-        IReadOnlyCollection<UnitConversionInfo> conversions)
+        IReadOnlyCollection<UnitConversionInfo> conversions, List<OrderItemModifierSelection>? resolvedSelections = null)
     {
         var child = component.ComponentItem ?? throw new InvalidOperationException("Componente de combo no disponible.");
         if (!child.IsActive || !child.AvailableForSale || child.IsDeleted || child.Station is null
             || !child.Station.IsActive || child.Station.IsDeleted || child.Station.BranchId != child.BranchId)
             throw new InvalidOperationException($"El componente {child.Name} o su estacion no esta disponible.");
-        var selections = MenuComboDefinition.ResolveSelections(child, component.ModifierSelections);
+        var selections = resolvedSelections ?? MenuComboDefinition.ResolveSelections(child, component.ModifierSelections, component.SelectableModifierGroupIds);
         var requirements = Expand(child, quantity, conversions);
         var options = child.ModifierGroups.SelectMany(g => g.Options).ToDictionary(o => o.Id);
         foreach (var selection in selections)
         {
             var option = options[selection.ModifierOptionId];
-            foreach (var ingredient in ModifierIngredients.ForOption(option))
+            foreach (var ingredient in ModifierIngredients.ForSelection(selection))
             {
                 if (!option.ConsumptionArticles.TryGetValue(ingredient.ArticleId, out var article) || !article.IsActive)
                     throw new InvalidOperationException($"Revisa el articulo de inventario de {child.Name}: {selection.OptionName}.");
@@ -158,6 +159,12 @@ internal static class MenuRecipeExpansion
         }
         return requirements;
     }
+
+    public static List<MenuRecipeRequirement> ExpandSelected(MenuItem item, CreateOrderItemDto request, decimal quantity,
+        IReadOnlyCollection<UnitConversionInfo> conversions) => item.IsCombo
+        ? (item.LoadedComboDefinition ?? item).ComboComponents.Where(c => !c.IsDeleted)
+            .SelectMany(c => ExpandComponent(c, quantity * c.Quantity, conversions, ComboModifierChoices.Resolve(c, request.ModifierSelections))).ToList()
+        : Expand(item, quantity, conversions);
 
     public static List<MenuRecipeRequirement> ExpandForDisplay(MenuItem item, decimal quantity,
         IReadOnlyCollection<UnitConversionInfo> conversions)

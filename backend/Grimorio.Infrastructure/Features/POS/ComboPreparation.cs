@@ -33,8 +33,9 @@ internal static class ComboPreparation
                 if (child is null || child.BranchId != branchId || child.IsCombo || !child.IsActive || !child.AvailableForSale
                     || child.Station is null || child.Station.IsDeleted || !child.Station.IsActive || child.Station.BranchId != branchId)
                     throw new InvalidOperationException("El combo tiene componentes no disponibles, sin estacion activa o con opciones obligatorias.");
-                var selections = MenuComboDefinition.ResolveSelections(child, component.ModifierSelections);
-                var requirements = MenuRecipeExpansion.ExpandComponent(component, 1, conversions);
+                var selections = ComboModifierChoices.Resolve(component, orderItem.ModifierSelections.Select(s => new CreateModifierSelectionDto
+                    { ModifierOptionId = s.ModifierOptionId, Quantity = s.Quantity }));
+                var requirements = MenuRecipeExpansion.ExpandComponent(component, 1, conversions, selections);
                 var optionNames = string.Join(", ", selections.Select(x => $"{x.GroupName}: {x.OptionName}" + (x.Quantity > 1 ? $" x{x.Quantity}" : "")));
                 if (optionNames.Length > 4000)
                     throw new InvalidOperationException("El resumen de opciones del componente es demasiado largo.");

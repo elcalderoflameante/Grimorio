@@ -7,7 +7,10 @@ namespace Grimorio.Infrastructure.Features.Menu;
 internal static class ModifierIngredients
 {
     public static IEnumerable<ModifierIngredient> ForOption(MenuItemModifierOption option) =>
-        Enumerate(option.ArticleId, option.UnitId, option.Quantity, option.AdditionalIngredients);
+        Enumerate(option.ArticleId, option.UnitId,
+            option.ModifierGroup?.QuantitySourceGroupId.HasValue == true
+                ? option.ModifierGroup.QuantityRules.Select(r => r.Quantity).DefaultIfEmpty(option.Quantity).Min() : option.Quantity,
+            option.AdditionalIngredients);
 
     public static IEnumerable<ModifierIngredient> ForSelection(OrderItemModifierSelection selection) =>
         Enumerate(selection.ArticleId, selection.UnitId, selection.InventoryQuantity,

@@ -13,6 +13,15 @@ import { formatError } from '../../utils/errorHandler';
 
 const { Text } = Typography;
 
+const createModifierId = () => {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0'));
+  return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10).join('')}`;
+};
+
 interface Props {
   itemId: string;
   itemName: string;
@@ -21,6 +30,7 @@ interface Props {
 }
 
 const emptyOption = (displayOrder: number): UpsertMenuItemModifierOptionDto => ({
+  id: createModifierId(),
   name: '',
   quantity: 0,
   priceDelta: 0,
@@ -29,6 +39,7 @@ const emptyOption = (displayOrder: number): UpsertMenuItemModifierOptionDto => (
 });
 
 const emptyGroup = (displayOrder: number): UpsertMenuItemModifierGroupDto => ({
+  id: createModifierId(),
   name: '',
   minSelections: 1,
   maxSelections: 1,
@@ -67,6 +78,8 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
         ]);
         setGroups((detail.data.modifierGroups ?? []).map(g => ({
           id: g.id,
+          quantitySourceGroupId: g.quantitySourceGroupId ?? undefined,
+          quantityRules: g.quantityRules ?? [],
           name: g.name,
           minSelections: g.minSelections,
           maxSelections: g.maxSelections,
@@ -132,8 +145,15 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
       if (group.options.length === 0) return `El grupo ${group.name} requiere opciones.`;
       for (const option of group.options) {
         if (!option.name.trim()) return `Una opción de ${group.name} requiere nombre.`;
-        if (option.articleId && (!option.unitId || option.quantity <= 0)) return `${option.name} requiere unidad y cantidad de inventario.`;
+        if (option.articleId && (!option.unitId || (!group.quantitySourceGroupId && option.quantity <= 0))) return `${option.name} requiere unidad y cantidad de inventario.`;
         if (option.additionalIngredients?.some(i => !i.articleId || !i.unitId || i.quantity <= 0)) return `${option.name}: revisa los consumos adicionales.`;
+      }
+      if (group.quantitySourceGroupId) {
+        const source = groups.find(g => g.id === group.quantitySourceGroupId);
+        if (!source || source.quantitySourceGroupId || source.maxSelections !== 1 || !source.isActive || (!source.isRequired && source.minSelections !== 1)) return `${group.name}: revisa el grupo que determina la cantidad.`;
+        if (source.options.filter(o => o.isActive).some(o => (group.quantityRules?.find(r => r.sourceOptionId === o.id)?.quantity ?? 0) <= 0)) return `${group.name}: configura la cantidad para cada tamaño.`;
+        if (group.options.filter(o => o.isActive).some(o => !o.articleId || !o.unitId)) return `${group.name}: cada sabor requiere artículo y unidad.`;
+        if (new Set(group.options.filter(o => o.isActive).map(o => o.unitId)).size !== 1) return `${group.name}: utiliza la misma unidad en todos los sabores.`;
       }
     }
     return null;
@@ -147,7 +167,12 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
     }
     setSaving(true);
     try {
-      await menuApi.upsertModifiers(itemId, groups);
+      await menuApi.upsertModifiers(itemId, groups.map(group => {
+        const rules = group.quantitySourceGroupId ? groups.find(g => g.id === group.quantitySourceGroupId)!.options.filter(o => o.isActive)
+          .map(o => ({ sourceOptionId: o.id!, quantity: group.quantityRules!.find(r => r.sourceOptionId === o.id)!.quantity })) : [];
+        return { ...group, quantityRules: rules, options: group.options.map(option => ({ ...option,
+          quantity: rules.length ? Math.min(...rules.map(r => r.quantity)) : option.quantity })) };
+      }));
       message.success('Modificadores guardados');
       onClose();
     } catch (e) { message.error(formatError(e)); }
@@ -205,6 +230,24 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
               </Popconfirm>
             </div>
 
+            <div style={{ marginBottom: 12 }}>
+              <Text style={{ display: 'block', marginBottom: 4 }}>Cantidad de inventario según</Text>
+              <Select aria-label={`Cantidad según: ${group.name}`} allowClear placeholder="Cantidad fija por opción" style={{ width: '100%' }}
+                value={group.quantitySourceGroupId} options={groups.filter(g => g.id !== group.id && g.isActive && g.maxSelections === 1
+                  && !g.allowDuplicates && !g.quantitySourceGroupId && (g.isRequired || g.minSelections === 1)).map(g => ({ value: g.id!, label: g.name }))}
+                onChange={id => updateGroup(groupIdx, { quantitySourceGroupId: id, quantityRules: id
+                  ? groups.find(g => g.id === id)!.options.filter(o => o.isActive).map(o => ({ sourceOptionId: o.id!, quantity: 0 })) : [] })} />
+              {group.quantitySourceGroupId && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginTop: 8 }}>
+                {groups.find(g => g.id === group.quantitySourceGroupId)?.options.filter(o => o.isActive).map(sourceOption => <label key={sourceOption.id}>
+                  <Text style={{ display: 'block', fontSize: 12 }}>{sourceOption.name}</Text>
+                  <InputNumber aria-label={`Consumo de ${group.name} para ${sourceOption.name}`} min={0.0001} precision={4} style={{ width: '100%' }}
+                    addonAfter={units.find(u => u.id === group.options.find(o => o.isActive)?.unitId)?.symbol}
+                    value={group.quantityRules?.find(r => r.sourceOptionId === sourceOption.id)?.quantity ?? 0}
+                    onChange={n => updateGroup(groupIdx, { quantityRules: groups.find(g => g.id === group.quantitySourceGroupId)!.options.filter(o => o.isActive)
+                      .map(o => ({ sourceOptionId: o.id!, quantity: o.id === sourceOption.id ? n ?? 0 : group.quantityRules?.find(r => r.sourceOptionId === o.id)?.quantity ?? 0 })) })} />
+                </label>)}
+              </div>}
+            </div>
             <Space orientation="vertical" style={{ width: '100%' }} size={8}>
               {group.options.map((option, optionIdx) => {
                 const compatibleUnitIds = getCompatibleUnitIds(option.articleId);
@@ -274,8 +317,8 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
                     <InputNumber
                       min={0}
                       step={0.01}
-                      value={option.quantity}
-                      disabled={!option.articleId}
+                      value={group.quantitySourceGroupId ? (group.quantityRules?.length ? Math.min(...group.quantityRules.map(r => r.quantity)) : 0) : option.quantity}
+                      disabled={!option.articleId || !!group.quantitySourceGroupId}
                       onChange={v => updateOption(groupIdx, optionIdx, { quantity: v ?? 0 })}
                       style={{ width: '100%' }}
                     />

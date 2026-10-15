@@ -209,6 +209,7 @@ public class MenuItemModifierGroupConfiguration : BaseEntityConfiguration<MenuIt
     {
         base.Configure(builder);
         builder.ToTable("MenuItemModifierGroups", "menu");
+        builder.Property(x => x.QuantityRulesJson).HasColumnType("jsonb").HasDefaultValue("[]").IsRequired();
 
         builder.Property(x => x.Name).IsRequired().HasMaxLength(120);
         builder.Property(x => x.MaxSelections).HasDefaultValue(1);

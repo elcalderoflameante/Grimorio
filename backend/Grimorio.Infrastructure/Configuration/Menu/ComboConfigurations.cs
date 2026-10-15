@@ -13,6 +13,7 @@ public class MenuComboComponentConfiguration : BaseEntityConfiguration<MenuCombo
         builder.ToTable("MenuComboComponents", "menu", table => table.HasCheckConstraint("CK_MenuComboComponents_Quantity", "\"Quantity\" > 0"));
         builder.HasOne(x => x.Combo).WithMany(x => x.ComboComponents).HasForeignKey(x => x.ComboId).OnDelete(DeleteBehavior.Cascade);
         builder.Property(x => x.ModifierSelectionsJson).HasColumnType("jsonb").HasDefaultValue("[]").IsRequired();
+        builder.Property(x => x.SelectableModifierGroupIdsJson).HasColumnType("jsonb").HasDefaultValue("[]").IsRequired();
         builder.HasOne(x => x.ComponentItem).WithMany().HasForeignKey(x => x.ComponentItemId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(x => new { x.ComboId, x.ComponentItemId }).IsUnique().HasFilter("NOT \"IsDeleted\"");
     }

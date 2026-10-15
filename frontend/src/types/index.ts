@@ -1257,7 +1257,7 @@ export interface MenuItemProfitabilityDto {
 
 export interface CreateMenuItemDto {
   isCombo?: boolean;
-  comboComponents?: { componentItemId: string; quantity: number; modifierSelections?: FixedComboModifier[] }[];
+  comboComponents?: { componentItemId: string; quantity: number; modifierSelections?: FixedComboModifier[]; selectableModifierGroupIds?: string[] }[];
   menuCategoryId: string;
   name: string;
   generalName: string;
@@ -1277,6 +1277,7 @@ export interface UpdateMenuItemDto extends CreateMenuItemDto {
 }
 
 export interface MenuComboComponentDto {
+  selectableModifierGroupIds?: string[];
   modifierSelections?: FixedComboModifier[];
   componentItemId: string;
   quantity: number;
@@ -1294,6 +1295,11 @@ export interface FixedComboModifier {
 export interface ModifierIngredient {
   articleId: string;
   unitId: string;
+  quantity: number;
+}
+
+export interface ModifierQuantityRule {
+  sourceOptionId: string;
   quantity: number;
 }
 
@@ -1419,6 +1425,8 @@ export interface MenuItemModifierOptionDto {
 }
 
 export interface MenuItemModifierGroupDto {
+  quantitySourceGroupId?: string;
+  quantityRules?: ModifierQuantityRule[];
   id: string;
   menuItemId: string;
   name: string;
@@ -1444,6 +1452,8 @@ export interface UpsertMenuItemModifierOptionDto {
 }
 
 export interface UpsertMenuItemModifierGroupDto {
+  quantitySourceGroupId?: string;
+  quantityRules?: ModifierQuantityRule[];
   id?: string;
   name: string;
   minSelections: number;

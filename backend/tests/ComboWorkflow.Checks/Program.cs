@@ -5,6 +5,7 @@ using Grimorio.Application.Features.POS.Commands;
 using Grimorio.Application.Features.POS.Queries;
 using Grimorio.Application.Features.Billing.Commands;
 using Grimorio.Application.Features.Billing.Queries;
+using Grimorio.Application.Features.Inventory.Commands;
 using Grimorio.Application.Features.TableService.Commands;
 using Grimorio.Application.Features.TableService.Queries;
 using Grimorio.Domain.Entities.Auth;
@@ -368,4 +369,120 @@ var unavailable = (await Send(new GetMenuAvailabilityQuery { BranchId = branch.I
 Check(!unavailable.IsAvailable, "Removed fixed option disables affected combo without breaking catalog");
 await Reject(Order(1, fixedCombo.Id), "modificador");
 await Send(new GetMenuProfitabilityQuery { BranchId = branch.Id });
+// A sauce is a separate choice whose consumed quantity depends on the selected size.
+var grams = new MeasurementUnit { BranchId = branch.Id, Name = "Gramo", Symbol = "g" };
+var bbq = new InventoryArticle { BranchId = branch.Id, Name = "BBQ", CategoryId = inventoryCategory.Id, BaseUnitId = grams.Id, Type = ArticleType.Ingredient };
+var teriyaki = new InventoryArticle { BranchId = branch.Id, Name = "Teriyaki", CategoryId = inventoryCategory.Id, BaseUnitId = grams.Id, Type = ArticleType.Ingredient };
+var sizedRibs = new MenuItem { BranchId = branch.Id, Name = "Costillas por tamano", GeneralName = "Costillas por tamano", InternalCode = "M-SIZE01",
+    MenuCategoryId = category.Id, StationId = stations[1].Id, Price = 9 };
+await Read(async db =>
+{
+    db.AddRange(grams, bbq, teriyaki, sizedRibs);
+    foreach (var article in new[] { bbq, teriyaki })
+    {
+        db.WarehouseStock.Add(new WarehouseStock { BranchId = branch.Id, ArticleId = article.Id, WarehouseId = warehouse.Id, Quantity = 10000 });
+        db.StockMovements.Add(new StockMovement { BranchId = branch.Id, ArticleId = article.Id, WarehouseId = warehouse.Id,
+            Type = MovementType.InitialInventory, UnitId = grams.Id, Quantity = 10000, BaseQuantity = 10000, UnitCost = 1, TotalCost = 10000 });
+    }
+    await db.SaveChangesAsync();
+});
+var sizeId = Guid.NewGuid(); var smallId = Guid.NewGuid(); var mediumId = Guid.NewGuid(); var largeId = Guid.NewGuid();
+var sauceId = Guid.NewGuid(); var bbqId = Guid.NewGuid(); var teriyakiId = Guid.NewGuid();
+var dependentRequest = new UpsertMenuItemModifiersCommand { BranchId = branch.Id, MenuItemId = sizedRibs.Id,
+    Groups = [new() { Id = sizeId, Name = "Tamano", DisplayOrder = 1, IsRequired = true, MinSelections = 1, MaxSelections = 1,
+        Options = [new() { Id = smallId, Name = "300 g", ArticleId = ribsArticle.Id, UnitId = unit.Id, Quantity = 1 },
+            new() { Id = mediumId, Name = "600 g", ArticleId = ribsArticle.Id, UnitId = unit.Id, Quantity = 2, PriceDelta = 5 },
+            new() { Id = largeId, Name = "1000 g", ArticleId = ribsArticle.Id, UnitId = unit.Id, Quantity = 3, PriceDelta = 9 }] },
+        new() { Id = sauceId, Name = "Salsa", DisplayOrder = 2, IsRequired = true, MinSelections = 1, MaxSelections = 1,
+            QuantitySourceGroupId = sizeId, QuantityRules = [new(smallId, 30), new(mediumId, 50), new(largeId, 80)],
+            Options = [new() { Id = bbqId, Name = "BBQ", ArticleId = bbq.Id, UnitId = grams.Id, Quantity = 30 },
+                new() { Id = teriyakiId, Name = "Teriyaki", ArticleId = teriyaki.Id, UnitId = grams.Id, Quantity = 30 }] }] };
+var dependentGroups = await Send(dependentRequest);
+Check(dependentGroups.Single(g => g.Id == sauceId).QuantityRules.Count == 3, "Size-dependent sauce rules persisted");
+CreateOrderCommand SizedOrder(Guid size, Guid sauce, int quantity = 1) => new() { BranchId = branch.Id, Type = "Takeout",
+    Items = [new() { MenuItemId = sizedRibs.Id, Quantity = quantity, ModifierSelections =
+        [new() { ModifierOptionId = size, Quantity = 1 }, new() { ModifierOptionId = sauce, Quantity = 1 }] }] };
+foreach (var (size, meat, sauceQuantity, price) in new[] { (smallId, 1m, 30m, 9m), (mediumId, 2m, 50m, 14m), (largeId, 3m, 80m, 18m) })
+{
+    var sample = await Send(SizedOrder(size, bbqId));
+    Check(sample.Total == price, "Individual price follows size");
+    await Send(new ConfirmOrderCommand { BranchId = branch.Id, OrderId = sample.Id });
+    await Read(async db =>
+    {
+        var reservations = await db.StockReservations.Where(r => r.OrderId == sample.Id && r.Status == StockReservationStatus.Active).ToListAsync();
+        Check(reservations.Single(r => r.ArticleId == ribsArticle.Id).BaseQuantity == meat
+            && reservations.Single(r => r.ArticleId == bbq.Id).BaseQuantity == sauceQuantity
+            && reservations.All(r => r.ArticleId != teriyaki.Id), "Size consumes correct meat and only chosen sauce");
+    });
+    await Send(new CancelOrderCommand { BranchId = branch.Id, OrderId = sample.Id });
+}
+var dependentOrder = await Send(SizedOrder(mediumId, teriyakiId, 2));
+await Send(new ConfirmOrderCommand { BranchId = branch.Id, OrderId = dependentOrder.Id });
+dependentRequest.Groups[1].QuantityRules = [new(smallId, 30), new(mediumId, 70), new(largeId, 80)];
+await Send(dependentRequest);
+var dependentPay = new PayOrderCommand { BranchId = branch.Id, OrderId = dependentOrder.Id, UserId = user.Id, CashSessionId = session.Id,
+    IdempotencyKey = Guid.NewGuid(), OrderAmount = 14, Lines = [new() { MethodId = cash.Id, AmountTendered = 14 }],
+    Items = [new() { OrderItemId = dependentOrder.Items.Single().Id, Quantity = 1 }] };
+var dependentReceipt = await Send(dependentPay);
+Check((await Send(dependentPay)).Id == dependentReceipt.Id, "Dependent consumption payment idempotent");
+await Read(async db => Check((await db.WarehouseStock.SingleAsync(s => s.ArticleId == teriyaki.Id)).Quantity == 9950,
+    "Paid consumption retains original 50g rule after changing it to 70g"));
+var choiceCombo = await Send(Definition([new() { ComponentItemId = sizedRibs.Id, Quantity = 2,
+    ModifierSelections = [new(smallId)], SelectableModifierGroupIds = [sauceId] }, new() { ComponentItemId = smallDrink.Id }]));
+var choiceDetail = (await Send(new GetMenuItemDetailQuery { BranchId = branch.Id, Id = choiceCombo.Id }))!;
+Check(choiceDetail.HasModifiers && choiceDetail.ModifierGroups.Count == 1
+    && choiceDetail.ModifierGroups.Single().Options.All(o => o.PriceDelta == 0 && o.Quantity == 60), "Combo exposes only sauce with fixed-size quantity and no price surcharge");
+Check((await Send(new GetMenuItemsQuery { BranchId = branch.Id, Lightweight = true })).Single(i => i.Id == choiceCombo.Id).HasModifiers,
+    "Lightweight catalog advertises combo customer choices");
+await Reject(Order(1, choiceCombo.Id), "seleccionar al menos");
+await Reject(new CreateOrderCommand { BranchId = branch.Id, Type = "Takeout", Items = [new() { MenuItemId = choiceCombo.Id, Quantity = 1,
+    ModifierSelections = [new() { ModifierOptionId = mediumId, Quantity = 1 }] }] }, "eleccion del cliente");
+var choiceOrder = await Send(new CreateOrderCommand { BranchId = branch.Id, Type = "Takeout", Items = [new() { MenuItemId = choiceCombo.Id, Quantity = 2,
+    ModifierSelections = [new() { ModifierOptionId = bbqId, Quantity = 1 }] }] });
+Check(choiceOrder.Total == 30 && choiceOrder.Items.Single().ModifierSelections.Single().UnitPriceDelta == 0,
+    "Combo customer choice preserves parent price");
+await Send(new ConfirmOrderCommand { BranchId = branch.Id, OrderId = choiceOrder.Id });
+await Read(async db =>
+{
+    var reservations = await db.StockReservations.Where(r => r.OrderId == choiceOrder.Id && r.Status == StockReservationStatus.Active).ToListAsync();
+    Check(reservations.Single(r => r.ArticleId == bbq.Id).BaseQuantity == 120
+        && reservations.Single(r => r.ArticleId == ribsArticle.Id).BaseQuantity == 4, "Combo and component quantities multiply once without double consumption");
+});
+Check((await Send(new GetItemsByStationQuery { BranchId = branch.Id, StationId = stations[1].Id })).Single(i => i.OrderId == choiceOrder.Id).Notes!.Contains("BBQ"),
+    "Kitchen receives size and chosen sauce");
+dependentRequest.Groups[1].QuantityRules = [new(smallId, 45), new(mediumId, 70), new(largeId, 80)];
+await Send(dependentRequest);
+await Send(new PayOrderCommand { BranchId = branch.Id, OrderId = choiceOrder.Id, UserId = user.Id, CashSessionId = session.Id,
+    IdempotencyKey = Guid.NewGuid(), OrderAmount = 15, Lines = [new() { MethodId = cash.Id, AmountTendered = 15 }],
+    Items = [new() { OrderItemId = choiceOrder.Items.Single().Id, Quantity = 1 }] });
+await Read(async db => Check((await db.WarehouseStock.SingleAsync(s => s.ArticleId == bbq.Id)).Quantity == 9940,
+    "Combo payment retains original chosen sauce quantity after rule changes"));
+await Send(new CancelOrderCommand { BranchId = branch.Id, OrderId = qrFixed.Order.Id });
+var choicePublicMenu = await Send(new GetPublicTableMenuQuery { TableToken = table.PublicToken });
+Check(choicePublicMenu.Items.Single(i => i.Id == choiceCombo.Id).ModifierGroups.Count == 1, "QR catalog exposes combo sauce choices");
+var choiceQr = await Send(new PublicCreateDraftOrderCommand { TableToken = table.PublicToken, IdempotencyKey = Guid.NewGuid(),
+    Items = [new() { MenuItemId = choiceCombo.Id, Quantity = 1, ExpectedUnitPrice = 15,
+        ModifierSelections = [new() { ModifierOptionId = teriyakiId, Quantity = 1 }] }] });
+await Send(new ConfirmOrderCommand { BranchId = branch.Id, OrderId = choiceQr.Order.Id });
+await Read(async db => Check((await db.StockReservations.SingleAsync(r => r.OrderId == choiceQr.Order.Id && r.ArticleId == teriyaki.Id
+    && r.Status == StockReservationStatus.Active)).BaseQuantity == 90, "QR combo resolves fixed size and selected sauce"));
+await Send(new CancelOrderCommand { BranchId = branch.Id, OrderId = choiceQr.Order.Id });
+decimal stockToRemove = 0;
+await Read(async db =>
+{
+    var reserved = await db.StockReservations.Where(r => r.ArticleId == teriyaki.Id && r.Status == StockReservationStatus.Active).SumAsync(r => r.BaseQuantity);
+    var stock = (await db.WarehouseStock.SingleAsync(s => s.ArticleId == teriyaki.Id)).Quantity;
+    stockToRemove = stock - reserved - 20;
+});
+await Send(new RegisterMovementCommand { BranchId = branch.Id, ArticleId = teriyaki.Id, WarehouseId = warehouse.Id,
+    Type = MovementType.NegativeAdjustment, UnitId = grams.Id, Quantity = stockToRemove, Reference = "Size sauce shortage checks" });
+var shortage = await Send(SizedOrder(largeId, teriyakiId));
+await Reject(new ConfirmOrderCommand { BranchId = branch.Id, OrderId = shortage.Id }, "Stock insuficiente");
+await Read(async db => Check((await db.Orders.SingleAsync(o => o.Id == shortage.Id)).Status == OrderStatus.Draft
+    && !await db.StockReservations.AnyAsync(r => r.OrderId == shortage.Id), "Insufficient selected sauce rolls back confirmation and all ingredient reservations"));
+await Reject(new PublicCreateDraftOrderCommand { TableToken = table.PublicToken, IdempotencyKey = Guid.NewGuid(),
+    Items = [new() { MenuItemId = sizedRibs.Id, Quantity = 1, ExpectedUnitPrice = 18,
+        ModifierSelections = [new() { ModifierOptionId = largeId, Quantity = 1 }, new() { ModifierOptionId = teriyakiId, Quantity = 1 }] }] }, "disponible");
+dependentRequest.Groups[1].QuantityRules = [new(smallId, 30)];
+await Reject(dependentRequest, "cada tamano");
 Console.WriteLine($"Combo workflow checks passed: {count}. Real isolated PostgreSQL, no SRI or email.");

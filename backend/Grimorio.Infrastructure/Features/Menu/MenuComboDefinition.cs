@@ -47,7 +47,7 @@ internal static class MenuComboDefinition
             if (!children.TryGetValue(component.ComponentItemId, out var child) || child.IsCombo || !child.IsActive
                 || !child.AvailableForSale || child.Station is null || !child.Station.IsActive || child.Station.BranchId != item.BranchId)
                 throw new InvalidOperationException("Cada componente debe ser un plato activo y disponible de la sucursal, con una estacion activa asignada.");
-            ResolveSelections(child, component.ModifierSelections);
+            ResolveSelections(child, component.ModifierSelections, component.SelectableModifierGroupIds);
         }
         var existing = await db.MenuComboComponents.Where(x => x.ComboId == item.Id && !x.IsDeleted).ToListAsync(ct);
         foreach (var old in existing) old.IsDeleted = !ids.Contains(old.ComponentItemId);
@@ -62,23 +62,31 @@ internal static class MenuComboDefinition
             }
             row.Quantity = component.Quantity;
             row.ModifierSelections = component.ModifierSelections;
+            row.SelectableModifierGroupIds = component.SelectableModifierGroupIds;
             row.ComponentItem = children[component.ComponentItemId];
         }
         item.IsCombo = isCombo;
         if (isCombo) item.StationId = null;
     }
 
-    public static List<MenuComboComponentDto> Map(MenuItem item) => item.ComboComponents.Where(x => !x.IsDeleted)
+    public static List<MenuComboComponentDto> Map(MenuItem item) => (item.LoadedComboDefinition ?? item).ComboComponents.Where(x => !x.IsDeleted)
         .Select(x => new MenuComboComponentDto
         {
             ComponentItemId = x.ComponentItemId, Quantity = x.Quantity,
             ModifierSelections = x.ModifierSelections,
+            SelectableModifierGroupIds = x.SelectableModifierGroupIds,
             Name = x.ComponentItem?.Name ?? string.Empty, GeneralName = x.ComponentItem?.GeneralName ?? string.Empty,
             StationId = x.ComponentItem?.StationId, StationName = x.ComponentItem?.Station?.Name,
         }).ToList();
 
-    internal static List<OrderItemModifierSelection> ResolveSelections(MenuItem item, List<FixedComboModifier> selections)
+    internal static List<OrderItemModifierSelection> ResolveSelections(MenuItem item, List<FixedComboModifier> selections,
+        List<Guid>? selectableGroups = null)
     {
+        var pending = (selectableGroups ?? []).ToHashSet();
+        if (pending.Any(id => !item.ModifierGroups.Any(g => g.Id == id && g.IsActive && !g.IsDeleted))
+            || item.ModifierGroups.Where(g => pending.Contains(g.Id)).SelectMany(g => g.Options)
+                .Any(o => selections.Any(s => s.ModifierOptionId == o.Id)))
+            throw new InvalidOperationException("Un grupo debe estar fijado o a eleccion del cliente, no ambos.");
         if (selections.Count > 100 || selections.Any(x => x.Quantity is < 1 or > 100))
             throw new InvalidOperationException("Revisa las cantidades de las opciones fijadas del combo.");
         return PosMapper.BuildModifierSelections(item.BranchId, new CreateOrderItemDto
@@ -86,6 +94,6 @@ internal static class MenuComboDefinition
             MenuItemId = item.Id, Quantity = 1,
             ModifierSelections = selections.Select(x => new CreateModifierSelectionDto
                 { ModifierOptionId = x.ModifierOptionId, Quantity = x.Quantity }).ToList(),
-        }, item);
+        }, item, pending);
     }
 }

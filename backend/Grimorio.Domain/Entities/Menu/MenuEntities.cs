@@ -41,6 +41,8 @@ public class MenuItem : BaseEntity
     public Guid? StationId { get; set; }
     public Guid? TaxRateId { get; set; }
     public bool IsCombo { get; set; }
+    [NotMapped]
+    public MenuItem? LoadedComboDefinition { get; set; }
     public virtual ICollection<MenuComboComponent> ComboComponents { get; set; } = [];
 
     public virtual MenuCategory? Category { get; set; }
@@ -53,6 +55,13 @@ public class MenuItem : BaseEntity
 
 public class MenuComboComponent : BaseEntity
 {
+    public string SelectableModifierGroupIdsJson { get; set; } = "[]";
+    [NotMapped]
+    public List<Guid> SelectableModifierGroupIds
+    {
+        get => JsonSerializer.Deserialize<List<Guid>>(SelectableModifierGroupIdsJson) ?? [];
+        set => SelectableModifierGroupIdsJson = JsonSerializer.Serialize(value);
+    }
     public string ModifierSelectionsJson { get; set; } = "[]";
     [NotMapped]
     public List<FixedComboModifier> ModifierSelections
@@ -94,6 +103,14 @@ public class MenuItemPreparationStep : BaseEntity
 
 public class MenuItemModifierGroup : BaseEntity
 {
+    public Guid? QuantitySourceGroupId { get; set; }
+    public string QuantityRulesJson { get; set; } = "[]";
+    [NotMapped]
+    public List<ModifierQuantityRule> QuantityRules
+    {
+        get => JsonSerializer.Deserialize<List<ModifierQuantityRule>>(QuantityRulesJson) ?? [];
+        set => QuantityRulesJson = JsonSerializer.Serialize(value);
+    }
     public Guid MenuItemId { get; set; }
     public string Name { get; set; } = string.Empty;
     public int MinSelections { get; set; }
@@ -156,6 +173,7 @@ public enum RecipeIngredientType
 
 public sealed record ModifierIngredient(Guid ArticleId, Guid UnitId, decimal Quantity);
 public sealed record FixedComboModifier(Guid ModifierOptionId, int Quantity = 1);
+public sealed record ModifierQuantityRule(Guid SourceOptionId, decimal Quantity);
 
 public class SubRecipe : BaseEntity
 {

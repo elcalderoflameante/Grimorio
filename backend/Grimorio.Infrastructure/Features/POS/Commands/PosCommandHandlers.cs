@@ -3,6 +3,7 @@ using Grimorio.Application.Features.POS.Commands;
 using Grimorio.Domain.Entities.Billing;
 using Grimorio.Domain.Entities.POS;
 using Grimorio.Infrastructure.Features.Inventory;
+using Grimorio.Infrastructure.Features.Menu;
 using Grimorio.Infrastructure.Features.POS;
 using Grimorio.Infrastructure.Persistence;
 using Grimorio.Infrastructure.Services;
@@ -277,6 +278,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
             .Include(m => m.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
                 .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
             .ToListAsync(ct);
+        await ComboModifierChoices.LoadAsync(_db, req.BranchId, menuItems, ct);
         var localNow = await PosPromotionCommandHelper.GetLocalNowAsync(_db, req.BranchId, ct);
         var activePromotions = await PosMapper.LoadActivePromotionsAsync(_db, req.BranchId, localNow, ct);
 
@@ -391,6 +393,7 @@ public class CreateDirectSaleCommandHandler : IRequestHandler<CreateDirectSaleCo
             .Include(m => m.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
                 .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
             .ToListAsync(ct);
+        await ComboModifierChoices.LoadAsync(_db, req.BranchId, menuItems, ct);
         var localNow = await PosPromotionCommandHelper.GetLocalNowAsync(_db, req.BranchId, ct);
         var activePromotions = await PosMapper.LoadActivePromotionsAsync(_db, req.BranchId, localNow, ct);
 
@@ -519,6 +522,7 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
             .Include(m => m.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
                 .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
             .ToListAsync(ct);
+        await ComboModifierChoices.LoadAsync(_db, req.BranchId, menuItems, ct);
         var localNow = await PosPromotionCommandHelper.GetLocalNowAsync(_db, req.BranchId, ct);
         var activePromotions = await PosMapper.LoadActivePromotionsAsync(_db, req.BranchId, localNow, ct);
 
@@ -1604,8 +1608,10 @@ internal static class PosMapper
     public static List<OrderItemModifierSelection> BuildModifierSelections(
         Guid branchId,
         CreateOrderItemDto itemDto,
-        Grimorio.Domain.Entities.Menu.MenuItem menuItem)
+        Grimorio.Domain.Entities.Menu.MenuItem menuItem,
+        IReadOnlySet<Guid>? pendingGroups = null)
     {
+        if (menuItem.IsCombo) return ComboModifierChoices.BuildSelections(menuItem, itemDto.ModifierSelections);
         var groups = menuItem.ModifierGroups
             .Where(g => !g.IsDeleted && g.IsActive)
             .ToList();
@@ -1666,7 +1672,7 @@ internal static class PosMapper
             var selectedCount = selections?.Sum(s => s.Quantity) ?? 0;
             var minSelections = group.IsRequired && group.MinSelections == 0 ? 1 : group.MinSelections;
 
-            if (selectedCount < minSelections)
+            if (selectedCount < minSelections && pendingGroups?.Contains(group.Id) != true)
                 throw new InvalidOperationException($"Debes seleccionar al menos {minSelections} opción(es) en {group.Name}.");
             if (selectedCount > group.MaxSelections)
                 throw new InvalidOperationException($"Solo puedes seleccionar hasta {group.MaxSelections} opción(es) en {group.Name}.");
@@ -1680,6 +1686,21 @@ internal static class PosMapper
             }
         }
 
+        foreach (var group in groups.Where(g => g.QuantitySourceGroupId.HasValue))
+        {
+            if (!selectionsByGroup.TryGetValue(group.Id, out var dependent)) continue;
+            if (!selectionsByGroup.TryGetValue(group.QuantitySourceGroupId!.Value, out var sources) || sources.Count != 1 || sources[0].Quantity != 1)
+                throw new InvalidOperationException($"Selecciona primero el tamano que determina la cantidad de {group.Name}.");
+            var rule = group.QuantityRules.SingleOrDefault(r => r.SourceOptionId == sources[0].ModifierOptionId)
+                ?? throw new InvalidOperationException($"No existe una cantidad de {group.Name} configurada para el tamano seleccionado.");
+            if (rule.Quantity <= 0) throw new InvalidOperationException("La cantidad dependiente debe ser mayor a cero.");
+            foreach (var selection in dependent)
+            {
+                if (!selection.ArticleId.HasValue || !selection.UnitId.HasValue)
+                    throw new InvalidOperationException($"Configura el articulo y unidad de {selection.OptionName}.");
+                selection.InventoryQuantity = rule.Quantity;
+            }
+        }
         return selectionsByGroup.Values.SelectMany(x => x).ToList();
     }
 

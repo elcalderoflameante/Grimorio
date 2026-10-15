@@ -334,7 +334,7 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
             if (!PublicMenuAvailability.IsMenuItemAvailable(menuItem, remainingStock, conversions, itemDto.Quantity))
                 throw new InvalidOperationException($"{menuItem.Name} ya no está disponible en este momento.");
 
-            foreach (var ingredient in MenuRecipeExpansion.Expand(menuItem, itemDto.Quantity, conversions))
+            foreach (var ingredient in MenuRecipeExpansion.ExpandSelected(menuItem, itemDto, itemDto.Quantity, conversions))
             {
                 if (ingredient.BaseQuantity <= 0 || remainingStock.GetValueOrDefault(ingredient.ArticleId) < ingredient.BaseQuantity)
                     throw new InvalidOperationException($"{menuItem.Name} ya no está disponible en este momento.");
@@ -344,12 +344,19 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
             var modifierSelections = PosMapper.BuildModifierSelections(table.BranchId, itemDto, menuItem);
             foreach (var selection in modifierSelections)
             {
+                if (menuItem.IsCombo) continue;
                 var option = menuItem.ModifierGroups
                     .SelectMany(group => group.Options)
                     .FirstOrDefault(o => o.Id == selection.ModifierOptionId);
 
-                if (option is null || !PublicMenuAvailability.IsModifierOptionAvailable(
-                    option,
+                var effectiveOption = option is null ? null : new MenuItemModifierOption
+                {
+                    IsActive = option.IsActive, ArticleId = selection.ArticleId, UnitId = selection.UnitId,
+                    Quantity = selection.InventoryQuantity, AdditionalIngredientsJson = selection.AdditionalIngredientsJson,
+                    ConsumptionArticles = option.ConsumptionArticles, Article = option.Article,
+                };
+                if (effectiveOption is null || !PublicMenuAvailability.IsModifierOptionAvailable(
+                    effectiveOption,
                     remainingStock,
                     conversions,
                     selection.Quantity * itemDto.Quantity))
@@ -357,9 +364,9 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
                     throw new InvalidOperationException($"La opción {selection.OptionName} ya no está disponible.");
                 }
 
-                foreach (var ingredient in ModifierIngredients.ForOption(option))
+                foreach (var ingredient in ModifierIngredients.ForSelection(selection))
                 {
-                    var article = option.ConsumptionArticles[ingredient.ArticleId];
+                    var article = effectiveOption.ConsumptionArticles[ingredient.ArticleId];
                     var required = PublicMenuAvailability.ConvertQuantity(
                         ingredient.Quantity * selection.Quantity * itemDto.Quantity,
                         ingredient.UnitId,

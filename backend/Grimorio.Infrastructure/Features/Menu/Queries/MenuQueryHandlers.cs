@@ -104,7 +104,8 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
                     TaxRateName = x.TaxRate != null ? x.TaxRate.Name : null,
                     TaxRatePercentage = x.TaxRate != null ? x.TaxRate.Percentage : null,
                     TaxRateSriCode = x.TaxRate != null ? x.TaxRate.SriCode : null,
-                    HasModifiers = x.ModifierGroups.Any(g => !g.IsDeleted && g.IsActive),
+                    HasModifiers = x.ModifierGroups.Any(g => !g.IsDeleted && g.IsActive)
+                        || x.ComboComponents.Any(c => !c.IsDeleted && c.SelectableModifierGroupIdsJson != "[]"),
                 })
                 .ToListAsync(ct);
         }
@@ -116,6 +117,7 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
             .ThenBy(x => x.DisplayOrder)
             .ThenBy(x => x.Name)
             .ToListAsync(ct);
+        await ComboModifierChoices.LoadAsync(_db, req.BranchId, items, ct);
 
         return items.Select(x => new MenuItemDto
         {
@@ -141,8 +143,8 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
             TaxRateName = x.TaxRate?.Name,
             TaxRatePercentage = x.TaxRate?.Percentage,
             TaxRateSriCode = x.TaxRate?.SriCode,
-            HasModifiers = x.ModifierGroups.Any(g => !g.IsDeleted && g.IsActive),
-            ModifierGroups = MenuMapper.MapModifierGroups(x.ModifierGroups
+            HasModifiers = ComboModifierChoices.Groups(x).Any(),
+            ModifierGroups = MenuMapper.MapModifierGroups(ComboModifierChoices.Groups(x)
                 .Where(g => !g.IsDeleted && g.IsActive)
                 .OrderBy(g => g.DisplayOrder)
                 .ThenBy(g => g.Name)
@@ -178,6 +180,7 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
             .FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId, ct);
 
         if (item is null) return null;
+        await ComboModifierChoices.LoadAsync(_db, req.BranchId, [item], ct);
         var modifierAvailability = await BuildModifierAvailabilityAsync(item, req.BranchId, ct);
 
         var dto = new MenuItemDetailDto
@@ -204,8 +207,8 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
             TaxRateName = item.TaxRate?.Name,
             TaxRatePercentage = item.TaxRate?.Percentage,
             TaxRateSriCode = item.TaxRate?.SriCode,
-            HasModifiers = item.ModifierGroups.Any(g => !g.IsDeleted && g.IsActive),
-            ModifierGroups = MenuMapper.MapModifierGroups(item.ModifierGroups
+            HasModifiers = ComboModifierChoices.Groups(item).Any(),
+            ModifierGroups = MenuMapper.MapModifierGroups(ComboModifierChoices.Groups(item)
                 .Where(g => !g.IsDeleted && g.IsActive)
                 .OrderBy(g => g.DisplayOrder)
                 .ThenBy(g => g.Name)
@@ -225,7 +228,7 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
         Guid branchId,
         CancellationToken ct)
     {
-        var trackedOptions = item.ModifierGroups
+        var trackedOptions = ComboModifierChoices.Groups(item)
             .Where(g => !g.IsDeleted && g.IsActive)
             .SelectMany(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
             .Where(o => ModifierIngredients.ForOption(o).Any())

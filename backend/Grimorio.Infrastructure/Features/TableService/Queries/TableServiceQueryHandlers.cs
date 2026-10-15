@@ -215,8 +215,8 @@ public class GetPublicTableMenuQueryHandler : IRequestHandler<GetPublicTableMenu
                 DisplayOrder = item.DisplayOrder,
                 SaleVisibility = item.SaleVisibility.ToString(),
                 IsAvailable = availability.MenuItems.GetValueOrDefault(item.Id, true),
-                HasModifiers = item.ModifierGroups.Any(g => !g.IsDeleted && g.IsActive),
-                ModifierGroups = item.ModifierGroups
+                HasModifiers = ComboModifierChoices.Groups(item).Any(),
+                ModifierGroups = ComboModifierChoices.Groups(item)
                     .Where(g => !g.IsDeleted && g.IsActive)
                     .OrderBy(g => g.DisplayOrder)
                     .ThenBy(g => g.Name)
@@ -241,7 +241,7 @@ public class GetPublicTableMenuQueryHandler : IRequestHandler<GetPublicTableMenu
                                 Name = option.Name,
                                 PriceDelta = option.PriceDelta,
                                 DisplayOrder = option.DisplayOrder,
-                                IsAvailable = availability.ModifierOptions.GetValueOrDefault(option.Id, true),
+                                IsAvailable = availability.ModifierOptions.GetValueOrDefault((item.Id, option.Id), true),
                             })
                             .ToList(),
                     })
@@ -397,7 +397,7 @@ public class GetTableServiceRequestsQueryHandler : IRequestHandler<GetTableServi
 internal sealed class PublicMenuAvailabilityResult
 {
     public Dictionary<Guid, bool> MenuItems { get; init; } = [];
-    public Dictionary<Guid, bool> ModifierOptions { get; init; } = [];
+    public Dictionary<(Guid MenuItemId, Guid OptionId), bool> ModifierOptions { get; init; } = [];
 }
 
 internal static class PublicMenuAvailability
@@ -416,7 +416,7 @@ internal static class PublicMenuAvailability
 
         var articleIds = menuItems
             .SelectMany(item => MenuRecipeExpansion.ExpandForDisplay(item, 1, conversions).Select(r => r.ArticleId))
-            .Concat(menuItems.SelectMany(item => item.ModifierGroups
+            .Concat(menuItems.SelectMany(item => ComboModifierChoices.Groups(item)
                 .Where(g => !g.IsDeleted && g.IsActive)
                 .SelectMany(g => g.Options
                     .Where(o => !o.IsDeleted && o.IsActive)
@@ -454,11 +454,11 @@ internal static class PublicMenuAvailability
         {
             result.MenuItems[item.Id] = IsMenuItemAvailable(item, stockByArticle, conversions);
 
-            foreach (var option in item.ModifierGroups
+            foreach (var option in ComboModifierChoices.Groups(item)
                 .Where(g => !g.IsDeleted && g.IsActive)
                 .SelectMany(g => g.Options.Where(o => !o.IsDeleted && o.IsActive)))
             {
-                result.ModifierOptions[option.Id] = IsModifierOptionAvailable(option, stockByArticle, conversions);
+                result.ModifierOptions[(item.Id, option.Id)] = IsModifierOptionAvailable(option, stockByArticle, conversions);
             }
         }
 

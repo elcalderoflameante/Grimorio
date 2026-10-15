@@ -387,13 +387,42 @@ public class UpsertMenuItemModifiersHandler : IRequestHandler<UpsertMenuItemModi
             .Where(g => g.MenuItemId == req.MenuItemId && g.BranchId == req.BranchId && !g.IsDeleted)
             .ToListAsync(ct);
 
+        foreach (var group in req.Groups)
+        {
+            group.Id ??= Guid.NewGuid();
+            foreach (var option in group.Options) option.Id ??= Guid.NewGuid();
+        }
         var suppliedIds = req.Groups.Where(g => g.Id.HasValue).Select(g => g.Id!.Value).ToList();
         var suppliedOptionIds = req.Groups.SelectMany(g => g.Options).Where(o => o.Id.HasValue).Select(o => o.Id!.Value).ToList();
-        if (suppliedIds.Distinct().Count() != suppliedIds.Count || suppliedOptionIds.Distinct().Count() != suppliedOptionIds.Count
-            || suppliedIds.Any(id => existingGroups.All(g => g.Id != id))
-            || req.Groups.Any(g => g.Options.Any(o => o.Id.HasValue
-                && !existingGroups.Any(old => old.Id == g.Id && old.Options.Any(option => option.Id == o.Id && !option.IsDeleted)))))
+        if (suppliedIds.Contains(Guid.Empty) || suppliedOptionIds.Contains(Guid.Empty)
+            || suppliedIds.Distinct().Count() != suppliedIds.Count || suppliedOptionIds.Distinct().Count() != suppliedOptionIds.Count
+            || await _db.MenuItemModifierGroups.AnyAsync(g => suppliedIds.Contains(g.Id)
+                && (g.MenuItemId != req.MenuItemId || g.BranchId != req.BranchId || g.IsDeleted), ct)
+            || await _db.MenuItemModifierOptions.AnyAsync(o => suppliedOptionIds.Contains(o.Id)
+                && (o.BranchId != req.BranchId || o.IsDeleted || !suppliedIds.Contains(o.ModifierGroupId)), ct)
+            || req.Groups.Any(g => g.Options.Any(o => existingGroups.Any(old => old.Id != g.Id && old.Options.Any(option => option.Id == o.Id)))))
             throw new InvalidOperationException("Los identificadores de las opciones no corresponden a este plato.");
+
+        foreach (var group in req.Groups)
+        {
+            if (!group.QuantitySourceGroupId.HasValue)
+            {
+                if (group.QuantityRules.Count > 0) throw new InvalidOperationException("Selecciona el grupo que determina la cantidad.");
+                continue;
+            }
+            var source = req.Groups.SingleOrDefault(g => g.Id == group.QuantitySourceGroupId);
+            if (source is null || source.Id == group.Id || !source.IsActive || source.QuantitySourceGroupId.HasValue
+                || source.MaxSelections != 1 || (!source.IsRequired && source.MinSelections != 1) || source.AllowDuplicates)
+                throw new InvalidOperationException("La cantidad debe depender de un grupo obligatorio de una sola opcion, sin dependencias circulares.");
+            var sourceIds = source.Options.Where(o => o.IsActive).Select(o => o.Id!.Value).ToHashSet();
+            if (sourceIds.Count == 0 || group.QuantityRules.Count != sourceIds.Count
+                || group.QuantityRules.Select(r => r.SourceOptionId).Distinct().Count() != sourceIds.Count
+                || group.QuantityRules.Any(r => !sourceIds.Contains(r.SourceOptionId) || r.Quantity <= 0 || Math.Round(r.Quantity, 4) != r.Quantity)
+                || group.Options.Any(o => o.IsActive && (!o.ArticleId.HasValue || !o.UnitId.HasValue)))
+                throw new InvalidOperationException("Configura una cantidad mayor a cero para cada tamano y un articulo con unidad en cada opcion dependiente.");
+            var optionUnits = group.Options.Where(o => o.IsActive).Select(o => o.UnitId).Distinct().Count();
+            if (optionUnits != 1) throw new InvalidOperationException("Las opciones con cantidad segun tamano deben utilizar la misma unidad.");
+        }
 
         var consumption = req.Groups.SelectMany(g => g.Options).SelectMany(o =>
             o.AdditionalIngredients.Concat(o.ArticleId.HasValue && o.UnitId.HasValue
@@ -424,7 +453,7 @@ public class UpsertMenuItemModifiersHandler : IRequestHandler<UpsertMenuItemModi
             var group = existingGroups.FirstOrDefault(g => g.Id == groupDto.Id);
             if (group is null)
             {
-                group = new MenuItemModifierGroup { BranchId = req.BranchId, MenuItemId = req.MenuItemId };
+                group = new MenuItemModifierGroup { Id = groupDto.Id!.Value, BranchId = req.BranchId, MenuItemId = req.MenuItemId };
                 _db.MenuItemModifierGroups.Add(group);
             }
             group.IsDeleted = false;
@@ -435,6 +464,8 @@ public class UpsertMenuItemModifiersHandler : IRequestHandler<UpsertMenuItemModi
             group.AllowDuplicates = groupDto.AllowDuplicates;
             group.DisplayOrder = groupDto.DisplayOrder;
             group.IsActive = groupDto.IsActive;
+            group.QuantitySourceGroupId = groupDto.QuantitySourceGroupId;
+            group.QuantityRules = groupDto.QuantityRules;
 
             foreach (var optionDto in groupDto.Options)
             {
@@ -446,7 +477,7 @@ public class UpsertMenuItemModifiersHandler : IRequestHandler<UpsertMenuItemModi
                 var option = group.Options.FirstOrDefault(o => o.Id == optionDto.Id);
                 if (option is null)
                 {
-                    option = new MenuItemModifierOption { BranchId = req.BranchId, ModifierGroupId = group.Id };
+                    option = new MenuItemModifierOption { Id = optionDto.Id!.Value, BranchId = req.BranchId, ModifierGroupId = group.Id };
                     _db.MenuItemModifierOptions.Add(option);
                 }
                 option.IsDeleted = false;
@@ -643,8 +674,8 @@ internal static class MenuMapper
             TaxRateName = taxRate?.Name ?? item.TaxRate?.Name,
             TaxRatePercentage = taxRate?.Percentage ?? item.TaxRate?.Percentage,
             TaxRateSriCode = taxRate?.SriCode ?? item.TaxRate?.SriCode,
-            HasModifiers = item.ModifierGroups.Any(g => !g.IsDeleted && g.IsActive),
-            ModifierGroups = MapModifierGroups(item.ModifierGroups
+            HasModifiers = ComboModifierChoices.Groups(item).Any(),
+            ModifierGroups = MapModifierGroups(ComboModifierChoices.Groups(item)
                 .Where(g => !g.IsDeleted && g.IsActive)
                 .OrderBy(g => g.DisplayOrder)
                 .ThenBy(g => g.Name)
@@ -658,6 +689,8 @@ internal static class MenuMapper
             MenuItemId = g.MenuItemId,
             Name = g.Name,
             MinSelections = g.MinSelections,
+            QuantitySourceGroupId = g.QuantitySourceGroupId,
+            QuantityRules = g.QuantityRules,
             MaxSelections = g.MaxSelections,
             IsRequired = g.IsRequired,
             AllowDuplicates = g.AllowDuplicates,

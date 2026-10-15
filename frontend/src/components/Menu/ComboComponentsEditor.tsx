@@ -1,10 +1,10 @@
-import { Button, Form, InputNumber, Select, Space, Tooltip, Typography } from 'antd';
+import { Button, Checkbox, Form, InputNumber, Select, Space, Tooltip, Typography } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import type { FixedComboModifier, MenuItemDto } from '../../types';
 
 export default function ComboComponentsEditor({ items, editingId }: { items: MenuItemDto[]; editingId?: string }) {
   const form = Form.useFormInstance();
-  const components = Form.useWatch('comboComponents', form) as { componentItemId?: string; quantity?: number; modifierSelections?: FixedComboModifier[] }[] | undefined;
+  const components = Form.useWatch('comboComponents', form) as { componentItemId?: string; quantity?: number; modifierSelections?: FixedComboModifier[]; selectableModifierGroupIds?: string[] }[] | undefined;
   const eligible = items.filter(item => !item.isCombo && item.id !== editingId && item.isActive && item.availableForSale
     && item.stationId);
   return (
@@ -33,7 +33,10 @@ export default function ComboComponentsEditor({ items, editingId }: { items: Men
                 <div style={{ minWidth: 0 }}>
                   <Form.Item name={[field.name, 'componentItemId']} rules={[{ required: true, message: 'Selecciona un plato' }]} style={{ marginBottom: 4 }}>
                     <Select aria-label={`Plato del componente ${field.name + 1}`} showSearch optionFilterProp="label" placeholder="Plato"
-                      onChange={() => form.setFieldValue(['comboComponents', field.name, 'modifierSelections'], [])}
+                      onChange={() => {
+                        form.setFieldValue(['comboComponents', field.name, 'modifierSelections'], []);
+                        form.setFieldValue(['comboComponents', field.name, 'selectableModifierGroupIds'], []);
+                      }}
                       options={candidates.map(item => ({ value: item.id, label: item.generalName && item.generalName.toLocaleLowerCase() !== item.name.toLocaleLowerCase()
                         ? `${item.name} · ${item.generalName}` : item.name }))} />
                   </Form.Item>
@@ -41,6 +44,7 @@ export default function ComboComponentsEditor({ items, editingId }: { items: Men
                   <Form.Item name={[field.name, 'modifierSelections']} style={{ margin: '8px 0 0' }} rules={[{
                     validator: async (_, value: FixedComboModifier[] | undefined) => {
                       for (const group of selected?.modifierGroups?.filter(g => g.isActive) ?? []) {
+                        if (form.getFieldValue(['comboComponents', field.name, 'selectableModifierGroupIds'])?.includes(group.id)) continue;
                         const optionIds = new Set(group.options.filter(o => o.isActive).map(o => o.id));
                         const rows = (value ?? []).filter(row => optionIds.has(row.modifierOptionId));
                         const count = rows.reduce((sum, row) => sum + row.quantity, 0);
@@ -51,8 +55,10 @@ export default function ComboComponentsEditor({ items, editingId }: { items: Men
                       if ((value ?? []).some(row => !validIds.has(row.modifierOptionId))) throw new Error('Revisa las opciones del componente');
                     },
                   }]}>
-                    <FixedOptions item={selected} />
+                    <FixedOptions item={selected} selectableIds={components?.[field.name]?.selectableModifierGroupIds ?? []}
+                      onSelectableChange={ids => form.setFieldValue(['comboComponents', field.name, 'selectableModifierGroupIds'], ids)} />
                   </Form.Item>
+                  <Form.Item name={[field.name, 'selectableModifierGroupIds']} hidden><Select mode="multiple" /></Form.Item>
                 </div>
                 <Form.Item name={[field.name, 'quantity']} rules={[{ required: true, message: 'Cantidad' }]} style={{ marginBottom: 4 }}>
                   <InputNumber aria-label={`Cantidad del componente ${field.name + 1}`} min={1} max={100} precision={0} style={{ width: '100%' }} />
@@ -69,7 +75,7 @@ export default function ComboComponentsEditor({ items, editingId }: { items: Men
   );
 }
 
-function FixedOptions({ item, value = [], onChange }: { item?: MenuItemDto; value?: FixedComboModifier[]; onChange?: (value: FixedComboModifier[]) => void }) {
+function FixedOptions({ item, value = [], onChange, selectableIds, onSelectableChange }: { item?: MenuItemDto; value?: FixedComboModifier[]; onChange?: (value: FixedComboModifier[]) => void; selectableIds: string[]; onSelectableChange: (ids: string[]) => void }) {
   return <div style={{ display: 'grid', gap: 8 }}>
     {item?.modifierGroups?.filter(g => g.isActive).map(group => {
       const ids = new Set(group.options.map(o => o.id));
@@ -77,6 +83,9 @@ function FixedOptions({ item, value = [], onChange }: { item?: MenuItemDto; valu
       const update = (rows: FixedComboModifier[]) => onChange?.([...value.filter(row => !ids.has(row.modifierOptionId)), ...rows]);
       return <div key={group.id}>
         <Typography.Text style={{ fontSize: 12 }}>{group.name}{group.isRequired || group.minSelections > 0 ? ' *' : ''}</Typography.Text>
+        <Checkbox aria-label={`Cliente elige: ${group.name}`} style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }} checked={selectableIds.includes(group.id)}
+          onChange={e => { update([]); onSelectableChange(e.target.checked ? [...selectableIds, group.id] : selectableIds.filter(id => id !== group.id)); }}>Cliente elige</Checkbox>
+        {!selectableIds.includes(group.id) && <>
         <Select aria-label={`Opciones fijadas: ${group.name}`} style={{ width: '100%' }} mode={group.maxSelections === 1 ? undefined : 'multiple'}
           allowClear placeholder={group.name} value={group.maxSelections === 1 ? selected[0]?.modifierOptionId : selected.map(row => row.modifierOptionId)}
           options={group.options.filter(o => o.isActive).map(o => ({ value: o.id, label: o.name }))}
@@ -86,6 +95,7 @@ function FixedOptions({ item, value = [], onChange }: { item?: MenuItemDto; valu
           <InputNumber aria-label={`Cantidad: ${group.options.find(o => o.id === row.modifierOptionId)?.name}`} min={1} max={Math.min(100, group.maxSelections)} precision={0}
             value={row.quantity} onChange={n => update(selected.map(s => s.modifierOptionId === row.modifierOptionId ? { ...s, quantity: n ?? 1 } : s))} />
         </Space>)}
+        </>}
       </div>;
     })}
   </div>;
