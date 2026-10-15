@@ -291,45 +291,12 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
             throw new InvalidOperationException("Esta mesa ya tiene un pedido abierto. Un mesero puede ayudarte a agregar o modificar productos.");
 
         var itemIds = request.Items.Select(i => i.MenuItemId).Distinct().ToList();
-        var menuItems = await _context.MenuItems
-            .Where(m => itemIds.Contains(m.Id) && m.BranchId == table.BranchId && !m.IsDeleted)
-            .Include(m => m.Category)
-            .Include(m => m.Station)
-            .Include(m => m.TaxRate)
-            .Include(m => m.Recipe.Where(r => !r.IsDeleted))
-                .ThenInclude(r => r.Article)
-            .Include(m => m.Recipe.Where(r => !r.IsDeleted))
-                .ThenInclude(r => r.SubRecipe)
-                    .ThenInclude(s => s!.Ingredients.Where(i => !i.IsDeleted))
-                        .ThenInclude(i => i.Article)
-                            .ThenInclude(a => a!.BaseUnit)
-            .Include(m => m.Recipe.Where(r => !r.IsDeleted))
-                .ThenInclude(r => r.SubRecipe)
-                    .ThenInclude(s => s!.Ingredients.Where(i => !i.IsDeleted))
-                        .ThenInclude(i => i.Unit)
-            .Include(m => m.Recipe.Where(r => !r.IsDeleted))
-                .ThenInclude(r => r.Unit)
-            .Include(m => m.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
-                .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
-                    .ThenInclude(o => o.Article)
-            .Include(m => m.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
-                .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
-                    .ThenInclude(o => o.Unit)
-            .AsSplitQuery()
-            .ToListAsync(cancellationToken);
+        var menuItems = await MenuRecipeExpansion.LoadMenuItemsWithRecipeAsync(_context, table.BranchId, itemIds, cancellationToken);
 
         var (stockByArticle, conversions) = await PublicMenuAvailability.LoadStockInputsAsync(
             _context,
             table.BranchId,
-            menuItems
-                .SelectMany(item => item.Recipe.Where(r => !r.IsDeleted && r.ArticleId.HasValue).Select(r => r.ArticleId!.Value)
-                    .Concat(item.Recipe
-                        .Where(r => !r.IsDeleted && r.SubRecipe != null)
-                        .SelectMany(r => r.SubRecipe!.Ingredients.Where(i => !i.IsDeleted).Select(i => i.ArticleId))))
-                .Concat(menuItems.SelectMany(item => item.ModifierGroups
-                    .SelectMany(group => group.Options)
-                    .Where(option => option.ArticleId.HasValue)
-                    .Select(option => option.ArticleId!.Value)))
+            menuItems.SelectMany(MenuRecipeExpansion.ReferencedArticleIds)
                 .Distinct()
                 .ToList(),
             cancellationToken);
@@ -390,14 +357,15 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
                     throw new InvalidOperationException($"La opción {selection.OptionName} ya no está disponible.");
                 }
 
-                if (option.ArticleId.HasValue && option.UnitId.HasValue && option.Article is not null)
+                foreach (var ingredient in ModifierIngredients.ForOption(option))
                 {
+                    var article = option.ConsumptionArticles[ingredient.ArticleId];
                     var required = PublicMenuAvailability.ConvertQuantity(
-                        option.Quantity * selection.Quantity * itemDto.Quantity,
-                        option.UnitId.Value,
-                        option.Article.BaseUnitId,
+                        ingredient.Quantity * selection.Quantity * itemDto.Quantity,
+                        ingredient.UnitId,
+                        article.BaseUnitId,
                         conversions);
-                    remainingStock[option.ArticleId.Value] -= required;
+                    remainingStock[ingredient.ArticleId] -= required;
                 }
             }
 

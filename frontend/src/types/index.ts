@@ -1257,7 +1257,7 @@ export interface MenuItemProfitabilityDto {
 
 export interface CreateMenuItemDto {
   isCombo?: boolean;
-  comboComponents?: { componentItemId: string; quantity: number }[];
+  comboComponents?: { componentItemId: string; quantity: number; modifierSelections?: FixedComboModifier[] }[];
   menuCategoryId: string;
   name: string;
   generalName: string;
@@ -1277,12 +1277,24 @@ export interface UpdateMenuItemDto extends CreateMenuItemDto {
 }
 
 export interface MenuComboComponentDto {
+  modifierSelections?: FixedComboModifier[];
   componentItemId: string;
   quantity: number;
   name: string;
   generalName: string;
   stationId?: string;
   stationName?: string;
+}
+
+export interface FixedComboModifier {
+  modifierOptionId: string;
+  quantity: number;
+}
+
+export interface ModifierIngredient {
+  articleId: string;
+  unitId: string;
+  quantity: number;
 }
 
 export interface RecipeIngredientDto {
@@ -1388,6 +1400,7 @@ export interface UpsertMenuItemPreparationStepDto {
 }
 
 export interface MenuItemModifierOptionDto {
+  additionalIngredients?: ModifierIngredient[];
   id: string;
   modifierGroupId: string;
   name: string;
@@ -1419,6 +1432,7 @@ export interface MenuItemModifierGroupDto {
 }
 
 export interface UpsertMenuItemModifierOptionDto {
+  additionalIngredients?: ModifierIngredient[];
   id?: string;
   name: string;
   articleId?: string;

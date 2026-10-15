@@ -1,3 +1,5 @@
+using Grimorio.Domain.Entities.Menu;
+
 namespace Grimorio.Application.DTOs;
 
 // ── Categorías de menú ────────────────────────────────────────────────────
@@ -124,6 +126,7 @@ public class UpdateMenuItemDto
 
 public class UpsertMenuComboComponentDto
 {
+    public List<FixedComboModifier> ModifierSelections { get; set; } = [];
     public Guid ComponentItemId { get; set; }
     public int Quantity { get; set; } = 1;
 }
@@ -154,6 +157,7 @@ public class RecipeIngredientDto
 
 public class MenuItemModifierOptionDto
 {
+    public List<ModifierIngredient> AdditionalIngredients { get; set; } = [];
     public Guid Id { get; set; }
     public Guid ModifierGroupId { get; set; }
     public string Name { get; set; } = string.Empty;
@@ -187,6 +191,7 @@ public class MenuItemModifierGroupDto
 
 public class UpsertMenuItemModifierOptionDto
 {
+    public List<ModifierIngredient> AdditionalIngredients { get; set; } = [];
     public Guid? Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public Guid? ArticleId { get; set; }

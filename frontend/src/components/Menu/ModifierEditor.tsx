@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { App as AntApp, Button, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Tooltip, Typography } from 'antd';
+import { App as AntApp, Button, Grid, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Tooltip, Typography } from 'antd';
 import { DeleteOutlined, DownOutlined, PlusOutlined, SaveOutlined, UpOutlined } from '@ant-design/icons';
 import { inventoryApi, menuApi } from '../../services/api';
 import type {
@@ -47,6 +47,7 @@ const normalizeDisplayOrder = <T extends { displayOrder: number }>(items: T[]) =
 
 export default function ModifierEditor({ itemId, itemName, open, onClose }: Props) {
   const { message } = AntApp.useApp();
+  const screens = Grid.useBreakpoint();
 
   const [groups, setGroups] = useState<UpsertMenuItemModifierGroupDto[]>([]);
   const [articles, setArticles] = useState<InventoryArticleDto[]>([]);
@@ -79,6 +80,7 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
             articleId: o.articleId,
             unitId: o.unitId,
             quantity: o.quantity,
+            additionalIngredients: o.additionalIngredients ?? [],
             priceDelta: o.priceDelta,
             displayOrder: o.displayOrder ?? 1,
             isActive: o.isActive,
@@ -131,6 +133,7 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
       for (const option of group.options) {
         if (!option.name.trim()) return `Una opción de ${group.name} requiere nombre.`;
         if (option.articleId && (!option.unitId || option.quantity <= 0)) return `${option.name} requiere unidad y cantidad de inventario.`;
+        if (option.additionalIngredients?.some(i => !i.articleId || !i.unitId || i.quantity <= 0)) return `${option.name}: revisa los consumos adicionales.`;
       }
     }
     return null;
@@ -174,7 +177,7 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'minmax(170px, 1fr) 92px 104px 104px 120px 96px 34px',
+                gridTemplateColumns: screens.lg ? 'minmax(170px, 1fr) 92px 104px 104px 120px 96px 34px' : 'repeat(2, minmax(0, 1fr))',
                 gap: 8,
                 alignItems: 'center',
                 marginBottom: 10,
@@ -213,7 +216,7 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
                     key={optionIdx}
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '64px 92px minmax(130px, 1fr) 110px minmax(180px, 1.4fr) 86px 118px 34px',
+                      gridTemplateColumns: screens.lg ? '64px 92px minmax(130px, 1fr) 110px minmax(180px, 1.4fr) 86px 118px 34px' : 'repeat(2, minmax(0, 1fr))',
                       gap: 8,
                       alignItems: 'center',
                       width: '100%',
@@ -288,6 +291,28 @@ export default function ModifierEditor({ itemId, itemName, open, onClose }: Prop
                     <Popconfirm title="Quitar opción" onConfirm={() => updateGroup(groupIdx, { options: group.options.filter((_, i) => i !== optionIdx) })}>
                       <Button danger size="small" icon={<DeleteOutlined />} />
                     </Popconfirm>
+                    <div style={{ gridColumn: '1 / -1', padding: '0 0 8px 8px', borderBottom: '1px solid #f0f0f0' }}>
+                      {(option.additionalIngredients ?? []).map((ingredient, ingredientIdx) => {
+                        const update = (patch: Partial<typeof ingredient>) => updateOption(groupIdx, optionIdx, {
+                          additionalIngredients: option.additionalIngredients!.map((current, idx) => idx === ingredientIdx ? { ...current, ...patch } : current),
+                        });
+                        return <div key={ingredientIdx} style={{ display: 'grid', gridTemplateColumns: screens.lg ? 'minmax(0, 1fr) 110px minmax(0, 1fr) 32px' : 'minmax(0, 1fr) 100px', gap: 8, marginBottom: 6 }}>
+                          <Select aria-label="Artículo adicional" showSearch optionFilterProp="label" placeholder="Artículo adicional" value={ingredient.articleId || undefined}
+                            options={articleOptions} onChange={id => update({ articleId: id, unitId: articles.find(a => a.id === id)?.baseUnitId ?? '' })} />
+                          <InputNumber aria-label="Cantidad adicional" min={0.0001} precision={4} value={ingredient.quantity} style={{ width: '100%' }}
+                            onChange={n => update({ quantity: n ?? 0 })} />
+                          <Select aria-label="Unidad adicional" placeholder="Unidad" value={ingredient.unitId || undefined}
+                            options={units.filter(u => getCompatibleUnitIds(ingredient.articleId).has(u.id)).map(u => ({ value: u.id, label: `${u.name} (${u.symbol})` }))}
+                            onChange={id => update({ unitId: id })} />
+                          <Tooltip title="Quitar consumo adicional"><Button icon={<DeleteOutlined />} danger aria-label="Quitar consumo adicional"
+                            onClick={() => updateOption(groupIdx, optionIdx, { additionalIngredients: option.additionalIngredients!.filter((_, idx) => idx !== ingredientIdx) })} /></Tooltip>
+                        </div>;
+                      })}
+                      <Button size="small" type="text" icon={<PlusOutlined />} disabled={(option.additionalIngredients?.length ?? 0) >= 20}
+                        onClick={() => updateOption(groupIdx, optionIdx, { additionalIngredients: [...option.additionalIngredients ?? [], { articleId: '', unitId: '', quantity: 0 }] })}>
+                        Consumo adicional
+                      </Button>
+                    </div>
                   </div>
                 );
               })}

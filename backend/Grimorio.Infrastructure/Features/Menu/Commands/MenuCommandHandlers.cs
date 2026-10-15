@@ -387,6 +387,31 @@ public class UpsertMenuItemModifiersHandler : IRequestHandler<UpsertMenuItemModi
             .Where(g => g.MenuItemId == req.MenuItemId && g.BranchId == req.BranchId && !g.IsDeleted)
             .ToListAsync(ct);
 
+        var suppliedIds = req.Groups.Where(g => g.Id.HasValue).Select(g => g.Id!.Value).ToList();
+        var suppliedOptionIds = req.Groups.SelectMany(g => g.Options).Where(o => o.Id.HasValue).Select(o => o.Id!.Value).ToList();
+        if (suppliedIds.Distinct().Count() != suppliedIds.Count || suppliedOptionIds.Distinct().Count() != suppliedOptionIds.Count
+            || suppliedIds.Any(id => existingGroups.All(g => g.Id != id))
+            || req.Groups.Any(g => g.Options.Any(o => o.Id.HasValue
+                && !existingGroups.Any(old => old.Id == g.Id && old.Options.Any(option => option.Id == o.Id && !option.IsDeleted)))))
+            throw new InvalidOperationException("Los identificadores de las opciones no corresponden a este plato.");
+
+        var consumption = req.Groups.SelectMany(g => g.Options).SelectMany(o =>
+            o.AdditionalIngredients.Concat(o.ArticleId.HasValue && o.UnitId.HasValue
+                ? [new ModifierIngredient(o.ArticleId.Value, o.UnitId.Value, o.Quantity)] : [])).ToList();
+        if (req.Groups.SelectMany(g => g.Options).Any(o => o.AdditionalIngredients.Count > 20)
+            || consumption.Any(i => i.ArticleId == Guid.Empty || i.UnitId == Guid.Empty || i.Quantity <= 0))
+            throw new InvalidOperationException("Revisa los consumos adicionales: articulo, unidad y cantidad mayor a cero (maximo 20).");
+        var articleIds = consumption.Select(i => i.ArticleId).Distinct().ToList();
+        var articles = await _db.InventoryArticles.Where(a => a.BranchId == req.BranchId && !a.IsDeleted && a.IsActive && articleIds.Contains(a.Id))
+            .ToDictionaryAsync(a => a.Id, ct);
+        var units = await _db.MeasurementUnits.Where(u => u.BranchId == req.BranchId && !u.IsDeleted)
+            .Select(u => u.Id).ToListAsync(ct);
+        var conversions = await _db.UnitConversions.Where(c => c.BranchId == req.BranchId && !c.IsDeleted)
+            .Select(c => new UnitConversionInfo(c.OriginUnitId, c.DestinationUnitId, c.Factor)).ToListAsync(ct);
+        if (consumption.Any(i => !articles.TryGetValue(i.ArticleId, out var article) || !units.Contains(i.UnitId)
+            || MenuRecipeExpansion.ConvertQuantity(i.Quantity, i.UnitId, article.BaseUnitId, conversions) <= 0))
+            throw new InvalidOperationException("Un consumo de la opcion tiene articulo, unidad o conversion no disponible en esta sucursal.");
+
         foreach (var existing in existingGroups)
         {
             existing.IsDeleted = true;
@@ -396,19 +421,20 @@ public class UpsertMenuItemModifiersHandler : IRequestHandler<UpsertMenuItemModi
 
         foreach (var groupDto in req.Groups)
         {
-            var group = new MenuItemModifierGroup
+            var group = existingGroups.FirstOrDefault(g => g.Id == groupDto.Id);
+            if (group is null)
             {
-                BranchId = req.BranchId,
-                MenuItemId = req.MenuItemId,
-                Name = groupDto.Name.Trim(),
-                MinSelections = groupDto.MinSelections,
-                MaxSelections = groupDto.MaxSelections,
-                IsRequired = groupDto.IsRequired,
-                AllowDuplicates = groupDto.AllowDuplicates,
-                DisplayOrder = groupDto.DisplayOrder,
-                IsActive = groupDto.IsActive,
-            };
-            _db.MenuItemModifierGroups.Add(group);
+                group = new MenuItemModifierGroup { BranchId = req.BranchId, MenuItemId = req.MenuItemId };
+                _db.MenuItemModifierGroups.Add(group);
+            }
+            group.IsDeleted = false;
+            group.Name = groupDto.Name.Trim();
+            group.MinSelections = groupDto.MinSelections;
+            group.MaxSelections = groupDto.MaxSelections;
+            group.IsRequired = groupDto.IsRequired;
+            group.AllowDuplicates = groupDto.AllowDuplicates;
+            group.DisplayOrder = groupDto.DisplayOrder;
+            group.IsActive = groupDto.IsActive;
 
             foreach (var optionDto in groupDto.Options)
             {
@@ -417,18 +443,21 @@ public class UpsertMenuItemModifiersHandler : IRequestHandler<UpsertMenuItemModi
                 if (optionDto.ArticleId.HasValue && (!optionDto.UnitId.HasValue || optionDto.Quantity <= 0))
                     throw new InvalidOperationException($"La opción {optionDto.Name} requiere unidad y cantidad para inventario.");
 
-                _db.MenuItemModifierOptions.Add(new MenuItemModifierOption
+                var option = group.Options.FirstOrDefault(o => o.Id == optionDto.Id);
+                if (option is null)
                 {
-                    BranchId = req.BranchId,
-                    ModifierGroupId = group.Id,
-                    Name = optionDto.Name.Trim(),
-                    ArticleId = optionDto.ArticleId,
-                    UnitId = optionDto.UnitId,
-                    Quantity = optionDto.Quantity,
-                    PriceDelta = optionDto.PriceDelta,
-                    DisplayOrder = optionDto.DisplayOrder,
-                    IsActive = optionDto.IsActive,
-                });
+                    option = new MenuItemModifierOption { BranchId = req.BranchId, ModifierGroupId = group.Id };
+                    _db.MenuItemModifierOptions.Add(option);
+                }
+                option.IsDeleted = false;
+                option.Name = optionDto.Name.Trim();
+                option.ArticleId = optionDto.ArticleId;
+                option.UnitId = optionDto.UnitId;
+                option.Quantity = optionDto.Quantity;
+                option.PriceDelta = optionDto.PriceDelta;
+                option.DisplayOrder = optionDto.DisplayOrder;
+                option.IsActive = optionDto.IsActive;
+                option.AdditionalIngredients = optionDto.AdditionalIngredients;
             }
         }
 
@@ -649,6 +678,7 @@ internal static class MenuMapper
                     UnitName = o.Unit?.Name,
                     UnitSymbol = o.Unit?.Symbol,
                     Quantity = o.Quantity,
+                    AdditionalIngredients = o.AdditionalIngredients,
                     PriceDelta = o.PriceDelta,
                     DisplayOrder = o.DisplayOrder,
                     IsActive = o.IsActive,

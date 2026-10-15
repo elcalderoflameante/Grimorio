@@ -929,7 +929,7 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
                     item.Quantity, paidQuantity, selected.Quantity);
                 var netUnitPrice = Math.Round(selectedTotal / selected.Quantity, 4);
                 var taxRate = item.TaxRate ?? item.MenuItem?.TaxRate;
-                paymentItems.Add(new OrderPaymentItem
+                var paymentItem = new OrderPaymentItem
                 {
                     Id = Guid.NewGuid(),
                     BranchId = req.BranchId,
@@ -941,10 +941,15 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
                     Quantity = selected.Quantity,
                     UnitPrice = netUnitPrice,
                     Total = selectedTotal,
+                    OriginalTotal = Math.Max(selectedTotal, OrderPaymentPricing.AllocateTotal(
+                        Math.Round(item.UnitPrice * item.Quantity, 2), item.Quantity, paidQuantity, selected.Quantity)),
+                    PromotionName = item.PromotionName,
                     TaxRateSriCode = taxRate?.SriCode ?? "6",
                     TaxRatePercentage = taxRate?.Percentage ?? 0m,
                     OrderItem = item,
-                });
+                };
+                SriInvoiceLineFactory.CaptureAmounts(paymentItem);
+                paymentItems.Add(paymentItem);
 
                 if (item.Promotion != null)
                 {
@@ -1128,7 +1133,8 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
                 Environment = invoiceConfig.Ambiente,
                 Status = ElectronicDocumentStatus.Pending,
                 TotalSinImpuestos = invoiceTotals.TotalWithoutTaxes,
-                TotalDescuento = 0m,
+                SubtotalBeforeDiscount = invoiceTotals.SubtotalBeforeDiscount,
+                TotalDescuento = invoiceTotals.TotalDiscount,
                 TotalIva = invoiceTotals.TotalTax,
                 ImporteTotal = invoiceTotals.Total,
                 EmissionDate = paidAt,
@@ -1492,7 +1498,8 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
             Environment = config.Ambiente,
             Status = ElectronicDocumentStatus.Pending,
             TotalSinImpuestos = invoiceTotals.TotalWithoutTaxes,
-            TotalDescuento = 0m,
+            SubtotalBeforeDiscount = invoiceTotals.SubtotalBeforeDiscount,
+            TotalDescuento = invoiceTotals.TotalDiscount,
             TotalIva = invoiceTotals.TotalTax,
             ImporteTotal = invoiceTotals.Total,
             EmissionDate = emissionDate,
@@ -1690,13 +1697,16 @@ public class RetryElectronicInvoiceHandler : IRequestHandler<RetryElectronicInvo
         var order = await LoadOrderAsync(payment.OrderId, doc.BranchId, ct);
         var lines = SriInvoiceLineFactory.Build(payment, order);
         var totals = SriInvoiceLineFactory.CalculateTotals(lines, payment.OrderAmount);
+        SriInvoiceLineFactory.ValidateDocumentTotals(doc, totals);
         doc.TotalSinImpuestos = totals.TotalWithoutTaxes;
+        doc.SubtotalBeforeDiscount = totals.SubtotalBeforeDiscount;
+        doc.TotalDescuento = totals.TotalDiscount;
         doc.TotalIva = totals.TotalTax;
         doc.ImporteTotal = totals.Total;
         var protector = _dp.CreateProtector("SriCertificate");
         var emissionDate = doc.EmissionDate == default ? payment.PaidAt : doc.EmissionDate;
         var unsignedXml = SriXmlBuilder.Build(new SriInvoiceData(config, payment, order, lines,
-            doc.ClaveAcceso, doc.Secuencial, payment.Customer, emissionDate));
+            doc.ClaveAcceso, doc.Secuencial, payment.Customer, emissionDate, doc));
         doc.XmlSigned = SriXmlSigner.Sign(unsignedXml,
             protector.Unprotect(certificate.CertificateEncrypted), protector.Unprotect(certificate.PasswordEncrypted));
         await _db.SaveChangesAsync(ct);

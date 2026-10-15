@@ -136,7 +136,7 @@ public class GetPublicTableMenuQueryHandler : IRequestHandler<GetPublicTableMenu
             })
             .ToListAsync(cancellationToken);
 
-        var items = await _context.MenuItems
+        var itemIds = await _context.MenuItems
             .AsNoTracking()
             .Include(x => x.Category)
             .Include(x => x.Recipe.Where(r => !r.IsDeleted))
@@ -172,7 +172,11 @@ public class GetPublicTableMenuQueryHandler : IRequestHandler<GetPublicTableMenu
             .ThenBy(x => x.DisplayOrder == 0)
             .ThenBy(x => x.DisplayOrder)
             .ThenBy(x => x.Name)
+            .Select(x => x.Id)
             .ToListAsync(cancellationToken);
+        var loadedItems = await MenuRecipeExpansion.LoadMenuItemsWithRecipeAsync(_context, table.BranchId, itemIds, cancellationToken);
+        var itemsById = loadedItems.ToDictionary(x => x.Id);
+        var items = itemIds.Select(id => itemsById[id]).ToList();
 
         var availability = await PublicMenuAvailability.BuildAsync(_context, table.BranchId, items, cancellationToken);
         var branchTimeZoneId = await _context.Branches
@@ -411,12 +415,12 @@ internal static class PublicMenuAvailability
             .ToListAsync(cancellationToken);
 
         var articleIds = menuItems
-            .SelectMany(item => MenuRecipeExpansion.Expand(item, 1, conversions).Select(r => r.ArticleId))
+            .SelectMany(item => MenuRecipeExpansion.ExpandForDisplay(item, 1, conversions).Select(r => r.ArticleId))
             .Concat(menuItems.SelectMany(item => item.ModifierGroups
                 .Where(g => !g.IsDeleted && g.IsActive)
                 .SelectMany(g => g.Options
-                    .Where(o => !o.IsDeleted && o.IsActive && o.ArticleId.HasValue)
-                    .Select(o => o.ArticleId!.Value))))
+                    .Where(o => !o.IsDeleted && o.IsActive)
+                    .SelectMany(ModifierIngredients.ForOption).Select(i => i.ArticleId))))
             .Distinct()
             .ToList();
 
@@ -469,7 +473,8 @@ internal static class PublicMenuAvailability
     {
         if (!item.IsActive || !item.AvailableForSale || item.IsDeleted) return false;
 
-        var requirements = MenuRecipeExpansion.Expand(item, quantity, conversions);
+        var requirements = MenuRecipeExpansion.ExpandForDisplay(item, quantity, conversions)
+            .GroupBy(i => i.ArticleId).Select(g => g.First() with { BaseQuantity = g.Sum(i => i.BaseQuantity) }).ToList();
         if (requirements.Count == 0) return true;
 
         foreach (var ingredient in requirements)
@@ -491,13 +496,15 @@ internal static class PublicMenuAvailability
         int quantity = 1)
     {
         if (!option.IsActive || option.IsDeleted) return false;
-        if (!option.ArticleId.HasValue) return true;
-        if (!option.UnitId.HasValue || option.Quantity <= 0 || option.Article is null) return false;
-
-        var requiredBase = ConvertQuantity(option.Quantity * quantity, option.UnitId.Value, option.Article.BaseUnitId, conversions);
-        if (requiredBase <= 0) return false;
-
-        return stockByArticle.GetValueOrDefault(option.ArticleId.Value) >= requiredBase;
+        foreach (var group in ModifierIngredients.ForOption(option).GroupBy(i => i.ArticleId))
+        {
+            var article = option.ConsumptionArticles.GetValueOrDefault(group.Key) ?? (option.ArticleId == group.Key ? option.Article : null);
+            if (article is null || article.IsDeleted || !article.IsActive) return false;
+            var quantities = group.Select(i => ConvertQuantity(i.Quantity * quantity, i.UnitId, article.BaseUnitId, conversions)).ToList();
+            var requiredBase = quantities.Sum();
+            if (quantities.Any(q => q <= 0) || stockByArticle.GetValueOrDefault(group.Key) < requiredBase) return false;
+        }
+        return true;
     }
 
     public static async Task<(Dictionary<Guid, decimal> StockByArticle, List<global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo> Conversions)> LoadStockInputsAsync(

@@ -31,16 +31,20 @@ internal static class ComboPreparation
             {
                 var child = component.ComponentItem;
                 if (child is null || child.BranchId != branchId || child.IsCombo || !child.IsActive || !child.AvailableForSale
-                    || child.Station is null || child.Station.IsDeleted || !child.Station.IsActive || child.Station.BranchId != branchId
-                    || child.ModifierGroups.Any(x => x.IsRequired || x.MinSelections > 0))
+                    || child.Station is null || child.Station.IsDeleted || !child.Station.IsActive || child.Station.BranchId != branchId)
                     throw new InvalidOperationException("El combo tiene componentes no disponibles, sin estacion activa o con opciones obligatorias.");
-                var requirements = MenuRecipeExpansion.Expand(child, 1, conversions);
+                var selections = MenuComboDefinition.ResolveSelections(child, component.ModifierSelections);
+                var requirements = MenuRecipeExpansion.ExpandComponent(component, 1, conversions);
+                var optionNames = string.Join(", ", selections.Select(x => $"{x.GroupName}: {x.OptionName}" + (x.Quantity > 1 ? $" x{x.Quantity}" : "")));
+                if (optionNames.Length > 4000)
+                    throw new InvalidOperationException("El resumen de opciones del componente es demasiado largo.");
                 if (requirements.Any(x => x.BaseQuantity <= 0))
                     throw new InvalidOperationException($"Revisa las conversiones de unidades de {child.Name} antes de vender el combo.");
                 orderItem.PreparationTasks.Add(new OrderItemPreparationTask
                 {
                     BranchId = branchId, OrderItemId = orderItem.Id, ComponentItemId = child.Id,
                     StationId = child.StationId!.Value, ComponentName = child.Name, ComboName = combo.Name,
+                    OptionsSummary = optionNames,
                     QuantityPerCombo = component.Quantity, RecipeSnapshot = JsonSerializer.Serialize(requirements),
                 });
             }
@@ -53,7 +57,7 @@ internal static class ComboPreparation
         ItemName = $"{task.ComponentName} - {task.ComboName}", StationId = task.StationId,
         Quantity = checked(parent.Quantity * task.QuantityPerCombo),
         Status = parent.Status == "Cancelled" ? "Cancelled" : task.Status.ToString(),
-        Notes = parent.Notes, IsTakeout = parent.IsTakeout,
+        Notes = string.Join(" | ", new[] { task.OptionsSummary, parent.Notes }.Where(x => !string.IsNullOrWhiteSpace(x))), IsTakeout = parent.IsTakeout,
     };
 
     public static async Task ValidateStationsAsync(GrimorioDbContext db, Guid branchId,
@@ -94,6 +98,6 @@ internal static class ComboPreparation
         Id = task.Id, BranchId = task.BranchId, OrderId = task.OrderItem!.OrderId, Order = task.OrderItem.Order,
         MenuItemId = task.ComponentItemId, MenuItem = new Domain.Entities.Menu.MenuItem { Name = $"{task.ComponentName} - {task.ComboName}" },
         StationId = task.StationId, Station = task.Station, Quantity = checked(task.QuantityPerCombo * task.OrderItem.Quantity),
-        Status = task.Status, Notes = task.OrderItem.Notes, IsTakeout = task.OrderItem.IsTakeout,
+        Status = task.Status, Notes = string.Join(" | ", new[] { task.OptionsSummary, task.OrderItem.Notes }.Where(x => !string.IsNullOrWhiteSpace(x))), IsTakeout = task.OrderItem.IsTakeout,
     };
 }

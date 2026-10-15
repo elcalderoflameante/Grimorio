@@ -1,5 +1,7 @@
 using Grimorio.Domain.Entities.Finance;
 using Grimorio.SharedKernel;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
 
 namespace Grimorio.Domain.Entities.Menu;
 
@@ -51,6 +53,13 @@ public class MenuItem : BaseEntity
 
 public class MenuComboComponent : BaseEntity
 {
+    public string ModifierSelectionsJson { get; set; } = "[]";
+    [NotMapped]
+    public List<FixedComboModifier> ModifierSelections
+    {
+        get => JsonSerializer.Deserialize<List<FixedComboModifier>>(ModifierSelectionsJson) ?? [];
+        set => ModifierSelectionsJson = JsonSerializer.Serialize(value);
+    }
     public Guid ComboId { get; set; }
     public Guid ComponentItemId { get; set; }
     public int Quantity { get; set; } = 1;
@@ -100,6 +109,15 @@ public class MenuItemModifierGroup : BaseEntity
 
 public class MenuItemModifierOption : BaseEntity
 {
+    [NotMapped]
+    public Dictionary<Guid, Inventory.InventoryArticle> ConsumptionArticles { get; set; } = [];
+    public string AdditionalIngredientsJson { get; set; } = "[]";
+    [NotMapped]
+    public List<ModifierIngredient> AdditionalIngredients
+    {
+        get => JsonSerializer.Deserialize<List<ModifierIngredient>>(AdditionalIngredientsJson) ?? [];
+        set => AdditionalIngredientsJson = JsonSerializer.Serialize(value);
+    }
     public Guid ModifierGroupId { get; set; }
     public string Name { get; set; } = string.Empty;
     public Guid? ArticleId { get; set; }
@@ -135,6 +153,9 @@ public enum RecipeIngredientType
     Article = 1,
     SubRecipe = 2
 }
+
+public sealed record ModifierIngredient(Guid ArticleId, Guid UnitId, decimal Quantity);
+public sealed record FixedComboModifier(Guid ModifierOptionId, int Quantity = 1);
 
 public class SubRecipe : BaseEntity
 {

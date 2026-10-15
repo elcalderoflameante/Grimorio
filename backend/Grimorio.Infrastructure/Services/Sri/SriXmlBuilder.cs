@@ -14,7 +14,8 @@ public record SriInvoiceData(
     string ClaveAcceso,
     long Secuencial,
     Customer? Customer,
-    DateTime? EmissionDate = null);
+    DateTime? EmissionDate = null,
+    ElectronicDocument? Document = null);
 
 public record SriInvoiceLine(
     string Code,
@@ -22,13 +23,23 @@ public record SriInvoiceLine(
     decimal Quantity,
     decimal UnitPrice,
     string TaxRateSriCode,
-    decimal TaxRatePercentage);
+    decimal TaxRatePercentage,
+    decimal? OriginalTotal = null,
+    decimal? LineTotal = null,
+    string? PromotionName = null,
+    decimal? OriginalSubtotal = null,
+    decimal? Discount = null,
+    decimal? Subtotal = null,
+    decimal? Tax = null);
 
 // Construye el XML de Factura v2.1.0 sin firma
 public static class SriXmlBuilder
 {
     public static string Build(SriInvoiceData d)
     {
+        if (d.Document is not null)
+            SriInvoiceLineFactory.ValidateDocumentTotals(d.Document,
+                SriInvoiceLineFactory.CalculateTotals(d.Items, d.Payment.OrderAmount));
         // MemoryStream garantiza encoding UTF-8 real — StringBuilder usa UTF-16 internamente
         using var ms = new MemoryStream();
         var settings = new XmlWriterSettings { Encoding = new UTF8Encoding(false), Indent = true };
@@ -79,8 +90,8 @@ public static class SriXmlBuilder
         var payment = d.Payment;
 
         var taxGroups = ComputeTaxGroups(d.Items);
-        decimal totalSinImpuestos = taxGroups.Sum(g => g.TaxableBase);
-        decimal importeTotal = d.Payment.OrderAmount;
+        decimal totalSinImpuestos = d.Document?.TotalSinImpuestos ?? taxGroups.Sum(g => g.TaxableBase);
+        decimal importeTotal = d.Document?.ImporteTotal ?? d.Payment.OrderAmount;
 
         // Identificación del comprador
         string tipoId, idComprador, razonComprador;
@@ -112,7 +123,8 @@ public static class SriXmlBuilder
         w.WriteElementString("razonSocialComprador", razonComprador);
         w.WriteElementString("identificacionComprador", idComprador);
         w.WriteElementString("totalSinImpuestos", Fmt(totalSinImpuestos));
-        w.WriteElementString("totalDescuento", Fmt(0));
+        w.WriteElementString("totalDescuento", Fmt(d.Document?.TotalDescuento
+            ?? d.Items.Sum(i => SriInvoiceLineFactory.Amounts(i).Discount)));
 
         w.WriteStartElement("totalConImpuestos");
         foreach (var g in taxGroups)
@@ -180,14 +192,9 @@ public static class SriXmlBuilder
                 decimal taxableBase = 0, taxAmt = 0;
                 foreach (var item in g)
                 {
-                    var net = item.UnitPrice * item.Quantity;
-                    if (pct > 0)
-                    {
-                        var b = Math.Round(net / (1m + pct / 100m), 2);
-                        taxableBase += b;
-                        taxAmt += Math.Round(net - b, 2);
-                    }
-                    else { taxableBase += net; }
+                    var amounts = SriInvoiceLineFactory.Amounts(item);
+                    taxableBase += amounts.FinalBase;
+                    taxAmt += amounts.Tax;
                 }
                 return new TaxGroup(g.Key.SriCode, pct, taxableBase, taxAmt);
             })
@@ -203,22 +210,16 @@ public static class SriXmlBuilder
             var pct = item.TaxRatePercentage;
             var sriCode = item.TaxRateSriCode;
 
-            var gross = item.UnitPrice * item.Quantity;
-            const decimal discount = 0m;
-            var net = gross;
-            decimal taxableBase, taxAmt;
-            if (pct > 0)
-            {
-                taxableBase = Math.Round(net / (1m + pct / 100m), 2);
-                taxAmt = Math.Round(net - taxableBase, 2);
-            }
-            else { taxableBase = net; taxAmt = 0m; }
+            var amounts = SriInvoiceLineFactory.Amounts(item);
+            var discount = amounts.Discount;
+            var taxableBase = amounts.FinalBase;
+            var taxAmt = amounts.Tax;
 
             w.WriteStartElement("detalle");
             w.WriteElementString("codigoPrincipal", item.Code);
             w.WriteElementString("descripcion", item.Description);
             w.WriteElementString("cantidad", item.Quantity.ToString("F6", System.Globalization.CultureInfo.InvariantCulture));
-            w.WriteElementString("precioUnitario", (net / (pct > 0 ? 1m + pct / 100m : 1m)).ToString("F6", System.Globalization.CultureInfo.InvariantCulture));
+            w.WriteElementString("precioUnitario", amounts.OriginalUnitPriceWithoutTax.ToString("F6", System.Globalization.CultureInfo.InvariantCulture));
             w.WriteElementString("descuento", Fmt(discount));
             w.WriteElementString("precioTotalSinImpuesto", Fmt(taxableBase));
 

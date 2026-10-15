@@ -227,11 +227,15 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
     {
         var trackedOptions = item.ModifierGroups
             .Where(g => !g.IsDeleted && g.IsActive)
-            .SelectMany(g => g.Options.Where(o => !o.IsDeleted && o.IsActive && o.ArticleId.HasValue && o.UnitId.HasValue && o.Quantity > 0))
+            .SelectMany(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
+            .Where(o => ModifierIngredients.ForOption(o).Any())
             .ToList();
         if (trackedOptions.Count == 0) return [];
 
-        var articleIds = trackedOptions.Select(o => o.ArticleId!.Value).Distinct().ToList();
+        var articleIds = trackedOptions.SelectMany(ModifierIngredients.ForOption).Select(i => i.ArticleId).Distinct().ToList();
+        var articles = await _db.InventoryArticles.AsNoTracking()
+            .Where(a => a.BranchId == branchId && !a.IsDeleted && a.IsActive && articleIds.Contains(a.Id))
+            .ToDictionaryAsync(a => a.Id, ct);
         var stockByArticle = await _db.WarehouseStock
             .AsNoTracking()
             .Where(x => x.BranchId == branchId && !x.IsDeleted && articleIds.Contains(x.ArticleId))
@@ -263,12 +267,14 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
         var result = new Dictionary<Guid, ModifierOptionAvailabilityInfo>();
         foreach (var option in trackedOptions)
         {
-            var article = option.Article;
-            var unitId = option.UnitId!.Value;
-            var articleId = option.ArticleId!.Value;
-            var requiredBase = article is null ? 0m : ConvertQuantity(option.Quantity, unitId, article.BaseUnitId, conversions);
-            var stock = Math.Max(0, stockByArticle.GetValueOrDefault(articleId));
-            var availableQuantity = requiredBase > 0 ? Math.Floor(stock / requiredBase) : 0m;
+            var capacities = ModifierIngredients.ForOption(option).GroupBy(i => i.ArticleId).Select(group =>
+            {
+                if (!articles.TryGetValue(group.Key, out var article)) return 0m;
+                var quantities = group.Select(i => ConvertQuantity(i.Quantity, i.UnitId, article.BaseUnitId, conversions)).ToList();
+                var requiredBase = quantities.Sum();
+                return quantities.Any(q => q <= 0) ? 0m : Math.Floor(Math.Max(0, stockByArticle.GetValueOrDefault(group.Key)) / requiredBase);
+            });
+            var availableQuantity = capacities.Min();
             result[option.Id] = new ModifierOptionAvailabilityInfo(true, availableQuantity > 0, availableQuantity);
         }
 
@@ -472,7 +478,7 @@ public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQue
             .ToListAsync(ct);
 
         var articleIds = items
-            .SelectMany(item => MenuRecipeExpansion.Expand(item, 1, conversions).Select(r => r.ArticleId))
+            .SelectMany(item => MenuRecipeExpansion.ExpandForDisplay(item, 1, conversions).Select(r => r.ArticleId))
             .Distinct()
             .ToList();
 
@@ -512,10 +518,10 @@ public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQue
     {
         if (item.IsCombo && (item.ComboComponents.Count == 0 || item.ComboComponents.Any(c => c.ComponentItem is null
             || !c.ComponentItem.IsActive || !c.ComponentItem.AvailableForSale || c.ComponentItem.Station is null || !c.ComponentItem.Station.IsActive
-            || c.ComponentItem.ModifierGroups.Any(g => g.IsRequired || g.MinSelections > 0))))
+            )))
             return new MenuItemAvailabilityDto { MenuItemId = item.Id, IsTracked = true, IsAvailable = false,
                 AvailableQuantity = 0, LimitingArticleName = "Componente no disponible" };
-        var requirements = MenuRecipeExpansion.Expand(item, 1, conversions)
+        var requirements = MenuRecipeExpansion.ExpandForDisplay(item, 1, conversions)
             .GroupBy(x => new { x.ArticleId, x.BaseUnitId })
             .Select(g => g.First() with { BaseQuantity = g.Sum(x => x.BaseQuantity),
                 Quantity = g.Sum(x => x.BaseQuantity), UnitId = g.Key.BaseUnitId, UnitSymbol = g.First().BaseUnitSymbol }).ToList();
@@ -619,7 +625,7 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
             .ToListAsync(ct);
 
         var articleIds = items
-            .SelectMany(i => MenuRecipeExpansion.Expand(i, 1, conversions).Select(r => r.ArticleId))
+            .SelectMany(i => MenuRecipeExpansion.ExpandForDisplay(i, 1, conversions).Select(r => r.ArticleId))
             .Distinct()
             .ToList();
 
@@ -728,7 +734,7 @@ public class GetMenuProfitabilityHandler : IRequestHandler<GetMenuProfitabilityQ
             HasRecipe = item.IsCombo ? item.ComboComponents.Any(c => !c.IsDeleted) : item.Recipe.Any(r => !r.IsDeleted),
         };
 
-        foreach (var ingredient in MenuRecipeExpansion.Expand(item, 1, conversions))
+        foreach (var ingredient in MenuRecipeExpansion.ExpandForDisplay(item, 1, conversions))
         {
             var warning = ingredient.BaseQuantity <= 0 ? "No existe conversion hacia la unidad base." : null;
             var baseQty = ingredient.BaseQuantity;

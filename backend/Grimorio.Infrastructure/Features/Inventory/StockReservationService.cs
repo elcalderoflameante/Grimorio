@@ -38,7 +38,7 @@ internal static class StockReservationService
             .ToListAsync(ct);
 
         var modifierArticleIds = items
-            .SelectMany(i => i.ModifierSelections.Where(s => !s.IsDeleted && s.ArticleId.HasValue).Select(s => s.ArticleId!.Value))
+            .SelectMany(i => i.ModifierSelections.Where(s => !s.IsDeleted).SelectMany(ModifierIngredients.ForSelection).Select(s => s.ArticleId))
             .ToList();
         var recipeArticleIds = items
             .Where(i => menuItemsById.ContainsKey(i.MenuItemId))
@@ -215,18 +215,18 @@ internal static class StockReservationService
 
         foreach (var item in items)
         {
-            foreach (var selection in item.ModifierSelections.Where(s => !s.IsDeleted && s.ArticleId.HasValue))
+            foreach (var selection in item.ModifierSelections.Where(s => !s.IsDeleted))
+            foreach (var ingredient in ModifierIngredients.ForSelection(selection))
             {
-                if (!selection.UnitId.HasValue || selection.InventoryQuantity <= 0) continue;
-
-                var articleId = selection.ArticleId!.Value;
+                var articleId = ingredient.ArticleId;
                 articlesById.TryGetValue(articleId, out var article);
                 var baseUnitId = article?.BaseUnitId ?? Guid.Empty;
-                if (baseUnitId == Guid.Empty) continue;
+                if (baseUnitId == Guid.Empty || article?.IsActive != true)
+                    throw new InvalidOperationException($"Articulo de inventario no disponible para {selection.OptionName}.");
 
                 var baseQuantity = ConvertQuantity(
-                    selection.InventoryQuantity * selection.Quantity * item.Quantity,
-                    selection.UnitId.Value,
+                    ingredient.Quantity * selection.Quantity * item.Quantity,
+                    ingredient.UnitId,
                     baseUnitId,
                     conversions,
                     article?.Name ?? selection.OptionName);

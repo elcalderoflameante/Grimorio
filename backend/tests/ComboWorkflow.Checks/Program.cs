@@ -6,6 +6,7 @@ using Grimorio.Application.Features.POS.Queries;
 using Grimorio.Application.Features.Billing.Commands;
 using Grimorio.Application.Features.Billing.Queries;
 using Grimorio.Application.Features.TableService.Commands;
+using Grimorio.Application.Features.TableService.Queries;
 using Grimorio.Domain.Entities.Auth;
 using Grimorio.Domain.Entities.Organization;
 using Grimorio.Domain.Entities.Menu;
@@ -15,6 +16,7 @@ using Grimorio.Domain.Entities.Billing;
 using Grimorio.Domain.Entities.Purchases;
 using Grimorio.Infrastructure.Features.POS.Commands;
 using Grimorio.Infrastructure.Persistence;
+using Grimorio.Infrastructure.Services.Sri;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -223,4 +225,147 @@ var imageUpdated = await Send(new UpdateMenuItemImageCommand { BranchId = branch
 Check(imageUpdated.IsCombo && imageUpdated.ComboComponents.Count == 3, "Image updates preserve combo metadata");
 var sheet = await Send(new GenerateMenuItemOperationalSheetPdfQuery { BranchId = branch.Id, Id = combo.Id });
 Check(sheet is { Length: > 100 } && System.Text.Encoding.ASCII.GetString(sheet, 0, 4) == "%PDF", "Combo operational sheet generated");
+var savingsTax = new TaxRate { BranchId = branch.Id, Name = "Savings IVA", Percentage = 15, SriCode = "4" };
+var savingsPromotion = new Promotion { BranchId = branch.Id, Name = "Combo ahorro", Type = PromotionType.FixedPrice, FixedPrice = 6.99m,
+    MenuItems = [new PromotionMenuItem { BranchId = branch.Id, MenuItemId = combo.Id }] };
+await Read(async db => { db.AddRange(savingsTax, savingsPromotion); await db.SaveChangesAsync(); });
+await Send(new UpdateMenuItemCommand { BranchId = branch.Id, Id = combo.Id, MenuCategoryId = category.Id,
+    Name = "Combo nuevo", GeneralName = combo.GeneralName, Price = 9, TaxRateId = savingsTax.Id, IsActive = true, AvailableForSale = true,
+    IsCombo = true, ComboComponents = Definition().ComboComponents });
+var savingsOrder = await Send(new CreateDirectSaleCommand { BranchId = branch.Id,
+    Items = [new() { MenuItemId = combo.Id, Quantity = 1, PromotionId = savingsPromotion.Id }] });
+Check(savingsOrder.Total == 6.99m, "Promotion retains final charge");
+var savingsPayment = new PayOrderCommand { BranchId = branch.Id, OrderId = savingsOrder.Id, UserId = user.Id, CashSessionId = session.Id,
+    IdempotencyKey = Guid.NewGuid(), OrderAmount = 6.99m, Lines = [new() { MethodId = cash.Id, AmountTendered = 6.99m }],
+    Items = [new() { OrderItemId = savingsOrder.Items.Single().Id, Quantity = 1 }] };
+var savingsReceipt = await Send(savingsPayment);
+await Read(async db =>
+{
+    var item = await db.OrderPaymentItems.SingleAsync(x => x.OrderPaymentId == savingsReceipt.Id);
+    Check(item.OriginalTotal == 9m && item.Total == 6.99m && item.PromotionName == savingsPromotion.Name, "Original price and promotion persisted with payment");
+    Check(item.OriginalSubtotal == 7.83m && item.Discount == 1.75m && item.Subtotal == 6.08m && item.Tax == .91m,
+        "Explicit subtotal, discount and IVA persisted in PostgreSQL");
+    (await db.MenuItems.SingleAsync(x => x.Id == combo.Id)).Price = 20;
+    (await db.Promotions.SingleAsync(x => x.Id == savingsPromotion.Id)).FixedPrice = 5;
+    await db.SaveChangesAsync();
+});
+await Read(async db =>
+{
+    var payment = await db.OrderPayments.Include(x => x.Items).ThenInclude(x => x.OrderItem).ThenInclude(x => x!.MenuItem)
+        .Include(x => x.Order).SingleAsync(x => x.Id == savingsReceipt.Id);
+    var lines = SriInvoiceLineFactory.Build(payment, payment.Order!);
+    var totals = SriInvoiceLineFactory.CalculateTotals(lines, payment.OrderAmount);
+    Check(totals.Total == 6.99m && totals.TotalTax == .91m && totals.TotalDiscount == 1.75m, "Invoice taxes use immutable payment prices after catalog edits");
+    Check(SriInvoiceLineFactory.Amounts(lines.Single()).Savings == 2.01m, "Customer saving includes IVA");
+    var document = new ElectronicDocument { BranchId = branch.Id, OrderPaymentId = payment.Id,
+        ClaveAcceso = new string('1', 49), NumeroFactura = "001-001-000000001", Secuencial = 1,
+        SubtotalBeforeDiscount = totals.SubtotalBeforeDiscount, TotalSinImpuestos = totals.TotalWithoutTaxes,
+        TotalDescuento = totals.TotalDiscount, TotalIva = totals.TotalTax, ImporteTotal = totals.Total };
+    db.Add(document);
+    await db.SaveChangesAsync();
+});
+await Read(async db =>
+{
+    var document = await db.ElectronicDocuments.SingleAsync(x => x.OrderPaymentId == savingsReceipt.Id);
+    Check(document.SubtotalBeforeDiscount == 7.83m && document.TotalDescuento == 1.75m
+        && document.TotalSinImpuestos == 6.08m && document.TotalIva == .91m && document.ImporteTotal == 6.99m,
+        "Explicit invoice header persisted in PostgreSQL");
+});
+Check((await Send(savingsPayment)).Id == savingsReceipt.Id, "Promotional payment retry returns original receipt after price edits");
+await Read(async db => Check(await db.OrderPaymentItems.CountAsync(x => x.OrderPaymentId == savingsReceipt.Id) == 1, "Promotional retry does not duplicate invoice lines"));
+// Fixed size options consume both their primary ingredient and additional sauce.
+var ribsArticle = new InventoryArticle { BranchId = branch.Id, Name = "Costilla gramos", CategoryId = inventoryCategory.Id, BaseUnitId = unit.Id, Type = ArticleType.Ingredient };
+var sauceArticle = new InventoryArticle { BranchId = branch.Id, Name = "Salsa gramos", CategoryId = inventoryCategory.Id, BaseUnitId = unit.Id, Type = ArticleType.Ingredient };
+var drinkArticle = new InventoryArticle { BranchId = branch.Id, Name = "Bebida personal", CategoryId = inventoryCategory.Id, BaseUnitId = unit.Id, Type = ArticleType.Ingredient };
+var ribs = new MenuItem { BranchId = branch.Id, Name = "Costillas", GeneralName = "Costillas", InternalCode = "M-RIB001",
+    MenuCategoryId = category.Id, StationId = stations[1].Id, Price = 9 };
+var smallDrink = new MenuItem { BranchId = branch.Id, Name = "Limonada personal", GeneralName = "Limonada personal", InternalCode = "M-DRK001",
+    MenuCategoryId = category.Id, StationId = stations[2].Id, Price = 1, SaleVisibility = MenuItemSaleVisibility.ComponentsOnly };
+await Read(async db =>
+{
+    db.AddRange(ribsArticle, sauceArticle, drinkArticle, ribs, smallDrink);
+    foreach (var article in new[] { ribsArticle, sauceArticle, drinkArticle })
+    {
+        db.WarehouseStock.Add(new WarehouseStock { BranchId = branch.Id, ArticleId = article.Id, WarehouseId = warehouse.Id, Quantity = 10000 });
+        db.StockMovements.Add(new StockMovement { BranchId = branch.Id, ArticleId = article.Id, WarehouseId = warehouse.Id,
+            Type = MovementType.InitialInventory, UnitId = unit.Id, Quantity = 10000, BaseQuantity = 10000, UnitCost = 1, TotalCost = 10000 });
+    }
+    db.RecipeIngredients.AddRange(
+        new RecipeIngredient { BranchId = branch.Id, MenuItemId = ribs.Id, ArticleId = ribsArticle.Id, UnitId = unit.Id, Quantity = 300 },
+        new RecipeIngredient { BranchId = branch.Id, MenuItemId = ribs.Id, ArticleId = sauceArticle.Id, UnitId = unit.Id, Quantity = 30 },
+        new RecipeIngredient { BranchId = branch.Id, MenuItemId = smallDrink.Id, ArticleId = drinkArticle.Id, UnitId = unit.Id, Quantity = 1 });
+    await db.SaveChangesAsync();
+});
+var modifierRequest = new UpsertMenuItemModifiersCommand { BranchId = branch.Id, MenuItemId = ribs.Id,
+    Groups = [new() { Name = "Porcion", IsRequired = true, MinSelections = 1, MaxSelections = 1,
+        Options = [new() { Name = "300 g" }, new() { Name = "600 g", ArticleId = ribsArticle.Id, UnitId = unit.Id, Quantity = 300, PriceDelta = 5,
+            AdditionalIngredients = [new(sauceArticle.Id, unit.Id, 20)] }] }] };
+var savedGroups = await Send(modifierRequest);
+var sizeGroup = savedGroups.Single();
+var size600 = sizeGroup.Options.Single(o => o.Name == "600 g");
+Check(size600.AdditionalIngredients.Single().Quantity == 20, "Option returns additional sauce consumption");
+List<UpsertMenuComboComponentDto> FixedComponents(Guid optionId, int selectionQuantity = 1) =>
+    [new() { ComponentItemId = ribs.Id, ModifierSelections = [new(optionId, selectionQuantity)] }, new() { ComponentItemId = smallDrink.Id }];
+await Reject(Definition([new() { ComponentItemId = ribs.Id }]), "seleccionar al menos");
+await Reject(Definition(FixedComponents(Guid.NewGuid())), "modificador");
+await Reject(Definition(FixedComponents(size600.Id, 2)), "repetir");
+var fixedCombo = await Send(Definition(FixedComponents(size600.Id)));
+Check(fixedCombo.ComboComponents.First(c => c.ComponentItemId == ribs.Id).ModifierSelections.Single().ModifierOptionId == size600.Id,
+    "Combo returns fixed size option");
+var fixedCost = (await Send(new GetMenuProfitabilityQuery { BranchId = branch.Id })).Single(x => x.MenuItemId == fixedCombo.Id);
+Check(fixedCost.Ingredients.Where(i => i.ArticleId == ribsArticle.Id).Sum(i => i.BaseQuantity) == 600
+    && fixedCost.Ingredients.Where(i => i.ArticleId == sauceArticle.Id).Sum(i => i.BaseQuantity) == 50, "Combo cost includes size meat and additional sauce once");
+var fixedDraft = await Send(Order(2, fixedCombo.Id));
+Check(fixedDraft.Total == 30 && fixedDraft.Items.Single().ModifierSelections.Count == 0, "Combo ignores component option price and does not ask cashier to select it");
+var fixedConfirmed = await Send(new ConfirmOrderCommand { BranchId = branch.Id, OrderId = fixedDraft.Id });
+var grillItems = await Send(new GetItemsByStationQuery { BranchId = branch.Id, StationId = stations[1].Id });
+Check(grillItems.Single(x => x.OrderId == fixedDraft.Id).Notes!.Contains("600 g"), "Grill receives fixed size in kitchen notes");
+await Read(async db =>
+{
+    var reserved = await db.StockReservations.Where(x => x.OrderId == fixedDraft.Id && x.Status == StockReservationStatus.Active).ToListAsync();
+    Check(reserved.Single(x => x.ArticleId == ribsArticle.Id).BaseQuantity == 1200 && reserved.Single(x => x.ArticleId == sauceArticle.Id).BaseQuantity == 100,
+        "Two combos reserve correct meat and sauce");
+});
+// Saving modifiers keeps IDs used by combos, while existing orders keep the old recipe snapshot.
+modifierRequest.Groups[0].Id = sizeGroup.Id;
+foreach (var option in modifierRequest.Groups[0].Options) option.Id = sizeGroup.Options.Single(o => o.Name == option.Name).Id;
+modifierRequest.Groups[0].Options[1].AdditionalIngredients = [new(sauceArticle.Id, unit.Id, 40)];
+var editedGroups = await Send(modifierRequest);
+Check(editedGroups.Single().Id == sizeGroup.Id && editedGroups.Single().Options.Single(o => o.Name == "600 g").Id == size600.Id,
+    "Editing modifiers preserves group and option IDs");
+PayOrderCommand FixedPayment() => new() { BranchId = branch.Id, OrderId = fixedDraft.Id, UserId = user.Id, CashSessionId = session.Id,
+    IdempotencyKey = Guid.NewGuid(), OrderAmount = 15, Lines = [new() { MethodId = cash.Id, AmountTendered = 15 }],
+    Items = [new() { OrderItemId = fixedConfirmed.Items.Single().Id, Quantity = 1 }] };
+var fixedPay = FixedPayment();
+var fixedReceipt = await Send(fixedPay);
+Check((await Send(fixedPay)).Id == fixedReceipt.Id, "Fixed-option combo payment idempotent");
+await Send(FixedPayment());
+await Read(async db =>
+{
+    Check((await db.WarehouseStock.SingleAsync(x => x.ArticleId == ribsArticle.Id)).Quantity == 8800
+        && (await db.WarehouseStock.SingleAsync(x => x.ArticleId == sauceArticle.Id)).Quantity == 9900,
+        "Partial combo payments consume original snapshot, not edited sauce quantity");
+    Check(await db.OrderPaymentItems.CountAsync(x => x.OrderPaymentId == fixedReceipt.Id) == 1, "Only parent combo billed");
+});
+var normal = await Send(new CreateDirectSaleCommand { BranchId = branch.Id,
+    Items = [new() { MenuItemId = ribs.Id, Quantity = 1, ModifierSelections = [new() { ModifierOptionId = size600.Id, Quantity = 1 }] }] });
+Check(normal.Total == 14, "Individual dish still adds option price");
+await Read(async db => Check((await db.StockReservations.Where(x => x.OrderId == normal.Id && x.ArticleId == sauceArticle.Id
+    && x.Status == StockReservationStatus.Active).SingleAsync()).BaseQuantity == 70, "Individual dish reserves base sauce plus edited additional sauce"));
+await Send(new GetPublicTableMenuQuery { TableToken = table.PublicToken });
+var qrFixedRequest = new PublicCreateDraftOrderCommand { TableToken = table.PublicToken, IdempotencyKey = Guid.NewGuid(),
+    Items = [new() { MenuItemId = fixedCombo.Id, Quantity = 1, ExpectedUnitPrice = 15 }] };
+// The earlier QR order occupies the test table; release it before another customer order.
+await Send(new CancelOrderCommand { BranchId = branch.Id, OrderId = qr.Order.Id });
+var qrFixed = await Send(qrFixedRequest);
+Check(qrFixed.Order.Items.Single().PreparationTasks.Count == 2 && qrFixed.Order.Total == 15, "QR accepts fixed-options combo and keeps combo price");
+await Send(new ConfirmOrderCommand { BranchId = branch.Id, OrderId = qrFixed.Order.Id });
+await Read(async db => Check((await db.StockReservations.SingleAsync(x => x.OrderId == qrFixed.Order.Id
+    && x.ArticleId == sauceArticle.Id && x.Status == StockReservationStatus.Active)).BaseQuantity == 70, "QR uses latest size recipe"));
+modifierRequest.Groups[0].Options = modifierRequest.Groups[0].Options.Where(o => o.Id != size600.Id).ToList();
+await Send(modifierRequest);
+var unavailable = (await Send(new GetMenuAvailabilityQuery { BranchId = branch.Id })).Single(x => x.MenuItemId == fixedCombo.Id);
+Check(!unavailable.IsAvailable, "Removed fixed option disables affected combo without breaking catalog");
+await Reject(Order(1, fixedCombo.Id), "modificador");
+await Send(new GetMenuProfitabilityQuery { BranchId = branch.Id });
 Console.WriteLine($"Combo workflow checks passed: {count}. Real isolated PostgreSQL, no SRI or email.");

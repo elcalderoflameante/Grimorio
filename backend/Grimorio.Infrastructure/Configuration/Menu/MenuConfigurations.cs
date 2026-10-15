@@ -233,6 +233,7 @@ public class MenuItemModifierOptionConfiguration : BaseEntityConfiguration<MenuI
     {
         base.Configure(builder);
         builder.ToTable("MenuItemModifierOptions", "menu");
+        builder.Property(x => x.AdditionalIngredientsJson).HasColumnType("jsonb").HasDefaultValue("[]").IsRequired();
 
         builder.Property(x => x.Name).IsRequired().HasMaxLength(120);
         builder.Property(x => x.Quantity).HasColumnType("numeric(18,4)").IsRequired();

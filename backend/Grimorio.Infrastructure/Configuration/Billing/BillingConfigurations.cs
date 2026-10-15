@@ -116,6 +116,7 @@ public class ElectronicDocumentConfiguration : BaseEntityConfiguration<Electroni
         builder.Property(x => x.EmailRecipient).HasMaxLength(320);
         builder.Property(x => x.EmailErrorMessage).HasMaxLength(2000);
 
+        builder.Property(x => x.SubtotalBeforeDiscount).HasColumnType("numeric(18,2)");
         builder.Property(x => x.TotalSinImpuestos).HasColumnType("numeric(18,2)");
         builder.Property(x => x.TotalDescuento).HasColumnType("numeric(18,2)");
         builder.Property(x => x.TotalIva).HasColumnType("numeric(18,2)");
@@ -295,6 +296,12 @@ public class OrderPaymentItemConfiguration : BaseEntityConfiguration<OrderPaymen
     {
         base.Configure(builder);
         builder.ToTable("OrderPaymentItems", "billing");
+        builder.Property(x => x.OriginalSubtotal).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Discount).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Subtotal).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Tax).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.OriginalTotal).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.PromotionName).HasMaxLength(200);
 
         builder.Property(x => x.ItemCode).HasMaxLength(50);
         builder.Property(x => x.ItemName).HasMaxLength(300);

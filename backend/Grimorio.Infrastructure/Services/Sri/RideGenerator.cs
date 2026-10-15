@@ -25,6 +25,9 @@ public static class RideGenerator
         Customer? customer,
         InvoiceTemplateDto? template = null)
     {
+        if (doc.SubtotalBeforeDiscount.HasValue)
+            SriInvoiceLineFactory.ValidateDocumentTotals(doc,
+                SriInvoiceLineFactory.CalculateTotals(items, payment.OrderAmount));
         var logoBytes = ParseLogo(template?.LogoBase64);
         var fechaEc = EcuadorTime.FromUtc(doc.EmissionDate == default ? payment.PaidAt : doc.EmissionDate);
         var ambiente = config.Ambiente == "2" ? "PRODUCCION" : "PRUEBAS";
@@ -134,6 +137,8 @@ public static class RideGenerator
 
             col.Item().Element(c => CustomerBox(c, customer, fechaEc));
             col.Item().Element(c => ItemsTable(c, items));
+            if (items.Any(i => SriInvoiceLineFactory.Amounts(i).Savings > 0))
+                col.Item().Element(c => SavingsSummary(c, items));
 
             col.Item().Row(row =>
             {
@@ -232,15 +237,17 @@ public static class RideGenerator
 
     private static void ItemsTable(IContainer container, List<SriInvoiceLine> items)
     {
+        var hasDiscount = items.Any(i => SriInvoiceLineFactory.Amounts(i).Discount > 0);
         container.Table(table =>
         {
             table.ColumnsDefinition(cols =>
             {
-                cols.ConstantColumn(112);
-                cols.ConstantColumn(62);
+                cols.ConstantColumn(90);
+                cols.ConstantColumn(40);
                 cols.RelativeColumn();
-                cols.ConstantColumn(84);
-                cols.ConstantColumn(78);
+                cols.ConstantColumn(72);
+                if (hasDiscount) cols.ConstantColumn(58);
+                cols.ConstantColumn(66);
             });
 
             table.Header(h =>
@@ -249,27 +256,39 @@ public static class RideGenerator
                 HeaderCell(h.Cell(), "Cant", center: true);
                 HeaderCell(h.Cell(), "Descripcion", center: true);
                 HeaderCell(h.Cell(), "Precio Unitario", center: true);
+                if (hasDiscount) HeaderCell(h.Cell(), "Descuento", center: true);
                 HeaderCell(h.Cell(), "Precio Total", center: true);
             });
 
             foreach (var item in items)
             {
-                var taxPct = item.TaxRatePercentage;
-                var gross = item.UnitPrice * item.Quantity;
-                var netInclusive = gross;
-                var taxableBase = taxPct > 0
-                    ? Math.Round(netInclusive / (1m + taxPct / 100m), 3)
-                    : netInclusive;
-                var unitSinIva = taxPct > 0
-                    ? item.UnitPrice / (1m + taxPct / 100m)
-                    : item.UnitPrice;
+                var amounts = SriInvoiceLineFactory.Amounts(item);
 
                 BodyCell(table.Cell(), item.Code, fontSize: 8);
                 BodyCell(table.Cell(), Fmt(item.Quantity, 2), right: true, fontSize: 8);
                 BodyCell(table.Cell(), item.Description, fontSize: 8);
-                BodyCell(table.Cell(), Fmt(unitSinIva, 6), right: true, fontSize: 8);
-                BodyCell(table.Cell(), Fmt(taxableBase, 3), right: true, fontSize: 8);
+                BodyCell(table.Cell(), Fmt(amounts.OriginalUnitPriceWithoutTax, 6), right: true, fontSize: 8);
+                if (hasDiscount) BodyCell(table.Cell(), Fmt(amounts.Discount, 2), right: true, fontSize: 8);
+                BodyCell(table.Cell(), Fmt(amounts.FinalBase, 2), right: true, fontSize: 8);
             }
+        });
+    }
+
+    private static void SavingsSummary(IContainer container, List<SriInvoiceLine> items)
+    {
+        var amounts = items.Select(SriInvoiceLineFactory.Amounts).ToList();
+        container.Border(1).Padding(8).Column(col =>
+        {
+            col.Spacing(4);
+            col.Item().Text("Resumen de ahorro (IVA incluido)").Bold();
+            foreach (var item in items.Where(i => SriInvoiceLineFactory.Amounts(i).Savings > 0))
+            {
+                var value = SriInvoiceLineFactory.Amounts(item);
+                col.Item().Text($"{item.Description}: precio normal ${Fmt(value.OriginalTotal, 2)} | ahorro ${Fmt(value.Savings, 2)} | precio final ${Fmt(value.FinalTotal, 2)}").FontSize(9);
+            }
+            col.Item().Text($"Precio normal total: ${Fmt(amounts.Sum(a => a.OriginalTotal), 2)}");
+            col.Item().Text($"Tu ahorro total: ${Fmt(amounts.Sum(a => a.Savings), 2)}").Bold();
+            col.Item().Text($"Total a pagar: ${Fmt(amounts.Sum(a => a.FinalTotal), 2)}");
         });
     }
 
@@ -306,10 +325,10 @@ public static class RideGenerator
     {
         var taxableSubtotal = items
             .Where(i => i.TaxRatePercentage > 0)
-            .Sum(i => Math.Round(i.UnitPrice * i.Quantity / (1m + i.TaxRatePercentage / 100m), 2));
+            .Sum(i => SriInvoiceLineFactory.Amounts(i).FinalBase);
         var zeroSubtotal = items
             .Where(i => i.TaxRatePercentage <= 0)
-            .Sum(i => i.UnitPrice * i.Quantity);
+            .Sum(i => SriInvoiceLineFactory.Amounts(i).FinalBase);
 
         container.Table(table =>
         {
@@ -319,10 +338,15 @@ public static class RideGenerator
                 cols.ConstantColumn(78);
             });
 
+            if (doc.TotalDescuento > 0)
+            {
+                TotalRow(table, "SUBTOTAL ANTES DE DESCUENTOS", doc.SubtotalBeforeDiscount
+                    ?? items.Sum(i => SriInvoiceLineFactory.Amounts(i).OriginalBase));
+                TotalRow(table, "DESCUENTO SIN IVA", doc.TotalDescuento);
+            }
             TotalRow(table, "SUBTOTAL CON IVA", taxableSubtotal);
             TotalRow(table, "SUBTOTAL 0%", zeroSubtotal);
             TotalRow(table, "SUBTOTAL SIN IMPUESTOS", doc.TotalSinImpuestos);
-            if (doc.TotalDescuento > 0) TotalRow(table, "DESCUENTO", doc.TotalDescuento);
             TotalRow(table, "IVA", doc.TotalIva);
             TotalRow(table, "VALOR TOTAL", doc.ImporteTotal);
         });

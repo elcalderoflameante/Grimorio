@@ -241,6 +241,7 @@ public class OrderItemModifierSelectionConfiguration : IEntityTypeConfiguration<
     public void Configure(EntityTypeBuilder<OrderItemModifierSelection> builder)
     {
         builder.ToTable("OrderItemModifierSelections", "pos");
+        builder.Property(x => x.AdditionalIngredientsJson).HasColumnType("jsonb").HasDefaultValue("[]").IsRequired();
 
         builder.Property(x => x.GroupName).IsRequired().HasMaxLength(120);
         builder.Property(x => x.OptionName).IsRequired().HasMaxLength(120);

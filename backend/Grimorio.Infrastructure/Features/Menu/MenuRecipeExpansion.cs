@@ -33,6 +33,8 @@ internal static class MenuRecipeExpansion
             .Include(x => x.Station)
             .Include(x => x.ComboComponents.Where(c => !c.IsDeleted)).ThenInclude(c => c.ComponentItem)
             .Include(x => x.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
+                .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
+                    .ThenInclude(o => o.Unit)
             .Include(x => x.Category)
             .Include(x => x.TaxRate)
             .Include(x => x.Recipe.Where(r => !r.IsDeleted))
@@ -55,6 +57,15 @@ internal static class MenuRecipeExpansion
             .Where(x => x.BranchId == branchId && menuItemIds.Contains(x.Id) && !x.IsDeleted)
             .AsSplitQuery()
             .ToListAsync(ct);
+        var options = items.SelectMany(x => x.ModifierGroups).SelectMany(g => g.Options).ToList();
+        var optionArticleIds = options.SelectMany(ModifierIngredients.ForOption).Select(x => x.ArticleId).Distinct().ToList();
+        if (optionArticleIds.Count > 0)
+        {
+            var articles = await db.InventoryArticles.AsNoTracking().Include(x => x.BaseUnit)
+                .Where(x => x.BranchId == branchId && !x.IsDeleted && optionArticleIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, ct);
+            foreach (var option in options) option.ConsumptionArticles = articles;
+        }
         var components = items.Where(x => x.IsCombo).SelectMany(x => x.ComboComponents).ToList();
         if (components.Any(x => x.ComponentItem is null || x.ComponentItem.IsCombo))
             throw new InvalidOperationException("El combo contiene un plato eliminado o un combo anidado.");
@@ -80,7 +91,7 @@ internal static class MenuRecipeExpansion
             {
                 if (component.ComponentItem is null || component.ComponentItem.IsCombo)
                     throw new InvalidOperationException("Componente de combo no valido.");
-                result.AddRange(Expand(component.ComponentItem, itemQuantity * component.Quantity, conversions)
+                result.AddRange(ExpandComponent(component, itemQuantity * component.Quantity, conversions)
                     .Select(x => x with { SourceName = component.ComponentItem.Name }));
             }
             return result;
@@ -118,6 +129,53 @@ internal static class MenuRecipeExpansion
 
         return result;
     }
+
+    public static List<MenuRecipeRequirement> ExpandComponent(MenuComboComponent component, decimal quantity,
+        IReadOnlyCollection<UnitConversionInfo> conversions)
+    {
+        var child = component.ComponentItem ?? throw new InvalidOperationException("Componente de combo no disponible.");
+        if (!child.IsActive || !child.AvailableForSale || child.IsDeleted || child.Station is null
+            || !child.Station.IsActive || child.Station.IsDeleted || child.Station.BranchId != child.BranchId)
+            throw new InvalidOperationException($"El componente {child.Name} o su estacion no esta disponible.");
+        var selections = MenuComboDefinition.ResolveSelections(child, component.ModifierSelections);
+        var requirements = Expand(child, quantity, conversions);
+        var options = child.ModifierGroups.SelectMany(g => g.Options).ToDictionary(o => o.Id);
+        foreach (var selection in selections)
+        {
+            var option = options[selection.ModifierOptionId];
+            foreach (var ingredient in ModifierIngredients.ForOption(option))
+            {
+                if (!option.ConsumptionArticles.TryGetValue(ingredient.ArticleId, out var article) || !article.IsActive)
+                    throw new InvalidOperationException($"Revisa el articulo de inventario de {child.Name}: {selection.OptionName}.");
+                var consumed = ingredient.Quantity * selection.Quantity * quantity;
+                var baseQuantity = ConvertQuantity(consumed, ingredient.UnitId, article.BaseUnitId, conversions);
+                if (baseQuantity <= 0)
+                    throw new InvalidOperationException($"No existe conversion de unidad para {article.Name}.");
+                requirements.Add(new MenuRecipeRequirement(null, article.Id, article.Name, article.InternalCode,
+                    article.BaseUnitId, article.BaseUnit?.Symbol ?? "", article.BaseUnitId,
+                    article.BaseUnit?.Symbol ?? "", baseQuantity, baseQuantity, selection.OptionName));
+            }
+        }
+        return requirements;
+    }
+
+    public static List<MenuRecipeRequirement> ExpandForDisplay(MenuItem item, decimal quantity,
+        IReadOnlyCollection<UnitConversionInfo> conversions)
+    {
+        try { return Expand(item, quantity, conversions); }
+        catch (InvalidOperationException ex) when (item.IsCombo)
+        {
+            return [new MenuRecipeRequirement(null, Guid.Empty, "Revisar opciones del combo", null,
+                Guid.Empty, "", Guid.Empty, "", 0, 0, ex.Message)];
+        }
+    }
+
+    public static IEnumerable<Guid> ReferencedArticleIds(MenuItem item) =>
+        item.Recipe.Where(r => !r.IsDeleted).SelectMany(r => r.ArticleId.HasValue ? new[] { r.ArticleId.Value }
+            : r.SubRecipe?.Ingredients.Where(i => !i.IsDeleted).Select(i => i.ArticleId) ?? [])
+        .Concat(item.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive).SelectMany(g => g.Options
+            .Where(o => !o.IsDeleted && o.IsActive).SelectMany(ModifierIngredients.ForOption).Select(i => i.ArticleId)))
+        .Concat(item.ComboComponents.Where(c => !c.IsDeleted && c.ComponentItem != null).SelectMany(c => ReferencedArticleIds(c.ComponentItem!)));
 
     public static List<MenuRecipeRequirement> ExpandOrderItem(OrderItem item, decimal quantity,
         IReadOnlyCollection<UnitConversionInfo> conversions, MenuItem? loadedMenuItem = null)

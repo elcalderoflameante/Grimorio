@@ -950,6 +950,9 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
+                    b.Property<decimal?>("SubtotalBeforeDiscount")
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<decimal>("TotalDescuento")
                         .HasColumnType("numeric(18,2)");
 
@@ -1172,6 +1175,9 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid?>("DeletedBy")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal?>("Discount")
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -1191,8 +1197,24 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid>("OrderPaymentId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal?>("OriginalSubtotal")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("OriginalTotal")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("PromotionName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<decimal>("Quantity")
                         .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal?>("Subtotal")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("Tax")
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<decimal?>("TaxRatePercentage")
                         .HasColumnType("numeric(8,4)");
@@ -3041,6 +3063,12 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<string>("ModifierSelectionsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("[]");
+
                     b.Property<int>("Quantity")
                         .HasColumnType("integer");
 
@@ -3274,6 +3302,12 @@ namespace Grimorio.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("AdditionalIngredientsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("[]");
 
                     b.Property<Guid?>("ArticleId")
                         .HasColumnType("uuid");
@@ -4848,6 +4882,12 @@ namespace Grimorio.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("AdditionalIngredientsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("[]");
+
                     b.Property<Guid?>("ArticleId")
                         .HasColumnType("uuid");
 
@@ -4964,6 +5004,13 @@ namespace Grimorio.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
+
+                    b.Property<string>("OptionsSummary")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasDefaultValue("");
 
                     b.Property<Guid>("OrderItemId")
                         .HasColumnType("uuid");

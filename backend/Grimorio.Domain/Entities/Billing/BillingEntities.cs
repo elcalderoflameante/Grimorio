@@ -89,6 +89,7 @@ public class ElectronicDocument : BaseEntity
     public string Environment { get; set; } = "1";
     public ElectronicDocumentStatus Status { get; set; } = ElectronicDocumentStatus.Pending;
 
+    public decimal? SubtotalBeforeDiscount { get; set; }
     public decimal TotalSinImpuestos { get; set; }
     public decimal TotalDescuento { get; set; }
     public decimal TotalIva { get; set; }
@@ -224,6 +225,12 @@ public class OrderPayment : BaseEntity
 
 public class OrderPaymentItem : BaseEntity
 {
+    public decimal? OriginalSubtotal { get; set; }
+    public decimal? Discount { get; set; }
+    public decimal? Subtotal { get; set; }
+    public decimal? Tax { get; set; }
+    public decimal? OriginalTotal { get; set; }
+    public string? PromotionName { get; set; }
     public Guid OrderPaymentId { get; set; }
     public Guid OrderItemId { get; set; }
     public string? ItemCode { get; set; }

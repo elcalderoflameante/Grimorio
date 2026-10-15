@@ -1649,6 +1649,7 @@ internal static class PosMapper
                 ArticleId = match.Option.ArticleId,
                 UnitId = match.Option.UnitId,
                 InventoryQuantity = match.Option.Quantity,
+                AdditionalIngredientsJson = match.Option.AdditionalIngredientsJson,
             };
 
             if (!selectionsByGroup.TryGetValue(match.Group.Id, out var list))

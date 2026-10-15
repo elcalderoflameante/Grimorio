@@ -60,7 +60,7 @@ var invoicePayment = new OrderPayment
     OrderAmount = 3.50m,
     Items = [new OrderPaymentItem
     {
-        OrderItem = invoiceItem, Quantity = 1m, UnitPrice = 3.50m,
+        OrderItem = invoiceItem, Quantity = 1m, UnitPrice = 3.50m, Total = 3.50m,
         ItemCode = "Costillas ahumadas del reino", ItemName = "Costillas",
         TaxRateSriCode = "4", TaxRatePercentage = 15m,
     }],

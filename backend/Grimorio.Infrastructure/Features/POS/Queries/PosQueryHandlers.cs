@@ -524,7 +524,8 @@ public class GetItemsByStationQueryHandler : IRequestHandler<GetItemsByStationQu
             OrderType = t.OrderItem.Order.Type.ToString(), TableCode = t.OrderItem.Order.Table?.Code,
             CustomerName = t.OrderItem.Order.CustomerName, OrderNotes = t.OrderItem.Order.Notes,
             ItemName = $"{t.ComponentName} - {t.ComboName}", Quantity = checked(t.QuantityPerCombo * t.OrderItem.Quantity),
-            Notes = t.OrderItem.Notes, IsTakeout = t.OrderItem.IsTakeout, Status = t.Status.ToString(),
+            Notes = string.Join(" | ", new[] { t.OptionsSummary, t.OrderItem.Notes }.Where(x => !string.IsNullOrWhiteSpace(x))),
+            IsTakeout = t.OrderItem.IsTakeout, Status = t.Status.ToString(),
             ConfirmedAt = t.OrderItem.Order.ConfirmedAt ?? t.OrderItem.Order.CreatedAt, UpdatedAt = t.UpdatedAt,
         }).ToList();
     }

@@ -2,6 +2,8 @@ using Grimorio.Application.DTOs;
 using Grimorio.Domain.Entities.Menu;
 using Grimorio.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Grimorio.Infrastructure.Features.POS.Commands;
+using Grimorio.Domain.Entities.POS;
 
 namespace Grimorio.Infrastructure.Features.Menu;
 
@@ -37,14 +39,15 @@ internal static class MenuComboDefinition
         }
         var ids = requested.Select(x => x.ComponentItemId).ToList();
         var children = await db.MenuItems.Include(x => x.Station)
+            .Include(x => x.ModifierGroups.Where(g => !g.IsDeleted && g.IsActive))
+                .ThenInclude(g => g.Options.Where(o => !o.IsDeleted && o.IsActive))
             .Where(x => ids.Contains(x.Id) && x.BranchId == item.BranchId && !x.IsDeleted).ToDictionaryAsync(x => x.Id, ct);
         foreach (var component in requested)
         {
             if (!children.TryGetValue(component.ComponentItemId, out var child) || child.IsCombo || !child.IsActive
                 || !child.AvailableForSale || child.Station is null || !child.Station.IsActive || child.Station.BranchId != item.BranchId)
                 throw new InvalidOperationException("Cada componente debe ser un plato activo y disponible de la sucursal, con una estacion activa asignada.");
-            if (await db.MenuItemModifierGroups.AnyAsync(x => x.MenuItemId == child.Id && x.IsActive && !x.IsDeleted && (x.IsRequired || x.MinSelections > 0), ct))
-                throw new InvalidOperationException($"{child.Name} requiere opciones. Para este combo fijo utiliza una variante con su receta definida, sin opciones obligatorias.");
+            ResolveSelections(child, component.ModifierSelections);
         }
         var existing = await db.MenuComboComponents.Where(x => x.ComboId == item.Id && !x.IsDeleted).ToListAsync(ct);
         foreach (var old in existing) old.IsDeleted = !ids.Contains(old.ComponentItemId);
@@ -58,6 +61,7 @@ internal static class MenuComboDefinition
                 db.MenuComboComponents.Add(row);
             }
             row.Quantity = component.Quantity;
+            row.ModifierSelections = component.ModifierSelections;
             row.ComponentItem = children[component.ComponentItemId];
         }
         item.IsCombo = isCombo;
@@ -68,7 +72,20 @@ internal static class MenuComboDefinition
         .Select(x => new MenuComboComponentDto
         {
             ComponentItemId = x.ComponentItemId, Quantity = x.Quantity,
+            ModifierSelections = x.ModifierSelections,
             Name = x.ComponentItem?.Name ?? string.Empty, GeneralName = x.ComponentItem?.GeneralName ?? string.Empty,
             StationId = x.ComponentItem?.StationId, StationName = x.ComponentItem?.Station?.Name,
         }).ToList();
+
+    internal static List<OrderItemModifierSelection> ResolveSelections(MenuItem item, List<FixedComboModifier> selections)
+    {
+        if (selections.Count > 100 || selections.Any(x => x.Quantity is < 1 or > 100))
+            throw new InvalidOperationException("Revisa las cantidades de las opciones fijadas del combo.");
+        return PosMapper.BuildModifierSelections(item.BranchId, new CreateOrderItemDto
+        {
+            MenuItemId = item.Id, Quantity = 1,
+            ModifierSelections = selections.Select(x => new CreateModifierSelectionDto
+                { ModifierOptionId = x.ModifierOptionId, Quantity = x.Quantity }).ToList(),
+        }, item);
+    }
 }

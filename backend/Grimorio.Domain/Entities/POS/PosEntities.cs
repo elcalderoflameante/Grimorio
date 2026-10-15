@@ -169,6 +169,7 @@ public class OrderItemPreparationTask : BaseEntity
     public int QuantityPerCombo { get; set; }
     public OrderItemStatus Status { get; set; } = OrderItemStatus.Pending;
     public string RecipeSnapshot { get; set; } = "[]";
+    public string OptionsSummary { get; set; } = string.Empty;
     public virtual OrderItem? OrderItem { get; set; }
     public virtual Menu.MenuItem? ComponentItem { get; set; }
     public virtual WorkStation? Station { get; set; }
@@ -219,6 +220,7 @@ public class PromotionMenuCategory : BaseEntity
 
 public class OrderItemModifierSelection : BaseEntity
 {
+    public string AdditionalIngredientsJson { get; set; } = "[]";
     public Guid OrderItemId { get; set; }
     public Guid ModifierGroupId { get; set; }
     public Guid ModifierOptionId { get; set; }
