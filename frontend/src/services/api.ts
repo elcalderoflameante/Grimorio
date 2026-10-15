@@ -646,7 +646,7 @@ export const menuApi = {
     const formData = new FormData();
     formData.append('image', image);
     return apiClient.post<MenuItemDto>(`/menu/items/${id}/image`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: { 'Content-Type': undefined },
     });
   },
   deleteItemImage: (id: string): Promise<AxiosResponse<MenuItemDto>> =>

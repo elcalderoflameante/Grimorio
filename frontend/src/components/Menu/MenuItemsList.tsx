@@ -156,7 +156,16 @@ export default function MenuItemsList() {
       }
 
       if (imageFile) {
-        await menuApi.uploadItemImage(saved.id, imageFile);
+        try {
+          await menuApi.uploadItemImage(saved.id, imageFile);
+        } catch (error) {
+          setEditing(saved);
+          form.setFieldsValue({ internalCode: saved.internalCode, imageUrl: saved.imageUrl });
+          setRemoveImage(false);
+          void load();
+          message.error(`Los datos del plato se guardaron, pero no la imagen: ${formatError(error)}`);
+          return;
+        }
       }
       message.success('Guardado');
       setModal(false);
@@ -190,11 +199,16 @@ export default function MenuItemsList() {
   const taxRateOptions = taxRates.map(t => ({ label: `${t.name} (${t.percentage}%)`, value: t.id }));
 
   const selectImage = (file: File) => {
+    if (file.size === 0) {
+      message.error('La imagen esta vacia. Selecciona otro archivo.');
+      return Upload.LIST_IGNORE;
+    }
     if (file.size > 3 * 1024 * 1024) {
       message.error('La imagen no puede superar 3 MB');
       return Upload.LIST_IGNORE;
     }
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)
+      || !/\.(jpe?g|png|webp)$/i.test(file.name)) {
       message.error('Usa una imagen JPG, PNG o WEBP');
       return Upload.LIST_IGNORE;
     }

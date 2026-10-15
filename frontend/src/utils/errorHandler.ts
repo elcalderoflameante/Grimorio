@@ -14,6 +14,11 @@ const isAxiosError = (error: unknown): error is AxiosError<ErrorResponse> =>
  * Obtiene un mensaje de error descriptivo basado en el código HTTP y el contenido
  */
 export const getErrorMessage = (error: AxiosError<ErrorResponse>): string => {
+  const body: unknown = error.response?.data;
+  if (typeof body === 'string' && body.trim() && body.length <= 1000 && !body.includes('<')) {
+    return body.trim();
+  }
+
   // Si ya tiene un mensaje específico del servidor
   if (error.response?.data?.message) {
     return error.response.data.message;
