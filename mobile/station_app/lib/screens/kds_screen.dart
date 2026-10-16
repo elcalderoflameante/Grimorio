@@ -2,9 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:signalr_netcore/signalr_client.dart';
+import '../models/display_size_mode.dart';
 import '../providers/station_provider.dart';
 import '../widgets/order_card.dart';
 import '../widgets/completed_sidebar.dart';
+import '../widgets/display_size_scope.dart';
 
 class KdsScreen extends StatefulWidget {
   const KdsScreen({super.key});
@@ -31,149 +33,251 @@ class _KdsScreenState extends State<KdsScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<StationProvider>();
+    final mediaQuery = MediaQuery.of(context);
+    final scale = DisplaySizeScope.resolve(
+      provider.displaySizeMode,
+      mediaQuery.size,
+    );
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0A14),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF12122A),
-        titleSpacing: 8,
-        toolbarHeight: 32,
-        title: Row(
-          children: [
-            const Icon(
-              Icons.restaurant_menu,
-              color: Color(0xFFE94560),
-              size: 13,
-            ),
-            const SizedBox(width: 5),
-            Flexible(
-              child: Text(
-                provider.stationName ?? 'Estación',
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
+    return DisplaySizeScope(
+      scale: scale,
+      child: MediaQuery(
+        data: mediaQuery.copyWith(textScaler: TextScaler.linear(scale)),
+        child: Scaffold(
+          backgroundColor: const Color(0xFF0A0A14),
+          appBar: AppBar(
+            backgroundColor: const Color(0xFF12122A),
+            titleSpacing: 8 * scale,
+            toolbarHeight: 32 * scale,
+            title: Row(
+              children: [
+                Icon(
+                  Icons.restaurant_menu,
+                  color: Color(0xFFE94560),
+                  size: 13 * scale,
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            _ConnectionBadge(state: provider.connectionState),
-          ],
-        ),
-        actions: [
-          if (provider.connectionState == HubConnectionState.Disconnected)
-            IconButton(
-              tooltip: 'Reconectar',
-              icon: const Icon(Icons.refresh, size: 15),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints.tightFor(width: 30, height: 30),
-              onPressed: provider.reconnect,
-            ),
-          // Contador pedidos activos
-          if (provider.items.any((e) => e.status == 'Pending'))
-            Center(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: Colors.orange.withValues(alpha: 0.5),
+                SizedBox(width: 5 * scale),
+                Flexible(
+                  child: Text(
+                    provider.stationName ?? 'Estación',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-                child: Text(
-                  '${provider.items.where((e) => e.status == 'Pending').length} pendientes',
-                  style: const TextStyle(
-                    color: Colors.orange,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 8,
+                SizedBox(width: 8 * scale),
+                _ConnectionBadge(state: provider.connectionState),
+              ],
+            ),
+            actions: [
+              if (provider.connectionState == HubConnectionState.Disconnected)
+                IconButton(
+                  tooltip: 'Reconectar',
+                  icon: Icon(Icons.refresh, size: 15 * scale),
+                  padding: EdgeInsets.zero,
+                  constraints: BoxConstraints.tightFor(
+                    width: 30 * scale,
+                    height: 30 * scale,
+                  ),
+                  onPressed: provider.reconnect,
+                ),
+              // Contador pedidos activos
+              if (provider.items.any((e) => e.status == 'Pending'))
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: Colors.orange.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Text(
+                      '${provider.items.where((e) => e.status == 'Pending').length} pendientes',
+                      style: const TextStyle(
+                        color: Colors.orange,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 8,
+                      ),
+                    ),
                   ),
                 ),
+              IconButton(
+                tooltip: provider.ttsEnabled ? 'Silenciar voz' : 'Activar voz',
+                icon: Icon(
+                  provider.ttsEnabled
+                      ? Icons.volume_up_rounded
+                      : Icons.volume_off_rounded,
+                  color: provider.ttsEnabled
+                      ? const Color(0xFF4EE87A)
+                      : Colors.white30,
+                  size: 15 * scale,
+                ),
+                onPressed: () => context.read<StationProvider>().setTtsEnabled(
+                  !provider.ttsEnabled,
+                ),
+                padding: EdgeInsets.zero,
+                constraints: BoxConstraints.tightFor(
+                  width: 30 * scale,
+                  height: 30 * scale,
+                ),
               ),
-            ),
-          IconButton(
-            tooltip: provider.ttsEnabled ? 'Silenciar voz' : 'Activar voz',
-            icon: Icon(
-              provider.ttsEnabled
-                  ? Icons.volume_up_rounded
-                  : Icons.volume_off_rounded,
-              color: provider.ttsEnabled
-                  ? const Color(0xFF4EE87A)
-                  : Colors.white30,
-              size: 15,
-            ),
-            onPressed: () => context.read<StationProvider>().setTtsEnabled(
-              !provider.ttsEnabled,
-            ),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 30, height: 30),
+              PopupMenuButton<String>(
+                icon: Icon(
+                  Icons.more_vert,
+                  color: Colors.white54,
+                  size: 15 * scale,
+                ),
+                padding: EdgeInsets.zero,
+                color: const Color(0xFF1C1C3A),
+                onSelected: (value) {
+                  if (value == 'change') {
+                    context.read<StationProvider>().changeStation();
+                  }
+                  if (value == 'display') {
+                    _showDisplaySizeDialog(context, provider);
+                  }
+                  if (value == 'logout') {
+                    context.read<StationProvider>().logout();
+                  }
+                },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(
+                    value: 'change',
+                    child: Row(
+                      children: [
+                        Icon(Icons.swap_horiz, color: Colors.white70, size: 13),
+                        SizedBox(width: 4),
+                        Text(
+                          'Cambiar estación',
+                          style: TextStyle(color: Colors.white, fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'display',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.aspect_ratio,
+                          color: Colors.white70,
+                          size: 13,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          'Tamaño de presentación',
+                          style: TextStyle(color: Colors.white, fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout, color: Colors.redAccent, size: 13),
+                        SizedBox(width: 4),
+                        Text(
+                          'Cerrar sesión',
+                          style: TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 2),
+            ],
           ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: Colors.white54, size: 15),
-            padding: EdgeInsets.zero,
-            color: const Color(0xFF1C1C3A),
-            onSelected: (value) {
-              if (value == 'change') {
-                context.read<StationProvider>().changeStation();
-              }
-              if (value == 'logout') context.read<StationProvider>().logout();
-            },
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'change',
+          body: Column(
+            children: [
+              // Banner de error de conexión
+              if (provider.errorMessage != null)
+                _ErrorBanner(message: provider.errorMessage!),
+              Expanded(
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.swap_horiz, color: Colors.white70, size: 13),
-                    SizedBox(width: 4),
-                    Text(
-                      'Cambiar estación',
-                      style: TextStyle(color: Colors.white, fontSize: 10),
-                    ),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'logout',
-                child: Row(
-                  children: [
-                    Icon(Icons.logout, color: Colors.redAccent, size: 13),
-                    SizedBox(width: 4),
-                    Text(
-                      'Cerrar sesión',
-                      style: TextStyle(color: Colors.redAccent, fontSize: 10),
-                    ),
+                    // ── Área principal ───────────────────────────────────────
+                    Expanded(child: _MainArea(provider: provider)),
+
+                    // ── Sidebar de completados ───────────────────────────────
+                    CompletedSidebar(width: 140 * scale),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(width: 2),
-        ],
+        ),
       ),
-      body: Column(
-        children: [
-          // Banner de error de conexión
-          if (provider.errorMessage != null)
-            _ErrorBanner(
-              message: provider.errorMessage!,
-              onRetry: () => context.read<StationProvider>().reconnect(),
-              onDismiss: () => context.read<StationProvider>().clearError(),
-            ),
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── Área principal ───────────────────────────────────────
-                Expanded(child: _MainArea(provider: provider)),
+    );
+  }
 
-                // ── Sidebar de completados ───────────────────────────────
-                const CompletedSidebar(width: 140),
-              ],
-            ),
+  Future<void> _showDisplaySizeDialog(
+    BuildContext context,
+    StationProvider provider,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C3A),
+        scrollable: true,
+        titlePadding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        contentPadding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+        title: const Text(
+          'Tamaño de presentación',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: DisplaySizeMode.values
+                .map(
+                  (mode) => ListTile(
+                    dense: true,
+                    visualDensity: const VisualDensity(
+                      horizontal: -2,
+                      vertical: -3,
+                    ),
+                    leading: Icon(
+                      provider.displaySizeMode == mode
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_off,
+                      color: provider.displaySizeMode == mode
+                          ? const Color(0xFFE94560)
+                          : Colors.white38,
+                      size: 18,
+                    ),
+                    title: Text(
+                      mode.label,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    subtitle: Text(
+                      mode.description,
+                      style: const TextStyle(fontSize: 9),
+                    ),
+                    onTap: () async {
+                      Navigator.of(dialogContext).pop();
+                      await provider.setDisplaySizeMode(mode);
+                    },
+                  ),
+                )
+                .toList(),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -181,13 +285,7 @@ class _KdsScreenState extends State<KdsScreen> {
 
 class _ErrorBanner extends StatelessWidget {
   final String message;
-  final VoidCallback onRetry;
-  final VoidCallback onDismiss;
-  const _ErrorBanner({
-    required this.message,
-    required this.onRetry,
-    required this.onDismiss,
-  });
+  const _ErrorBanner({required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -210,18 +308,14 @@ class _ErrorBanner extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          TextButton(
-            onPressed: onRetry,
-            child: const Text(
-              'Reintentar',
-              style: TextStyle(color: Colors.orangeAccent, fontSize: 9),
+          const SizedBox(width: 8),
+          const SizedBox(
+            width: 10,
+            height: 10,
+            child: CircularProgressIndicator(
+              color: Colors.orangeAccent,
+              strokeWidth: 1.5,
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close, color: Colors.white38, size: 11),
-            onPressed: onDismiss,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
           ),
         ],
       ),
@@ -292,19 +386,35 @@ class _MainArea extends StatelessWidget {
       );
     }
 
-    // Wrap: los pedidos más antiguos quedan a la izquierda,
-    // los nuevos se agregan a la derecha, y envuelven hacia abajo.
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(5),
-      child: Wrap(
-        spacing: 5,
-        runSpacing: 5,
-        alignment: WrapAlignment.start,
-        crossAxisAlignment: WrapCrossAlignment.start,
-        children: groups
-            .map((entry) => OrderCard(orderId: entry.key, items: entry.value))
-            .toList(),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final spacing = context.displaySize(5);
+        final preferredWidth = context.displaySize(kCardWidth);
+        final columns =
+            ((constraints.maxWidth + spacing) / (preferredWidth + spacing))
+                .floor()
+                .clamp(1, groups.length)
+                .toInt();
+
+        return GridView.builder(
+          padding: EdgeInsets.all(spacing),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            mainAxisExtent: context.displaySize(kCardHeight),
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+          ),
+          itemCount: groups.length,
+          itemBuilder: (context, index) {
+            final entry = groups[index];
+            return OrderCard(
+              key: ValueKey(entry.key),
+              orderId: entry.key,
+              items: entry.value,
+            );
+          },
+        );
+      },
     );
   }
 }

@@ -17,6 +17,7 @@ class VoiceShell extends StatefulWidget {
     this.canTransmit = true,
     this.autoActivate = false,
     this.compact = false,
+    this.showStatusBar = true,
   });
   final Widget child;
   final String apiBaseUrl;
@@ -25,6 +26,7 @@ class VoiceShell extends StatefulWidget {
   final bool canTransmit;
   final bool autoActivate;
   final bool compact;
+  final bool showStatusBar;
   @override
   State<VoiceShell> createState() => _VoiceShellState();
 }
@@ -582,7 +584,8 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      Material(
+      if (widget.showStatusBar)
+        Material(
         color: const Color(0xff18232d),
         child: SafeArea(
           bottom: false,

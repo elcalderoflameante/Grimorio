@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:signalr_netcore/signalr_client.dart';
 import '../core/api_config.dart';
 import '../models/completed_order.dart';
+import '../models/display_size_mode.dart';
 import '../models/station_item.dart';
 import '../models/work_station.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/display_preferences_service.dart';
 import '../services/kitchen_hub_service.dart';
 import '../services/tts_service.dart';
 
@@ -15,21 +18,36 @@ class StationProvider extends ChangeNotifier {
   final AuthService _auth;
   final KitchenHubService _hub;
   final TtsService _tts;
+  final DisplayPreferencesService _displayPreferences;
   final ApiService Function(String token) _apiFactory;
+  final List<Duration> _reconnectDelays;
   final Set<String> _updatingItems = {};
   List<VoidCallback>? _pendingEvents;
   int _session = 0;
   bool _disposed = false;
+  bool _connecting = false;
+  int _reconnectAttempt = 0;
+  Timer? _reconnectTimer;
 
   StationProvider({
     AuthService? auth,
     KitchenHubService? hub,
     TtsService? tts,
+    DisplayPreferencesService? displayPreferences,
     ApiService Function(String token)? apiFactory,
-  }) : _auth = auth ?? AuthService(),
+    List<Duration> reconnectDelays = const [
+      Duration(seconds: 2),
+      Duration(seconds: 5),
+      Duration(seconds: 10),
+      Duration(seconds: 30),
+    ],
+  }) : assert(reconnectDelays.isNotEmpty),
+       _auth = auth ?? AuthService(),
        _hub = hub ?? KitchenHubService(),
        _tts = tts ?? TtsService(),
-       _apiFactory = apiFactory ?? ((token) => ApiService(token: token));
+       _displayPreferences = displayPreferences ?? DisplayPreferencesService(),
+       _apiFactory = apiFactory ?? ((token) => ApiService(token: token)),
+       _reconnectDelays = reconnectDelays;
 
   bool isUpdating(String itemId) => _updatingItems.contains(itemId);
 
@@ -59,6 +77,7 @@ class StationProvider extends ChangeNotifier {
 
   String? errorMessage;
   bool isLoading = false;
+  DisplaySizeMode displaySizeMode = DisplaySizeMode.automatic;
 
   String? get stationName {
     if (_stationNames.isEmpty) return null;
@@ -77,6 +96,13 @@ class StationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setDisplaySizeMode(DisplaySizeMode mode) async {
+    if (displaySizeMode == mode) return;
+    displaySizeMode = mode;
+    notifyListeners();
+    await _displayPreferences.save(mode);
+  }
+
   List<MapEntry<String, List<StationItem>>> get orderedGroups {
     final map = <String, List<StationItem>>{};
     for (final item in items) {
@@ -91,6 +117,11 @@ class StationProvider extends ChangeNotifier {
   }
 
   Future<void> init() async {
+    try {
+      displaySizeMode = await _displayPreferences.load();
+    } catch (e) {
+      debugPrint('[Provider] No se pudo cargar el tamaño de pantalla: $e');
+    }
     try {
       await _tts.init();
     } catch (e) {
@@ -159,11 +190,26 @@ class StationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _startHub() async {
+  Future<void> _startHub({bool resetBackoff = true}) async {
+    if (_connecting || _disposed || appState != AppState.ready) return;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    if (resetBackoff) _reconnectAttempt = 0;
+    _connecting = true;
     final session = ++_session;
     _hub.onResynchronized = _loadInitialItems;
     _hub.onConnectionChanged = (state) {
+      if (session != _session || _disposed) return;
       connectionState = state;
+      if (state == HubConnectionState.Connected) {
+        _reconnectTimer?.cancel();
+        _reconnectTimer = null;
+        _reconnectAttempt = 0;
+        errorMessage = null;
+      } else if (state == HubConnectionState.Disconnected && !_connecting) {
+        _scheduleReconnect(session);
+        return;
+      }
       notifyListeners();
     };
 
@@ -277,10 +323,42 @@ class StationProvider extends ChangeNotifier {
         return;
       }
       debugPrint('[Provider] Error en _startHub: $e');
-      errorMessage =
-          'Error de conexión: ${e.toString().replaceFirst('Exception: ', '')}';
-      notifyListeners();
+      errorMessage = 'Sin conexión. Reintentando automáticamente...';
+      _scheduleReconnect(session);
+    } finally {
+      if (session == _session) _connecting = false;
     }
+  }
+
+  void _scheduleReconnect(int session) {
+    if (_disposed ||
+        session != _session ||
+        appState != AppState.ready ||
+        _reconnectTimer?.isActive == true) {
+      return;
+    }
+
+    connectionState = HubConnectionState.Reconnecting;
+    errorMessage = 'Sin conexión. Reintentando automáticamente...';
+    final index = _reconnectAttempt.clamp(0, _reconnectDelays.length - 1);
+    final delay = _reconnectDelays[index];
+    _reconnectAttempt++;
+    debugPrint('[Provider] Próximo intento de conexión en ${delay.inSeconds}s');
+    _reconnectTimer = Timer(delay, () {
+      _reconnectTimer = null;
+      if (_disposed || session != _session || appState != AppState.ready) {
+        return;
+      }
+      unawaited(_startHub(resetBackoff: false));
+    });
+    notifyListeners();
+  }
+
+  void _cancelReconnect() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _reconnectAttempt = 0;
+    _connecting = false;
   }
 
   Future<void> _loadInitialItems() async {
@@ -367,6 +445,7 @@ class StationProvider extends ChangeNotifier {
   }
 
   Future<void> _forceLogout() async {
+    _cancelReconnect();
     _session++;
     _pendingEvents = null;
     await _tts.stop();
@@ -434,33 +513,64 @@ class StationProvider extends ChangeNotifier {
 
     final api = _apiFactory(_token);
     try {
-      await api.updateItemStatus(item.orderItemId, targetStatus);
-      if (session != _session || _disposed) return false;
-      final current = items.where((e) => e.orderItemId == item.orderItemId);
-      if (current.isNotEmpty && current.first.status == previousStatus) {
-        current.first.status = targetStatus;
-        _checkOrderCompletion(item.orderId);
+      var attempt = 0;
+      while (session == _session && !_disposed) {
+        final current = items.where((e) => e.orderItemId == item.orderItemId);
+        if (current.isEmpty) return false;
+        if (_statusReached(current.first.status, targetStatus)) return true;
+        if (current.first.status != previousStatus) return false;
+
+        try {
+          await api.updateItemStatus(item.orderItemId, targetStatus);
+          if (session != _session || _disposed) return false;
+          final latest = items.where((e) => e.orderItemId == item.orderItemId);
+          if (latest.isNotEmpty && latest.first.status == previousStatus) {
+            latest.first.status = targetStatus;
+            _checkOrderCompletion(item.orderId);
+          }
+          return true;
+        } on UnauthorizedException {
+          rethrow;
+        } catch (e) {
+          if (session != _session || _disposed) return false;
+          final index = attempt.clamp(0, _reconnectDelays.length - 1);
+          final delay = _reconnectDelays[index];
+          attempt++;
+          errorMessage = 'Sincronizando cambios pendientes automáticamente...';
+          debugPrint(
+            '[Provider] Reintentando ${item.orderItemId} en '
+            '${delay.inSeconds}s: $e',
+          );
+          notifyListeners();
+          await Future<void>.delayed(delay);
+        }
       }
-      return true;
+      return false;
     } on UnauthorizedException {
       if (session == _session && !_disposed) await _forceLogout();
       return false;
-    } catch (e) {
-      if (session != _session || _disposed) return false;
-      errorMessage =
-          'Sin sincronizar: ${e.toString().replaceFirst('Exception: ', '')}';
-      notifyListeners();
-      return false;
     } finally {
       _updatingItems.remove(item.orderItemId);
+      if (_updatingItems.isEmpty &&
+          errorMessage?.startsWith('Sincronizando cambios pendientes') ==
+              true) {
+        errorMessage = null;
+      }
       notifyListeners();
     }
+  }
+
+  bool _statusReached(String currentStatus, String targetStatus) {
+    const rank = {'Pending': 0, 'InPreparation': 1, 'Ready': 2};
+    final current = rank[currentStatus];
+    final target = rank[targetStatus];
+    return current != null && target != null && current >= target;
   }
 
   Future<void> reconnect() async {
     errorMessage = null;
     notifyListeners();
-    await _startHub();
+    await _startHub(resetBackoff: true);
   }
 
   void clearError() {
@@ -469,6 +579,7 @@ class StationProvider extends ChangeNotifier {
   }
 
   Future<void> changeStation() async {
+    _cancelReconnect();
     _session++;
     _pendingEvents = null;
     await _tts.stop();
@@ -483,6 +594,7 @@ class StationProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _cancelReconnect();
     _session++;
     _pendingEvents = null;
     await _tts.stop();
@@ -500,6 +612,7 @@ class StationProvider extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _cancelReconnect();
     _session++;
     _hub.dispose();
     _tts.dispose();

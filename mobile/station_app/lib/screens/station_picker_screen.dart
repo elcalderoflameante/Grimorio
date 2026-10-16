@@ -102,10 +102,12 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
             );
           }
 
-          return Padding(
+          return SingleChildScrollView(
             padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: SizedBox(
+              width: double.infinity,
+              child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const Text(
                   'Que estaciones vera esta tablet?',
@@ -114,57 +116,59 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
                   ),
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 4),
                 const Text(
                   'Selecciona una o varias. Emplatado puede ver Fritos + Parrilla para sacar pedidos completos.',
                   style: TextStyle(color: Colors.white54, fontSize: 9),
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
-                Expanded(
-                  child: GridView.builder(
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 150,
-                          mainAxisExtent: 76,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                        ),
-                    itemCount: stations.length,
-                    itemBuilder: (context, i) {
-                      final station = stations[i];
-                      return _StationCard(
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: stations.map((station) {
+                    return SizedBox(
+                      width: 150,
+                      height: 84,
+                      child: _StationCard(
                         station: station,
                         selected: _selectedIds.contains(station.id),
                         onToggle: () => _toggleStation(station.id),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  }).toList(),
                 ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  height: 34,
-                  child: FilledButton.icon(
-                    onPressed: _selectedIds.isEmpty
-                        ? null
-                        : () {
-                            final selected = stations
-                                .where((s) => _selectedIds.contains(s.id))
-                                .toList();
-                            context.read<StationProvider>().selectStations(
-                              selected,
-                            );
-                          },
-                    icon: const Icon(Icons.check_rounded),
-                    label: Text(
-                      _selectedIds.isEmpty
-                          ? 'Selecciona al menos una estacion'
-                          : 'Continuar con ${_selectedIds.length} estacion${_selectedIds.length == 1 ? '' : 'es'}',
+                const SizedBox(height: 12),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 34,
+                    child: FilledButton.icon(
+                      onPressed: _selectedIds.isEmpty
+                          ? null
+                          : () {
+                              final selected = stations
+                                  .where((s) => _selectedIds.contains(s.id))
+                                  .toList();
+                              context.read<StationProvider>().selectStations(
+                                selected,
+                              );
+                            },
+                      icon: const Icon(Icons.check_rounded),
+                      label: Text(
+                        _selectedIds.isEmpty
+                            ? 'Selecciona al menos una estacion'
+                            : 'Continuar con ${_selectedIds.length} estacion${_selectedIds.length == 1 ? '' : 'es'}',
+                      ),
                     ),
                   ),
                 ),
               ],
+            ),
             ),
           );
         },

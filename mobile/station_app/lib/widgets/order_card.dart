@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/station_item.dart';
 import '../providers/station_provider.dart';
+import 'display_size_scope.dart';
 
 // Formato compacto para mostrar más pedidos sin ocultar nombres de combos.
 const double kCardWidth = 170.0;
+const double kCardHeight = 190.0;
 
 class OrderCard extends StatelessWidget {
   final String orderId;
@@ -74,7 +76,9 @@ class OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: kCardWidth,
+      width: double.infinity,
+      height: context.displaySize(kCardHeight),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: const Color(0xFF1C1C30),
         borderRadius: BorderRadius.circular(5),
@@ -82,7 +86,6 @@ class OrderCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
         children: [
           // ── Header ───────────────────────────────────────────────────
           Container(
@@ -91,52 +94,54 @@ class OrderCard extends StatelessWidget {
               color: Color(0xFF12122A),
               borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: Text(
-                    _orderTitle(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 10,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                Text(
+                  _orderTitle(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
                   ),
+                  maxLines: 2,
+                  softWrap: true,
                 ),
-                const SizedBox(width: 4),
-                // Badge tipo
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 3,
-                    vertical: 1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _typeBadgeColor().withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(2),
-                    border: Border.all(
-                      color: _typeBadgeColor().withValues(alpha: 0.5),
-                    ),
-                  ),
-                  child: Text(
-                    _orderTypeBadge(),
-                    style: TextStyle(
-                      color: _typeBadgeColor(),
-                      fontSize: 8,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                // Tiempo transcurrido
+                const SizedBox(height: 3),
                 Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.schedule, size: 8, color: _elapsedColor()),
-                    const SizedBox(width: 2),
-                    Text(
-                      _elapsed(),
-                      style: TextStyle(color: _elapsedColor(), fontSize: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 3,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _typeBadgeColor().withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(2),
+                        border: Border.all(
+                          color: _typeBadgeColor().withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Text(
+                        _orderTypeBadge(),
+                        style: TextStyle(
+                          color: _typeBadgeColor(),
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.schedule, size: 8, color: _elapsedColor()),
+                        const SizedBox(width: 2),
+                        Text(
+                          _elapsed(),
+                          style: TextStyle(color: _elapsedColor(), fontSize: 8),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -144,10 +149,54 @@ class OrderCard extends StatelessWidget {
             ),
           ),
 
-          // ── Ítems ─────────────────────────────────────────────────────
-          if (_orderNotes() != null)
+          Expanded(
+            child: _OrderDetails(items: items, orderNotes: _orderNotes()),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrderDetails extends StatefulWidget {
+  const _OrderDetails({required this.items, required this.orderNotes});
+
+  final List<StationItem> items;
+  final String? orderNotes;
+
+  @override
+  State<_OrderDetails> createState() => _OrderDetailsState();
+}
+
+class _OrderDetailsState extends State<_OrderDetails> {
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RawScrollbar(
+      controller: _controller,
+      thumbVisibility: true,
+      thumbColor: Colors.white38,
+      thickness: 3,
+      radius: Radius.zero,
+      crossAxisMargin: 0,
+      mainAxisMargin: 3,
+      padding: EdgeInsets.zero,
+      scrollbarOrientation: ScrollbarOrientation.right,
+      child: ListView(
+        controller: _controller,
+        primary: false,
+        padding: const EdgeInsets.fromLTRB(3, 3, 7, 3),
+        children: [
+          if (widget.orderNotes != null)
             Padding(
-              padding: const EdgeInsets.fromLTRB(6, 4, 6, 1),
+              padding: const EdgeInsets.fromLTRB(3, 1, 5, 4),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -159,7 +208,7 @@ class OrderCard extends StatelessWidget {
                   const SizedBox(width: 3),
                   Expanded(
                     child: Text(
-                      _orderNotes()!,
+                      widget.orderNotes!,
                       style: const TextStyle(
                         color: Colors.amberAccent,
                         fontSize: 9,
@@ -170,13 +219,7 @@ class OrderCard extends StatelessWidget {
                 ],
               ),
             ),
-
-          Padding(
-            padding: const EdgeInsets.all(3),
-            child: Column(
-              children: items.map((item) => _ItemRow(item: item)).toList(),
-            ),
-          ),
+          ...widget.items.map((item) => _ItemRow(item: item)),
         ],
       ),
     );

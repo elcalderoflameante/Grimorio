@@ -4,11 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:signalr_netcore/signalr_client.dart';
 import 'package:station_app/models/station_item.dart';
+import 'package:station_app/models/display_size_mode.dart';
 import 'package:station_app/providers/station_provider.dart';
 import 'package:station_app/screens/kds_screen.dart';
 import 'package:station_app/services/api_service.dart';
 import 'package:station_app/services/auth_service.dart';
 import 'package:station_app/services/kitchen_hub_service.dart';
+import 'package:station_app/services/display_preferences_service.dart';
 import 'package:station_app/services/tts_service.dart';
 
 class FakeAuth extends AuthService {
@@ -21,8 +23,15 @@ class FakeAuth extends AuthService {
 }
 
 class FakeHub extends KitchenHubService {
+  int connectCount = 0;
+  int failuresBeforeSuccess = 0;
+
   @override
   Future<void> connect(String url, String token, List<String> ids) async {
+    connectCount++;
+    if (connectCount <= failuresBeforeSuccess) {
+      throw TimeoutException('Servidor temporalmente no disponible');
+    }
     onConnectionChanged?.call(HubConnectionState.Connected);
   }
 
@@ -40,6 +49,16 @@ class FakeTts extends TtsService {
   Future<void> stop() async {}
 }
 
+class FakeDisplayPreferences extends DisplayPreferencesService {
+  DisplaySizeMode mode = DisplaySizeMode.automatic;
+
+  @override
+  Future<DisplaySizeMode> load() async => mode;
+
+  @override
+  Future<void> save(DisplaySizeMode value) async => mode = value;
+}
+
 class FakeApi extends ApiService {
   FakeApi() : super(token: 'token');
   List<StationItem> active = [];
@@ -47,6 +66,7 @@ class FakeApi extends ApiService {
   Completer<List<StationItem>>? loading;
   Completer<void>? updating;
   int updates = 0;
+  int updateFailuresBeforeSuccess = 0;
   @override
   Future<List<StationItem>> getStationItems(String id) async =>
       loading == null ? active : await loading!.future;
@@ -56,6 +76,9 @@ class FakeApi extends ApiService {
   @override
   Future<void> updateItemStatus(String id, String status) async {
     updates++;
+    if (updates <= updateFailuresBeforeSuccess) {
+      throw TimeoutException('Servidor temporalmente no disponible');
+    }
     await updating?.future;
   }
 }
@@ -83,18 +106,67 @@ void main() {
   late FakeHub hub;
   late FakeTts tts;
   late FakeApi api;
+  late FakeDisplayPreferences displayPreferences;
   late StationProvider provider;
   setUp(() async {
     hub = FakeHub();
     tts = FakeTts();
     api = FakeApi();
+    displayPreferences = FakeDisplayPreferences();
     provider = StationProvider(
       auth: FakeAuth(),
       hub: hub,
       tts: tts,
+      displayPreferences: displayPreferences,
       apiFactory: (_) => api,
+      reconnectDelays: const [Duration(milliseconds: 10)],
     );
     await provider.init();
+  });
+
+  test('display size is saved per device', () async {
+    await provider.setDisplaySizeMode(DisplaySizeMode.large);
+
+    expect(provider.displaySizeMode, DisplaySizeMode.large);
+    expect(displayPreferences.mode, DisplaySizeMode.large);
+  });
+
+  test('reconnects and reloads orders without user interaction', () async {
+    api.active = [item('restored')];
+    hub.onConnectionChanged!(HubConnectionState.Disconnected);
+
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+
+    expect(hub.connectCount, 2);
+    expect(provider.connectionState, HubConnectionState.Connected);
+    expect(provider.items.single.orderItemId, 'restored');
+    expect(provider.errorMessage, isNull);
+  });
+
+  test('retries automatically when the initial connection fails', () async {
+    final flakyHub = FakeHub()..failuresBeforeSuccess = 1;
+    final localApi = FakeApi()..active = [item('initial-retry')];
+    final localProvider = StationProvider(
+      auth: FakeAuth(),
+      hub: flakyHub,
+      tts: FakeTts(),
+      displayPreferences: FakeDisplayPreferences(),
+      apiFactory: (_) => localApi,
+      reconnectDelays: const [Duration(milliseconds: 10)],
+    );
+
+    try {
+      await localProvider.init();
+      expect(localProvider.connectionState, HubConnectionState.Reconnecting);
+
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(flakyHub.connectCount, 2);
+      expect(localProvider.connectionState, HubConnectionState.Connected);
+      expect(localProvider.items.single.orderItemId, 'initial-retry');
+    } finally {
+      localProvider.dispose();
+    }
   });
   tearDown(() => provider.dispose());
 
@@ -121,6 +193,14 @@ void main() {
       final itemName = tester.widget<Text>(find.text(name));
       expect(itemName.softWrap, isTrue);
       expect(itemName.overflow, isNot(TextOverflow.ellipsis));
+      final orderTitle = tester.widget<Text>(find.text('Pedido #7 - Mesa 6'));
+      expect(orderTitle.maxLines, 2);
+      expect(orderTitle.overflow, isNot(TextOverflow.ellipsis));
+      final scrollbars = tester.widgetList<RawScrollbar>(
+        find.byType(RawScrollbar),
+      );
+      expect(scrollbars, isNotEmpty);
+      expect(scrollbars.every((bar) => bar.padding == EdgeInsets.zero), isTrue);
       await tester.pump(const Duration(minutes: 1));
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
@@ -186,13 +266,29 @@ void main() {
     hub.onItemUpdated!('a', 'order', 'Ready', null);
     hub.onNewItems!([item('b')]);
     api.updating!.completeError(Exception('Sin red'));
-    expect(await update, isFalse);
+    expect(await update, isTrue);
     expect(
       provider.items.firstWhere((i) => i.orderItemId == 'a').status,
       'Ready',
     );
     expect(provider.items.any((i) => i.orderItemId == 'b'), isTrue);
     expect(provider.isUpdating('a'), isFalse);
+  });
+
+  test('failed status update retries automatically', () async {
+    hub.onNewItems!([item('retry-item')]);
+    api.updateFailuresBeforeSuccess = 1;
+
+    final updated = await provider.advanceItemStatusTo(
+      provider.items.first,
+      'InPreparation',
+    );
+
+    expect(updated, isTrue);
+    expect(api.updates, 2);
+    expect(provider.items.single.status, 'InPreparation');
+    expect(provider.isUpdating('retry-item'), isFalse);
+    expect(provider.errorMessage, isNull);
   });
 
   test('notes are announced only when changed, including removal', () {

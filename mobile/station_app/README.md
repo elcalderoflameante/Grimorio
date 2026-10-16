@@ -20,6 +20,18 @@ La interfaz usa un modo compacto para pantallas de cocina: tarjetas de 170 px,
 barra lateral reducida y controles densos, sin truncar nombres de componentes
 de combos, modificadores ni observaciones.
 
+En el menú de la pantalla KDS, `Tamaño de presentación` permite elegir
+Automático, Compacto, Normal o Grande. La preferencia se guarda únicamente en
+el dispositivo; el modo Automático selecciona el perfil según el espacio útil
+reportado por Android.
+
+Si se pierde la conexión con el servidor, la app conserva las comandas visibles
+y reintenta automáticamente con esperas de 2, 5, 10 y 30 segundos. Al recuperar
+la conexión vuelve a consultar pedidos activos y completados, sin intervención
+del usuario. Los cambios de estado que fallen por una interrupción temporal se
+mantienen pendientes y se reintentan con la misma espera progresiva; el plato
+permanece bloqueado hasta que el servidor confirme el cambio.
+
 Antes de distribuir una APK, comprobar en una tablet real:
 
 1. Login por sucursal, usuario y PIN; seleccion de varias estaciones.
@@ -31,6 +43,8 @@ Antes de distribuir una APK, comprobar en una tablet real:
 La voz de la app reproduce avisos; los comandos de voz se gestionan con Alexa.
 El canal general funciona en modo de solo recepción: se conecta automáticamente
 después del login y no solicita micrófono ni muestra controles para transmitir.
+La recepción se mantiene en segundo plano sin mostrar una barra de estado, para
+no quitar espacio ni provocar desbordes en televisores y TV Box.
 
 ## Build de produccion Android
 

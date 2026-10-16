@@ -52,6 +52,7 @@ class StationApp extends StatelessWidget {
             canTransmit: false,
             autoActivate: true,
             compact: true,
+            showStatusBar: false,
             child: child!,
           );
         },
