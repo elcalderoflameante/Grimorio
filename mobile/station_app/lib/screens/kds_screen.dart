@@ -36,28 +36,28 @@ class _KdsScreenState extends State<KdsScreen> {
       backgroundColor: const Color(0xFF0A0A14),
       appBar: AppBar(
         backgroundColor: const Color(0xFF12122A),
-        titleSpacing: 16,
-        toolbarHeight: 48,
+        titleSpacing: 8,
+        toolbarHeight: 32,
         title: Row(
           children: [
             const Icon(
               Icons.restaurant_menu,
               color: Color(0xFFE94560),
-              size: 20,
+              size: 13,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 5),
             Flexible(
               child: Text(
                 provider.stationName ?? 'Estación',
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 16,
+                  fontSize: 11,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 8),
             _ConnectionBadge(state: provider.connectionState),
           ],
         ),
@@ -65,21 +65,20 @@ class _KdsScreenState extends State<KdsScreen> {
           if (provider.connectionState == HubConnectionState.Disconnected)
             IconButton(
               tooltip: 'Reconectar',
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(Icons.refresh, size: 15),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(width: 30, height: 30),
               onPressed: provider.reconnect,
             ),
           // Contador pedidos activos
           if (provider.items.any((e) => e.status == 'Pending'))
             Center(
               child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 6),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                 decoration: BoxDecoration(
                   color: Colors.orange.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: Colors.orange.withValues(alpha: 0.5),
                   ),
@@ -89,7 +88,7 @@ class _KdsScreenState extends State<KdsScreen> {
                   style: const TextStyle(
                     color: Colors.orange,
                     fontWeight: FontWeight.bold,
-                    fontSize: 12,
+                    fontSize: 8,
                   ),
                 ),
               ),
@@ -103,14 +102,17 @@ class _KdsScreenState extends State<KdsScreen> {
               color: provider.ttsEnabled
                   ? const Color(0xFF4EE87A)
                   : Colors.white30,
-              size: 22,
+              size: 15,
             ),
             onPressed: () => context.read<StationProvider>().setTtsEnabled(
               !provider.ttsEnabled,
             ),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 30, height: 30),
           ),
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: Colors.white54, size: 20),
+            icon: const Icon(Icons.more_vert, color: Colors.white54, size: 15),
+            padding: EdgeInsets.zero,
             color: const Color(0xFF1C1C3A),
             onSelected: (value) {
               if (value == 'change') {
@@ -123,11 +125,11 @@ class _KdsScreenState extends State<KdsScreen> {
                 value: 'change',
                 child: Row(
                   children: [
-                    Icon(Icons.swap_horiz, color: Colors.white70, size: 18),
-                    SizedBox(width: 8),
+                    Icon(Icons.swap_horiz, color: Colors.white70, size: 13),
+                    SizedBox(width: 4),
                     Text(
                       'Cambiar estación',
-                      style: TextStyle(color: Colors.white, fontSize: 14),
+                      style: TextStyle(color: Colors.white, fontSize: 10),
                     ),
                   ],
                 ),
@@ -136,18 +138,18 @@ class _KdsScreenState extends State<KdsScreen> {
                 value: 'logout',
                 child: Row(
                   children: [
-                    Icon(Icons.logout, color: Colors.redAccent, size: 18),
-                    SizedBox(width: 8),
+                    Icon(Icons.logout, color: Colors.redAccent, size: 13),
+                    SizedBox(width: 4),
                     Text(
                       'Cerrar sesión',
-                      style: TextStyle(color: Colors.redAccent, fontSize: 14),
+                      style: TextStyle(color: Colors.redAccent, fontSize: 10),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 2),
         ],
       ),
       body: Column(
@@ -167,7 +169,7 @@ class _KdsScreenState extends State<KdsScreen> {
                 Expanded(child: _MainArea(provider: provider)),
 
                 // ── Sidebar de completados ───────────────────────────────
-                const CompletedSidebar(width: 220),
+                const CompletedSidebar(width: 140),
               ],
             ),
           ),
@@ -192,19 +194,19 @@ class _ErrorBanner extends StatelessWidget {
     return Container(
       width: double.infinity,
       color: const Color(0xFF3D0000),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Row(
         children: [
           const Icon(
             Icons.warning_amber_rounded,
             color: Colors.redAccent,
-            size: 18,
+            size: 11,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 5),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
+              style: const TextStyle(color: Colors.white70, fontSize: 9),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -212,11 +214,11 @@ class _ErrorBanner extends StatelessWidget {
             onPressed: onRetry,
             child: const Text(
               'Reintentar',
-              style: TextStyle(color: Colors.orangeAccent, fontSize: 13),
+              style: TextStyle(color: Colors.orangeAccent, fontSize: 9),
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close, color: Colors.white38, size: 16),
+            icon: const Icon(Icons.close, color: Colors.white38, size: 11),
             onPressed: onDismiss,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
@@ -239,11 +241,18 @@ class _MainArea extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(color: Color(0xFFE94560)),
-            SizedBox(height: 14),
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                color: Color(0xFFE94560),
+                strokeWidth: 2,
+              ),
+            ),
+            SizedBox(height: 7),
             Text(
               'Reconectando...',
-              style: TextStyle(color: Colors.white54, fontSize: 15),
+              style: TextStyle(color: Colors.white54, fontSize: 10),
             ),
           ],
         ),
@@ -260,23 +269,23 @@ class _MainArea extends StatelessWidget {
             const Icon(
               Icons.check_circle_outline,
               color: Color(0xFF2ECC71),
-              size: 64,
+              size: 32,
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 7),
             Text(
               provider.connectionState == HubConnectionState.Connected
                   ? 'Todo listo'
                   : 'Sin conexión',
               style: const TextStyle(
                 color: Colors.white70,
-                fontSize: 26,
+                fontSize: 14,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 3),
             const Text(
               'Los nuevos pedidos aparecerán aquí.',
-              style: TextStyle(color: Colors.white38, fontSize: 14),
+              style: TextStyle(color: Colors.white38, fontSize: 9),
             ),
           ],
         ),
@@ -286,10 +295,10 @@ class _MainArea extends StatelessWidget {
     // Wrap: los pedidos más antiguos quedan a la izquierda,
     // los nuevos se agregan a la derecha, y envuelven hacia abajo.
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(5),
       child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
+        spacing: 5,
+        runSpacing: 5,
         alignment: WrapAlignment.start,
         crossAxisAlignment: WrapCrossAlignment.start,
         children: groups
@@ -316,12 +325,12 @@ class _ConnectionBadge extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 7,
-          height: 7,
+          width: 5,
+          height: 5,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 5),
-        Text(label, style: TextStyle(color: color, fontSize: 11)),
+        const SizedBox(width: 3),
+        Text(label, style: TextStyle(color: color, fontSize: 8)),
       ],
     );
   }

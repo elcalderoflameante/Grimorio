@@ -16,6 +16,10 @@ Cubren pedidos nuevos y adicionales, modificadores, observaciones, cancelaciones
 recuperacion de pedidos al reconectar, actualizaciones concurrentes y pantallas
 de tablet de 1024x600 y 1280x800.
 
+La interfaz usa un modo compacto para pantallas de cocina: tarjetas de 170 px,
+barra lateral reducida y controles densos, sin truncar nombres de componentes
+de combos, modificadores ni observaciones.
+
 Antes de distribuir una APK, comprobar en una tablet real:
 
 1. Login por sucursal, usuario y PIN; seleccion de varias estaciones.

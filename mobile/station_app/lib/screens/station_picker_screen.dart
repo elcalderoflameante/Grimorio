@@ -36,13 +36,20 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
       backgroundColor: const Color(0xFF1A1A2E),
       appBar: AppBar(
         backgroundColor: const Color(0xFF16213E),
-        title: const Text('Seleccionar estaciones',
-            style: TextStyle(color: Colors.white)),
+        toolbarHeight: 34,
+        titleSpacing: 8,
+        title: const Text(
+          'Seleccionar estaciones',
+          style: TextStyle(color: Colors.white, fontSize: 11),
+        ),
         actions: [
           TextButton.icon(
             onPressed: () => context.read<StationProvider>().logout(),
-            icon: const Icon(Icons.logout, color: Colors.white54),
-            label: const Text('Salir', style: TextStyle(color: Colors.white54)),
+            icon: const Icon(Icons.logout, color: Colors.white54, size: 14),
+            label: const Text(
+              'Salir',
+              style: TextStyle(color: Colors.white54, fontSize: 9),
+            ),
           ),
         ],
       ),
@@ -60,15 +67,18 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline,
-                      color: Colors.redAccent, size: 48),
-                  const SizedBox(height: 12),
+                  const Icon(
+                    Icons.error_outline,
+                    color: Colors.redAccent,
+                    size: 24,
+                  ),
+                  const SizedBox(height: 6),
                   Text(
                     snapshot.error.toString().replaceFirst('Exception: ', ''),
-                    style: const TextStyle(color: Colors.white70),
+                    style: const TextStyle(color: Colors.white70, fontSize: 9),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
                   FilledButton(
                     onPressed: () => setState(() {
                       _future = context.read<StationProvider>().loadStations();
@@ -86,14 +96,14 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
             return const Center(
               child: Text(
                 'No hay estaciones activas.\nCrea una en el panel de administracion.',
-                style: TextStyle(color: Colors.white54),
+                style: TextStyle(color: Colors.white54, fontSize: 9),
                 textAlign: TextAlign.center,
               ),
             );
           }
 
           return Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -101,25 +111,25 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
                   'Que estaciones vera esta tablet?',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 22,
+                    fontSize: 13,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 const Text(
                   'Selecciona una o varias. Emplatado puede ver Fritos + Parrilla para sacar pedidos completos.',
-                  style: TextStyle(color: Colors.white54),
+                  style: TextStyle(color: Colors.white54, fontSize: 9),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 12),
                 Expanded(
                   child: GridView.builder(
                     gridDelegate:
                         const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 280,
-                      mainAxisExtent: 132,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                    ),
+                          maxCrossAxisExtent: 150,
+                          mainAxisExtent: 76,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                        ),
                     itemCount: stations.length,
                     itemBuilder: (context, i) {
                       final station = stations[i];
@@ -131,10 +141,10 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
                     },
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
-                  height: 48,
+                  height: 34,
                   child: FilledButton.icon(
                     onPressed: _selectedIds.isEmpty
                         ? null
@@ -142,9 +152,9 @@ class _StationPickerScreenState extends State<StationPickerScreen> {
                             final selected = stations
                                 .where((s) => _selectedIds.contains(s.id))
                                 .toList();
-                            context
-                                .read<StationProvider>()
-                                .selectStations(selected);
+                            context.read<StationProvider>().selectStations(
+                              selected,
+                            );
                           },
                     icon: const Icon(Icons.check_rounded),
                     label: Text(
@@ -197,12 +207,12 @@ class _StationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: selected ? const Color(0xFF233A5E) : const Color(0xFF16213E),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(8),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         onTap: onToggle,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(8),
           child: Column(
             children: [
               Align(
@@ -210,18 +220,21 @@ class _StationCard extends StatelessWidget {
                 child: Icon(
                   selected ? Icons.check_circle_rounded : Icons.circle_outlined,
                   color: selected ? const Color(0xFF4EE87A) : Colors.white30,
-                  size: 22,
+                  size: 12,
                 ),
               ),
               const Spacer(),
-              Icon(_icon(station.type),
-                  color: const Color(0xFFE94560), size: 36),
-              const SizedBox(height: 10),
+              Icon(
+                _icon(station.type),
+                color: const Color(0xFFE94560),
+                size: 18,
+              ),
+              const SizedBox(height: 4),
               Text(
                 station.name,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 18,
+                  fontSize: 10,
                   fontWeight: FontWeight.bold,
                 ),
                 textAlign: TextAlign.center,
@@ -230,7 +243,7 @@ class _StationCard extends StatelessWidget {
               ),
               Text(
                 station.type,
-                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                style: const TextStyle(color: Colors.white54, fontSize: 8),
               ),
               const Spacer(),
             ],

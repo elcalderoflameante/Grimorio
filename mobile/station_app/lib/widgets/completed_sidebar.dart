@@ -22,38 +22,47 @@ class CompletedSidebar extends StatelessWidget {
         children: [
           // ── Header ─────────────────────────────────────────────────
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
             decoration: const BoxDecoration(
               color: Color(0xFF0A0A1A),
               border: Border(bottom: BorderSide(color: Color(0xFF2A2A4A))),
             ),
             child: Row(
               children: [
-                const Icon(Icons.check_circle_rounded, color: Color(0xFF4EE87A), size: 16),
-                const SizedBox(width: 6),
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: Color(0xFF4EE87A),
+                  size: 10,
+                ),
+                const SizedBox(width: 3),
                 const Expanded(
                   child: Text(
                     'Completados',
                     style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5),
+                      color: Colors.white70,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0,
+                    ),
                   ),
                 ),
                 if (completed.isNotEmpty)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 3,
+                      vertical: 1,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF4EE87A).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(5),
                     ),
                     child: Text(
                       '${completed.length}',
                       style: const TextStyle(
-                          color: Color(0xFF4EE87A),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11),
+                        color: Color(0xFF4EE87A),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 8,
+                      ),
                     ),
                   ),
               ],
@@ -66,13 +75,17 @@ class CompletedSidebar extends StatelessWidget {
                 ? const Center(
                     child: Text(
                       'Ninguno aún',
-                      style: TextStyle(color: Colors.white24, fontSize: 12),
+                      style: TextStyle(color: Colors.white24, fontSize: 8),
                     ),
                   )
                 : ListView.separated(
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 4,
+                      horizontal: 4,
+                    ),
                     itemCount: completed.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 6),
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 3),
                     itemBuilder: (_, i) => _CompletedTile(order: completed[i]),
                   ),
           ),
@@ -120,7 +133,7 @@ class _CompletedTileState extends State<_CompletedTile> {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF003D1A).withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(4),
         border: Border.all(
           color: _expanded
               ? const Color(0xFF4EE87A).withValues(alpha: 0.5)
@@ -132,15 +145,19 @@ class _CompletedTileState extends State<_CompletedTile> {
         children: [
           // ── Fila principal ──────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Padding(
                   padding: EdgeInsets.only(top: 1),
-                  child: Icon(Icons.check_rounded, color: Color(0xFF4EE87A), size: 13),
+                  child: Icon(
+                    Icons.check_rounded,
+                    color: Color(0xFF4EE87A),
+                    size: 9,
+                  ),
                 ),
-                const SizedBox(width: 5),
+                const SizedBox(width: 3),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,26 +165,31 @@ class _CompletedTileState extends State<_CompletedTile> {
                       Text(
                         _orderTitle(),
                         style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13),
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 9,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                       if (_orderNotes() != null) ...[
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 2),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.info_outline_rounded,
-                                color: Colors.amberAccent, size: 11),
-                            const SizedBox(width: 4),
+                            const Icon(
+                              Icons.info_outline_rounded,
+                              color: Colors.amberAccent,
+                              size: 8,
+                            ),
+                            const SizedBox(width: 2),
                             Expanded(
                               child: Text(
                                 _orderNotes()!,
                                 style: const TextStyle(
-                                    color: Colors.amberAccent,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600),
+                                  color: Colors.amberAccent,
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w600,
+                                ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -175,39 +197,49 @@ class _CompletedTileState extends State<_CompletedTile> {
                           ],
                         ),
                       ],
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 1),
                       Row(
                         children: [
                           Text(
                             '${widget.order.itemCount} ítem${widget.order.itemCount == 1 ? '' : 's'}',
-                            style: const TextStyle(color: Colors.white38, fontSize: 11),
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 8,
+                            ),
                           ),
                           const Spacer(),
                           Text(
                             _elapsed(),
-                            style: const TextStyle(color: Colors.white24, fontSize: 10),
+                            style: const TextStyle(
+                              color: Colors.white24,
+                              fontSize: 8,
+                            ),
                           ),
                         ],
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 3),
                 // Ícono ojo para expandir/colapsar
                 GestureDetector(
                   onTap: () => setState(() => _expanded = !_expanded),
                   child: Container(
-                    padding: const EdgeInsets.all(5),
+                    padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(
                       color: _expanded
                           ? const Color(0xFF4EE87A).withValues(alpha: 0.15)
                           : Colors.transparent,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(3),
                     ),
                     child: Icon(
-                      _expanded ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                      color: _expanded ? const Color(0xFF4EE87A) : Colors.white30,
-                      size: 16,
+                      _expanded
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      color: _expanded
+                          ? const Color(0xFF4EE87A)
+                          : Colors.white30,
+                      size: 11,
                     ),
                   ),
                 ),
@@ -222,7 +254,7 @@ class _CompletedTileState extends State<_CompletedTile> {
               color: const Color(0xFF4EE87A).withValues(alpha: 0.15),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
+              padding: const EdgeInsets.fromLTRB(5, 3, 5, 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: widget.order.items
@@ -251,35 +283,39 @@ class _ItemDetail extends StatelessWidget {
         .toList();
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsets.only(bottom: 3),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'x${item.quantity}',
             style: const TextStyle(
-                color: Color(0xFF4EE87A),
-                fontWeight: FontWeight.bold,
-                fontSize: 12),
+              color: Color(0xFF4EE87A),
+              fontWeight: FontWeight.bold,
+              fontSize: 8,
+            ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 3),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   item.itemName,
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  style: const TextStyle(color: Colors.white70, fontSize: 8),
                 ),
                 if (modifierLabels.isNotEmpty)
                   Text(
                     modifierLabels.join(', '),
-                    style: const TextStyle(color: Color(0xFFBB86FC), fontSize: 11),
+                    style: const TextStyle(
+                      color: Color(0xFFBB86FC),
+                      fontSize: 8,
+                    ),
                   ),
                 if (item.notes != null && item.notes!.isNotEmpty)
                   Text(
                     item.notes!,
-                    style: const TextStyle(color: Colors.amber, fontSize: 11),
+                    style: const TextStyle(color: Colors.amber, fontSize: 8),
                   ),
               ],
             ),

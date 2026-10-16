@@ -33,6 +33,7 @@ class StationApp extends StatelessWidget {
         title: 'Grimorio KDS',
         debugShowCheckedModeBanner: false,
         theme: ThemeData.dark().copyWith(
+          visualDensity: VisualDensity.compact,
           colorScheme: const ColorScheme.dark(
             primary: Color(0xFFE94560),
             surface: Color(0xFF16213E),
@@ -50,6 +51,7 @@ class StationApp extends StatelessWidget {
             onChannelBusy: station.setVoiceBusy,
             canTransmit: false,
             autoActivate: true,
+            compact: true,
             child: child!,
           );
         },

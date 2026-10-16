@@ -16,6 +16,7 @@ class VoiceShell extends StatefulWidget {
     this.onChannelBusy,
     this.canTransmit = true,
     this.autoActivate = false,
+    this.compact = false,
   });
   final Widget child;
   final String apiBaseUrl;
@@ -23,6 +24,7 @@ class VoiceShell extends StatefulWidget {
   final ValueChanged<bool>? onChannelBusy;
   final bool canTransmit;
   final bool autoActivate;
+  final bool compact;
   @override
   State<VoiceShell> createState() => _VoiceShellState();
 }
@@ -585,7 +587,10 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
         child: SafeArea(
           bottom: false,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: EdgeInsets.symmetric(
+              horizontal: widget.compact ? 4 : 8,
+              vertical: widget.compact ? 1 : 4,
+            ),
             child: Row(
               children: [
                 IconButton(
@@ -596,6 +601,12 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
                       : 'Activar recepción de voz',
                   onPressed: () =>
                       unawaited(_enabled ? _deactivate() : _activate()),
+                  iconSize: widget.compact ? 16 : 24,
+                  padding: EdgeInsets.zero,
+                  constraints: BoxConstraints.tightFor(
+                    width: widget.compact ? 28 : 48,
+                    height: widget.compact ? 28 : 48,
+                  ),
                   icon: Icon(
                     _enabled ? Icons.volume_up : Icons.volume_off,
                     color: _connected ? Colors.greenAccent : Colors.white70,
@@ -608,7 +619,10 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
                         : 'Habla $_speaker · $_count conectados',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: widget.compact ? 9 : 12,
+                    ),
                   ),
                 ),
                 if (widget.canTransmit && _controls.supported)

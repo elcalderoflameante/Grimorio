@@ -3,9 +3,8 @@ import 'package:provider/provider.dart';
 import '../models/station_item.dart';
 import '../providers/station_provider.dart';
 
-// Ancho fijo de la tarjeta — en un monitor de 19" landscape (1920px)
-// con sidebar de 220px y padding, caben cómodamente 5-6 tarjetas por fila.
-const double kCardWidth = 290.0;
+// Formato compacto para mostrar más pedidos sin ocultar nombres de combos.
+const double kCardWidth = 170.0;
 
 class OrderCard extends StatelessWidget {
   final String orderId;
@@ -78,8 +77,8 @@ class OrderCard extends StatelessWidget {
       width: kCardWidth,
       decoration: BoxDecoration(
         color: const Color(0xFF1C1C30),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _cardBorderColor(), width: 1.5),
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: _cardBorderColor()),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -87,10 +86,10 @@ class OrderCard extends StatelessWidget {
         children: [
           // ── Header ───────────────────────────────────────────────────
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             decoration: const BoxDecoration(
               color: Color(0xFF12122A),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(9)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
             ),
             child: Row(
               children: [
@@ -100,21 +99,21 @@ class OrderCard extends StatelessWidget {
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 15,
+                      fontSize: 10,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
                 // Badge tipo
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
+                    horizontal: 3,
+                    vertical: 1,
                   ),
                   decoration: BoxDecoration(
                     color: _typeBadgeColor().withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(2),
                     border: Border.all(
                       color: _typeBadgeColor().withValues(alpha: 0.5),
                     ),
@@ -123,21 +122,21 @@ class OrderCard extends StatelessWidget {
                     _orderTypeBadge(),
                     style: TextStyle(
                       color: _typeBadgeColor(),
-                      fontSize: 10,
+                      fontSize: 8,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
                 // Tiempo transcurrido
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.schedule, size: 12, color: _elapsedColor()),
-                    const SizedBox(width: 3),
+                    Icon(Icons.schedule, size: 8, color: _elapsedColor()),
+                    const SizedBox(width: 2),
                     Text(
                       _elapsed(),
-                      style: TextStyle(color: _elapsedColor(), fontSize: 11),
+                      style: TextStyle(color: _elapsedColor(), fontSize: 8),
                     ),
                   ],
                 ),
@@ -148,22 +147,22 @@ class OrderCard extends StatelessWidget {
           // ── Ítems ─────────────────────────────────────────────────────
           if (_orderNotes() != null)
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 2),
+              padding: const EdgeInsets.fromLTRB(6, 4, 6, 1),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Icon(
                     Icons.info_outline_rounded,
                     color: Colors.amberAccent,
-                    size: 14,
+                    size: 9,
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 3),
                   Expanded(
                     child: Text(
                       _orderNotes()!,
                       style: const TextStyle(
                         color: Colors.amberAccent,
-                        fontSize: 12,
+                        fontSize: 9,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -173,7 +172,7 @@ class OrderCard extends StatelessWidget {
             ),
 
           Padding(
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.all(3),
             child: Column(
               children: items.map((item) => _ItemRow(item: item)).toList(),
             ),
@@ -228,18 +227,18 @@ class _ItemRow extends StatelessWidget {
         .toList();
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: 2),
       child: Material(
         color: bg,
-        borderRadius: BorderRadius.circular(7),
+        borderRadius: BorderRadius.circular(4),
         child: InkWell(
-          borderRadius: BorderRadius.circular(7),
+          borderRadius: BorderRadius.circular(4),
           // Clic único = avanzar estado
           onTap: canAdvance
               ? () => context.read<StationProvider>().advanceItemStatus(item)
               : null,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -247,40 +246,40 @@ class _ItemRow extends StatelessWidget {
                   children: [
                     // Ícono de estado
                     SizedBox(
-                      width: 16,
-                      height: 16,
+                      width: 10,
+                      height: 10,
                       child: updating
-                          ? CircularProgressIndicator(strokeWidth: 2, color: fg)
-                          : Icon(_statusIcon(item.status), color: fg, size: 16),
+                          ? CircularProgressIndicator(strokeWidth: 1, color: fg)
+                          : Icon(_statusIcon(item.status), color: fg, size: 10),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 3),
                     // Cantidad
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
+                        horizontal: 3,
                         vertical: 1,
                       ),
                       decoration: BoxDecoration(
                         color: fg.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(2),
                       ),
                       child: Text(
                         'x${item.quantity}',
                         style: TextStyle(
                           color: fg,
                           fontWeight: FontWeight.bold,
-                          fontSize: 13,
+                          fontSize: 9,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 4),
                     // Nombre
                     Expanded(
                       child: Text(
                         item.itemName,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 14,
+                          fontSize: 10,
                           fontWeight: FontWeight.w600,
                         ),
                         softWrap: true,
@@ -291,30 +290,30 @@ class _ItemRow extends StatelessWidget {
                       Icon(
                         Icons.touch_app_rounded,
                         color: fg.withValues(alpha: 0.5),
-                        size: 14,
+                        size: 9,
                       ),
                   ],
                 ),
                 // Modificadores (ej: salsa bbq, mostaza miel...)
                 if (modifierLabels.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Padding(
-                    padding: const EdgeInsets.only(left: 22),
+                    padding: const EdgeInsets.only(left: 13),
                     child: Wrap(
-                      spacing: 4,
-                      runSpacing: 4,
+                      spacing: 2,
+                      runSpacing: 2,
                       children: modifierLabels
                           .map(
                             (label) => Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
+                                horizontal: 3,
+                                vertical: 1,
                               ),
                               decoration: BoxDecoration(
                                 color: const Color(
                                   0xFF7C3AED,
                                 ).withValues(alpha: 0.25),
-                                borderRadius: BorderRadius.circular(4),
+                                borderRadius: BorderRadius.circular(2),
                                 border: Border.all(
                                   color: const Color(
                                     0xFF7C3AED,
@@ -325,7 +324,7 @@ class _ItemRow extends StatelessWidget {
                                 label,
                                 style: const TextStyle(
                                   color: Color(0xFFBB86FC),
-                                  fontSize: 11,
+                                  fontSize: 8,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -337,22 +336,22 @@ class _ItemRow extends StatelessWidget {
                 ],
 
                 if (item.isTakeout) ...[
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 3),
                   const Padding(
-                    padding: EdgeInsets.only(left: 22),
+                    padding: EdgeInsets.only(left: 13),
                     child: Row(
                       children: [
                         Icon(
                           Icons.shopping_bag_rounded,
                           color: Colors.orangeAccent,
-                          size: 14,
+                          size: 9,
                         ),
-                        SizedBox(width: 4),
+                        SizedBox(width: 2),
                         Text(
                           'PARA LLEVAR',
                           style: TextStyle(
                             color: Colors.orangeAccent,
-                            fontSize: 12,
+                            fontSize: 8,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -363,23 +362,23 @@ class _ItemRow extends StatelessWidget {
 
                 // Notas libres del mesero
                 if (item.notes != null && item.notes!.isNotEmpty) ...[
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 3),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(width: 22),
+                      const SizedBox(width: 13),
                       const Icon(
                         Icons.notes_rounded,
                         color: Colors.amber,
-                        size: 12,
+                        size: 8,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 2),
                       Expanded(
                         child: Text(
                           item.notes!,
                           style: const TextStyle(
                             color: Colors.amber,
-                            fontSize: 12,
+                            fontSize: 9,
                           ),
                         ),
                       ),
