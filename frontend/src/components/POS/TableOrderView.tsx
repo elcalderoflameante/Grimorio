@@ -11,6 +11,7 @@ import type {
 } from '../../types';
 import { cashApi, employeeApi, menuApi, paymentMethodsApi, posApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
+import { menuItemName } from '../../utils/menuItemName';
 import { printThermalReceipt } from '../../utils/thermalReceiptPrinter';
 import CustomerSelector from '../Billing/CustomerSelector';
 import { useAuth } from '../../context/useAuth';
@@ -431,7 +432,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       return;
     }
     if (itemDetail.modifierGroups?.length > 0) {
-      setModifierBaseLine({ menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1, promotionId });
+      setModifierBaseLine({ menuItemId: itemDetail.id, name: menuItemName(itemDetail.name, itemDetail.generalName), price: itemDetail.price, quantity: 1, promotionId });
       setPendingModifiers({});
       setModifierError(false);
       setModifierTarget(itemDetail);
@@ -440,7 +441,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
     setCart(prev => {
       const existing = prev.findIndex(l => l.menuItemId === itemDetail.id && !l.modifierSelections?.length && l.promotionId === promotionId);
       if (existing >= 0) return prev.map((l, i) => i === existing ? { ...l, quantity: l.quantity + 1 } : l);
-      return [...prev, { menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1, promotionId }];
+      return [...prev, { menuItemId: itemDetail.id, name: menuItemName(itemDetail.name, itemDetail.generalName), price: itemDetail.price, quantity: 1, promotionId }];
     });
   };
 
@@ -898,7 +899,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
               }))}
             />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <Text ellipsis style={{ display: 'block', fontSize: 13 }}>{item.itemName}</Text>
+              <Text style={{ display: 'block', fontSize: 13, overflowWrap: 'anywhere' }}>{item.itemName}</Text>
               <Text type="secondary" style={{ fontSize: 11 }}>${paymentUnitTotal.toFixed(2)} c/u</Text>
             </div>
             {row.checked ? (
@@ -1123,7 +1124,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                       <div style={{ width: '100%', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                         <Text strong style={{ minWidth: 24, fontSize: 13 }}>{item.quantity}×</Text>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <Text ellipsis style={{ fontSize: 13 }}>{item.itemName}</Text>
+                          <Text style={{ display: 'block', fontSize: 13, overflowWrap: 'anywhere' }}>{item.itemName}</Text>
                           {!!item.preparationTasks?.length && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
                               {item.preparationTasks.map(task => <Text key={task.id} type="secondary" style={{ fontSize: 11 }}>
@@ -1198,7 +1199,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                           background: '#e6f4ff', borderRadius: 6, padding: '6px 8px', marginBottom: 6,
                         }}>
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                            <Text style={{ flex: 1, fontSize: 13 }} ellipsis>{line.name}</Text>
+                            <Text style={{ flex: 1, minWidth: 0, fontSize: 13, overflowWrap: 'anywhere' }}>{line.name}</Text>
                             <Button size="small" icon={<MinusOutlined />} onClick={() => updateCartQty(idx, line.quantity - 1)} />
                             <Text style={{ minWidth: 20, textAlign: 'center' }}>{line.quantity}</Text>
                             <Button size="small" icon={<PlusOutlined />} onClick={() => updateCartQty(idx, line.quantity + 1)} />

@@ -781,27 +781,43 @@ export default function PublicTableRequest() {
                   )}
 
                   <div className="space-y-1.5">
-                    {selectedCategoryId === PROMOTIONS_CATEGORY_ID && !selectedPromotionId && activePromotions.map(promotion => (
-                      <button
-                        key={promotion.id}
-                        onClick={() => promotion.isCurrentlyActive && setSelectedPromotionId(promotion.id)}
-                        disabled={!promotion.isCurrentlyActive}
-                        className="w-full rounded-lg border-2 border-[#8B5E3C] bg-[#f5f1ed]/95 p-2.5 text-left shadow-md disabled:opacity-55"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <h3 className="text-xs font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif]">{promotion.name}</h3>
-                            {promotion.description && <p className="mt-0.5 text-[11px] text-[#6d4c3d]">{promotion.description}</p>}
-                            <p className="mt-1 text-[11px] font-bold text-[#6d4c3d]">{promotionScheduleLabel(promotion)}</p>
-                            <p className="mt-0.5 text-[11px] text-[#6d4c3d]">{promotionPaymentLabel(promotion)}</p>
-                            {!promotion.isCurrentlyActive && <p className="mt-1 text-xs font-bold text-[#8B2E2E]">No disponible ahora</p>}
+                    {selectedCategoryId === PROMOTIONS_CATEGORY_ID && !selectedPromotionId && activePromotions.map(promotion => {
+                      const promotionItem = promotion.menuItemIds.length === 1 && promotion.menuCategoryIds.length === 0
+                        ? menuItems.find(item => item.id === promotion.menuItemIds[0])
+                        : undefined;
+                      return (
+                        <button
+                          key={promotion.id}
+                          onClick={() => promotion.isCurrentlyActive && setSelectedPromotionId(promotion.id)}
+                          disabled={!promotion.isCurrentlyActive}
+                          className="w-full rounded-lg border-2 border-[#8B5E3C] bg-[#f5f1ed]/95 p-2.5 text-left shadow-md disabled:opacity-55"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            {promotionItem?.imageUrl && (
+                              <img
+                                src={resolveMediaUrl(promotionItem.thumbnailUrl ?? promotionItem.imageUrl)}
+                                alt=""
+                                loading="lazy"
+                                decoding="async"
+                                width={80}
+                                height={64}
+                                className="h-16 w-20 shrink-0 rounded-md object-cover"
+                              />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <h3 className="text-xs font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif]">{promotion.name}</h3>
+                              {promotion.description && <p className="mt-0.5 text-[11px] text-[#6d4c3d]">{promotion.description}</p>}
+                              <p className="mt-1 text-[11px] font-bold text-[#6d4c3d]">{promotionScheduleLabel(promotion)}</p>
+                              <p className="mt-0.5 text-[11px] text-[#6d4c3d]">{promotionPaymentLabel(promotion)}</p>
+                              {!promotion.isCurrentlyActive && <p className="mt-1 text-xs font-bold text-[#8B2E2E]">No disponible ahora</p>}
+                            </div>
+                            <span className="shrink-0 rounded-full bg-[#8B5E3C] px-2 py-0.5 text-[11px] font-bold text-[#f5ead8]">
+                              {promotionValueLabel(promotion)}
+                            </span>
                           </div>
-                          <span className="shrink-0 rounded-full bg-[#8B5E3C] px-2 py-0.5 text-[11px] font-bold text-[#f5ead8]">
-                            {promotionValueLabel(promotion)}
-                          </span>
-                        </div>
-                      </button>
-                    ))}
+                        </button>
+                      );
+                    })}
                     {selectedCategoryId === PROMOTIONS_CATEGORY_ID && selectedPromotionId && (
                       <div className="mb-1 text-xs text-[#3e2723]">
                         <button onClick={() => setSelectedPromotionId(null)} className="rounded-full border-2 border-[#8B5E3C] bg-[#e8d9c0] px-3 py-1 font-bold [font-family:'Eagle_Lake',serif]">Ver promociones</button>
@@ -819,9 +835,12 @@ export default function PublicTableRequest() {
                         <div className="flex items-start justify-between gap-3">
                           {item.imageUrl && (
                             <img
-                              src={resolveMediaUrl(item.imageUrl)}
+                              src={resolveMediaUrl(item.thumbnailUrl ?? item.imageUrl)}
                               alt=""
                               loading="lazy"
+                              decoding="async"
+                              width={80}
+                              height={64}
                               className="h-16 w-20 shrink-0 rounded-md object-cover"
                             />
                           )}
@@ -1083,6 +1102,15 @@ export default function PublicTableRequest() {
               </div>
               <button className="text-xs font-bold text-[#6d4c3d]" onClick={() => setItemDraft(null)}>Cerrar</button>
             </div>
+
+            {itemDraft.item.imageUrl && (
+              <img
+                src={resolveMediaUrl(itemDraft.item.imageUrl)}
+                alt={itemDraft.item.name}
+                decoding="async"
+                className="mt-2.5 max-h-64 w-full rounded-md object-contain"
+              />
+            )}
 
             <div className="mt-2.5 flex items-center justify-between rounded-lg bg-white/60 p-2">
               <span className="text-xs font-bold text-[#3e2723]">Cantidad</span>

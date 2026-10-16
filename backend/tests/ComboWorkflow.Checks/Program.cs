@@ -62,6 +62,10 @@ var articles = new[] { "Alitas", "Carne", "Limon", "Sal compartida" }.Select(nam
 var dishes = new[] { "Alitas fijas", "Hamburguesa fija", "Limonada" }.Select((name, index) => new MenuItem
 { BranchId = branch.Id, Name = name, GeneralName = name, MenuCategoryId = category.Id, StationId = stations[index].Id, Price = 4,
     InternalCode = $"M-00000{index}", SaleVisibility = MenuItemSaleVisibility.ComponentsOnly }).ToArray();
+dishes[0].GeneralName = "Porcion de alitas";
+Check(MenuItemNames.Format(" Pluma mistica ", " Filete de pollo ") == "Pluma mistica - Filete de pollo", "Display thematic and general name");
+Check(MenuItemNames.Format("Limonada", " limonada ") == "Limonada", "Do not duplicate equal names");
+Check(MenuItemNames.Format("Limonada", null) == "Limonada", "Legacy name fallback");
 await Read(async db =>
 {
     if (Environment.GetEnvironmentVariable("COMBO_CHECKS_ALLOW_RESET") == "true")
@@ -114,6 +118,8 @@ Check(draft.Items.Count == 1 && draft.Total == 30 && draft.Items[0].PreparationT
 Check((await Send(new GetItemsByStationQuery { BranchId = branch.Id, StationId = stations[0].Id })).Count == 0, "Draft not visible in kitchen");
 var confirmed = await Send(new ConfirmOrderCommand { BranchId = branch.Id, OrderId = draft.Id });
 var parent = confirmed.Items.Single();
+Check(parent.ItemName == "Combo dragon - Combo alitas hamburguesa limonada", "Order line includes both names");
+Check(parent.PreparationTasks.Single(t => t.MenuItemId == dishes[0].Id).ItemName == "Alitas fijas - Porcion de alitas (Combo: Combo dragon)", "Component description includes real dish and combo reference");
 await Reject(new DeleteMenuItemCommand { BranchId = branch.Id, Id = combo.Id }, "ya tiene pedidos");
 await Reject(new DeliverOrderCommand { BranchId = branch.Id, OrderId = draft.Id }, "componentes del combo");
 await Read(async db => Check(await db.StockReservations.Where(x => x.OrderId == draft.Id && x.Status == StockReservationStatus.Active).SumAsync(x => x.BaseQuantity) == 10, "Reserve 2 combos, sum shared salt"));
@@ -121,6 +127,7 @@ for (var i = 0; i < 3; i++)
 {
     var stationItems = await Send(new GetItemsByStationQuery { BranchId = branch.Id, StationId = stations[i].Id });
     Check(stationItems.Count == 1 && stationItems[0].Quantity == 2 && stationItems[0].ItemName.Contains("Combo dragon"), "Station gets only its component and combo reference");
+    if (i == 0) Check(stationItems[0].ItemName == "Alitas fijas - Porcion de alitas (Combo: Combo dragon)", "Station query includes real component name");
 }
 await Reject(new SetOrderItemStatusCommand { BranchId = branch.Id, OrderItemId = parent.Id, Status = "Ready" }, "cada componente");
 var firstTask = parent.PreparationTasks[0];
@@ -485,4 +492,100 @@ await Reject(new PublicCreateDraftOrderCommand { TableToken = table.PublicToken,
         ModifierSelections = [new() { ModifierOptionId = largeId, Quantity = 1 }, new() { ModifierOptionId = teriyakiId, Quantity = 1 }] }] }, "disponible");
 dependentRequest.Groups[1].QuantityRules = [new(smallId, 30)];
 await Reject(dependentRequest, "cada tamano");
+var namedDish = await Send(new CreateMenuItemCommand { BranchId = branch.Id, MenuCategoryId = category.Id,
+    Name = "Pluma mistica", GeneralName = "Filete de pollo", Price = 5.5m, StationId = stations[1].Id });
+var additionalArticle = new InventoryArticle { BranchId = branch.Id, Name = "Additional checks", CategoryId = inventoryCategory.Id,
+    BaseUnitId = unit.Id, Type = ArticleType.Ingredient };
+await Read(async db =>
+{
+    db.Add(additionalArticle);
+    db.WarehouseStock.Add(new WarehouseStock { BranchId = branch.Id, ArticleId = additionalArticle.Id, WarehouseId = warehouse.Id, Quantity = 10 });
+    db.StockMovements.Add(new StockMovement { BranchId = branch.Id, ArticleId = additionalArticle.Id, WarehouseId = warehouse.Id,
+        Type = MovementType.PurchaseEntry, UnitId = unit.Id, Quantity = 10, BaseQuantity = 10, UnitCost = 1, TotalCost = 10 });
+    db.RecipeIngredients.Add(new RecipeIngredient { BranchId = branch.Id, MenuItemId = namedDish.Id, ArticleId = additionalArticle.Id, UnitId = unit.Id, Quantity = 1 });
+    await db.SaveChangesAsync();
+});
+var namedOrder = await Send(Order(1, namedDish.Id));
+Check(namedOrder.Items.Single().ItemName == "Pluma mistica - Filete de pollo", "New ordinary order includes both names");
+await Send(new ConfirmOrderCommand { BranchId = branch.Id, OrderId = namedOrder.Id });
+var namedStationItem = (await Send(new GetItemsByStationQuery { BranchId = branch.Id, StationId = stations[1].Id }))
+    .Single(i => i.OrderId == namedOrder.Id);
+Check(namedStationItem.ItemName == "Pluma mistica - Filete de pollo", "Ordinary station item includes both names");
+var readyNamed = await Send(new SetOrderItemStatusCommand { BranchId = branch.Id, OrderItemId = namedStationItem.OrderItemId, Status = "Ready" });
+Check(readyNamed.ItemName == "Pluma mistica - Filete de pollo", "Station status update preserves both names");
+UpdateOrderItemsCommand Additional(Guid orderId, Guid menuId, int quantity = 1) => new()
+{
+    BranchId = branch.Id, OrderId = orderId, IdempotencyKey = Guid.NewGuid(), ExpectedIsDraft = false,
+    Items = [new() { MenuItemId = menuId, Quantity = quantity }],
+};
+var readyAddition = await Send(Additional(namedOrder.Id, namedDish.Id));
+Check(readyAddition.Status == "Confirmed" && readyAddition.Total == 11 && readyAddition.AddedItemIds.Count == 1,
+    "Ready order accepts an addition and recalculates total and preparation state");
+Check(readyAddition.Items.Single(i => i.Id == namedStationItem.OrderItemId).Status == "Ready", "Previous dish remains ready");
+await Send(new SetOrderItemStatusCommand { BranchId = branch.Id, OrderItemId = readyAddition.AddedItemIds.Single(), Status = "Ready" });
+await Send(new DeliverOrderCommand { BranchId = branch.Id, OrderId = namedOrder.Id });
+var servedTable = new RestaurantTable { BranchId = branch.Id, Code = "Served checks" };
+await Read(async db =>
+{
+    db.Add(servedTable);
+    (await db.Orders.SingleAsync(o => o.Id == namedOrder.Id)).TableId = servedTable.Id;
+    await db.SaveChangesAsync();
+});
+var occupied = (await Send(new GetRestaurantTablesQuery { BranchId = branch.Id })).Single(t => t.Id == servedTable.Id);
+Check(occupied.CurrentStatus == "Occupied" && occupied.CurrentOrderId == namedOrder.Id, "Unpaid delivered account keeps its table occupied");
+await Reject(new CreateOrderCommand { BranchId = branch.Id, Type = "DineIn", TableId = servedTable.Id,
+    Items = [new() { MenuItemId = namedDish.Id, Quantity = 1 }] }, "pedido activo");
+await Reject(Additional(namedOrder.Id, namedDish.Id, 1000), "Stock insuficiente");
+await Read(async db =>
+{
+    var unchanged = await db.Orders.Include(o => o.Items).SingleAsync(o => o.Id == namedOrder.Id);
+    Check(unchanged.Status == OrderStatus.Delivered && unchanged.DeliveredAt.HasValue && unchanged.Total == 11 && unchanged.Items.Count == 2,
+        "Failed addition rolls back items, total and delivery state");
+    Check(await db.StockReservations.Where(r => r.OrderId == namedOrder.Id && r.Status == StockReservationStatus.Active).SumAsync(r => r.BaseQuantity) == 2,
+        "Failed addition preserves original reservations");
+});
+var additionalCombo = await Send(new CreateMenuItemCommand { BranchId = branch.Id, MenuCategoryId = category.Id,
+    Name = "Additional combo", GeneralName = "Additional combo", Price = 6, IsCombo = true,
+    ComboComponents = [new() { ComponentItemId = namedDish.Id, Quantity = 1 }] });
+await Send(new PayOrderCommand { BranchId = branch.Id, OrderId = namedOrder.Id, UserId = user.Id, CashSessionId = session.Id,
+    IdempotencyKey = Guid.NewGuid(), OrderAmount = 5.5m, Lines = [new() { MethodId = cash.Id, AmountTendered = 5.5m }],
+    Items = [new() { OrderItemId = namedStationItem.OrderItemId, Quantity = 1 }] });
+await Read(async db =>
+{
+    // Simulate a legacy whole-order delivery with an unadvanced individual dish.
+    (await db.OrderItems.SingleAsync(i => i.Id == readyAddition.AddedItemIds.Single())).Status = OrderItemStatus.Pending;
+    await db.SaveChangesAsync();
+});
+var deliveredRequest = Additional(namedOrder.Id, additionalCombo.Id);
+var deliveredAddition = await Send(deliveredRequest);
+Check(deliveredAddition.Status == "Confirmed" && deliveredAddition.Total == 17 && deliveredAddition.Items.Count == 3,
+    "Delivered order accepts a combo without replacing previous dishes");
+Check(deliveredAddition.Items.Where(i => i.Id != deliveredAddition.AddedItemIds.Single()).All(i => i.Status == "Ready"),
+    "Already served dishes do not return to pending");
+var kitchenAddition = (await Send(new GetItemsByStationQuery { BranchId = branch.Id, StationId = stations[1].Id }))
+    .Where(i => i.OrderId == namedOrder.Id).ToList();
+Check(kitchenAddition.Count == 1 && kitchenAddition.Single().OrderItemId == deliveredAddition.Items.Single(i => i.Id == deliveredAddition.AddedItemIds.Single()).PreparationTasks.Single().Id,
+    "Only new component appears in active station queue");
+var additionReplay = await Send(deliveredRequest);
+Check(additionReplay.Items.Count == 3 && additionReplay.AddedItemIds.Count == 0, "Lost-response retry does not repeat the addition or station notification");
+await Read(async db =>
+{
+    Check((await db.Orders.SingleAsync(o => o.Id == namedOrder.Id)).DeliveredAt == null, "New consumption clears previous whole-order delivery timestamp");
+    Check(await db.StockReservations.Where(r => r.OrderId == namedOrder.Id && r.Status == StockReservationStatus.Active).SumAsync(r => r.BaseQuantity) == 2,
+        "Only additional consumption is reserved, once");
+    Check(await db.StockMovements.Where(m => m.ArticleId == additionalArticle.Id && m.Type == MovementType.SaleDeduction).SumAsync(m => m.BaseQuantity) == -1,
+        "Appending does not deduct stock again after a partial payment");
+});
+await Send(new SetOrderItemStatusCommand { BranchId = branch.Id, OrderItemId = kitchenAddition.Single().OrderItemId, Status = "Ready" });
+await Send(new DeliverOrderCommand { BranchId = branch.Id, OrderId = namedOrder.Id });
+await Send(new PayOrderCommand { BranchId = branch.Id, OrderId = namedOrder.Id, UserId = user.Id, CashSessionId = session.Id,
+    IdempotencyKey = Guid.NewGuid(), OrderAmount = 11.5m, Lines = [new() { MethodId = cash.Id, AmountTendered = 11.5m }],
+    Items = deliveredAddition.Items.Where(i => i.Id != namedStationItem.OrderItemId)
+        .Select(i => new PaymentItemCommand { OrderItemId = i.Id, Quantity = 1 }).ToList() });
+await Reject(Additional(namedOrder.Id, namedDish.Id), "pagada");
+Check((await Send(new GetRestaurantTablesQuery { BranchId = branch.Id })).Single(t => t.Id == servedTable.Id).CurrentStatus == "Free",
+    "Paid delivered account releases its table");
+var cancelledOrder = await Send(Order(1, namedDish.Id));
+await Send(new CancelOrderCommand { BranchId = branch.Id, OrderId = cancelledOrder.Id });
+await Reject(Additional(cancelledOrder.Id, namedDish.Id), "estado actual");
 Console.WriteLine($"Combo workflow checks passed: {count}. Real isolated PostgreSQL, no SRI or email.");

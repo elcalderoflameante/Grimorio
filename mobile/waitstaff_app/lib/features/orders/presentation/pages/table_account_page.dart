@@ -553,6 +553,9 @@ Color _statusColor(OrderStatus status) => switch (status) {
 
 String _orderActionLabel(OrderDto order) {
   if (order.paidAt != null) return 'Cuenta pagada';
+  if (order.acceptsAdditionalItems && order.status != OrderStatus.draft) {
+    return 'Agregar productos';
+  }
   return switch (order.status) {
     OrderStatus.draft => 'Continuar pedido',
     OrderStatus.confirmed || OrderStatus.inPreparation => 'Agregar productos',

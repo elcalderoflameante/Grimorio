@@ -106,9 +106,9 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      hub.onNewItems!([
-        item('a', name: 'Combo 6 de alitas con salsa especial de la casa'),
-      ]);
+      const name =
+          'Alitas del duende - Porcion de alitas con salsa especial (Combo: Cena del castillo)';
+      hub.onNewItems!([item('a', name: name)]);
       await tester.pumpWidget(
         ChangeNotifierProvider.value(
           value: provider,
@@ -118,6 +118,9 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('BBQ x2'), findsOneWidget);
       expect(find.text('Sin cubiertos'), findsOneWidget);
+      final itemName = tester.widget<Text>(find.text(name));
+      expect(itemName.softWrap, isTrue);
+      expect(itemName.overflow, isNot(TextOverflow.ellipsis));
       await tester.pump(const Duration(minutes: 1));
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());

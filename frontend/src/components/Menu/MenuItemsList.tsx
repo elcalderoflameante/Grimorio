@@ -46,6 +46,9 @@ export default function MenuItemsList() {
   const [modifierItem, setModifierItem] = useState<MenuItemDto | null>(null);
   const [preparationItem, setPreparationItem] = useState<MenuItemDto | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [checkingImage, setCheckingImage] = useState(false);
+  const [imageWarning, setImageWarning] = useState<string>();
+  const imageSelectionRef = useRef(0);
   const [imagePreview, setImagePreview] = useState<string | undefined>();
   const [removeImage, setRemoveImage] = useState(false);
   const [form] = Form.useForm();
@@ -114,6 +117,9 @@ export default function MenuItemsList() {
   }, [imagePreview]);
 
   const openModal = async (item?: MenuItemDto) => {
+    imageSelectionRef.current++;
+    setCheckingImage(false);
+    setImageWarning(undefined);
     setEditing(item ?? null);
     setImageFile(null);
     setImagePreview(resolveMediaUrl(item?.imageUrl));
@@ -137,7 +143,7 @@ export default function MenuItemsList() {
   };
 
   const save = async () => {
-    if (savingRef.current) return;
+    if (savingRef.current || checkingImage) return;
     savingRef.current = true;
     setSaving(true);
     try {
@@ -198,13 +204,13 @@ export default function MenuItemsList() {
   const estacionOptions = estaciones.map(e => ({ label: e.name, value: e.id }));
   const taxRateOptions = taxRates.map(t => ({ label: `${t.name} (${t.percentage}%)`, value: t.id }));
 
-  const selectImage = (file: File) => {
+  const selectImage = async (file: File) => {
     if (file.size === 0) {
       message.error('La imagen esta vacia. Selecciona otro archivo.');
       return Upload.LIST_IGNORE;
     }
-    if (file.size > 3 * 1024 * 1024) {
-      message.error('La imagen no puede superar 3 MB');
+    if (file.size > 10 * 1024 * 1024) {
+      message.error('La imagen no puede superar 10 MB');
       return Upload.LIST_IGNORE;
     }
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)
@@ -213,14 +219,36 @@ export default function MenuItemsList() {
       return Upload.LIST_IGNORE;
     }
 
-    if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
-    setRemoveImage(false);
-    return false;
+    const selection = ++imageSelectionRef.current;
+    setCheckingImage(true);
+    try {
+      const bitmap = await createImageBitmap(file);
+      const { width, height } = bitmap;
+      bitmap.close();
+      if (selection !== imageSelectionRef.current) return Upload.LIST_IGNORE;
+      if (width > 12000 || height > 12000 || width * height > 40_000_000) {
+        message.error('La imagen supera el limite de 40 megapixeles o 12000 px por lado.');
+        return Upload.LIST_IGNORE;
+      }
+      setImageWarning(width < 600 || height < 600
+        ? `Imagen de ${width} x ${height} px. Se recomienda al menos 600 x 600 px para mayor nitidez.`
+        : undefined);
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+      setRemoveImage(false);
+      return false;
+    } catch {
+      if (selection === imageSelectionRef.current) message.error('La imagen esta danada o no se puede leer. Selecciona otro archivo.');
+      return Upload.LIST_IGNORE;
+    } finally {
+      if (selection === imageSelectionRef.current) setCheckingImage(false);
+    }
   };
 
   const clearImage = () => {
+    imageSelectionRef.current++;
+    setCheckingImage(false);
+    setImageWarning(undefined);
     if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
     setImageFile(null);
     setImagePreview(undefined);
@@ -327,7 +355,7 @@ export default function MenuItemsList() {
             title: 'Foto', key: 'image', width: 72,
             render: (_: unknown, item: MenuItemDto) => item.imageUrl ? (
               <Image
-                src={resolveMediaUrl(item.imageUrl)}
+                src={resolveMediaUrl(item.thumbnailUrl ?? item.imageUrl)}
                 width={44}
                 height={44}
                 style={{ objectFit: 'cover', borderRadius: 6 }}
@@ -435,6 +463,7 @@ export default function MenuItemsList() {
         onOk={save}
         onCancel={() => { if (!savingRef.current) setModal(false); }}
         confirmLoading={saving}
+        okButtonProps={{ disabled: checkingImage }}
         closable={!saving}
         keyboard={!saving}
         okText="Guardar"
@@ -467,7 +496,7 @@ export default function MenuItemsList() {
           <Form.Item name="description" label="Descripción"><Input.TextArea rows={4} /></Form.Item>
           <Form.Item name="imageUrl" hidden><Input /></Form.Item>
           <Form.Item label="Imagen del plato">
-            <Space align="start">
+            <div style={{ display: 'flex', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
               {imagePreview ? (
                 <Image
                   src={imagePreview}
@@ -484,8 +513,9 @@ export default function MenuItemsList() {
                   Sin imagen
                 </div>
               )}
-              <Space direction="vertical" size={8}>
+              <Space direction="vertical" size={8} style={{ flex: '1 1 180px', minWidth: 0 }}>
                 <Upload
+                  disabled={saving || checkingImage}
                   accept="image/jpeg,image/png,image/webp"
                   maxCount={1}
                   fileList={imageFile ? [{ uid: 'new-image', name: imageFile.name, status: 'done' } as UploadFile] : []}
@@ -493,12 +523,13 @@ export default function MenuItemsList() {
                   onRemove={() => { clearImage(); return true; }}
                   showUploadList={false}
                 >
-                  <Button icon={<UploadOutlined />}>Seleccionar imagen</Button>
+                  <Button loading={checkingImage} icon={<UploadOutlined />}>Seleccionar imagen</Button>
                 </Upload>
                 {imagePreview && <Button danger size="small" onClick={clearImage}>Quitar imagen</Button>}
-                <span style={{ color: '#8c8c8c', fontSize: 12 }}>JPG, PNG o WEBP. Maximo 3 MB.</span>
+                <span style={{ color: '#8c8c8c', fontSize: 12 }}>JPG, PNG o WEBP. Maximo 10 MB. Recomendado: 600 x 600 px o mayor.</span>
+                {imageWarning && <Typography.Text type="warning" style={{ fontSize: 12 }}>{imageWarning}</Typography.Text>}
               </Space>
-            </Space>
+            </div>
           </Form.Item>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 12 }}>

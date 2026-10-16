@@ -27,7 +27,6 @@ public class GetRestaurantTablesQueryHandler : IRequestHandler<GetRestaurantTabl
             .Include(x => x.Orders.Where(o =>
                 !o.IsDeleted &&
                 o.Status != OrderStatus.Cancelled &&
-                o.Status != OrderStatus.Delivered &&
                 o.PaidAt == null))
                 .ThenInclude(o => o.Payments.Where(p => !p.IsDeleted))
             .ToListAsync(cancellationToken);

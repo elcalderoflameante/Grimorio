@@ -10,6 +10,7 @@ import type {
   CreateModifierSelectionDto, MenuItemAvailabilityDto, PromotionDto
 } from '../../types';
 import { formatError } from '../../utils/errorHandler';
+import { menuItemName } from '../../utils/menuItemName';
 
 const { Title, Text } = Typography;
 const PROMOTIONS_CATEGORY_ID = '__promotions__';
@@ -265,7 +266,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
     }
 
     if (itemDetail.modifierGroups && itemDetail.modifierGroups.length > 0) {
-      setModifierBaseLine({ menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1, promotionId });
+      setModifierBaseLine({ menuItemId: itemDetail.id, name: menuItemName(itemDetail.name, itemDetail.generalName), price: itemDetail.price, quantity: 1, promotionId });
       setPendingModifiers({});
       setModifierError(false);
       setModifierTarget(itemDetail);
@@ -280,7 +281,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
       if (existingWithPromotion >= 0) {
         return prev.map((l, i) => i === existingWithPromotion ? { ...l, quantity: l.quantity + 1 } : l);
       }
-      return [...prev, { menuItemId: itemDetail.id, name: itemDetail.name, price: itemDetail.price, quantity: 1, promotionId }];
+      return [...prev, { menuItemId: itemDetail.id, name: menuItemName(itemDetail.name, itemDetail.generalName), price: itemDetail.price, quantity: 1, promotionId }];
     });
   };
 
@@ -625,7 +626,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
                     <div key={`${line.menuItemId}-${idx}`} style={{ padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
                       <div style={{ width: '100%' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Text style={{ fontSize: 13, flex: 1 }}>{line.name}</Text>
+                          <Text style={{ fontSize: 13, flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{line.name}</Text>
                           <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => removeLine(idx)} />
                         </div>
                         {modifierLabel && (

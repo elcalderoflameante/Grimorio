@@ -827,6 +827,7 @@ export interface PublicMenuItemDto {
   generalName: string;
   description?: string;
   imageUrl?: string;
+  thumbnailUrl?: string;
   price: number;
   displayOrder: number;
   saleVisibility: MenuItemSaleVisibility;
@@ -1172,6 +1173,7 @@ export interface MenuItemDto {
   description?: string;
   internalCode?: string;
   imageUrl?: string;
+  thumbnailUrl?: string;
   price: number;
   displayOrder: number;
   isActive: boolean;

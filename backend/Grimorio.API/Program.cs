@@ -21,6 +21,7 @@ using FluentValidation;
 using FluentValidation.AspNetCore;
 using Grimorio.API.Hubs;
 using Grimorio.API.Services.Voice;
+using Microsoft.AspNetCore.SignalR;
 
 // Carga variables de entorno desde .env (solo en desarrollo)
 var envCandidates = new[] { "../../.env", "../.env", ".env" };
@@ -102,19 +103,7 @@ builder.Services.AddAuthentication(options =>
     // Permite recibir el JWT desde query string para conexiones SignalR
     options.Events = new JwtBearerEvents
     {
-        OnTokenValidated = async context =>
-        {
-            var principal = context.Principal;
-            if (!Guid.TryParse(principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var userId)
-                || !Guid.TryParse(principal?.FindFirst(AppConstants.Claims.BranchId)?.Value, out var branchId))
-            {
-                context.Fail("La cuenta no es valida.");
-                return;
-            }
-            var db = context.HttpContext.RequestServices.GetRequiredService<GrimorioDbContext>();
-            if (!await UserAccessPolicy.HasActiveAccountAsync(db, userId, branchId, context.HttpContext.RequestAborted))
-                context.Fail("La cuenta o el empleado vinculado esta inactivo.");
-        },
+        OnTokenValidated = UserSessionValidation.ValidateAsync,
         OnMessageReceived = context =>
         {
             var accessToken = context.Request.Query["access_token"];
@@ -122,6 +111,7 @@ builder.Services.AddAuthentication(options =>
 
             if (!string.IsNullOrEmpty(accessToken)
                 && (path.StartsWithSegments(AppConstants.Hubs.TableServicePath)
+                    || path.StartsWithSegments(AppConstants.Hubs.KitchenPath)
                     || path.StartsWithSegments("/hubs/voice")))
             {
                 context.Token = accessToken;
@@ -234,7 +224,8 @@ builder.Services.AddScoped<Grimorio.Infrastructure.Services.Email.IEmailService,
                            Grimorio.Infrastructure.Services.Email.SmtpEmailService>();
 
 builder.Services.AddControllers();
-builder.Services.AddSignalR();
+builder.Services.AddSingleton<UserSessionRegistry>();
+builder.Services.AddSignalR(options => options.AddFilter<UserSessionHubFilter>());
 builder.Services.Configure<VoiceOptions>(builder.Configuration.GetSection("Voice"));
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddSingleton<IVoiceMediaClient, LiveKitVoiceClient>();

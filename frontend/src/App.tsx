@@ -8,6 +8,7 @@ import RestaurantHome from './pages/RestaurantHome';
 import PublicTableRequest from './pages/PublicTableRequest';
 import { grimorioAppTheme } from './theme/grimorioTheme';
 import type { ReactNode } from 'react';
+import RequiredPasswordChange from './components/Profile/RequiredPasswordChange';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 
@@ -62,7 +63,7 @@ interface ProtectedRouteProps {
 
 // Componente protegido: solo entra si hay token
 function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { token, loading } = useAuth();
+  const { token, loading, mustChangePassword } = useAuth();
 
   if (loading) {
     return <FullPageSpinner />;
@@ -72,7 +73,7 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <Navigate to="/login" />;
   }
 
-  return <>{children}</>;
+  return mustChangePassword ? <RequiredPasswordChange /> : <>{children}</>;
 }
 
 export default function App() {

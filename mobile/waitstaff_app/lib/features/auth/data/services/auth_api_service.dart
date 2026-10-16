@@ -24,6 +24,19 @@ class AuthApiService {
     if (data == null) {
       throw const FormatException('Respuesta vacia del servidor');
     }
+    if (data['mustChangePassword'] == true) {
+      throw DioException(
+        requestOptions: response.requestOptions,
+        response: Response(
+          requestOptions: response.requestOptions,
+          statusCode: 403,
+          data: {
+            'message':
+                'Ingresa a la web con tu contrasena temporal y cambiala antes de usar la app.',
+          },
+        ),
+      );
+    }
 
     return AuthSession.fromJson(data);
   }

@@ -18,6 +18,24 @@ void main() {
   });
 
   group('Restaurant table models', () {
+    for (final status in ['Ready', 'Delivered', 'Cancelled']) {
+      for (final paid in [false, true]) {
+        test('$status additions respect the open account (paid: $paid)', () {
+          final order = OrderDto.fromJson({
+            'id': 'served-order',
+            'number': 14,
+            'type': 'DineIn',
+            'status': status,
+            'subtotal': 10,
+            'total': 10,
+            'paidAmount': paid ? 10 : 0,
+            'pendingPaymentTotal': paid ? 0 : 10,
+            'items': <dynamic>[],
+          });
+          expect(order.acceptsAdditionalItems, !paid && status != 'Cancelled');
+        });
+      }
+    }
     test('parses the current order independently of its waiter', () {
       final table = TableDto.fromJson({
         'id': 'table-1',

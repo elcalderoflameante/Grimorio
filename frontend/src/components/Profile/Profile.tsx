@@ -20,7 +20,7 @@ interface ChangePasswordValues {
 export default function Profile() {
   const { message } = AntApp.useApp();
 
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [loading, setLoading] = useState(false);
   const [userData, setUserData] = useState<UserDto | null>(null);
   const [form] = Form.useForm<ProfileFormValues>();
@@ -92,6 +92,7 @@ export default function Profile() {
         message.success(response.data.message);
         passwordForm.resetFields();
         setShowPasswordForm(false);
+        logout();
       }
     } catch (error: unknown) {
       const axiosError = error as { response?: { data?: { message?: string } } };
@@ -101,7 +102,7 @@ export default function Profile() {
     } finally {
       setLoading(false);
     }
-  }, [user?.userId, passwordForm]);
+  }, [user?.userId, passwordForm, logout]);
 
   if (!user) {
     return <Alert title="Usuario no autenticado" type="error" />;

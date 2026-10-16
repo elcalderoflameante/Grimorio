@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Grimorio.Application.DTOs;
 using Grimorio.Domain.Entities.POS;
+using Grimorio.Domain.Entities.Menu;
 using Grimorio.Infrastructure.Features.Menu;
 using Grimorio.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +10,9 @@ namespace Grimorio.Infrastructure.Features.POS;
 
 internal static class ComboPreparation
 {
+    internal static string DisplayTaskName(OrderItemPreparationTask task) =>
+        $"{MenuItemNames.Format(task.ComponentName, task.ComponentItem?.GeneralName)} (Combo: {task.ComboName})";
+
     public static async Task InitializeAsync(GrimorioDbContext db, Guid branchId,
         IReadOnlyCollection<OrderItem> orderItems, CancellationToken ct)
     {
@@ -55,7 +59,7 @@ internal static class ComboPreparation
     public static OrderItemDto MapTask(OrderItemPreparationTask task, OrderItemDto parent) => new()
     {
         Id = task.Id, OrderId = parent.OrderId, MenuItemId = task.ComponentItemId,
-        ItemName = $"{task.ComponentName} - {task.ComboName}", StationId = task.StationId,
+        ItemName = DisplayTaskName(task), StationId = task.StationId,
         Quantity = checked(parent.Quantity * task.QuantityPerCombo),
         Status = parent.Status == "Cancelled" ? "Cancelled" : task.Status.ToString(),
         Notes = string.Join(" | ", new[] { task.OptionsSummary, parent.Notes }.Where(x => !string.IsNullOrWhiteSpace(x))), IsTakeout = parent.IsTakeout,

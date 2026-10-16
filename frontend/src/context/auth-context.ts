@@ -11,6 +11,7 @@ export interface AuthContextValue {
   user: User | null;
   token: string | null;
   loading: boolean;
+  mustChangePassword: boolean;
   branchId: string | null;
   userPermissions: string[];
   userRoles: string[];

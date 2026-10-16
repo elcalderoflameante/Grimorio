@@ -31,7 +31,9 @@ public class ChangePasswordCommandValidator : AbstractValidator<ChangePasswordCo
     {
         RuleFor(x => x.UserId).NotEmpty();
         RuleFor(x => x.CurrentPassword).NotEmpty();
-        RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(6);
+        RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(8)
+            .Must(value => System.Text.Encoding.UTF8.GetByteCount(value ?? "") <= 72)
+            .WithMessage("La contrasena debe ocupar como maximo 72 bytes UTF-8.");
     }
 }
 

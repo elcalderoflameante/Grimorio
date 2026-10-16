@@ -22,6 +22,8 @@ public class UserConfiguration : BaseEntityConfiguration<User>
 
         builder.Property(u => u.KdsPinHash)
             .HasMaxLength(512);
+        builder.Property(u => u.AuthVersion).HasDefaultValue(0);
+        builder.Property(u => u.MustChangePassword).HasDefaultValue(false);
 
         builder.Property(u => u.FirstName)
             .HasMaxLength(100)

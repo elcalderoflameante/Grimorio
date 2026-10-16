@@ -1,8 +1,12 @@
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.Authorization;
+using Grimorio.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace Grimorio.API.Hubs;
 
-public class KitchenHub : Hub
+[Authorize]
+public class KitchenHub(GrimorioDbContext db) : Hub
 {
     public const string NewItemsEvent = "kitchen:new-items";
     public const string ItemUpdatedEvent = "kitchen:item-updated";
@@ -13,7 +17,12 @@ public class KitchenHub : Hub
 
     // La app Android llama a este método para suscribirse a su estación
     public async Task JoinStation(Guid stationId)
-        => await Groups.AddToGroupAsync(Context.ConnectionId, GetStationGroup(stationId));
+    {
+        if (!Guid.TryParse(Context.User?.FindFirst("BranchId")?.Value, out var branchId)
+            || !await db.WorkStations.AnyAsync(s => s.Id == stationId && s.BranchId == branchId && s.IsActive && !s.IsDeleted))
+            throw new HubException("Estacion no disponible en esta sucursal.");
+        await Groups.AddToGroupAsync(Context.ConnectionId, GetStationGroup(stationId));
+    }
 
     public async Task LeaveStation(Guid stationId)
         => await Groups.RemoveFromGroupAsync(Context.ConnectionId, GetStationGroup(stationId));

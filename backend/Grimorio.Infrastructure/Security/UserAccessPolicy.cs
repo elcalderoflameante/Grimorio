@@ -18,4 +18,10 @@ public static class UserAccessPolicy
     public static Task<bool> HasActiveAccountAsync(GrimorioDbContext db, Guid userId, Guid branchId, CancellationToken ct) =>
         db.Users.AsNoTracking().Where(ActiveAccount)
             .AnyAsync(user => user.Id == userId && user.BranchId == branchId, ct);
+
+    public static Task<bool> HasCurrentSessionAsync(GrimorioDbContext db, Guid userId, Guid branchId,
+        int authVersion, bool allowTemporaryPassword, CancellationToken ct) =>
+        db.Users.AsNoTracking().Where(ActiveAccount)
+            .AnyAsync(user => user.Id == userId && user.BranchId == branchId && user.AuthVersion == authVersion
+                && (!user.MustChangePassword || allowTemporaryPassword), ct);
 }

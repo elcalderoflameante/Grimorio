@@ -41,6 +41,7 @@ public class MenuItemDto
     public string? Description { get; set; }
     public string? InternalCode { get; set; }
     public string? ImageUrl { get; set; }
+    public string? ThumbnailUrl => Features.Menu.MenuImageUrls.Thumbnail(ImageUrl);
     public decimal Price { get; set; }
     public int DisplayOrder { get; set; }
     public bool IsActive { get; set; }

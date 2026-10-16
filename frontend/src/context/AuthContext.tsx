@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { AuthContext, type DecodedToken, type User } from './auth-context';
 import { MICROSOFT_ROLE_CLAIM } from '../constants/auth';
@@ -19,6 +19,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('accessToken'));
   const [loading] = useState(false);
+  const mustChangePassword = useMemo(() => {
+    try { return !!token && jwtDecode<{ must_change_password?: string }>(token).must_change_password === 'true'; }
+    catch { return false; }
+  }, [token]);
   const [branchId, setBranchId] = useState<string | null>(() => localStorage.getItem('branchId'));
   
   const [userPermissions, setUserPermissions] = useState<string[]>(() => {
@@ -98,7 +102,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [userPermissions, userRoles]);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, branchId, userPermissions, userRoles, login, logout, hasPermission }}>
+    <AuthContext.Provider value={{ user, token, loading, mustChangePassword, branchId, userPermissions, userRoles, login, logout, hasPermission }}>
       {children}
     </AuthContext.Provider>
   );

@@ -33,6 +33,7 @@ public class OrderItemPreparationTaskConfiguration : BaseEntityConfiguration<Ord
         builder.HasOne(x => x.OrderItem).WithMany(x => x.PreparationTasks).HasForeignKey(x => x.OrderItemId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne(x => x.ComponentItem).WithMany().HasForeignKey(x => x.ComponentItemId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Station).WithMany().HasForeignKey(x => x.StationId).OnDelete(DeleteBehavior.Restrict);
+        builder.Navigation(x => x.ComponentItem).AutoInclude();
         builder.HasIndex(x => new { x.OrderItemId, x.ComponentItemId }).IsUnique();
         builder.HasIndex(x => new { x.BranchId, x.StationId, x.Status });
     }

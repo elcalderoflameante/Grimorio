@@ -250,6 +250,8 @@ export const userApi = {
     apiClient.post<{ success: boolean; message: string }>(`/users/${id}/kds-pin`, { pin }),
   changePassword: (id: string, currentPassword: string, newPassword: string): Promise<AxiosResponse<{ success: boolean; message: string }>> =>
     apiClient.post<{ success: boolean; message: string }>(`/users/${id}/change-password`, { currentPassword, newPassword }),
+  resetPassword: (id: string, temporaryPassword: string): Promise<AxiosResponse<{ message: string }>> =>
+    apiClient.post(`/users/${id}/reset-password`, { temporaryPassword }),
 };
 
 // ======== ROLES ========

@@ -89,6 +89,8 @@ public class LoginUserCommandHandler : IRequestHandler<LoginUserCommand, AuthRes
 
         var jwtUser = new JwtUser
         {
+            AuthVersion = user.AuthVersion,
+            MustChangePassword = user.MustChangePassword,
             UserId = user.Id,
             BranchId = user.BranchId,
             FirstName = user.FirstName,
@@ -101,12 +103,13 @@ public class LoginUserCommandHandler : IRequestHandler<LoginUserCommand, AuthRes
         var accessToken = _jwtService.GenerateAccessToken(jwtUser);
         var refreshToken = _jwtService.GenerateRefreshToken();
 
-        user.LastLoginAt = DateTime.UtcNow;
-        _dbContext.Users.Update(user);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        if (await _dbContext.Users.Where(u => u.Id == user.Id && u.AuthVersion == user.AuthVersion)
+            .ExecuteUpdateAsync(update => update.SetProperty(u => u.LastLoginAt, DateTime.UtcNow), cancellationToken) == 0)
+            throw new UnauthorizedAccessException("La cuenta cambio. Inicia sesion nuevamente.");
 
         return new AuthResponse
         {
+            MustChangePassword = user.MustChangePassword,
             UserId = user.Id,
             Email = user.Email,
             FirstName = user.FirstName,
@@ -152,6 +155,8 @@ public class KdsLoginCommandHandler : IRequestHandler<KdsLoginCommand, AuthRespo
 
         if (user == null || !UserAccessPolicy.CanAuthenticate(user) || string.IsNullOrWhiteSpace(user.KdsPinHash))
             throw new UnauthorizedAccessException("PIN inválido.");
+        if (user.MustChangePassword)
+            throw new UnauthorizedAccessException("Debes cambiar la contrasena temporal desde la web antes de ingresar con PIN.");
 
         if (!_passwordHashingService.VerifyPassword(request.Pin, user.KdsPinHash))
             throw new UnauthorizedAccessException("PIN inválido.");
@@ -213,12 +218,14 @@ public class KdsLoginCommandHandler : IRequestHandler<KdsLoginCommand, AuthRespo
             Permissions = permissions
         };
 
+        jwtUser.AuthVersion = user.AuthVersion;
+
         var accessToken = _jwtService.GenerateAccessToken(jwtUser);
         var refreshToken = _jwtService.GenerateRefreshToken();
 
-        user.LastLoginAt = DateTime.UtcNow;
-        _dbContext.Users.Update(user);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        if (await _dbContext.Users.Where(u => u.Id == user.Id && u.AuthVersion == user.AuthVersion)
+            .ExecuteUpdateAsync(update => update.SetProperty(u => u.LastLoginAt, DateTime.UtcNow), cancellationToken) == 0)
+            throw new UnauthorizedAccessException("La cuenta cambio. Inicia sesion nuevamente.");
 
         return new AuthResponse
         {

@@ -12,6 +12,8 @@ public class User : BaseEntity
     public Organization.Employee? Employee { get; set; }
     public string Email { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
+    public int AuthVersion { get; set; }
+    public bool MustChangePassword { get; set; }
     public string? KdsPinHash { get; set; }
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;

@@ -2,6 +2,7 @@ using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.POS.Commands;
 using Grimorio.Domain.Entities.Billing;
 using Grimorio.Domain.Entities.POS;
+using Grimorio.Domain.Entities.Menu;
 using Grimorio.Infrastructure.Features.Inventory;
 using Grimorio.Infrastructure.Features.Menu;
 using Grimorio.Infrastructure.Features.POS;
@@ -244,8 +245,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
                 o.TableId == req.TableId &&
                 !o.IsDeleted &&
                 o.PaidAt == null &&
-                o.Status != OrderStatus.Cancelled &&
-                o.Status != OrderStatus.Delivered,
+                o.Status != OrderStatus.Cancelled,
                 ct);
             if (hasActiveOrder)
                 throw new InvalidOperationException("La mesa ya tiene un pedido activo. Actualiza el mapa y continúa ese pedido.");
@@ -509,7 +509,7 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
             foreach (var item in order.Items.Where(i => !i.IsDeleted))
                 item.IsDeleted = true;
         }
-        else if (order.Status != OrderStatus.Confirmed && order.Status != OrderStatus.InPreparation)
+        else if (order.Status is not (OrderStatus.Confirmed or OrderStatus.InPreparation or OrderStatus.Ready or OrderStatus.Delivered))
         {
             throw new InvalidOperationException("No se pueden agregar ítems en el estado actual de la orden.");
         }
@@ -595,6 +595,18 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
             order.Total += addedSubtotal - addedDiscount;
 
             await StockReservationService.ReserveOrderItemsAsync(_db, req.BranchId, order.Id, newItems, ct);
+            if (newItems.Count > 0)
+            {
+                // Older whole-order deliveries may not have advanced individual dishes.
+                if (order.Status == OrderStatus.Delivered)
+                {
+                    foreach (var served in order.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled && !newItems.Contains(i)))
+                        served.Status = OrderItemStatus.Ready;
+                }
+                // Keep previous dishes ready; only appended dishes return to preparation.
+                KitchenOrderState.Recalculate(order);
+                order.DeliveredAt = null;
+            }
         }
 
         await _db.SaveChangesAsync(ct);
@@ -1745,7 +1757,7 @@ internal static class PosMapper
         Id = i.Id,
         OrderId = i.OrderId,
         MenuItemId = i.MenuItemId,
-        ItemName = i.MenuItem?.Name ?? string.Empty,
+        ItemName = MenuItemNames.Format(i.MenuItem?.Name, i.MenuItem?.GeneralName),
         ItemCode = i.MenuItem?.InternalCode,
         StationId = i.StationId,
         StationName = i.Station?.Name,

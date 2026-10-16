@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
+using Grimorio.Application.Features.Menu;
 
 namespace Grimorio.API.Controllers;
 
@@ -40,6 +41,13 @@ public class UploadsController : ControllerBase
         if (!_contentTypeProvider.TryGetContentType(fullPath, out var contentType))
             contentType = "application/octet-stream";
 
+        if (normalizedPath.StartsWith("menu-items" + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+            && (normalizedPath.EndsWith(MenuImageUrls.DetailSuffix, StringComparison.Ordinal)
+                || normalizedPath.EndsWith(MenuImageUrls.ThumbnailSuffix, StringComparison.Ordinal)))
+        {
+            Response.Headers.CacheControl = "public,max-age=31536000,immutable";
+        }
+        Response.Headers.XContentTypeOptions = "nosniff";
         return PhysicalFile(fullPath, contentType);
     }
 }

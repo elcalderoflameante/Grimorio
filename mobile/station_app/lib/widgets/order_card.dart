@@ -283,7 +283,7 @@ class _ItemRow extends StatelessWidget {
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
-                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
                       ),
                     ),
                     // Cursor visual si se puede tocar

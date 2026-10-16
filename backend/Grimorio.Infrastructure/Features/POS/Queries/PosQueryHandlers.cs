@@ -1,6 +1,7 @@
 ﻿using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.POS.Queries;
 using Grimorio.Domain.Entities.POS;
+using Grimorio.Domain.Entities.Menu;
 using Grimorio.Infrastructure.Features.POS;
 using Grimorio.Infrastructure.Features.POS.Commands;
 using Grimorio.Infrastructure.Persistence;
@@ -508,6 +509,7 @@ public class GetItemsByStationQueryHandler : IRequestHandler<GetItemsByStationQu
         Guid stationId, DateTime? dayStart, DateTime? dayEnd, CancellationToken ct)
     {
         var query = db.OrderItemPreparationTasks.IgnoreAutoIncludes().AsNoTracking()
+            .Include(t => t.ComponentItem)
             .Include(t => t.OrderItem)!.ThenInclude(i => i!.Order)!.ThenInclude(o => o!.Table)
             .Where(t => t.BranchId == branchId && t.StationId == stationId && !t.IsDeleted
                 && !t.OrderItem!.IsDeleted && t.OrderItem.Status != OrderItemStatus.Cancelled
@@ -523,7 +525,7 @@ public class GetItemsByStationQueryHandler : IRequestHandler<GetItemsByStationQu
             OrderItemId = t.Id, OrderId = t.OrderItem!.OrderId, OrderNumber = t.OrderItem.Order!.Number,
             OrderType = t.OrderItem.Order.Type.ToString(), TableCode = t.OrderItem.Order.Table?.Code,
             CustomerName = t.OrderItem.Order.CustomerName, OrderNotes = t.OrderItem.Order.Notes,
-            ItemName = $"{t.ComponentName} - {t.ComboName}", Quantity = checked(t.QuantityPerCombo * t.OrderItem.Quantity),
+            ItemName = ComboPreparation.DisplayTaskName(t), Quantity = checked(t.QuantityPerCombo * t.OrderItem.Quantity),
             Notes = string.Join(" | ", new[] { t.OptionsSummary, t.OrderItem.Notes }.Where(x => !string.IsNullOrWhiteSpace(x))),
             IsTakeout = t.OrderItem.IsTakeout, Status = t.Status.ToString(),
             ConfirmedAt = t.OrderItem.Order.ConfirmedAt ?? t.OrderItem.Order.CreatedAt, UpdatedAt = t.UpdatedAt,
@@ -539,7 +541,7 @@ public class GetItemsByStationQueryHandler : IRequestHandler<GetItemsByStationQu
         TableCode = i.Order.Table?.Code,
         CustomerName = i.Order.CustomerName,
         OrderNotes = i.Order.Notes,
-        ItemName = i.MenuItem!.Name,
+        ItemName = MenuItemNames.Format(i.MenuItem!.Name, i.MenuItem.GeneralName),
         Quantity = i.Quantity,
         Notes = i.Notes,
         IsTakeout = i.IsTakeout,

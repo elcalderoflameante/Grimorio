@@ -4,6 +4,9 @@ using Microsoft.AspNetCore.Mvc;
 using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Users.Commands;
 using Grimorio.Application.Features.Users.Queries;
+using Grimorio.API.Services;
+using Grimorio.SharedKernel.Constants;
+using System.Security.Claims;
 
 namespace Grimorio.API.Controllers;
 
@@ -18,6 +21,24 @@ public class UsersController : ControllerBase
 {
     private readonly IMediator _mediator;
     public UsersController(IMediator mediator) => _mediator = mediator;
+
+    [Authorize(Roles = AppConstants.Roles.Admin)]
+    [HttpPost("{id:guid}/reset-password")]
+    public async Task<IActionResult> ResetPassword(Guid id, [FromBody] ResetPasswordRequest request, CancellationToken ct)
+    {
+        if (!TryGetBranchId(out var branchId) || !Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var actor))
+            return Unauthorized();
+        try
+        {
+            await _mediator.Send(new ResetUserPasswordCommand
+            {
+                UserId = id, BranchId = branchId, ActorUserId = actor, TemporaryPassword = request.TemporaryPassword,
+            }, ct);
+            HttpContext.RequestServices.GetRequiredService<UserSessionRegistry>().Revoke(id);
+            return Ok(new { message = "Contrasena restablecida. El usuario debe cambiarla al ingresar por la web." });
+        }
+        catch (InvalidOperationException error) { return BadRequest(new { message = error.Message }); }
+    }
 
     /// <summary>
     /// Obtiene todos los usuarios.
@@ -188,7 +209,7 @@ public class UsersController : ControllerBase
             // Verificar que el usuario solo pueda cambiar su propia contraseña
             var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (userIdClaim == null || !Guid.TryParse(userIdClaim, out var currentUserId) || currentUserId != id)
-                return Forbid("No puedes cambiar la contraseña de otro usuario.");
+                return Forbid();
 
             var result = await _mediator.Send(new ChangePasswordCommand 
             { 
@@ -196,6 +217,7 @@ public class UsersController : ControllerBase
                 CurrentPassword = request.CurrentPassword,
                 NewPassword = request.NewPassword
             });
+            HttpContext.RequestServices.GetRequiredService<UserSessionRegistry>().Revoke(id);
             return Ok(new { success = result, message = "Contraseña actualizada correctamente." });
         }
         catch (InvalidOperationException ex)
@@ -217,5 +239,10 @@ public class ChangePasswordRequest
 {
     public string CurrentPassword { get; set; } = string.Empty;
     public string NewPassword { get; set; } = string.Empty;
+}
+
+public class ResetPasswordRequest
+{
+    public string TemporaryPassword { get; set; } = string.Empty;
 }
 

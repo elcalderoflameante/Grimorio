@@ -87,6 +87,7 @@ public class PublicMenuItemDto
     public string GeneralName { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? ImageUrl { get; set; }
+    public string? ThumbnailUrl => Features.Menu.MenuImageUrls.Thumbnail(ImageUrl);
     public decimal Price { get; set; }
     public int DisplayOrder { get; set; }
     public string SaleVisibility { get; set; } = "MenuAndPromotions";

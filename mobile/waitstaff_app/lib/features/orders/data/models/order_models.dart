@@ -198,7 +198,9 @@ class OrderDto {
       pendingPaymentTotal > 0.01 &&
       (status == OrderStatus.draft ||
           status == OrderStatus.confirmed ||
-          status == OrderStatus.inPreparation);
+          status == OrderStatus.inPreparation ||
+          status == OrderStatus.ready ||
+          status == OrderStatus.delivered);
 
   String get displayTitle {
     if (type == OrderType.dineIn && tableCode != null) return 'Mesa $tableCode';
@@ -402,8 +404,18 @@ class MenuItemModifierGroupDto {
 
 class MenuItemDto {
   bool get isPromotionsOnly => saleVisibility == 'PromotionsOnly';
+  String get displayName {
+    final thematic = name.trim();
+    final general = generalName.trim();
+    if (thematic.isEmpty) return general;
+    return general.isEmpty || thematic.toLowerCase() == general.toLowerCase()
+        ? thematic
+        : '$thematic - $general';
+  }
+
   final String id;
   final String name;
+  final String generalName;
   final String? description;
   final String? imageUrl;
   final double price;
@@ -418,6 +430,7 @@ class MenuItemDto {
   const MenuItemDto({
     required this.id,
     required this.name,
+    this.generalName = '',
     this.description,
     this.imageUrl,
     required this.price,
@@ -433,6 +446,7 @@ class MenuItemDto {
   factory MenuItemDto.fromJson(Map<String, dynamic> j) => MenuItemDto(
     id: j['id'] as String,
     name: j['name'] as String,
+    generalName: j['generalName'] as String? ?? '',
     description: j['description'] as String?,
     imageUrl: j['imageUrl'] as String?,
     price: (j['price'] as num).toDouble(),

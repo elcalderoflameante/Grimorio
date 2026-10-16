@@ -1,6 +1,8 @@
 ﻿using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Menu.Commands;
 using Grimorio.Application.Features.Menu.Queries;
+using Grimorio.Application.Features.Menu;
+using Grimorio.API.Services;
 using Grimorio.SharedKernel.Constants;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -15,11 +17,13 @@ public class MenuController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly IWebHostEnvironment _environment;
+    private readonly ILogger<MenuController> _logger;
 
-    public MenuController(IMediator mediator, IWebHostEnvironment environment)
+    public MenuController(IMediator mediator, IWebHostEnvironment environment, ILogger<MenuController> logger)
     {
         _mediator = mediator;
         _environment = environment;
+        _logger = logger;
     }
 
     // â”€â”€ CategorÃ­as â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -188,12 +192,12 @@ public class MenuController : ControllerBase
 
     [Authorize(Policy = "Menu.Items.Manage")]
     [HttpPost("items/{id:guid}/image")]
-    [RequestSizeLimit(4 * 1024 * 1024)]
-    public async Task<IActionResult> UploadItemImage(Guid id, [FromForm] IFormFile image, CancellationToken ct)
+    [RequestSizeLimit(12 * 1024 * 1024)]
+    public async Task<IActionResult> UploadItemImage(Guid id, [FromForm] IFormFile? image, CancellationToken ct)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
-        if (image.Length == 0) return BadRequest("Imagen no válida.");
-        if (image.Length > 3 * 1024 * 1024) return BadRequest("La imagen no puede superar 3 MB.");
+        if (image is null || image.Length == 0) return BadRequest("Selecciona una imagen valida.");
+        if (image.Length > MenuImageProcessor.MaxUploadBytes) return BadRequest("La imagen no puede superar 10 MB.");
 
         var oldItem = await _mediator.Send(new GetMenuItemDetailQuery { Id = id, BranchId = branchId }, ct);
         if (oldItem is null) return NotFound();
@@ -202,25 +206,43 @@ public class MenuController : ControllerBase
         var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".webp" };
         if (!allowedExtensions.Contains(extension)) return BadRequest("Formato no permitido. Usa JPG, PNG o WEBP.");
 
+        ProcessedMenuImage processed;
+        try
+        {
+            await using var input = image.OpenReadStream();
+            processed = await MenuImageProcessor.ProcessAsync(input, ct);
+        }
+        catch (ArgumentException error)
+        {
+            return BadRequest(error.Message);
+        }
+
         var webRoot = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
         var relativeFolder = Path.Combine("uploads", "menu-items", branchId.ToString("N"));
         var targetFolder = Path.Combine(webRoot, relativeFolder);
         Directory.CreateDirectory(targetFolder);
 
-        var fileName = $"{id:N}-{Guid.NewGuid():N}{extension}";
+        var fileName = $"{id:N}-{Guid.NewGuid():N}{MenuImageUrls.DetailSuffix}";
         var fullPath = Path.Combine(targetFolder, fileName);
-        await using (var stream = System.IO.File.Create(fullPath))
-        {
-            await image.CopyToAsync(stream, ct);
-        }
-
         var imageUrl = "/" + Path.Combine(relativeFolder, fileName).Replace('\\', '/');
-        var result = await _mediator.Send(new UpdateMenuItemImageCommand
+        var thumbnailPath = Path.Combine(webRoot, MenuImageUrls.Thumbnail(imageUrl)!.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+        MenuItemDto result;
+        try
         {
-            Id = id,
-            BranchId = branchId,
-            ImageUrl = imageUrl,
-        }, ct);
+            await System.IO.File.WriteAllBytesAsync(fullPath, processed.Detail, ct);
+            await System.IO.File.WriteAllBytesAsync(thumbnailPath, processed.Thumbnail, ct);
+            result = await _mediator.Send(new UpdateMenuItemImageCommand
+            {
+                Id = id,
+                BranchId = branchId,
+                ImageUrl = imageUrl,
+            }, ct);
+        }
+        catch
+        {
+            DeleteLocalUpload(imageUrl);
+            throw;
+        }
 
         DeleteLocalUpload(oldItem.ImageUrl);
         return Ok(result);
@@ -357,11 +379,20 @@ public class MenuController : ControllerBase
             return;
 
         var webRoot = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
-        var relativePath = imageUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
-        var fullPath = Path.GetFullPath(Path.Combine(webRoot, relativePath));
-        var uploadsRoot = Path.GetFullPath(Path.Combine(webRoot, "uploads", "menu-items"));
-
-        if (!fullPath.StartsWith(uploadsRoot, StringComparison.OrdinalIgnoreCase)) return;
-        if (System.IO.File.Exists(fullPath)) System.IO.File.Delete(fullPath);
+        var uploadsRoot = Path.GetFullPath(Path.Combine(webRoot, "uploads", "menu-items")) + Path.DirectorySeparatorChar;
+        foreach (var url in new[] { imageUrl, MenuImageUrls.Thumbnail(imageUrl)! }.Distinct())
+        {
+            var relativePath = url.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+            var fullPath = Path.GetFullPath(Path.Combine(webRoot, relativePath));
+            if (!fullPath.StartsWith(uploadsRoot, StringComparison.OrdinalIgnoreCase)) continue;
+            try
+            {
+                System.IO.File.Delete(fullPath);
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                _logger.LogWarning(error, "No se pudo limpiar la imagen del menu {ImagePath}", fullPath);
+            }
+        }
     }
 }

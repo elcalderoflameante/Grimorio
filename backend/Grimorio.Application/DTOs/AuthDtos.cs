@@ -14,6 +14,7 @@ public class LoginRequest
 /// </summary>
 public class AuthResponse
 {
+    public bool MustChangePassword { get; set; }
     public Guid UserId { get; set; }
     public string Email { get; set; } = string.Empty;
     public string FirstName { get; set; } = string.Empty;
@@ -59,6 +60,8 @@ public class KdsLoginRequest
 /// </summary>
 public class JwtUser
 {
+    public int AuthVersion { get; set; }
+    public bool MustChangePassword { get; set; }
     public Guid UserId { get; set; }
     public Guid BranchId { get; set; }
     public string? FirstName { get; set; }

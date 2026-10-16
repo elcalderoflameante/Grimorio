@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { App as AntApp, Table, Button, Space, Modal, Form, Input, Switch, Select, Popconfirm, Tag } from 'antd';
-import { KeyOutlined, PlusOutlined, EditOutlined, DeleteOutlined, LockOutlined } from '@ant-design/icons';
+import { App as AntApp, Table, Button, Space, Modal, Form, Input, Switch, Select, Popconfirm, Tag, Tooltip, Alert } from 'antd';
+import { KeyOutlined, PlusOutlined, EditOutlined, DeleteOutlined, LockOutlined, UnlockOutlined, ReloadOutlined, CopyOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { userApi, roleApi } from '../../services/api';
 import type { UserDto, RoleDto, CreateUserDto, UpdateUserDto, UserEmployeeOptionDto } from '../../types';
@@ -27,7 +27,37 @@ interface KdsPinFormValues {
 export default function UserList() {
   const { message } = AntApp.useApp();
 
-  const { hasPermission } = useAuth();
+  const { hasPermission, user, userRoles } = useAuth();
+  const [resetUser, setResetUser] = useState<UserDto | null>(null);
+  const [resetting, setResetting] = useState(false);
+  const resetInFlight = useRef(false);
+  const [resetDone, setResetDone] = useState(false);
+  const [resetForm] = Form.useForm<{ temporaryPassword: string }>();
+  const canResetPassword = userRoles.includes('Administrador');
+
+  const generateTemporaryPassword = () => {
+    const bytes = crypto.getRandomValues(new Uint8Array(18));
+    resetForm.setFieldsValue({ temporaryPassword: btoa(String.fromCharCode(...bytes)) });
+  };
+  const closeReset = () => {
+    if (resetInFlight.current) return;
+    setResetUser(null);
+    setResetDone(false);
+    resetForm.resetFields();
+  };
+  const resetPassword = async () => {
+    if (!resetUser || resetInFlight.current) return;
+    if (resetDone) { closeReset(); return; }
+    resetInFlight.current = true;
+    setResetting(true);
+    try {
+      const values = await resetForm.validateFields();
+      await userApi.resetPassword(resetUser.id, values.temporaryPassword);
+      setResetDone(true);
+    } catch (error) {
+      if (!(error && typeof error === 'object' && 'errorFields' in error)) message.error(formatError(error));
+    } finally { resetInFlight.current = false; setResetting(false); }
+  };
   const [users, setUsers] = useState<UserDto[]>([]);
   const [roles, setRoles] = useState<RoleDto[]>([]);
   const [employees, setEmployees] = useState<UserEmployeeOptionDto[]>([]);
@@ -243,6 +273,11 @@ export default function UserList() {
           {canUpdate && <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} />}
           {canUpdate && <Button icon={<LockOutlined />} onClick={() => handleOpenAssign(record)} title="Asignar roles" />}
           {canUpdate && <Button icon={<KeyOutlined />} onClick={() => handleOpenKdsPin(record)} title="PIN de acceso" />}
+          {canResetPassword && record.id !== user?.userId && <Button icon={<UnlockOutlined />} title="Restablecer contrasena" aria-label="Restablecer contrasena" onClick={() => {
+            setResetUser(record);
+            setResetDone(false);
+            generateTemporaryPassword();
+          }} />}
           {canDelete && <Popconfirm
             title="¿Eliminar usuario?"
             onConfirm={() => handleDelete(record.id)}
@@ -258,6 +293,26 @@ export default function UserList() {
 
   return (
     <div>
+      <Modal title={`Restablecer contrasena${resetUser ? ` - ${resetUser.firstName} ${resetUser.lastName}` : ''}`}
+        open={!!resetUser} onCancel={closeReset} onOk={resetPassword} confirmLoading={resetting}
+        closable={!resetting} keyboard={!resetting} maskClosable={!resetting} okText={resetDone ? 'Cerrar' : 'Restablecer'}
+        cancelButtonProps={{ style: resetDone ? { display: 'none' } : undefined }} width={520}>
+        <Alert style={{ marginBottom: 16 }} type={resetDone ? 'success' : 'warning'} showIcon
+          title={resetDone ? 'Contrasena restablecida' : 'Se cerraran las sesiones anteriores'}
+          description="Entrega la contrasena temporal al usuario por un medio privado. Debera cambiarla al ingresar en la web antes de volver a usar las apps o el PIN." />
+        <Form form={resetForm} layout="vertical">
+          <Form.Item name="temporaryPassword" label="Contrasena temporal" rules={[{ required: true }, { min: 8, message: 'Minimo 8 caracteres' }, { max: 72 }]}>
+            <Input.Password disabled={resetting} readOnly={resetDone} autoComplete="new-password" />
+          </Form.Item>
+          <Space>
+            {!resetDone && <Tooltip title="Generar otra contrasena"><Button icon={<ReloadOutlined />} disabled={resetting} onClick={generateTemporaryPassword} /></Tooltip>}
+            <Tooltip title="Copiar contrasena temporal"><Button icon={<CopyOutlined />} onClick={async () => {
+              try { await navigator.clipboard.writeText(resetForm.getFieldValue('temporaryPassword')); message.success('Copiada'); }
+              catch { message.error('No se pudo copiar. Usa el campo de contrasena para copiarla manualmente.'); }
+            }} /></Tooltip>
+          </Space>
+        </Form>
+      </Modal>
       <div style={{ marginBottom: 16 }}>
         {canCreate && <Button
           type="primary"

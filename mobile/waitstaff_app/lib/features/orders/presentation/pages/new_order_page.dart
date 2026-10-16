@@ -391,7 +391,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
         _cart.add(
           CartItem(
             menuItemId: item.id,
-            name: item.name,
+            name: item.displayName,
             price: item.price,
             promotionId: promotion?.id,
             promotionName: promotion?.name,
@@ -653,7 +653,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
       _cart.add(
         CartItem(
           menuItemId: item.id,
-          name: item.name,
+          name: item.displayName,
           price: item.price + modifierTotal,
           promotionId: promotion?.id,
           promotionName: promotion?.name,
@@ -1507,7 +1507,7 @@ class _ItemCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    item.name,
+                    item.displayName,
                     style: GoogleFonts.lato(
                       color: kParchment,
                       fontSize: 13,
@@ -1694,8 +1694,7 @@ class _CartRow extends StatelessWidget {
                 Text(
                   item.name,
                   style: GoogleFonts.lato(color: kParchment, fontSize: 13),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  softWrap: true,
                 ),
                 if (item.modifiersLabel != null)
                   Padding(

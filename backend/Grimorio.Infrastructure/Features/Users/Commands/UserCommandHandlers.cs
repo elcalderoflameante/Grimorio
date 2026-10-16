@@ -218,6 +218,8 @@ public class ChangePasswordCommandHandler : IRequestHandler<ChangePasswordComman
 
     public async Task<bool> Handle(ChangePasswordCommand request, CancellationToken cancellationToken)
     {
+        var validation = await new Application.Features.Users.Validators.ChangePasswordCommandValidator().ValidateAsync(request, cancellationToken);
+        if (!validation.IsValid) throw new InvalidOperationException(validation.Errors[0].ErrorMessage);
         var user = await _context.Users
             .FirstOrDefaultAsync(u => u.Id == request.UserId && !u.IsDeleted, cancellationToken);
 
@@ -233,11 +235,20 @@ public class ChangePasswordCommandHandler : IRequestHandler<ChangePasswordComman
             throw new InvalidOperationException("La nueva contraseña debe ser diferente a la actual.");
 
         // Actualizar la contraseña
-        user.PasswordHash = _passwordHashingService.HashPassword(request.NewPassword);
-        user.UpdatedAt = DateTime.UtcNow;
-
-        _context.Users.Update(user);
-        await _context.SaveChangesAsync(cancellationToken);
+        var hash = _passwordHashingService.HashPassword(request.NewPassword);
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        var changed = await _context.Users.Where(u => u.Id == user.Id && u.AuthVersion == user.AuthVersion && !u.IsDeleted)
+            .ExecuteUpdateAsync(updates => updates
+                .SetProperty(u => u.PasswordHash, hash)
+                .SetProperty(u => u.MustChangePassword, false)
+                .SetProperty(u => u.AuthVersion, u => u.AuthVersion + 1)
+                .SetProperty(u => u.UpdatedAt, DateTime.UtcNow)
+                .SetProperty(u => u.UpdatedBy, user.Id), cancellationToken);
+        if (changed == 0) throw new InvalidOperationException("La cuenta cambio durante la solicitud. Inicia sesion nuevamente.");
+        await _context.UserPushTokens.Where(token => token.UserId == user.Id && token.BranchId == user.BranchId)
+            .ExecuteUpdateAsync(update => update.SetProperty(token => token.IsActive, false)
+                .SetProperty(token => token.UpdatedAt, DateTime.UtcNow).SetProperty(token => token.UpdatedBy, user.Id), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return true;
     }

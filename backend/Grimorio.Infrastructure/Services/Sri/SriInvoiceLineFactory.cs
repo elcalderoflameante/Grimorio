@@ -159,15 +159,7 @@ public static class SriInvoiceLineFactory
     {
         if (item is null) return null;
 
-        var thematicName = item.Name.Trim();
-        var generalName = item.GeneralName?.Trim();
-        if (string.IsNullOrWhiteSpace(generalName)
-            || string.Equals(thematicName, generalName, StringComparison.OrdinalIgnoreCase))
-        {
-            return thematicName;
-        }
-
-        var description = $"{thematicName} - {generalName}";
+        var description = MenuItemNames.Format(item.Name, item.GeneralName);
         return description.Length <= 300 ? description : description[..300];
     }
 }

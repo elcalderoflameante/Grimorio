@@ -48,6 +48,8 @@ public class JwtService : IJwtService
         {
             new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
             new Claim("BranchId", user.BranchId.ToString()),
+            new Claim("auth_version", user.AuthVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            new Claim("must_change_password", user.MustChangePassword ? "true" : "false"),
         };
 
         if (!string.IsNullOrWhiteSpace(user.FirstName))
@@ -128,6 +130,8 @@ public class JwtService : IJwtService
             {
                 UserId = Guid.Parse(userIdClaim.Value),
                 BranchId = Guid.Parse(branchIdClaim.Value),
+                AuthVersion = int.TryParse(jwtToken.Claims.FirstOrDefault(c => c.Type == "auth_version")?.Value, out var version) ? version : 0,
+                MustChangePassword = jwtToken.Claims.Any(c => c.Type == "must_change_password" && c.Value == "true"),
                 ClientType = jwtToken.Claims
                     .FirstOrDefault(c => c.Type == AppConstants.Claims.ClientType)?.Value,
                 Roles = jwtToken.Claims
