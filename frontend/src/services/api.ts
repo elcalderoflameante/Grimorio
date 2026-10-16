@@ -1,4 +1,5 @@
 import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios';
+import type { SaleTipDto, SaleTipReportDto, TipMethod } from '../types/saleTips';
 import type {
   UserDto,
   UserEmployeeOptionDto,
@@ -823,6 +824,15 @@ export const customersApi = {
     apiClient.put<CustomerDto>(`/customers/${id}`, dto),
   delete: (id: string): Promise<AxiosResponse<void>> =>
     apiClient.delete<void>(`/customers/${id}`),
+};
+
+export const saleTipsApi = {
+  get: (paymentId: string) => apiClient.get<SaleTipDto | null>(`/sale-tips/${paymentId}`),
+  save: (paymentId: string, data: { amount: number; method: TipMethod }) =>
+    apiClient.put<SaleTipDto>(`/sale-tips/${paymentId}`, data),
+  remove: (paymentId: string) => apiClient.delete(`/sale-tips/${paymentId}`),
+  report: (params: { from?: string; to?: string; method?: TipMethod; page?: number; pageSize?: number }) =>
+    apiClient.get<SaleTipReportDto>('/sale-tips', { params }),
 };
 
 export const paymentMethodsApi = {

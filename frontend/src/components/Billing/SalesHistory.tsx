@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { App as AntApp, Table, Tag, Space, Typography, Button, DatePicker, Row, Col, Statistic, Descriptions, Select, Tooltip } from 'antd';
-import { BankOutlined, PrinterOutlined, ReloadOutlined, UserOutlined } from '@ant-design/icons';
+import { BankOutlined, GiftOutlined, PrinterOutlined, ReloadOutlined, UserOutlined } from '@ant-design/icons';
+import SaleTipModal from './SaleTipModal';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 import type { OrderPaymentDto, PaymentLineDto } from '../../types';
 import { cashApi } from '../../services/api';
 import { GenerateInvoiceButton } from './ElectronicInvoices';
@@ -94,6 +97,8 @@ function PaymentDetail({ payment }: { payment: OrderPaymentDto }) {
 
 export default function SalesHistory() {
   const { message } = AntApp.useApp();
+  const { hasPermission } = useAuth();
+  const [tipSale, setTipSale] = useState<{ id: string; orderNumber: number } | null>(null);
   const [sales, setSales] = useState<OrderPaymentDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [cashierFilter, setCashierFilter] = useState<string>();
@@ -164,14 +169,15 @@ export default function SalesHistory() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={5} style={{ margin: 0 }}>Ventas del restaurante</Title>
-        <Space>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+        <Title level={5} style={{ margin: 0, flexShrink: 0 }}>Ventas del restaurante</Title>
+        <Space wrap style={{ maxWidth: '100%' }}>
           <RangePicker
             value={dateRange}
             onChange={(v) => setDateRange(v ? [v[0], v[1]] : [null, null])}
             format="DD/MM/YYYY"
             allowClear={false}
+            style={{ width: 280, maxWidth: '100%' }}
           />
           <Select
             allowClear
@@ -230,6 +236,7 @@ export default function SalesHistory() {
         dataSource={filteredSales}
         rowKey="id"
         loading={loading}
+        scroll={{ x: 1400 }}
         pagination={{ defaultPageSize: 25, showSizeChanger: true, pageSizeOptions: ['10', '25', '50', '100'] }}
         expandable={{
           expandedRowRender: (r) => <PaymentDetail payment={r} />,
@@ -319,6 +326,10 @@ export default function SalesHistory() {
                     onClick={() => handlePrint(r.id)}
                   />
                 </Tooltip>
+                {hasPermission(PERMISSIONS.billing.cashCharge) && <Tooltip title="Registrar o editar propina">
+                  <Button size="small" icon={<GiftOutlined />} aria-label={`Propina de orden ${r.orderNumber}`}
+                    onClick={() => setTipSale({ id: r.id, orderNumber: r.orderNumber })} />
+                </Tooltip>}
                 <GenerateInvoiceButton
                   orderPaymentId={r.id}
                   documentType={r.documentType}
@@ -332,6 +343,7 @@ export default function SalesHistory() {
           },
         ]}
       />
+      <SaleTipModal sale={tipSale} onClose={() => setTipSale(null)} />
     </div>
   );
 }

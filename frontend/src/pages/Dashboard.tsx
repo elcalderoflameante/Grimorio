@@ -78,6 +78,7 @@ import PurchaseForm from '../components/Purchases/PurchaseForm';
 import CustomersList from '../components/Billing/CustomersList';
 import CashRegister from '../components/Billing/CashRegister';
 import SalesHistory from '../components/Billing/SalesHistory';
+import SaleTipsSummary from '../components/Billing/SaleTipsSummary';
 import SalesProfitability from '../components/Billing/SalesProfitability';
 import PaymentMethodsSettings from '../components/Billing/PaymentMethodsSettings';
 import TaxConfig from '../components/Billing/TaxConfig';
@@ -352,6 +353,7 @@ export default function Dashboard() {
         children: [
           { key: 'billing-cash', label: 'Caja', icon: <BankOutlined />, permission: PERMISSIONS.billing.cashView },
           { key: 'billing-sales', label: 'Ventas', icon: <FileTextOutlined />, permission: PERMISSIONS.billing.cashView },
+          { key: 'billing-tips', label: 'Propinas', icon: <DollarOutlined />, permission: PERMISSIONS.billing.cashView },
           { key: 'billing-sales-profitability', label: 'Rentabilidad', icon: <BarChartOutlined />, permission: PERMISSIONS.billing.cashView },
           { key: 'billing-customers', label: 'Clientes', icon: <ContactsOutlined />, permission: PERMISSIONS.billing.customersView },
           { key: 'billing-payment-methods', label: 'Medios de pago', icon: <DollarOutlined />, permission: PERMISSIONS.billing.paymentMethodsView },
@@ -511,6 +513,8 @@ case 'pos-estaciones':
         return <CashRegister />;
       case 'billing-sales':
         return <SalesHistory />;
+      case 'billing-tips':
+        return <SaleTipsSummary />;
       case 'billing-sales-profitability':
         return <SalesProfitability />;
       case 'billing-customers':

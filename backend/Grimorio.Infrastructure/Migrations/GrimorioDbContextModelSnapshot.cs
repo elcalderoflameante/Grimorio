@@ -1878,6 +1878,86 @@ namespace Grimorio.Infrastructure.Migrations
                     b.ToTable("ExpenseCategories", "finance");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Finance.SaleTip", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("OrderPaymentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("RegisteredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RegisteredByName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UpdatedByName")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("OrderPaymentId");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("BranchId", "OrderPaymentId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.HasIndex("BranchId", "RegisteredAt");
+
+                    b.ToTable("SaleTips", "finance", t =>
+                        {
+                            t.HasCheckConstraint("CK_SaleTips_Amount", "\"Amount\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.InventoryArticle", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6964,6 +7044,17 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("ExpenseCategory");
 
                     b.Navigation("PaymentMethodConfig");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Finance.SaleTip", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Billing.OrderPayment", "OrderPayment")
+                        .WithMany()
+                        .HasForeignKey("OrderPaymentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OrderPayment");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.InventoryArticle", b =>

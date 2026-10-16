@@ -130,6 +130,7 @@ public class GrimorioDbContext : DbContext
     public DbSet<CostCenter> CostCenters { get; set; } = null!;
     public DbSet<ExpenseCategory> ExpenseCategories { get; set; } = null!;
     public DbSet<Expense> Expenses { get; set; } = null!;
+    public DbSet<SaleTip> SaleTips { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
