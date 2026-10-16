@@ -193,6 +193,8 @@ public class PosController : ControllerBase
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
         if (User.IsInRole(AppConstants.Roles.Waiter) &&
+            !User.IsInRole(AppConstants.Roles.Admin) &&
+            !User.HasClaim(AppConstants.Claims.Permissions, AppConstants.Permissions.BillingCashCharge) &&
             (!string.Equals(dto.Type, "DineIn", StringComparison.OrdinalIgnoreCase) || !dto.TableId.HasValue))
         {
             return BadRequest(new { message = "Los meseros solo pueden iniciar pedidos asociados a una mesa." });
@@ -552,7 +554,8 @@ public class PosController : ControllerBase
     private bool TryGetUserId(out Guid userId)
     {
         userId = Guid.Empty;
-        var claim = User.FindFirst(AppConstants.Claims.UserId)?.Value
+        var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? User.FindFirst(AppConstants.Claims.UserId)?.Value
             ?? User.FindFirst("sub")?.Value;
         return claim != null && Guid.TryParse(claim, out userId);
     }
