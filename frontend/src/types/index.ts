@@ -1508,6 +1508,9 @@ export interface UpdateWorkStationDto {
 }
 
 export interface OrderItemDto {
+  correctionReason?: string;
+  correctionDisposition?: string;
+  replacementItemId?: string;
   preparationTasks?: OrderItemDto[];
   id: string;
   menuItemId: string;
@@ -1532,6 +1535,7 @@ export interface OrderItemDto {
 }
 
 export interface OrderDto {
+  paidAt?: string;
   id: string;
   number: number;
   type: OrderType;

@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { App as AntApp, Alert, Badge, Button, Card, Checkbox, Col, Divider, Empty, Input, InputNumber, Popconfirm,
   Grid, Modal, Row, Select, Space, Spin, Tabs, Tag, Tooltip, Typography } from 'antd';
 import { ArrowLeftOutlined, CheckCircleOutlined, DeleteOutlined, DollarOutlined, EditOutlined,
-  MinusOutlined, PlusOutlined, PrinterOutlined, QuestionCircleOutlined, ReloadOutlined, SplitCellsOutlined } from '@ant-design/icons';
+  MinusOutlined, PlusOutlined, PrinterOutlined, QuestionCircleOutlined, ReloadOutlined, SettingOutlined, SplitCellsOutlined } from '@ant-design/icons';
+import AdminOrderItemCorrectionModal from './AdminOrderItemCorrectionModal';
 import type {
-  OrderDto, RestaurantTableDto, PaymentMethodConfigDto,
+  OrderDto, OrderItemDto, RestaurantTableDto, PaymentMethodConfigDto,
   OrderPaymentDto, AddOrderPaymentDto, CustomerDto, MenuCategoryDto,
   MenuItemDto, CreateOrderItemDto, CreateModifierSelectionDto, CardBankDto, PromotionDto,
   MenuItemAvailabilityDto, EmployeeDto,
@@ -12,6 +13,7 @@ import type {
 import { cashApi, employeeApi, menuApi, paymentMethodsApi, posApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
 import { menuItemName } from '../../utils/menuItemName';
+import { createIdempotencyKey } from '../../utils/idempotencyKey';
 import { printThermalReceipt } from '../../utils/thermalReceiptPrinter';
 import CustomerSelector from '../Billing/CustomerSelector';
 import { useAuth } from '../../context/useAuth';
@@ -45,16 +47,6 @@ const getMissingIngredientNames = (availability?: MenuItemAvailabilityDto) => {
 const formatStock = (quantity?: number | null) => {
   if (quantity === null || quantity === undefined) return 'Stock sin control';
   return `Disponible: ${Math.max(0, Math.floor(quantity))}`;
-};
-
-const createIdempotencyKey = () => {
-  if (crypto.randomUUID) return crypto.randomUUID();
-
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0'));
-  return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10).join('')}`;
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -116,7 +108,9 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const screens = Grid.useBreakpoint();
   const isDesktop = !!screens.md;
 
-  const { hasPermission } = useAuth();
+  const { hasPermission, userRoles } = useAuth();
+  const isAdmin = userRoles.includes('Administrador');
+  const [correction, setCorrection] = useState<{ item: OrderItemDto; replace: boolean } | null>(null);
   const [order, setOrder] = useState<OrderDto | null>(null);
   const [payments, setPayments] = useState<OrderPaymentDto[]>([]);
   const [methods, setMethods] = useState<PaymentMethodConfigDto[]>([]);
@@ -511,7 +505,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       let itemsPayload: CreateOrderItemDto[];
       if (order.status === 'Draft') {
         // Draft: enviar todos los ítems (reemplaza)
-        const existingItems: CreateOrderItemDto[] = order.items.map(i => ({
+        const existingItems: CreateOrderItemDto[] = order.items.filter(i => i.status !== 'Cancelled').map(i => ({
           menuItemId: i.menuItemId, quantity: i.quantity, promotionId: i.promotionId, notes: i.notes,
           modifierSelections: i.modifierSelections?.map(s => ({
             modifierOptionId: s.modifierOptionId,
@@ -1119,6 +1113,8 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                       && !isItemPaid(item.id)
                       && !hasAmbiguousPayments;
                     const canEditItemNotes = canUpdateOrders && item.status === 'Pending';
+                    const canCorrectItem = isAdmin && !order.paidAt && order.status !== 'Cancelled'
+                      && item.status !== 'Cancelled' && !isItemPaid(item.id) && !hasAmbiguousPayments;
                     return (
                     <div key={item.id} style={{ padding: '4px 0' }}>
                       <div style={{ width: '100%', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
@@ -1142,6 +1138,9 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                             </div>
                           )}
                           {item.notes && <Text type="secondary" style={{ fontSize: 11 }}>{item.notes}</Text>}
+                          {item.correctionReason && <Text type="secondary" style={{ display: 'block', fontSize: 11, overflowWrap: 'anywhere' }}>
+                            {item.correctionDisposition === 'PreparedWaste' ? 'Merma' : 'Error de registro'}: {item.correctionReason}
+                          </Text>}
                         </div>
                         <Tag color={ITEM_STATUS_COLORS[item.status]} style={{ fontSize: 11 }}>
                           {ITEM_STATUS_LABELS[item.status] ?? item.status}
@@ -1160,7 +1159,15 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                             />
                           </Tooltip>
                         )}
-                        {canCancelItem && (
+                        {canCorrectItem && (item.modifierSelections.length > 0 || menuItems.find(m => m.id === item.menuItemId)?.hasModifiers) && <Tooltip title="Cambiar opciones">
+                          <Button size="small" type="text" icon={<SettingOutlined />} aria-label={`Cambiar opciones de ${item.itemName}`}
+                            onClick={() => setCorrection({ item, replace: true })} />
+                        </Tooltip>}
+                        {canCorrectItem && <Tooltip title="Cancelar plato">
+                          <Button danger size="small" type="text" icon={<DeleteOutlined />} aria-label={`Cancelar ${item.itemName}`}
+                            onClick={() => setCorrection({ item, replace: false })} />
+                        </Tooltip>}
+                        {canCancelItem && !isAdmin && (
                           <Popconfirm
                             title="Cancelar item"
                             description="Se liberara la reserva de inventario de este plato."
@@ -1507,6 +1514,13 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         </Text>
       </Modal>
 
+      <AdminOrderItemCorrectionModal target={correction} isDraft={order.status === 'Draft'} onClose={() => setCorrection(null)}
+        onCorrected={updated => {
+          setOrder(updated);
+          void loadAll();
+          onTableUpdated();
+          if (updated.status === 'Cancelled') onClose();
+        }} />
       <Modal
         title={modifierTarget?.name}
         open={!!modifierTarget}

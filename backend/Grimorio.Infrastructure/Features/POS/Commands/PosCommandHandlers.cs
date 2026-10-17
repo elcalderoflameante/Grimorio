@@ -506,7 +506,7 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
         if (order.Status == OrderStatus.Draft)
         {
             // Draft: reemplazar todos los ítems existentes
-            foreach (var item in order.Items.Where(i => !i.IsDeleted))
+            foreach (var item in order.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled))
                 item.IsDeleted = true;
         }
         else if (order.Status is not (OrderStatus.Confirmed or OrderStatus.InPreparation or OrderStatus.Ready or OrderStatus.Delivered))
@@ -657,14 +657,15 @@ public class ConfirmOrderCommandHandler : IRequestHandler<ConfirmOrderCommand, O
         if (order.Status != OrderStatus.Draft)
             throw new InvalidOperationException("La orden ya fue confirmada.");
 
-        if (!order.Items.Any(i => !i.IsDeleted))
+        var activeItems = order.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled).ToList();
+        if (activeItems.Count == 0)
             throw new InvalidOperationException("La orden no tiene ítems.");
 
-        await ComboPreparation.ValidateStationsAsync(_db, req.BranchId, order.Items.ToList(), ct);
+        await ComboPreparation.ValidateStationsAsync(_db, req.BranchId, activeItems, ct);
 
         order.Status = OrderStatus.Confirmed;
         order.ConfirmedAt = DateTime.UtcNow;
-        await StockReservationService.ReserveOrderItemsAsync(_db, req.BranchId, order.Id, order.Items.ToList(), ct);
+        await StockReservationService.ReserveOrderItemsAsync(_db, req.BranchId, order.Id, activeItems, ct);
         await _db.SaveChangesAsync(ct);
 
         await transaction.CommitAsync(ct);
@@ -1759,6 +1760,9 @@ internal static class PosMapper
         MenuItemId = i.MenuItemId,
         ItemName = MenuItemNames.Format(i.MenuItem?.Name, i.MenuItem?.GeneralName),
         ItemCode = i.MenuItem?.InternalCode,
+        CorrectionReason = i.Correction?.Reason,
+        CorrectionDisposition = i.Correction?.Disposition,
+        ReplacementItemId = i.Correction?.ReplacementItemId,
         StationId = i.StationId,
         StationName = i.Station?.Name,
         Quantity = i.Quantity,

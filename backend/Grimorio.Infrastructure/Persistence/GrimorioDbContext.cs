@@ -79,6 +79,7 @@ public class GrimorioDbContext : DbContext
     public DbSet<WorkStation> WorkStations { get; set; } = null!;
     public DbSet<Order> Orders { get; set; } = null!;
     public DbSet<OrderItem> OrderItems { get; set; } = null!;
+    public DbSet<OrderItemCorrection> OrderItemCorrections { get; set; } = null!;
     public DbSet<OrderItemModifierSelection> OrderItemModifierSelections { get; set; } = null!;
     public DbSet<Promotion> Promotions { get; set; } = null!;
     public DbSet<PromotionMenuItem> PromotionMenuItems { get; set; } = null!;

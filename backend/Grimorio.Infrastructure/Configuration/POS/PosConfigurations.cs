@@ -79,6 +79,9 @@ public class OrdenItemConfiguration : IEntityTypeConfiguration<OrderItem>
     {
         builder.ToTable("OrderItems", "pos");
         builder.Navigation(x => x.PreparationTasks).AutoInclude();
+        builder.HasOne(x => x.Correction).WithOne(c => c.OriginalItem)
+            .HasForeignKey<OrderItemCorrection>(c => c.OriginalItemId).OnDelete(DeleteBehavior.Restrict);
+        builder.Navigation(x => x.Correction).AutoInclude();
 
         builder.Property(x => x.Status)
             .HasConversion<string>()

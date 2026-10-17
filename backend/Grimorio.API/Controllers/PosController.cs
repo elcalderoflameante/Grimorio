@@ -305,7 +305,13 @@ public class PosController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
 
-        // Los borradores solo se persisten. Cocina recibe los ítems al confirmar la orden.
+        await NotifyAddedItemsAsync(result);
+        return Ok(result);
+    }
+
+    private async Task NotifyAddedItemsAsync(OrderDto result)
+    {
+        // Drafts reach kitchen only when confirmed; retries have no added IDs.
         if (!string.Equals(result.Status, "Draft", StringComparison.OrdinalIgnoreCase))
         {
             // Notificar a cada estación los ítems nuevos (Pending) del pedido actualizado
@@ -346,7 +352,6 @@ public class PosController : ControllerBase
             }
         }
 
-        return Ok(result);
     }
 
     [Authorize(Policy = "POS.Orders.Update")]
@@ -367,6 +372,7 @@ public class PosController : ControllerBase
         // Notificar a cada estación sus nuevos ítems
         var confirmedAt = result.ConfirmedAt ?? result.CreatedAt;
         var itemsByStation = result.Items
+            .Where(i => i.Status != "Cancelled")
             .SelectMany(i => i.PreparationTasks.Count > 0 ? i.PreparationTasks : [i])
             .Where(i => i.StationId.HasValue)
             .GroupBy(i => i.StationId!.Value);
@@ -446,6 +452,25 @@ public class PosController : ControllerBase
             await _kitchenHub.Clients.Group(KitchenHub.GetStationGroup(task.StationId!.Value))
                 .SendAsync(KitchenHub.ItemUpdatedEvent, new { orderItemId = task.Id, orderId = result.Id, status = "Cancelled" });
 
+        return Ok(result);
+    }
+
+    [Authorize(Roles = AppConstants.Roles.Admin)]
+    [HttpPost("ordenes/items/{id:guid}/corregir")]
+    public async Task<IActionResult> CorrectOrderItem(Guid id, [FromBody] CorrectOrderItemDto dto)
+    {
+        if (!TryGetBranchId(out var branchId) || !TryGetUserId(out var userId)) return Unauthorized();
+        OrderDto result;
+        try { result = await _mediator.Send(new CorrectOrderItemCommand(branchId, id, userId, dto)); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+        await _kitchenHub.Clients.Group(KitchenHub.GetBranchGroup(branchId))
+            .SendAsync(KitchenHub.ItemUpdatedEvent, new { orderItemId = id, orderId = result.Id, status = "Cancelled" });
+        var original = result.Items.FirstOrDefault(i => i.Id == id);
+        foreach (var task in original?.PreparationTasks ?? [])
+            if (task.StationId.HasValue)
+                await _kitchenHub.Clients.Group(KitchenHub.GetStationGroup(task.StationId.Value))
+                    .SendAsync(KitchenHub.ItemUpdatedEvent, new { orderItemId = task.Id, orderId = result.Id, status = "Cancelled" });
+        await NotifyAddedItemsAsync(result);
         return Ok(result);
     }
 

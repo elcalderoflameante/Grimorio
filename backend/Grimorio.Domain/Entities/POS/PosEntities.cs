@@ -157,6 +157,7 @@ public class OrderItem : BaseEntity
     public virtual Billing.TaxRate? TaxRate { get; set; }
     public virtual ICollection<OrderItemModifierSelection> ModifierSelections { get; set; } = [];
     public virtual ICollection<OrderItemPreparationTask> PreparationTasks { get; set; } = [];
+    public virtual OrderItemCorrection? Correction { get; set; }
 }
 
 public class OrderItemPreparationTask : BaseEntity

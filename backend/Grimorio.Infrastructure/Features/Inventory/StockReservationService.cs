@@ -16,7 +16,7 @@ internal static class StockReservationService
         IReadOnlyCollection<OrderItem> orderItems,
         CancellationToken ct)
     {
-        var items = orderItems.Where(i => !i.IsDeleted).ToList();
+        var items = orderItems.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled).ToList();
         if (items.Count == 0) return;
 
         var orderItemIds = items.Select(i => i.Id).ToList();

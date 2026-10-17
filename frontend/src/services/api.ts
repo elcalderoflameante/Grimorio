@@ -680,6 +680,8 @@ export const menuApi = {
 // ======================== POS API ========================
 
 export const posApi = {
+  correctOrderItem: (id: string, data: { requestId: string; replace: boolean; disposition: string; reason: string; modifierSelections: { modifierOptionId: string; quantity: number }[] }) =>
+    apiClient.post<OrderDto>(`/pos/ordenes/items/${id}/corregir`, data),
   // Estaciones
   getStations: (): Promise<AxiosResponse<WorkStationDto[]>> =>
     apiClient.get<WorkStationDto[]>('/pos/estaciones'),

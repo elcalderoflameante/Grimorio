@@ -4981,6 +4981,97 @@ namespace Grimorio.Infrastructure.Migrations
                     b.ToTable("OrderItems", "pos");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderItemCorrection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasMaxLength(201)
+                        .HasColumnType("character varying(201)");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Disposition")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("OriginalItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("OriginalStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("ReplacementItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("OriginalItemId")
+                        .IsUnique();
+
+                    b.HasIndex("ReplacementItemId");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("BranchId", "RequestId")
+                        .IsUnique();
+
+                    b.ToTable("OrderItemCorrections", "pos");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderItemModifierSelection", b =>
                 {
                     b.Property<Guid>("Id")
@@ -7653,6 +7744,24 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("TaxRate");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderItemCorrection", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.POS.OrderItem", "OriginalItem")
+                        .WithOne("Correction")
+                        .HasForeignKey("Grimorio.Domain.Entities.POS.OrderItemCorrection", "OriginalItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.POS.OrderItem", "ReplacementItem")
+                        .WithMany()
+                        .HasForeignKey("ReplacementItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("OriginalItem");
+
+                    b.Navigation("ReplacementItem");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderItemModifierSelection", b =>
                 {
                     b.HasOne("Grimorio.Domain.Entities.Inventory.InventoryArticle", "Article")
@@ -8160,6 +8269,8 @@ namespace Grimorio.Infrastructure.Migrations
 
             modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderItem", b =>
                 {
+                    b.Navigation("Correction");
+
                     b.Navigation("ModifierSelections");
 
                     b.Navigation("PreparationTasks");

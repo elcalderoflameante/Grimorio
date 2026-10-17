@@ -90,6 +90,9 @@ public class CreateModifierSelectionDto
 
 public class OrderItemDto
 {
+    public string? CorrectionReason { get; set; }
+    public string? CorrectionDisposition { get; set; }
+    public Guid? ReplacementItemId { get; set; }
     public List<OrderItemDto> PreparationTasks { get; set; } = [];
     public Guid Id { get; set; }
     public Guid OrderId { get; set; }
