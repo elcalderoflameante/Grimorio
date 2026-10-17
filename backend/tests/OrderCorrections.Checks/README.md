@@ -1,5 +1,10 @@
 # Administrator Order Corrections
 
+Role-permission checks reproduce the unique-index failure when replacing existing
+assignments and cover unchanged saves, adding/removing/restoring grants, duplicate
+selections, concurrent saves, branch validation, unauthorized requests and startup
+seeding preserving explicit revocations (including legacy empty-branch grants).
+
 Cash review checks also cover old open sessions beyond the recent-history limit,
 cashier identity and balance, branch isolation, view authorization, unchanged
 active-session ownership and refresh after closing a reviewed session.

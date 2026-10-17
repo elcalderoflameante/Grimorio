@@ -50,6 +50,7 @@ public class AssignPermissionsToRoleCommandValidator : AbstractValidator<AssignP
 {
     public AssignPermissionsToRoleCommandValidator()
     {
+        RuleFor(x => x.BranchId).NotEmpty();
         RuleFor(x => x.RoleId).NotEmpty();
         RuleFor(x => x.PermissionIds).NotEmpty();
         RuleForEach(x => x.PermissionIds).NotEmpty();

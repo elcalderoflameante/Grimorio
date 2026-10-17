@@ -111,5 +111,21 @@ public class RolesController : ControllerBase
     /// </summary>
     [Authorize(Policy = "Admin.Roles.Update")]
     [HttpPost("{id}/permissions")]
-    public async Task<IActionResult> AssignPermissions(Guid id, [FromBody] AssignPermissionsDto dto) => Ok(await _mediator.Send(new AssignPermissionsToRoleCommand { RoleId = id, PermissionIds = dto.PermissionIds }));
+    public async Task<IActionResult> AssignPermissions(Guid id, [FromBody] AssignPermissionsDto dto)
+    {
+        if (!Guid.TryParse(User.FindFirst("BranchId")?.Value, out var branchId) || branchId == Guid.Empty)
+            return Unauthorized();
+
+        try
+        {
+            return Ok(await _mediator.Send(new AssignPermissionsToRoleCommand
+            {
+                BranchId = branchId, RoleId = id, PermissionIds = dto.PermissionIds,
+            }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }

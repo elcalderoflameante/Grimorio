@@ -115,26 +115,56 @@ public class AssignPermissionsToRoleCommandHandler : IRequestHandler<AssignPermi
 
     public async Task<bool> Handle(AssignPermissionsToRoleCommand request, CancellationToken cancellationToken)
     {
+        if (request.BranchId == Guid.Empty || request.PermissionIds == null || request.PermissionIds.Count == 0
+            || request.PermissionIds.Contains(Guid.Empty))
+            throw new InvalidOperationException("Selecciona al menos un permiso valido para la sucursal.");
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        // Serialize replacements so concurrent saves cannot insert the same missing grant.
         var role = await _context.Roles
-            .Include(r => r.RolePermissions)
-            .FirstOrDefaultAsync(r => r.Id == request.RoleId && !r.IsDeleted, cancellationToken);
+            .FromSqlInterpolated($"""
+                SELECT * FROM auth."Roles"
+                WHERE "Id" = {request.RoleId} AND "BranchId" = {request.BranchId}
+                FOR UPDATE
+                """)
+            .SingleOrDefaultAsync(cancellationToken);
 
         if (role == null)
-            throw new InvalidOperationException("Rol no encontrado.");
+            throw new InvalidOperationException("Rol no encontrado en esta sucursal.");
 
-        _context.RolePermissions.RemoveRange(role.RolePermissions);
+        var permissionIds = request.PermissionIds.ToHashSet();
+        var validIds = await _context.Permissions
+            .Where(p => permissionIds.Contains(p.Id) && p.BranchId == role.BranchId)
+            .Select(p => p.Id)
+            .ToListAsync(cancellationToken);
+        if (validIds.Count != permissionIds.Count)
+            throw new InvalidOperationException("Uno o mas permisos no existen o no pertenecen a esta sucursal. Actualiza el listado antes de guardar.");
 
-        foreach (var permissionId in request.PermissionIds)
+        var existing = await _context.RolePermissions.IgnoreQueryFilters()
+            .Where(rp => rp.RoleId == role.Id)
+            .ToDictionaryAsync(rp => rp.PermissionId, cancellationToken);
+
+        foreach (var grant in existing.Values)
         {
-            var permission = await _context.Permissions
-                .FirstOrDefaultAsync(p => p.Id == permissionId && !p.IsDeleted, cancellationToken);
+            if (permissionIds.Contains(grant.PermissionId))
+            {
+                grant.BranchId = role.BranchId;
+                grant.IsDeleted = false;
+                grant.DeletedAt = null;
+                grant.DeletedBy = null;
+            }
+            else if (!grant.IsDeleted)
+            {
+                _context.RolePermissions.Remove(grant);
+            }
+        }
 
-            if (permission == null)
-                throw new InvalidOperationException($"Permiso con ID {permissionId} no encontrado.");
-
+        foreach (var permissionId in permissionIds.Where(id => !existing.ContainsKey(id)))
+        {
             var rolePermission = new RolePermission
             {
                 Id = Guid.NewGuid(),
+                BranchId = role.BranchId,
                 RoleId = role.Id,
                 PermissionId = permissionId,
                 CreatedAt = DateTime.UtcNow,
@@ -145,6 +175,7 @@ public class AssignPermissionsToRoleCommandHandler : IRequestHandler<AssignPermi
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return true;
     }
 }

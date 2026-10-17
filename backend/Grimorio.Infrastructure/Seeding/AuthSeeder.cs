@@ -242,8 +242,10 @@ public static class AuthSeeder
                     || code == AppConstants.Permissions.AdminBranchView)
         };
 
-        var existingRolePermissions = await context.RolePermissions
-            .Where(rp => rp.BranchId == branchId)
+        // Deleted assignments represent explicit revocations, not missing defaults.
+        var roleIds = roles.Values.Select(role => role.Id).ToList();
+        var existingRolePermissions = await context.RolePermissions.IgnoreQueryFilters()
+            .Where(rp => roleIds.Contains(rp.RoleId))
             .Select(rp => new { rp.RoleId, rp.PermissionId })
             .ToListAsync();
 
