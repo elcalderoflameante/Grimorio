@@ -109,8 +109,8 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const screens = Grid.useBreakpoint();
   const isDesktop = !!screens.md;
 
-  const { hasPermission, userRoles } = useAuth();
-  const isAdmin = userRoles.includes('Administrador');
+  const { hasPermission } = useAuth();
+  const canCorrectOrderItems = hasPermission(PERMISSIONS.pos.ordersCorrectItems);
   const [correction, setCorrection] = useState<{ item: OrderItemDto; replace: boolean } | null>(null);
   const [order, setOrder] = useState<OrderDto | null>(null);
   const [payments, setPayments] = useState<OrderPaymentDto[]>([]);
@@ -1116,7 +1116,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                       && !isItemPaid(item.id)
                       && !hasAmbiguousPayments;
                     const canEditItemNotes = canUpdateOrders && item.status === 'Pending';
-                    const canCorrectItem = isAdmin && !order.paidAt && order.status !== 'Cancelled'
+                    const canCorrectItem = canCorrectOrderItems && !order.paidAt && order.status !== 'Cancelled'
                       && item.status !== 'Cancelled' && !isItemPaid(item.id) && !hasAmbiguousPayments;
                     return (
                     <div key={item.id} style={{ padding: '4px 0' }}>
@@ -1170,7 +1170,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                           <Button danger size="small" type="text" icon={<DeleteOutlined />} aria-label={`Cancelar ${item.itemName}`}
                             onClick={() => setCorrection({ item, replace: false })} />
                         </Tooltip>}
-                        {canCancelItem && !isAdmin && (
+                        {canCancelItem && !canCorrectOrderItems && (
                           <Popconfirm
                             title="Cancelar item"
                             description="Se liberara la reserva de inventario de este plato."

@@ -156,6 +156,7 @@ public static class AuthSeeder
                     && !code.StartsWith("Admin.Roles.", StringComparison.Ordinal)
                     && !code.StartsWith("Admin.Permissions.", StringComparison.Ordinal)
                     && code != AppConstants.Permissions.AdminBranchUpdate
+                    && code != AppConstants.Permissions.PosOrdersCorrectItems
                     && code != AppConstants.Permissions.BillingTaxManage
                     && code != AppConstants.Permissions.BillingSriManage),
             [AppConstants.Roles.Cashier] =

@@ -28,3 +28,9 @@ Table transfer checks cover preparation states, unchanged items/payments/invento
 source/destination map state, occupied/inactive/foreign tables, stale requests,
 concurrent retries and competing transfers/new orders, paid-order protection,
 audit history, forced persistence rollback and station table labels.
+
+Delegated correction checks use a non-administrator cashier with the dedicated
+POS.Orders.CorrectItems permission. They verify audited cancellation, prepared-dish
+option changes and waste, denial without the claim or database grant, immediate
+revocation, inactive role/permission/user, branch isolation, paid-line protection,
+and separation from whole-order and legacy cancellation permissions.

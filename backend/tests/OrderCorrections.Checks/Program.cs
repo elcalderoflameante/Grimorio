@@ -48,6 +48,9 @@ builder.Services.AddHttpClient();
 builder.Services.AddAuthorization(options => {
     options.AddPolicy("Billing.Sri.Generate", policy => policy.RequireRole(AppConstants.Roles.Admin));
     options.AddPolicy("POS.Orders.Update", policy => policy.RequireRole(AppConstants.Roles.Admin));
+    options.AddPolicy(AppConstants.Permissions.PosOrdersCorrectItems, policy => policy.RequireAssertion(context =>
+        context.User.IsInRole(AppConstants.Roles.Admin) || context.User.HasClaim(AppConstants.Claims.Permissions, AppConstants.Permissions.PosOrdersCorrectItems)));
+    options.AddPolicy(AppConstants.Permissions.PosOrdersCancel, policy => policy.RequireRole(AppConstants.Roles.Admin));
 });
 await using var app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.MapControllers();
 async Task Read(Func<GrimorioDbContext, Task> action) { await using var scope = app.Services.CreateAsyncScope(); await action(scope.ServiceProvider.GetRequiredService<GrimorioDbContext>()); }
@@ -255,6 +258,8 @@ try {
         var actorName = $"{admin.FirstName} {admin.LastName}";
         Check(await db.OrderItemCorrections.AllAsync(c => c.ActorUserId == admin.Id && c.ActorName == actorName), "Every correction records full administrator identity, including maximum-length names");
     });
+    await OrderCorrectionPermissionChecks.Run(app.Services, client, key, branch.Id, foreign.Id, dish.Id, small, bbq, teriyaki,
+        cash.Id, session.Id, Check);
     await SaleNoteInvoiceChecks.Run(app.Services, client, Token(admin.Id), Token(waiter.Id, false), branch.Id, foreign.Id,
         admin.Id, dish.Id, small, bbq, cash.Id, session.Id, Check);
     await TableTransferChecks.Run(app.Services, client, Token(admin.Id), Token(waiter.Id, false), branch.Id, foreign.Id,

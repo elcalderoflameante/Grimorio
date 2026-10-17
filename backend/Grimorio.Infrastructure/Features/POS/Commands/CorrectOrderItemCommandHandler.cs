@@ -27,11 +27,14 @@ public class CorrectOrderItemCommandHandler(GrimorioDbContext db) : IRequestHand
             throw new InvalidOperationException("Selecciona el tratamiento e indica un motivo de 5 a 500 caracteres.");
         if (!data.Replace && data.ModifierSelections.Count > 0)
             throw new InvalidOperationException("La cancelacion no admite opciones nuevas.");
-        var actor = await db.UserRoles.Where(r => r.UserId == req.ActorUserId && r.BranchId == req.BranchId
+        var actor = await db.UserRoles.Where(r => r.UserId == req.ActorUserId && r.BranchId == req.BranchId && !r.IsDeleted
             && r.User != null && r.User.BranchId == req.BranchId && r.User.IsActive && !r.User.IsDeleted
             && r.Role != null && r.Role.BranchId == req.BranchId && r.Role.IsActive && !r.Role.IsDeleted
-            && r.Role.Name == AppConstants.Roles.Admin).Select(r => new { r.User!.FirstName, r.User.LastName }).FirstOrDefaultAsync(ct)
-            ?? throw new InvalidOperationException("Solo un administrador activo puede corregir platos.");
+            && (r.Role.Name == AppConstants.Roles.Admin || r.Role.RolePermissions.Any(p => p.BranchId == req.BranchId && !p.IsDeleted
+                && p.Permission != null && p.Permission.BranchId == req.BranchId && p.Permission.IsActive && !p.Permission.IsDeleted
+                && p.Permission.Code == AppConstants.Permissions.PosOrdersCorrectItems)))
+            .Select(r => new { r.User!.FirstName, r.User.LastName }).FirstOrDefaultAsync(ct)
+            ?? throw new InvalidOperationException("No tienes un rol activo con permiso para corregir platos sin cobrar.");
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new {
             req.OrderItemId, data.Replace, data.Disposition, Reason = reason,
             Options = data.ModifierSelections.OrderBy(s => s.ModifierOptionId).ThenBy(s => s.Quantity),

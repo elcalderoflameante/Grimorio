@@ -30,6 +30,7 @@ export const PERMISSIONS = {
     ordersCreate: 'POS.Orders.Create',
     ordersUpdate: 'POS.Orders.Update',
     ordersCancel: 'POS.Orders.Cancel',
+    ordersCorrectItems: 'POS.Orders.CorrectItems',
     directSaleCreate: 'POS.DirectSale.Create',
     kitchenView: 'POS.Kitchen.View',
     kitchenUpdate: 'POS.Kitchen.Update',

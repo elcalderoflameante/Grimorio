@@ -470,7 +470,7 @@ public class PosController : ControllerBase
         return Ok(result);
     }
 
-    [Authorize(Roles = AppConstants.Roles.Admin)]
+    [Authorize(Policy = AppConstants.Permissions.PosOrdersCorrectItems)]
     [HttpPost("ordenes/items/{id:guid}/corregir")]
     public async Task<IActionResult> CorrectOrderItem(Guid id, [FromBody] CorrectOrderItemDto dto)
     {
