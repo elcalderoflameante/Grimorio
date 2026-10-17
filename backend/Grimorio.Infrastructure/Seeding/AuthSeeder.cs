@@ -258,7 +258,8 @@ public static class AuthSeeder
             if (!roles.TryGetValue(roleName, out var role))
                 continue;
 
-            foreach (var code in permissionCodes.Distinct())
+            foreach (var code in permissionCodes.Distinct().Where(code => roleName == AppConstants.Roles.Admin
+                || code != AppConstants.Permissions.BillingPaymentsCorrectMethod))
             {
                 if (!permissions.TryGetValue(code, out var permission))
                     continue;

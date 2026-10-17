@@ -1,5 +1,16 @@
 # Administrator Order Corrections
 
+Payment-method correction checks cover mixed cash/card payments and change, net
+cash expectations, unchanged stock and sales, original payment replay after
+multiple corrections, concurrent requests, stale selections, live permission
+revocation, branch/card-bank validation, closed sessions, invoice/payroll guards,
+forced persistence rollback and a real race with cash-session closing.
+
+The guarded design-time context permits generating migrations without booting
+the API or using its configured database. With the checks project built into an
+isolated artifacts directory, set `ArtifactsPath` and `UseArtifactsOutput=true`
+and use it as `dotnet ef --startup-project backend/tests/OrderCorrections.Checks`.
+
 Saved table draft cancellation checks cover authorization, retained order history,
 table availability, unchanged stock/movements/payments and creating a new order
 on the freed table.

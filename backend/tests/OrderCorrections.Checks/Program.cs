@@ -46,6 +46,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
 });
 builder.Services.AddHttpClient();
 builder.Services.AddAuthorization(options => {
+    options.AddPolicy(AppConstants.Permissions.BillingPaymentsCorrectMethod, policy => policy.RequireAssertion(context =>
+        context.User.IsInRole(AppConstants.Roles.Admin) || context.User.HasClaim(AppConstants.Claims.Permissions, AppConstants.Permissions.BillingPaymentsCorrectMethod)));
     options.AddPolicy("Admin.Roles.Update", policy => policy.RequireRole(AppConstants.Roles.Admin));
     options.AddPolicy("Billing.Cash.View", policy => policy.RequireRole(AppConstants.Roles.Admin));
     options.AddPolicy("Billing.Sri.Generate", policy => policy.RequireRole(AppConstants.Roles.Admin));
@@ -269,6 +271,8 @@ try {
     await CashSessionReviewChecks.Run(app.Services, client, Token(admin.Id), Token(waiter.Id, false), branch.Id, foreign.Id, Check);
     await TableDraftCancellationChecks.Run(app.Services, client, Token(admin.Id), Token(waiter.Id, false),
         branch.Id, admin.Id, dish.Id, small, bbq, Check);
+    await PaymentMethodCorrectionChecks.Run(app.Services, client, key, Token(admin.Id), Token(waiter.Id, false),
+        branch.Id, foreign.Id, admin.Id, dish.Id, small, bbq, cash.Id, session.Id, Check);
     await RolePermissionAssignmentChecks.Run(app.Services, client, Token(admin.Id), Token(waiter.Id, false),
         Token(admin.Id, branchId: foreign.Id), branch.Id, foreign.Id, Check);
     Console.WriteLine($"Order correction and sale note invoice checks passed: {count}. Real isolated PostgreSQL and HTTP; no production services.");

@@ -208,6 +208,7 @@ public class CashSession : BaseEntity
 
 public class OrderPayment : BaseEntity
 {
+    public string? OriginalPaymentLinesJson { get; set; }
     public Guid OrderId { get; set; }
     public Guid? IdempotencyKey { get; set; }
     public Guid? CashSessionId { get; set; }

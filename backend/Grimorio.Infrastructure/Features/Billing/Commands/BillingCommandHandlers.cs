@@ -1166,16 +1166,23 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
             || (req.CashSessionId.HasValue && payment.CashSessionId != req.CashSessionId))
             throw new PaymentIdempotencyConflictException();
 
-        var unmatchedLines = payment.Lines.Where(l => !l.IsDeleted).ToList();
+        var unmatchedLines = payment.OriginalPaymentLinesJson == null
+            ? payment.Lines.Where(l => !l.IsDeleted).Select(l => new PaymentLineCommand {
+                MethodId = l.PaymentMethodConfigId, AmountTendered = l.AmountTendered, CardPaymentType = l.CardPaymentType?.ToString(),
+                CardBankId = l.CardBankId, CardBrand = l.CardBrand, AuthorizationNumber = l.AuthorizationNumber,
+                EmployeeId = l.EmployeeConsumption?.EmployeeId,
+            }).ToList()
+            : System.Text.Json.JsonSerializer.Deserialize<List<PaymentLineCommand>>(payment.OriginalPaymentLinesJson)
+                ?? throw new PaymentIdempotencyConflictException();
         foreach (var line in req.Lines)
         {
-            var match = unmatchedLines.FindIndex(l => l.PaymentMethodConfigId == line.MethodId
+            var match = unmatchedLines.FindIndex(l => l.MethodId == line.MethodId
                 && l.AmountTendered == line.AmountTendered
                 && string.Equals(l.CardPaymentType?.ToString(), line.CardPaymentType, StringComparison.OrdinalIgnoreCase)
                 && l.CardBankId == line.CardBankId
                 && l.CardBrand == line.CardBrand?.Trim()
                 && l.AuthorizationNumber == line.AuthorizationNumber?.Trim()
-                && (l.EmployeeConsumption == null ? null : l.EmployeeConsumption.EmployeeId) == line.EmployeeId);
+                && l.EmployeeId == line.EmployeeId);
             if (match < 0) throw new PaymentIdempotencyConflictException();
             unmatchedLines.RemoveAt(match);
         }
@@ -1992,6 +1999,7 @@ internal static class BillingMapper
     {
         Id = p.Id, OrderId = p.OrderId, OrderNumber = orderNumber,
         CashSessionId = p.CashSessionId,
+        CashSessionStatus = p.CashSession?.Status.ToString(),
         CashRegisterId = p.CashSession?.CashRegisterId,
         CashRegisterName = p.CashSession?.CashRegister?.Name,
         CashRegisterCode = p.CashSession?.CashRegister?.Code,
@@ -2005,6 +2013,7 @@ internal static class BillingMapper
         OrderAmount = p.OrderAmount, PaidAt = p.PaidAt,
         Lines = p.Lines.Select(l => new PaymentLineDto
         {
+            UpdatedAt = l.UpdatedAt,
             Id = l.Id,
             MethodId = l.PaymentMethodConfigId,
             MethodName = l.Config?.Name ?? string.Empty,

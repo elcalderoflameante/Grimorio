@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { App as AntApp, Table, Tag, Space, Typography, Button, DatePicker, Row, Col, Statistic, Descriptions, Select, Tooltip } from 'antd';
-import { BankOutlined, FileProtectOutlined, GiftOutlined, PrinterOutlined, ReloadOutlined, UserOutlined } from '@ant-design/icons';
+import { BankOutlined, FileProtectOutlined, GiftOutlined, PrinterOutlined, ReloadOutlined, UserOutlined, SwapOutlined } from '@ant-design/icons';
+import CorrectPaymentMethodModal from './CorrectPaymentMethodModal';
 import ConvertSaleNoteModal from './ConvertSaleNoteModal';
 import SaleTipModal from './SaleTipModal';
 import { useAuth } from '../../context/useAuth';
@@ -105,6 +106,7 @@ export default function SalesHistory() {
   const { hasPermission } = useAuth();
   const [tipSale, setTipSale] = useState<{ id: string; orderNumber: number } | null>(null);
   const [noteToInvoice, setNoteToInvoice] = useState<OrderPaymentDto | null>(null);
+  const [paymentToCorrect, setPaymentToCorrect] = useState<OrderPaymentDto | null>(null);
   const [sales, setSales] = useState<OrderPaymentDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [cashierFilter, setCashierFilter] = useState<string>();
@@ -336,6 +338,12 @@ export default function SalesHistory() {
                   <Button size="small" icon={<GiftOutlined />} aria-label={`Propina de orden ${r.orderNumber}`}
                     onClick={() => setTipSale({ id: r.id, orderNumber: r.orderNumber })} />
                 </Tooltip>}
+                {r.documentType === 'NotaDeVenta' && !r.electronicDocumentId && hasPermission(PERMISSIONS.billing.paymentsCorrectMethod) && (
+                  <Tooltip title="Corregir medio de pago / consultar historial">
+                    <Button size="small" icon={<SwapOutlined />} aria-label={`Corregir medio de pago de orden ${r.orderNumber}`}
+                      onClick={() => setPaymentToCorrect(r)} />
+                  </Tooltip>
+                )}
                 <GenerateInvoiceButton
                   orderPaymentId={r.id}
                   documentType={r.documentType}
@@ -357,6 +365,7 @@ export default function SalesHistory() {
       />
       <SaleTipModal sale={tipSale} onClose={() => setTipSale(null)} />
       <ConvertSaleNoteModal payment={noteToInvoice} onClose={() => setNoteToInvoice(null)} onSuccess={load} />
+      <CorrectPaymentMethodModal payment={paymentToCorrect} onClose={() => setPaymentToCorrect(null)} onSuccess={load} />
     </div>
   );
 }

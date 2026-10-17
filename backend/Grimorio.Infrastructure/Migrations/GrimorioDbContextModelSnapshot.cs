@@ -1142,6 +1142,9 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("OriginalPaymentLinesJson")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("PaidAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1402,6 +1405,99 @@ namespace Grimorio.Infrastructure.Migrations
                     b.HasIndex("SortOrder");
 
                     b.ToTable("PaymentMethodConfigs", "billing");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Billing.PaymentMethodCorrection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasMaxLength(201)
+                        .HasColumnType("character varying(201)");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CashSessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("OrderPaymentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PaymentLineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("CashSessionId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("PaymentLineId");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("BranchId", "RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("OrderPaymentId", "CreatedAt");
+
+                    b.ToTable("PaymentMethodCorrections", "billing");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Billing.SmtpConfig", b =>
@@ -7185,6 +7281,27 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("Config");
 
                     b.Navigation("Payment");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Billing.PaymentMethodCorrection", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Billing.CashSession", null)
+                        .WithMany()
+                        .HasForeignKey("CashSessionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.Billing.OrderPayment", null)
+                        .WithMany()
+                        .HasForeignKey("OrderPaymentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.Billing.PaymentLine", null)
+                        .WithMany()
+                        .HasForeignKey("PaymentLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Finance.Expense", b =>

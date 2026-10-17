@@ -2117,6 +2117,7 @@ export interface CloseCashSessionDto {
 // ── Billing: Cobro ────────────────────────────────────────────────────────────
 
 export interface PaymentLineDto {
+  updatedAt?: string | null;
   id: string;
   methodId: string;
   methodName: string;
@@ -2136,6 +2137,7 @@ export interface PaymentLineDto {
 }
 
 export interface OrderPaymentDto {
+  cashSessionStatus?: 'Open' | 'Closed';
   noteConvertedAt?: string;
   noteConversionReason?: string;
   id: string;

@@ -136,6 +136,7 @@ import type {
   GenerateElectronicInvoiceDto,
 } from '../types';
 import { getDetailedError } from '../utils/errorHandler';
+import type { CorrectPaymentMethodDto, PaymentMethodCorrectionDto } from '../types/paymentMethodCorrection';
 
 const defaultApiBaseUrl = '/api';
 const API_BASE_URL = import.meta.env.VITE_API_URL || defaultApiBaseUrl;
@@ -859,6 +860,10 @@ export const paymentMethodsApi = {
 };
 
 export const cashApi = {
+  correctPaymentMethod: (id: string, data: CorrectPaymentMethodDto): Promise<AxiosResponse<boolean>> =>
+    apiClient.post<boolean>(`/cash/pagos/${id}/corregir-medio`, data),
+  getPaymentMethodCorrections: (id: string): Promise<AxiosResponse<PaymentMethodCorrectionDto[]>> =>
+    apiClient.get<PaymentMethodCorrectionDto[]>(`/cash/pagos/${id}/correcciones-medio`),
   getRegisters: (activeOnly = true): Promise<AxiosResponse<CashRegisterDto[]>> =>
     apiClient.get<CashRegisterDto[]>('/cash/cajas', { params: { activeOnly } }),
   createRegister: (dto: CreateCashRegisterDto): Promise<AxiosResponse<CashRegisterDto>> =>

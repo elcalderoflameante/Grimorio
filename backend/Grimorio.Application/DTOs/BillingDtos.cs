@@ -295,6 +295,7 @@ public class CloseCashSessionDto
 
 public class PaymentLineDto
 {
+    public DateTime? UpdatedAt { get; set; }
     public Guid Id { get; set; }
     public Guid MethodId { get; set; }
     public string MethodName { get; set; } = string.Empty;
@@ -315,6 +316,7 @@ public class PaymentLineDto
 
 public class OrderPaymentDto
 {
+    public string? CashSessionStatus { get; set; }
     public DateTime? NoteConvertedAt { get; set; }
     public string? NoteConversionReason { get; set; }
     public Guid Id { get; set; }

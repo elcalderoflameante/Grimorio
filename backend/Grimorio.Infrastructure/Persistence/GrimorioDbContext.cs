@@ -32,6 +32,7 @@ public class GrimorioDbContext : DbContext
     public DbSet<Role> Roles { get; set; } = null!;
     public DbSet<Permission> Permissions { get; set; } = null!;
     public DbSet<RolePermission> RolePermissions { get; set; } = null!;
+    public DbSet<PaymentMethodCorrection> PaymentMethodCorrections { get; set; } = null!;
     public DbSet<UserRole> UserRoles { get; set; } = null!;
     public DbSet<UserPushToken> UserPushTokens { get; set; } = null!;
 

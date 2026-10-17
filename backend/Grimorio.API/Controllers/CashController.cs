@@ -16,6 +16,30 @@ public class CashController : ControllerBase
     private readonly IMediator _mediator;
     public CashController(IMediator mediator) => _mediator = mediator;
 
+    [Authorize(Policy = AppConstants.Permissions.BillingPaymentsCorrectMethod)]
+    [HttpPost("pagos/{id:guid}/corregir-medio")]
+    public async Task<IActionResult> CorrectPaymentMethod(Guid id, [FromBody] CorrectPaymentMethodDto dto)
+    {
+        if (!TryGetBranchId(out var branchId) || !TryGetUserId(out var userId)) return Unauthorized();
+        try
+        {
+            return Ok(await _mediator.Send(new CorrectPaymentMethodCommand
+            {
+                BranchId = branchId, ActorUserId = userId, PaymentId = id, Data = dto,
+            }));
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+    }
+
+    [Authorize(Policy = AppConstants.Permissions.BillingCashView)]
+    [HttpGet("pagos/{id:guid}/correcciones-medio")]
+    public async Task<IActionResult> GetPaymentMethodCorrections(Guid id)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        return Ok(await _mediator.Send(new GetPaymentMethodCorrectionsQuery { BranchId = branchId, PaymentId = id }));
+    }
+
     // ── Medios de pago ────────────────────────────────────────────────────────
 
     [Authorize(Policy = "Billing.PaymentMethods.View")]
