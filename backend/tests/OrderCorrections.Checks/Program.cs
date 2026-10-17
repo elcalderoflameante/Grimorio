@@ -267,6 +267,8 @@ try {
     await TableTransferChecks.Run(app.Services, client, Token(admin.Id), Token(waiter.Id, false), branch.Id, foreign.Id,
         admin.Id, dish.Id, small, bbq, cash.Id, session.Id, Check);
     await CashSessionReviewChecks.Run(app.Services, client, Token(admin.Id), Token(waiter.Id, false), branch.Id, foreign.Id, Check);
+    await TableDraftCancellationChecks.Run(app.Services, client, Token(admin.Id), Token(waiter.Id, false),
+        branch.Id, admin.Id, dish.Id, small, bbq, Check);
     await RolePermissionAssignmentChecks.Run(app.Services, client, Token(admin.Id), Token(waiter.Id, false),
         Token(admin.Id, branchId: foreign.Id), branch.Id, foreign.Id, Check);
     Console.WriteLine($"Order correction and sale note invoice checks passed: {count}. Real isolated PostgreSQL and HTTP; no production services.");

@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { App as AntApp, Button, Card, Col, Divider, Empty, InputNumber, Modal,
-  Row, Space, Spin, Tag, Typography, Input, Badge, Alert, Tooltip, Select } from 'antd';
+  Row, Space, Spin, Tag, Typography, Input, Badge, Alert, Tooltip, Select, Popconfirm } from 'antd';
 import { ArrowLeftOutlined, CheckOutlined,
-  DeleteOutlined, MinusOutlined, PlusOutlined, SendOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+  DeleteOutlined, MinusOutlined, PlusOutlined, SendOutlined, QuestionCircleOutlined, StopOutlined } from '@ant-design/icons';
 import { menuApi, posApi } from '../../services/api';
 import type {
   MenuCategoryDto, CreateOrderItemDto, MenuItemDto,
@@ -12,6 +12,8 @@ import type {
 import { formatError } from '../../utils/errorHandler';
 import { menuItemName } from '../../utils/menuItemName';
 import ChangeOrderTableButton from './ChangeOrderTableButton';
+import { useAuth } from '../../context/useAuth';
+import { PERMISSIONS } from '../../constants/permissions';
 
 const { Title, Text } = Typography;
 const PROMOTIONS_CATEGORY_ID = '__promotions__';
@@ -30,6 +32,7 @@ interface Props {
   orderType: OrderType;
   existingOrder?: OrderDto;
   directSale?: boolean;
+  canSave?: boolean;
   onClose: () => void;
   onConfirm: (order: OrderDto) => void;
   onTableChanged?: (table: RestaurantTableDto) => void;
@@ -56,8 +59,12 @@ function modifiersLabel(selections: CreateModifierSelectionDto[] | undefined, it
   }).filter(Boolean).join(', ');
 }
 
-export default function TakeOrder({ table, orderType, existingOrder, directSale = false, onClose, onConfirm, onTableChanged }: Props) {
+export default function TakeOrder({ table, orderType, existingOrder, directSale = false, canSave = true, onClose, onConfirm, onTableChanged }: Props) {
   const { message } = AntApp.useApp();
+  const { hasPermission } = useAuth();
+  const operationInFlight = useRef(false);
+  const canCancelDraft = !directSale && existingOrder?.status === 'Draft' && !existingOrder.paidAt
+    && hasPermission(PERMISSIONS.pos.ordersCancel);
 
   const [categories, setCategories] = useState<MenuCategoryDto[]>([]);
   const [items, setItems] = useState<MenuItemDto[]>([]);
@@ -372,6 +379,8 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
   }, { base15: 0, base0: 0, baseExempt: 0, iva15: 0 }), [itemsById, lines, promotionsByItemId]);
 
   const handleSave = async (confirm: boolean) => {
+    if (operationInFlight.current) return;
+    if (!canSave) { message.warning('Debes abrir la caja antes de guardar o enviar pedidos'); return; }
     if (lines.length === 0) { message.warning('Agrega al menos un ítem'); return; }
     const unavailableLine = lines.find(line => {
       const capacity = getLineCapacity(line);
@@ -385,6 +394,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
       message.warning(`${unavailableLine.name} supera el stock disponible`);
       return;
     }
+    operationInFlight.current = true;
     setSaving(true);
     try {
       const itemsPayload: CreateOrderItemDto[] = lines.map(l => ({
@@ -430,7 +440,23 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
         onClose();
       }
     } catch (e) { message.error(formatError(e)); }
-    finally { setSaving(false); }
+    finally { operationInFlight.current = false; setSaving(false); }
+  };
+
+  const handleCancelDraft = async () => {
+    if (!canCancelDraft || !existingOrder || operationInFlight.current) return;
+    operationInFlight.current = true;
+    setSaving(true);
+    try {
+      await posApi.cancelOrder(existingOrder.id);
+      message.success(`Borrador #${existingOrder.number} cancelado`);
+      onClose();
+    } catch (error) {
+      message.error(formatError(error));
+    } finally {
+      operationInFlight.current = false;
+      setSaving(false);
+    }
   };
 
   if (loading) return <Spin style={{ display: 'block', margin: 40 }} />;
@@ -439,7 +465,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={onClose} />
+        <Button icon={<ArrowLeftOutlined />} onClick={onClose} disabled={saving} />
         <div>
           <Title level={5} style={{ margin: 0 }}>
             {directSale ? 'Venta directa' : orderType === 'DineIn' && table ? `Mesa ${table.code}` : orderType === 'Takeout' ? 'Para llevar' : 'Delivery'}
@@ -456,6 +482,19 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
         <Tag color={directSale ? 'green' : orderType === 'DineIn' ? 'blue' : orderType === 'Takeout' ? 'orange' : 'purple'}>
           {directSale ? 'Mostrador' : orderType}
         </Tag>
+        {canCancelDraft && <Popconfirm
+          title={`Cancelar el borrador #${existingOrder.number}?`}
+          description={table
+            ? 'La mesa quedara disponible. Se descartaran los cambios sin guardar y no se descontara inventario.'
+            : 'El pedido dejara de aparecer en pendientes. Se descartaran los cambios sin guardar y no se descontara inventario.'}
+          okText="Si, cancelar" cancelText="Volver"
+          okButtonProps={{ danger: true, loading: saving }}
+          cancelButtonProps={{ disabled: saving }}
+          onConfirm={handleCancelDraft}>
+          <Button danger icon={<StopOutlined />} disabled={saving} aria-label="Cancelar borrador">
+            Cancelar borrador
+          </Button>
+        </Popconfirm>}
       </div>
 
       {/* Cliente info for non-table orders */}
@@ -748,11 +787,11 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
             />
 
             <Space orientation="vertical" style={{ width: '100%' }} size={6}>
-              <Button type="primary" icon={<SendOutlined />} block loading={saving} disabled={lines.length === 0} onClick={() => handleSave(true)}>
+              <Button type="primary" icon={<SendOutlined />} block loading={saving} disabled={!canSave || lines.length === 0} onClick={() => handleSave(true)}>
                 {directSale ? 'Crear venta' : 'Enviar a preparar'}
               </Button>
               {!directSale && (
-                <Button icon={<CheckOutlined />} block loading={saving} disabled={lines.length === 0} onClick={() => handleSave(false)}>
+                <Button icon={<CheckOutlined />} block loading={saving} disabled={!canSave || lines.length === 0} onClick={() => handleSave(false)}>
                   Guardar borrador
                 </Button>
               )}

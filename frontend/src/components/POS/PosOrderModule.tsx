@@ -40,7 +40,8 @@ export default function PosOrderModule() {
   if (!branchId) return <Text type="danger">Sin sucursal asignada</Text>;
 
   const handleSelectTable = async (table: RestaurantTableDto) => {
-    if (!hasSession) {
+    const hasExistingDraft = !!table.currentOrderId && table.currentStatus === 'Draft';
+    if (!hasSession && !hasExistingDraft) {
       message.warning('Debes abrir la caja antes de tomar pedidos');
       return;
     }
@@ -198,6 +199,7 @@ export default function PosOrderModule() {
           orderType={orderType}
           existingOrder={activeOrder ?? undefined}
           directSale={directSaleMode}
+          canSave={hasSession === true}
           onClose={handleClose}
           onConfirm={handleOrderConfirmed}
           onTableChanged={target => { setSelectedTable(target); refreshTables(); }}

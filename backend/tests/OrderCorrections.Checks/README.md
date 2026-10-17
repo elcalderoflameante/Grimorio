@@ -1,5 +1,9 @@
 # Administrator Order Corrections
 
+Saved table draft cancellation checks cover authorization, retained order history,
+table availability, unchanged stock/movements/payments and creating a new order
+on the freed table.
+
 Role-permission checks reproduce the unique-index failure when replacing existing
 assignments and cover unchanged saves, adding/removing/restoring grants, duplicate
 selections, concurrent saves, branch validation, unauthorized requests and startup
