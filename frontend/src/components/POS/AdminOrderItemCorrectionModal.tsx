@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { App, Checkbox, Form, Input, InputNumber, Modal, Radio, Space, Spin, Tag, Typography } from 'antd';
+import { App, Button, Checkbox, Form, Input, InputNumber, Modal, Radio, Space, Spin, Tag, Tooltip, Typography } from 'antd';
+import { InfoCircleOutlined } from '@ant-design/icons';
 import type { MenuItemModifierGroupDto, OrderDto, OrderItemDto } from '../../types';
 import { menuApi, posApi } from '../../services/api';
 import { formatError } from '../../utils/errorHandler';
@@ -20,6 +21,11 @@ export default function AdminOrderItemCorrectionModal({ target, isDraft, onClose
   const [saving, setSaving] = useState(false);
   const requestId = useRef('');
   const inFlight = useRef(false);
+  const replacementInfo = target?.replace
+    ? isDraft
+      ? ' El plato con las opciones corregidas queda en borrador, sin reservar ingredientes hasta enviar a preparar.'
+      : ' Ademas, se reservan los ingredientes del plato con las opciones corregidas.'
+    : '';
 
   useEffect(() => {
     if (!target) return;
@@ -80,8 +86,28 @@ export default function AdminOrderItemCorrectionModal({ target, isDraft, onClose
       </Space>
       <Form form={form} layout="vertical" disabled={saving || loading || loadFailed}>
         <Form.Item name="disposition" label="Tratamiento del inventario" rules={[{ required: true, message: 'Selecciona el tratamiento' }]}>
-          <Radio.Group options={[{ value: 'RegistrationError', label: 'Error de registro' },
-            { value: 'PreparedWaste', label: 'Preparado / merma', disabled: isDraft }]} />
+          <Radio.Group>
+            <Space wrap size={[20, 8]}>
+              <Space size={0}>
+                <Radio value="RegistrationError">Error de registro</Radio>
+                <Tooltip trigger={['hover', 'focus', 'click']} title={isDraft
+                  ? `En un pedido en borrador no hay ingredientes reservados. Cancela el registro sin descontar stock ni registrar merma.${replacementInfo}`
+                  : `Para un plato que no se preparo: libera sus ingredientes reservados y los deja disponibles. No descuenta stock ni registra merma.${replacementInfo}`}>
+                  <Button type="text" size="small" shape="circle" icon={<InfoCircleOutlined />}
+                    aria-label="Informacion de inventario: error de registro" />
+                </Tooltip>
+              </Space>
+              <Space size={0}>
+                <Radio value="PreparedWaste" disabled={isDraft}>Preparado / merma</Radio>
+                <Tooltip trigger={['hover', 'focus', 'click']} title={isDraft
+                  ? 'No disponible en borradores: todavia no hay ingredientes reservados para registrar merma.'
+                  : `Para un plato cuyos ingredientes ya se utilizaron: descuenta del stock los ingredientes reservados del plato original y registra una salida por merma. No los devuelve al disponible.${replacementInfo}`}>
+                  <Button type="text" size="small" shape="circle" icon={<InfoCircleOutlined />}
+                    aria-label="Informacion de inventario: preparado o merma" />
+                </Tooltip>
+              </Space>
+            </Space>
+          </Radio.Group>
         </Form.Item>
         {target?.replace && groups.map(group => <div key={group.id} style={{ borderTop: '1px solid #e5e7eb', paddingTop: 12, marginBottom: 16 }}>
           <Typography.Text strong>{group.name}{group.isRequired ? ' *' : ''}</Typography.Text>
