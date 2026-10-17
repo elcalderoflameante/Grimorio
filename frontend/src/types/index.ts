@@ -1569,6 +1569,7 @@ export interface ActiveOrderSummaryDto {
   tableCode?: string;
   customerName?: string;
   total: number;
+  pendingPaymentTotal: number;
   createdAt: string;
   confirmedAt?: string;
   totalItems: number;

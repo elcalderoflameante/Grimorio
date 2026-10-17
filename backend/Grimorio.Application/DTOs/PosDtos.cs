@@ -66,6 +66,7 @@ public class ActiveOrderSummaryDto
     public string? TableCode { get; set; }
     public string? CustomerName { get; set; }
     public decimal Total { get; set; }
+    public decimal PendingPaymentTotal { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? ConfirmedAt { get; set; }
     public int TotalItems { get; set; }

@@ -46,6 +46,7 @@ export default function CashRegister() {
   const [history, setHistory] = useState<CashSessionDto[]>([]);
   const [registers, setRegisters] = useState<CashRegisterDto[]>([]);
   const [activeOrders, setActiveOrders] = useState<ActiveOrderSummaryDto[]>([]);
+  const [ordersError, setOrdersError] = useState(false);
   const [recentSales, setRecentSales] = useState<import('../../types').OrderPaymentDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<dayjs.Dayjs>(dayjs());
@@ -77,6 +78,7 @@ export default function CashRegister() {
       setActiveSession(sessionRes.status === 'fulfilled' ? sessionRes.value.data : null);
       setHistory(historyRes.status === 'fulfilled' ? historyRes.value.data : []);
       setActiveOrders(ordersRes.status === 'fulfilled' ? ordersRes.value.data : []);
+      setOrdersError(ordersRes.status === 'rejected');
       setRecentSales(salesRes.status === 'fulfilled' ? salesRes.value.data : []);
       setRegisters(registersRes.status === 'fulfilled' ? registersRes.value.data : []);
       setReviewError(openSessionsRes.status === 'rejected');
@@ -192,7 +194,11 @@ export default function CashRegister() {
     : activeSession;
 
   // Contadores de pedidos activos por estado
-  const ordersByStatus = activeOrders.reduce<Record<string, number>>((acc, o) => {
+  const confirmedOrders = activeOrders.filter(o =>
+    ['Confirmed', 'InPreparation', 'Ready', 'Delivered'].includes(o.status));
+  const pendingPaymentTotal = confirmedOrders.reduce((total, o) =>
+    total + Math.round(o.pendingPaymentTotal * 100), 0) / 100;
+  const ordersByStatus = confirmedOrders.reduce<Record<string, number>>((acc, o) => {
     acc[o.status] = (acc[o.status] ?? 0) + 1;
     return acc;
   }, {});
@@ -366,14 +372,20 @@ export default function CashRegister() {
                   <Space size={6}>
                     <ShoppingCartOutlined style={{ fontSize: 18, color: '#fa8c16' }} />
                     <Text style={{ fontSize: 13, fontWeight: 600, color: '#d46b08' }}>
-                      {activeOrders.length} pedido{activeOrders.length !== 1 ? 's' : ''} en curso
+                      {ordersError ? 'Pedidos en curso' : `${confirmedOrders.length} pedido${confirmedOrders.length !== 1 ? 's' : ''} en curso`}
                     </Text>
                   </Space>
-                  {activeOrders.length > 0 && (
-                    <Badge count={activeOrders.length} color="#fa8c16" />
+                  {confirmedOrders.length > 0 && (
+                    <Badge count={confirmedOrders.length} color="#fa8c16" />
                   )}
                 </div>
-                {activeOrders.length === 0 ? (
+                <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 3 }}>Por cobrar</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#d46b08', marginBottom: 8, overflowWrap: 'anywhere' }}>
+                  {ordersError ? 'No disponible' : fmt(pendingPaymentTotal)}
+                </div>
+                {ordersError ? (
+                  <Text type="danger" style={{ fontSize: 12 }}>No se pudieron consultar los pedidos</Text>
+                ) : confirmedOrders.length === 0 ? (
                   <Text type="secondary" style={{ fontSize: 12 }}>Sin pedidos activos</Text>
                 ) : (
                   <Space size={[6, 6]} wrap>
@@ -385,9 +397,9 @@ export default function CashRegister() {
                   </Space>
                 )}
                 {/* Lista breve de pedidos activos */}
-                {activeOrders.length > 0 && (
+                {confirmedOrders.length > 0 && (
                   <div style={{ marginTop: 8, maxHeight: 80, overflowY: 'auto' }}>
-                    {activeOrders.slice(0, 6).map(o => (
+                    {confirmedOrders.slice(0, 6).map(o => (
                       <div
                         key={o.id}
                         style={{
@@ -406,9 +418,9 @@ export default function CashRegister() {
                         </Tag>
                       </div>
                     ))}
-                    {activeOrders.length > 6 && (
+                    {confirmedOrders.length > 6 && (
                       <Text type="secondary" style={{ fontSize: 10 }}>
-                        +{activeOrders.length - 6} más...
+                        +{confirmedOrders.length - 6} más...
                       </Text>
                     )}
                   </div>

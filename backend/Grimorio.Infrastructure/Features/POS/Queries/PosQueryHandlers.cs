@@ -146,6 +146,8 @@ public class GetActiveOrderSummariesQueryHandler : IRequestHandler<GetActiveOrde
                 TableCode = o.Table != null ? o.Table.Code : null,
                 CustomerName = o.CustomerName,
                 Total = o.Total,
+                PendingPaymentTotal = Math.Max(0, o.Total - o.Payments
+                    .Where(p => !p.IsDeleted).Sum(p => p.OrderAmount)),
                 CreatedAt = o.CreatedAt,
                 ConfirmedAt = o.ConfirmedAt,
                 TotalItems = o.Items.Where(i => !i.IsDeleted).Sum(i => i.Quantity),
