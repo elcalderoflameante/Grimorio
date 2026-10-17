@@ -60,7 +60,7 @@ export default function CustomerSelector({ value, onChange }: Props) {
         <Select
           allowClear
           showSearch
-          style={{ flex: 1 }}
+          style={{ flex: 1, minWidth: 0 }}
           placeholder="Buscar por nombre o RUC/cédula..."
           value={value?.id ?? null}
           filterOption={false}

@@ -53,6 +53,8 @@ public class UpsertBranchTaxConfigCommand : IRequest<BranchTaxConfigDto>
 
 public class GenerateElectronicInvoiceCommand : IRequest<ElectronicDocumentDto>
 {
+    public Guid? ConvertNoteCustomerId { get; set; }
+    public string? NoteConversionReason { get; set; }
     public Guid OrderPaymentId { get; set; }
     public Guid BranchId { get; set; }
     public Guid? UserId { get; set; }

@@ -198,6 +198,9 @@ class StationProvider extends ChangeNotifier {
     _connecting = true;
     final session = ++_session;
     _hub.onResynchronized = _loadInitialItems;
+    _hub.onOrderTableChanged = () => _handleEvent(() {
+      unawaited(_loadInitialItems());
+    });
     _hub.onConnectionChanged = (state) {
       if (session != _session || _disposed) return;
       connectionState = state;

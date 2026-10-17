@@ -213,6 +213,10 @@ public class OrderPayment : BaseEntity
     public Guid? CashSessionId { get; set; }
     public Guid? CustomerId { get; set; }
     public DocumentType DocumentType { get; set; } = DocumentType.NotaDeVenta;
+    public DateTime? NoteConvertedAt { get; set; }
+    public Guid? NoteConvertedBy { get; set; }
+    public string? NoteConversionReason { get; set; }
+    public Guid? NoteOriginalCustomerId { get; set; }
     public decimal OrderAmount { get; set; }
     public DateTime PaidAt { get; set; } = DateTime.UtcNow;
 

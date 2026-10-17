@@ -11,6 +11,7 @@ public class KitchenHub(GrimorioDbContext db) : Hub
     public const string NewItemsEvent = "kitchen:new-items";
     public const string ItemUpdatedEvent = "kitchen:item-updated";
     public const string OrderCancelledEvent = "kitchen:order-cancelled";
+    public const string OrderTableChangedEvent = "kitchen:order-table-changed";
 
     public static string GetStationGroup(Guid stationId) => $"kitchen-station:{stationId}";
     public static string GetBranchGroup(Guid branchId) => $"kitchen-branch:{branchId}";

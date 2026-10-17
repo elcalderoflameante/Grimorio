@@ -200,6 +200,7 @@ export default function PosOrderModule() {
           directSale={directSaleMode}
           onClose={handleClose}
           onConfirm={handleOrderConfirmed}
+          onTableChanged={target => { setSelectedTable(target); refreshTables(); }}
         />
       )}
 

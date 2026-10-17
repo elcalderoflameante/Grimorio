@@ -11,6 +11,7 @@ import type {
 } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 import { menuItemName } from '../../utils/menuItemName';
+import ChangeOrderTableButton from './ChangeOrderTableButton';
 
 const { Title, Text } = Typography;
 const PROMOTIONS_CATEGORY_ID = '__promotions__';
@@ -31,6 +32,7 @@ interface Props {
   directSale?: boolean;
   onClose: () => void;
   onConfirm: (order: OrderDto) => void;
+  onTableChanged?: (table: RestaurantTableDto) => void;
 }
 
 interface OrderLine {
@@ -54,7 +56,7 @@ function modifiersLabel(selections: CreateModifierSelectionDto[] | undefined, it
   }).filter(Boolean).join(', ');
 }
 
-export default function TakeOrder({ table, orderType, existingOrder, directSale = false, onClose, onConfirm }: Props) {
+export default function TakeOrder({ table, orderType, existingOrder, directSale = false, onClose, onConfirm, onTableChanged }: Props) {
   const { message } = AntApp.useApp();
 
   const [categories, setCategories] = useState<MenuCategoryDto[]>([]);
@@ -107,7 +109,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
         if (cats.data.length > 0) setActiveCategory(cats.data[0].id);
 
         if (existingOrder) {
-          const linesFromOrder = existingOrder.items.map(i => ({
+          const linesFromOrder = existingOrder.items.filter(i => i.status !== 'Cancelled').map(i => ({
             menuItemId: i.menuItemId,
             name: i.itemName,
             price: i.unitPrice,
@@ -436,7 +438,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <Button icon={<ArrowLeftOutlined />} onClick={onClose} />
         <div>
           <Title level={5} style={{ margin: 0 }}>
@@ -448,6 +450,9 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
             </Text>
           )}
         </div>
+        {existingOrder && <ChangeOrderTableButton order={{ ...existingOrder, tableId: table?.id ?? existingOrder.tableId,
+          tableCode: table?.code ?? existingOrder.tableCode }} disabled={saving}
+          onChanged={(_, target) => onTableChanged?.(target)} />}
         <Tag color={directSale ? 'green' : orderType === 'DineIn' ? 'blue' : orderType === 'Takeout' ? 'orange' : 'purple'}>
           {directSale ? 'Mostrador' : orderType}
         </Tag>

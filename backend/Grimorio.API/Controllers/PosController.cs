@@ -187,6 +187,21 @@ public class PosController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "POS.Orders.Update")]
+    [HttpPost("ordenes/{id:guid}/trasladar-mesa")]
+    public async Task<IActionResult> TransferOrderTable(Guid id, [FromBody] TransferOrderTableDto dto)
+    {
+        if (!TryGetBranchId(out var branchId) || !TryGetUserId(out var userId)) return Unauthorized();
+        try
+        {
+            var order = await _mediator.Send(new TransferOrderTableCommand(branchId, id, userId, dto));
+            await _kitchenHub.Clients.Group(KitchenHub.GetBranchGroup(branchId)).SendAsync(KitchenHub.OrderTableChangedEvent,
+                new { orderId = order.Id, tableId = order.TableId, tableCode = order.TableCode });
+            return Ok(order);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
     [Authorize(Policy = "POS.Orders.Create")]
     [HttpPost("ordenes")]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderDto dto)

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { App as AntApp, Table, Tag, Space, Typography, Button, DatePicker, Row, Col, Statistic, Descriptions, Select, Tooltip } from 'antd';
-import { BankOutlined, GiftOutlined, PrinterOutlined, ReloadOutlined, UserOutlined } from '@ant-design/icons';
+import { BankOutlined, FileProtectOutlined, GiftOutlined, PrinterOutlined, ReloadOutlined, UserOutlined } from '@ant-design/icons';
+import ConvertSaleNoteModal from './ConvertSaleNoteModal';
 import SaleTipModal from './SaleTipModal';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
@@ -42,6 +43,10 @@ function PaymentDetail({ payment }: { payment: OrderPaymentDto }) {
   return (
     <div style={{ padding: '8px 16px' }}>
       <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }}>
+        {payment.noteConvertedAt && <Descriptions.Item label="Nota de venta original">
+          Sustituida por factura el {formatBranchDateTime(payment.noteConvertedAt)}
+        </Descriptions.Item>}
+        {payment.noteConversionReason && <Descriptions.Item label="Motivo de correccion">{payment.noteConversionReason}</Descriptions.Item>}
         <Descriptions.Item label="Caja">
           {payment.cashRegisterCode
             ? `${payment.cashRegisterName} (${payment.cashRegisterCode})`
@@ -99,6 +104,7 @@ export default function SalesHistory() {
   const { message } = AntApp.useApp();
   const { hasPermission } = useAuth();
   const [tipSale, setTipSale] = useState<{ id: string; orderNumber: number } | null>(null);
+  const [noteToInvoice, setNoteToInvoice] = useState<OrderPaymentDto | null>(null);
   const [sales, setSales] = useState<OrderPaymentDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [cashierFilter, setCashierFilter] = useState<string>();
@@ -338,12 +344,19 @@ export default function SalesHistory() {
                   electronicDocumentStatus={r.electronicDocumentStatus}
                   onSuccess={load}
                 />
+                {r.documentType === 'NotaDeVenta' && !r.electronicDocumentId && hasPermission(PERMISSIONS.billing.sriGenerate) && (
+                  <Tooltip title="Emitir factura">
+                    <Button size="small" icon={<FileProtectOutlined />} aria-label={`Emitir factura de orden ${r.orderNumber}`}
+                      onClick={() => setNoteToInvoice(r)} />
+                  </Tooltip>
+                )}
               </Space>
             ),
           },
         ]}
       />
       <SaleTipModal sale={tipSale} onClose={() => setTipSale(null)} />
+      <ConvertSaleNoteModal payment={noteToInvoice} onClose={() => setNoteToInvoice(null)} onSuccess={load} />
     </div>
   );
 }

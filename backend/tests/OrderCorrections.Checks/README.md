@@ -18,3 +18,13 @@ administrator/branch isolation, validation, and ledger/stock consistency.
 Also covers combo task replacement, draft saving and confirmation ignoring cancelled history,
 forced database failure rollback, promotion discount recalculation and original
 ingredient quantities retained after catalog recipe changes and maximum-length actor names.
+
+Also verifies sale-note conversion through the authorized HTTP endpoint: partial-payment
+snapshots, closed cash sessions, concurrent retries, original payment replay, customer
+and branch validation, audit history, and atomic rollback of document/sequence/payment
+changes after a forced database failure. No live SRI, certificate signing or email calls.
+
+Table transfer checks cover preparation states, unchanged items/payments/inventory,
+source/destination map state, occupied/inactive/foreign tables, stale requests,
+concurrent retries and competing transfers/new orders, paid-order protection,
+audit history, forced persistence rollback and station table labels.

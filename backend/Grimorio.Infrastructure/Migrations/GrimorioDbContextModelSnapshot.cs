@@ -1123,6 +1123,19 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<string>("NoteConversionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("NoteConvertedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("NoteConvertedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("NoteOriginalCustomerId")
+                        .HasColumnType("uuid");
+
                     b.Property<decimal>("OrderAmount")
                         .HasColumnType("numeric(18,2)");
 
@@ -5255,6 +5268,76 @@ namespace Grimorio.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderTableTransfer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FromTableId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ToTableId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("FromTableId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("ToTableId");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("BranchId", "RequestId")
+                        .IsUnique();
+
+                    b.ToTable("OrderTableTransfers", "pos");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.POS.Promotion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -7828,6 +7911,27 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("OrderItem");
 
                     b.Navigation("Station");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.POS.OrderTableTransfer", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.POS.RestaurantTable", null)
+                        .WithMany()
+                        .HasForeignKey("FromTableId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.POS.Order", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.POS.RestaurantTable", null)
+                        .WithMany()
+                        .HasForeignKey("ToTableId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.POS.PromotionMenuCategory", b =>

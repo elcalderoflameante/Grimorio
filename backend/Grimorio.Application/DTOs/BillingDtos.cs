@@ -315,6 +315,8 @@ public class PaymentLineDto
 
 public class OrderPaymentDto
 {
+    public DateTime? NoteConvertedAt { get; set; }
+    public string? NoteConversionReason { get; set; }
     public Guid Id { get; set; }
     public Guid OrderId { get; set; }
     public Guid? CashSessionId { get; set; }
@@ -502,6 +504,12 @@ public class AddOrderPaymentItemDto
 }
 
 // ── InvoiceTemplate ───────────────────────────────────────────────────────────
+
+public class ConvertSaleNoteDto
+{
+    public Guid CustomerId { get; set; }
+    public string Reason { get; set; } = string.Empty;
+}
 
 public class GenerateElectronicInvoiceDto
 {

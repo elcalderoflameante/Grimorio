@@ -233,6 +233,7 @@ public class OrderPaymentConfiguration : BaseEntityConfiguration<OrderPayment>
     {
         base.Configure(builder);
         builder.ToTable("OrderPayments", "billing");
+        builder.Property(x => x.NoteConversionReason).HasMaxLength(500);
 
         builder.Property(x => x.OrderAmount).HasColumnType("numeric(18,2)");
 

@@ -160,6 +160,23 @@ public class SriController : ControllerBase
     }
 
     [Authorize(Policy = "Billing.Sri.Generate")]
+    [HttpPost("documentos/facturar-nota/{orderPaymentId:guid}")]
+    public async Task<IActionResult> ConvertSaleNote(Guid orderPaymentId, [FromBody] ConvertSaleNoteDto dto)
+    {
+        if (!TryGetBranchId(out var branchId) || !TryGetUserId(out var userId)) return Unauthorized();
+        if (dto.CustomerId == Guid.Empty) return BadRequest("Selecciona un cliente.");
+        try
+        {
+            return Ok(await _mediator.Send(new GenerateElectronicInvoiceCommand {
+                OrderPaymentId = orderPaymentId, BranchId = branchId, UserId = userId,
+                ConvertNoteCustomerId = dto.CustomerId, NoteConversionReason = dto.Reason,
+            }));
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+        catch (KeyNotFoundException ex) { return NotFound(ex.Message); }
+    }
+
+    [Authorize(Policy = "Billing.Sri.Generate")]
     [HttpPost("documentos/{id:guid}/reintentar")]
     public async Task<IActionResult> RetryInvoice(Guid id)
     {

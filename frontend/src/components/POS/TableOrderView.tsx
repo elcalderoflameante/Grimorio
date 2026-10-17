@@ -4,6 +4,7 @@ import { App as AntApp, Alert, Badge, Button, Card, Checkbox, Col, Divider, Empt
 import { ArrowLeftOutlined, CheckCircleOutlined, DeleteOutlined, DollarOutlined, EditOutlined,
   MinusOutlined, PlusOutlined, PrinterOutlined, QuestionCircleOutlined, ReloadOutlined, SettingOutlined, SplitCellsOutlined } from '@ant-design/icons';
 import AdminOrderItemCorrectionModal from './AdminOrderItemCorrectionModal';
+import ChangeOrderTableButton from './ChangeOrderTableButton';
 import type {
   OrderDto, OrderItemDto, RestaurantTableDto, PaymentMethodConfigDto,
   OrderPaymentDto, AddOrderPaymentDto, CustomerDto, MenuCategoryDto,
@@ -925,9 +926,11 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-        <Space>
+        <Space wrap style={{ maxWidth: '100%' }}>
           <Button icon={<ArrowLeftOutlined />} disabled={paying} onClick={onClose}>{table ? 'Volver al mapa' : 'Volver a pedidos'}</Button>
-          <Title level={5} style={{ margin: 0 }}>{table ? `Mesa ${table.code}` : order.type === 'Delivery' ? 'Domicilio' : 'Para llevar'}</Title>
+          <Title level={5} style={{ margin: 0 }}>{order.tableCode ? `Mesa ${order.tableCode}` : order.type === 'Delivery' ? 'Domicilio' : 'Para llevar'}</Title>
+          <ChangeOrderTableButton order={order} disabled={paying || saving || !!pendingPayment}
+            onChanged={updated => { setOrder(updated); onTableUpdated(); }} />
           <Tag>Orden #{order.number}</Tag>
           <Tag color={STATUS_COLORS[order.status]}>{STATUS_LABELS[order.status] ?? order.status}</Tag>
         </Space>

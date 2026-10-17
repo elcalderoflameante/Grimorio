@@ -44,7 +44,11 @@ var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("order-correction-chec
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options => options.TokenValidationParameters = new() {
     ValidateIssuerSigningKey = true, IssuerSigningKey = key, ValidateIssuer = false, ValidateAudience = false, ValidateLifetime = true,
 });
-builder.Services.AddAuthorization();
+builder.Services.AddHttpClient();
+builder.Services.AddAuthorization(options => {
+    options.AddPolicy("Billing.Sri.Generate", policy => policy.RequireRole(AppConstants.Roles.Admin));
+    options.AddPolicy("POS.Orders.Update", policy => policy.RequireRole(AppConstants.Roles.Admin));
+});
 await using var app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.MapControllers();
 async Task Read(Func<GrimorioDbContext, Task> action) { await using var scope = app.Services.CreateAsyncScope(); await action(scope.ServiceProvider.GetRequiredService<GrimorioDbContext>()); }
 async Task<T> Send<T>(IRequest<T> request) { await using var scope = app.Services.CreateAsyncScope(); return await scope.ServiceProvider.GetRequiredService<IMediator>().Send(request); }
@@ -251,5 +255,9 @@ try {
         var actorName = $"{admin.FirstName} {admin.LastName}";
         Check(await db.OrderItemCorrections.AllAsync(c => c.ActorUserId == admin.Id && c.ActorName == actorName), "Every correction records full administrator identity, including maximum-length names");
     });
-    Console.WriteLine($"Order correction checks passed: {count}. Real isolated PostgreSQL and HTTP; no production services.");
+    await SaleNoteInvoiceChecks.Run(app.Services, client, Token(admin.Id), Token(waiter.Id, false), branch.Id, foreign.Id,
+        admin.Id, dish.Id, small, bbq, cash.Id, session.Id, Check);
+    await TableTransferChecks.Run(app.Services, client, Token(admin.Id), Token(waiter.Id, false), branch.Id, foreign.Id,
+        admin.Id, dish.Id, small, bbq, cash.Id, session.Id, Check);
+    Console.WriteLine($"Order correction and sale note invoice checks passed: {count}. Real isolated PostgreSQL and HTTP; no production services.");
 } finally { await app.StopAsync(); }

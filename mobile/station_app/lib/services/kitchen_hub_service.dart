@@ -19,6 +19,7 @@ class KitchenHubService {
   ItemsCallback? onNewItems;
   ItemUpdatedCallback? onItemUpdated;
   OrderCancelledCallback? onOrderCancelled;
+  VoidCallback? onOrderTableChanged;
   ConnectionCallback? onConnectionChanged;
   Future<void> Function()? onResynchronized;
 
@@ -101,6 +102,11 @@ class KitchenHubService {
       onOrderCancelled?.call(data['orderId'] as String);
     });
 
+    _connection!.on('kitchen:order-table-changed', (args) {
+      if (args == null || args.isEmpty) return;
+      onOrderTableChanged?.call();
+    });
+
     try {
       await connection.start();
       if (!identical(connection, _connection)) return;
@@ -114,7 +120,10 @@ class KitchenHubService {
     }
   }
 
-  Future<void> _joinStations(HubConnection connection, List<String> stationIds) async {
+  Future<void> _joinStations(
+    HubConnection connection,
+    List<String> stationIds,
+  ) async {
     for (final stationId in stationIds) {
       if (!identical(connection, _connection)) return;
       await connection.invoke('JoinStation', args: [stationId]);

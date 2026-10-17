@@ -131,6 +131,46 @@ void main() {
     expect(displayPreferences.mode, DisplaySizeMode.large);
   });
 
+  test(
+    'table transfer reloads labels without announcing duplicate dishes',
+    () async {
+      final moved = StationItem(
+        orderItemId: 'moved',
+        orderId: 'order',
+        orderNumber: 7,
+        orderType: 'DineIn',
+        tableCode: '9',
+        itemName: 'Salchipapa',
+        quantity: 1,
+        status: 'Pending',
+        confirmedAt: DateTime.now(),
+      );
+      api.active = [moved];
+      hub.onOrderTableChanged!();
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(provider.items.single.orderLabel, 'Mesa 9');
+      expect(tts.messages, isEmpty);
+      api.active = [];
+      api.completed = [
+        StationItem(
+          orderItemId: 'moved',
+          orderId: 'order',
+          orderNumber: 7,
+          orderType: 'DineIn',
+          tableCode: '10',
+          itemName: 'Salchipapa',
+          quantity: 1,
+          status: 'Ready',
+          confirmedAt: DateTime.now(),
+        ),
+      ];
+      hub.onOrderTableChanged!();
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(provider.completedOrders.single.orderLabel, 'Mesa 10');
+      expect(tts.messages, isEmpty);
+    },
+  );
+
   test('reconnects and reloads orders without user interaction', () async {
     api.active = [item('restored')];
     hub.onConnectionChanged!(HubConnectionState.Disconnected);

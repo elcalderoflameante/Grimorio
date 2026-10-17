@@ -680,6 +680,8 @@ export const menuApi = {
 // ======================== POS API ========================
 
 export const posApi = {
+  transferOrderTable: (orderId: string, dto: { requestId: string; fromTableId: string; toTableId: string }): Promise<AxiosResponse<OrderDto>> =>
+    apiClient.post(`/pos/ordenes/${orderId}/trasladar-mesa`, dto),
   correctOrderItem: (id: string, data: { requestId: string; replace: boolean; disposition: string; reason: string; modifierSelections: { modifierOptionId: string; quantity: number }[] }) =>
     apiClient.post<OrderDto>(`/pos/ordenes/items/${id}/corregir`, data),
   // Estaciones
@@ -899,6 +901,8 @@ export const taxApi = {
 };
 
 export const sriApi = {
+  convertSaleNote: (paymentId: string, dto: { customerId: string; reason: string }): Promise<AxiosResponse<ElectronicDocumentDto>> =>
+    apiClient.post(`/sri/documentos/facturar-nota/${paymentId}`, dto),
   getConfig: (): Promise<AxiosResponse<BranchTaxConfigDto>> =>
     apiClient.get<BranchTaxConfigDto>('/sri/config'),
   upsertConfig: (dto: BranchTaxConfigDto): Promise<AxiosResponse<BranchTaxConfigDto>> =>

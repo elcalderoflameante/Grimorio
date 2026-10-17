@@ -1159,8 +1159,10 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
 
     private static void EnsureMatchingPayment(OrderPayment payment, PayOrderCommand req)
     {
+        var originalCustomer = payment.NoteConvertedAt.HasValue ? payment.NoteOriginalCustomerId : payment.CustomerId;
+        var originalType = payment.NoteConvertedAt.HasValue ? DocumentType.NotaDeVenta : payment.DocumentType;
         if (payment.OrderId != req.OrderId || payment.OrderAmount != req.OrderAmount
-            || payment.CustomerId != req.CustomerId || payment.DocumentType.ToString() != req.DocumentType
+            || originalCustomer != req.CustomerId || originalType.ToString() != req.DocumentType
             || (req.CashSessionId.HasValue && payment.CashSessionId != req.CashSessionId))
             throw new PaymentIdempotencyConflictException();
 
@@ -1398,6 +1400,15 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
 
     public async Task<ElectronicDocumentDto> Handle(GenerateElectronicInvoiceCommand req, CancellationToken ct)
     {
+        var converting = req.ConvertNoteCustomerId.HasValue;
+        var reason = req.NoteConversionReason?.Trim();
+        if (converting && (req.ConvertNoteCustomerId == Guid.Empty || !req.UserId.HasValue || req.UserId == Guid.Empty
+            || string.IsNullOrWhiteSpace(reason) || reason.Length is < 5 or > 500))
+            throw new InvalidOperationException("Selecciona un cliente e indica un motivo de 5 a 500 caracteres.");
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        var paymentOrderId = await _db.OrderPayments.Where(p => p.Id == req.OrderPaymentId && p.BranchId == req.BranchId && !p.IsDeleted)
+            .Select(p => (Guid?)p.OrderId).SingleOrDefaultAsync(ct) ?? throw new KeyNotFoundException("Pago no encontrado.");
+        await PosOrderLock.AcquireAsync(_db, req.BranchId, paymentOrderId, ct);
         // ── Cargar datos necesarios ───────────────────────────────────────────
         var payment = await _db.OrderPayments
             .Include(p => p.Lines).ThenInclude(l => l.Config)
@@ -1411,9 +1422,39 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
         var existing = await _db.ElectronicDocuments
             .FirstOrDefaultAsync(d => d.OrderPaymentId == req.OrderPaymentId && !d.IsDeleted, ct);
         if (existing != null)
+        {
+            if (converting && payment.NoteConvertedAt.HasValue && payment.CustomerId == req.ConvertNoteCustomerId
+                && payment.NoteConversionReason == reason)
+            {
+                await transaction.CommitAsync(ct);
+                return MapDoc(existing);
+            }
             throw new InvalidOperationException(existing.Status == ElectronicDocumentStatus.Authorized
                 ? "Este pago ya tiene una factura electrónica autorizada."
                 : "Este pago ya tiene una factura electrónica. Utiliza la opción de reintento.");
+        }
+
+        if (converting)
+        {
+            if (payment.DocumentType != DocumentType.NotaDeVenta || payment.NoteConvertedAt.HasValue)
+                throw new InvalidOperationException("Solo se puede emitir factura desde una nota de venta sin factura previa.");
+            if (!payment.Items.Any(i => !i.IsDeleted))
+                throw new InvalidOperationException("Esta nota no tiene detalle de los platos cobrados y requiere revision manual.");
+            var customer = await _db.Customers.SingleOrDefaultAsync(c => c.Id == req.ConvertNoteCustomerId
+                && c.BranchId == req.BranchId && !c.IsDeleted && c.IsActive, ct)
+                ?? throw new InvalidOperationException("Cliente no encontrado o inactivo.");
+            if (string.IsNullOrWhiteSpace(customer.Name) || string.IsNullOrWhiteSpace(customer.TaxId))
+                throw new InvalidOperationException("Completa el nombre y la identificacion del cliente antes de facturar.");
+            payment.NoteOriginalCustomerId = payment.CustomerId;
+            payment.Customer = customer;
+            payment.CustomerId = customer.Id;
+            payment.DocumentType = DocumentType.Factura;
+            payment.NoteConvertedAt = DateTime.UtcNow;
+            payment.NoteConvertedBy = req.UserId;
+            payment.NoteConversionReason = reason;
+        }
+        else if (payment.DocumentType != DocumentType.Factura)
+            throw new InvalidOperationException("Utiliza Emitir factura para corregir una nota de venta.");
 
         var order = await _db.Orders
             .Include(o => o.Items.Where(i => !i.IsDeleted)).ThenInclude(i => i.MenuItem).ThenInclude(i => i!.TaxRate)
@@ -1431,6 +1472,8 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
         var sriCert = await _db.SriCertificates
             .FirstOrDefaultAsync(c => c.BranchId == req.BranchId && !c.IsDeleted, ct)
             ?? throw new InvalidOperationException("Cargue el certificado .p12 antes de emitir facturas.");
+        if (converting && sriCert.ExpiresAt.HasValue && sriCert.ExpiresAt <= DateTime.UtcNow)
+            throw new InvalidOperationException("El certificado de firma electronica esta vencido.");
 
         var originalEmissionDate = payment.PaidAt;
         var paymentEmissionLocal = EcuadorTime.FromUtc(payment.PaidAt);
@@ -1459,7 +1502,6 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
         }
 
         // ── Incrementar secuencial de forma atómica ────────────────────────
-        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
         await _db.BranchTaxConfigs
             .FromSqlInterpolated($"""
                 SELECT * FROM billing."BranchTaxConfigs"
@@ -1520,6 +1562,7 @@ public class GenerateElectronicInvoiceHandler : IRequestHandler<GenerateElectron
         await _db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
+        if (converting) return MapDoc(doc);
         return await _mediator.Send(new RetryElectronicInvoiceCommand
         {
             DocumentId = doc.Id,
@@ -1955,6 +1998,7 @@ internal static class BillingMapper
         CashierName = p.CashSession?.OpenedByName,
         OrderType = orderType,
         CustomerId = p.CustomerId, CustomerName = customer?.Name,
+        NoteConvertedAt = p.NoteConvertedAt, NoteConversionReason = p.NoteConversionReason,
         CustomerTaxId = customer?.TaxId,
         TableCode = tableCode,
         DocumentType = p.DocumentType.ToString(),

@@ -2136,6 +2136,8 @@ export interface PaymentLineDto {
 }
 
 export interface OrderPaymentDto {
+  noteConvertedAt?: string;
+  noteConversionReason?: string;
   id: string;
   orderId: string;
   cashSessionId?: string;
