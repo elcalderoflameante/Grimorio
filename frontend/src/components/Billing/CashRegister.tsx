@@ -37,8 +37,12 @@ const ORDER_TYPE_LABEL: Record<string, string> = {
 export default function CashRegister() {
   const { message } = AntApp.useApp();
 
-  const { hasPermission } = useAuth();
+  const { hasPermission, userRoles } = useAuth();
+  const canReviewCashiers = userRoles.includes('Administrador');
   const [activeSession, setActiveSession] = useState<CashSessionDto | null | undefined>(undefined);
+  const [openSessions, setOpenSessions] = useState<CashSessionDto[]>([]);
+  const [reviewSessionId, setReviewSessionId] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState(false);
   const [history, setHistory] = useState<CashSessionDto[]>([]);
   const [registers, setRegisters] = useState<CashRegisterDto[]>([]);
   const [activeOrders, setActiveOrders] = useState<ActiveOrderSummaryDto[]>([]);
@@ -61,12 +65,13 @@ export default function CashRegister() {
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [sessionRes, historyRes, ordersRes, salesRes, registersRes] = await Promise.allSettled([
+      const [sessionRes, historyRes, ordersRes, salesRes, registersRes, openSessionsRes] = await Promise.allSettled([
         cashApi.getActiveSession(),
         cashApi.getSessions({ pageSize: 20 }),
         posApi.getActiveOrderSummaries(),
         cashApi.getSales({ from: branchStartOfDayUtcIso(dayjs()), pageSize: 10 }),
         cashApi.getRegisters(canManageRegisters ? false : true),
+        canReviewCashiers ? cashApi.getSessions({ openOnly: true }) : Promise.resolve({ data: [] }),
       ]);
 
       setActiveSession(sessionRes.status === 'fulfilled' ? sessionRes.value.data : null);
@@ -74,6 +79,8 @@ export default function CashRegister() {
       setActiveOrders(ordersRes.status === 'fulfilled' ? ordersRes.value.data : []);
       setRecentSales(salesRes.status === 'fulfilled' ? salesRes.value.data : []);
       setRegisters(registersRes.status === 'fulfilled' ? registersRes.value.data : []);
+      setReviewError(openSessionsRes.status === 'rejected');
+      if (openSessionsRes.status === 'fulfilled') setOpenSessions(openSessionsRes.value.data);
       setLastRefresh(dayjs());
     } finally {
       if (!silent) setLoading(false);
@@ -179,6 +186,10 @@ export default function CashRegister() {
 
   if (loading || activeSession === undefined) return null;
   const activeRegisters = registers.filter(r => r.isActive);
+  const isReviewing = canReviewCashiers && reviewSessionId !== null;
+  const dashboardSession = isReviewing
+    ? openSessions.find(session => session.id === reviewSessionId) ?? null
+    : activeSession;
 
   // Contadores de pedidos activos por estado
   const ordersByStatus = activeOrders.reduce<Record<string, number>>((acc, o) => {
@@ -189,9 +200,9 @@ export default function CashRegister() {
   return (
     <div>
       {/* ── Encabezado ─────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Space align="center" size={12}>
-          <Title level={4} style={{ margin: 0 }}>Caja</Title>
+          <Title level={4} style={{ margin: 0, whiteSpace: 'nowrap' }}>Caja</Title>
           <Tooltip title={`Última actualización: ${formatBranchTimeSeconds(lastRefresh.toDate())}`}>
             <Text type="secondary" style={{ fontSize: 12 }}>
               <SyncOutlined spin={loading} style={{ marginRight: 4 }} />
@@ -199,7 +210,7 @@ export default function CashRegister() {
             </Text>
           </Tooltip>
         </Space>
-        <Space>
+        <Space wrap>
           <Button icon={<ReloadOutlined />} onClick={() => load(false)} loading={loading}>
             Actualizar
           </Button>
@@ -208,18 +219,43 @@ export default function CashRegister() {
               Configurar cajas
             </Button>
           )}
-          {activeSession
+          {!isReviewing && (activeSession
             ? canCloseCash && <Button danger icon={<LockOutlined />} onClick={() => setShowCloseModal(true)}>
                 Cerrar caja
               </Button>
             : canOpenCash && <Button type="primary" icon={<UnlockOutlined />} onClick={() => setShowOpenModal(true)}>
                 Abrir caja
               </Button>
-          }
+          )}
         </Space>
       </div>
 
-      {activeSession ? (
+      {canReviewCashiers && (
+        <div style={{ marginBottom: 16 }}>
+          <Form.Item label="Consultar caja" layout="vertical" style={{ marginBottom: 8 }}>
+            <Select
+              aria-label="Consultar caja"
+              style={{ width: '100%', maxWidth: 560 }}
+              value={reviewSessionId ?? 'own'}
+              onChange={value => setReviewSessionId(value === 'own' ? null : value)}
+              options={[
+                { value: 'own', label: 'Mi caja' },
+                ...openSessions.filter(session => session.id !== activeSession?.id).map(session => ({
+                  value: session.id,
+                  label: `${session.cashRegisterName} (${session.cashRegisterCode}) - ${session.openedByName}`,
+                })),
+                ...(isReviewing && !dashboardSession
+                  ? [{ value: reviewSessionId, label: 'Caja consultada (ya no abierta)' }]
+                  : []),
+              ]}
+            />
+          </Form.Item>
+          {isReviewing && <Tag color="blue">Solo consulta</Tag>}
+          {reviewError && <Alert type="error" showIcon title="No se pudieron actualizar las cajas abiertas. Los datos pueden estar desactualizados." />}
+        </div>
+      )}
+
+      {dashboardSession ? (
         <>
           {/* ── Barra de sesión ──────────────────────────────────────────── */}
           <div
@@ -238,23 +274,23 @@ export default function CashRegister() {
             <Tag color="green" icon={<CheckCircleOutlined />} style={{ margin: 0 }}>Sesión activa</Tag>
             <Divider orientation="vertical" />
             <Text type="secondary" style={{ fontSize: 13 }}>
-              <strong>{activeSession.openedByName}</strong>
+              <strong>{dashboardSession.openedByName}</strong>
             </Text>
             <Divider orientation="vertical" />
             <Text type="secondary" style={{ fontSize: 13 }}>
               <BankOutlined style={{ marginRight: 4 }} />
-              {activeSession.cashRegisterName || 'Caja'} {activeSession.cashRegisterCode ? `(${activeSession.cashRegisterCode})` : ''}
+              {dashboardSession.cashRegisterName || 'Caja'} {dashboardSession.cashRegisterCode ? `(${dashboardSession.cashRegisterCode})` : ''}
             </Text>
             <Divider orientation="vertical" />
             <Text type="secondary" style={{ fontSize: 13 }}>
               <ClockCircleOutlined style={{ marginRight: 4 }} />
-              Desde {formatBranchTime(activeSession.openedAt)}
+              Desde {formatBranchTime(dashboardSession.openedAt)}
               {' · '}
-              {dayjs(activeSession.openedAt).fromNow()}
+              {dayjs(dashboardSession.openedAt).fromNow()}
             </Text>
             <Divider orientation="vertical" />
             <Text type="secondary" style={{ fontSize: 13 }}>
-              Fondo inicial: <strong>{fmt(activeSession.openingBalance)}</strong>
+              Fondo inicial: <strong>{fmt(dashboardSession.openingBalance)}</strong>
             </Text>
           </div>
 
@@ -262,7 +298,7 @@ export default function CashRegister() {
           <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
 
             {/* Total ventas */}
-            <Col xs={24} sm={12} lg={7}>
+            <Col xs={24} sm={12} lg={isReviewing ? 14 : 7}>
               <Card
                 style={{
                   background: 'linear-gradient(135deg, #52c41a 0%, #237804 100%)',
@@ -275,10 +311,10 @@ export default function CashRegister() {
                   Total recaudado
                 </div>
                 <div style={{ color: '#fff', fontSize: 34, fontWeight: 800, lineHeight: 1.1 }}>
-                  {fmt(activeSession.totalSales)}
+                  {fmt(dashboardSession.totalSales)}
                 </div>
                 <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, marginTop: 6 }}>
-                  {activeSession.totalOrders} cobro{activeSession.totalOrders !== 1 ? 's' : ''} en esta sesión
+                  {dashboardSession.totalOrders} cobro{dashboardSession.totalOrders !== 1 ? 's' : ''} en esta sesión
                 </div>
               </Card>
             </Col>
@@ -289,7 +325,7 @@ export default function CashRegister() {
                 <BankOutlined style={{ fontSize: 20, color: '#52c41a', marginBottom: 6 }} />
                 <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 3 }}>Efectivo en caja</div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: '#389e0d' }}>
-                  {fmt(activeSession.expectedCash)}
+                  {fmt(dashboardSession.expectedCash)}
                 </div>
                 <div style={{ color: '#8c8c8c', fontSize: 10, marginTop: 4 }}>
                   fondo + efectivo - gastos
@@ -303,7 +339,7 @@ export default function CashRegister() {
                 <CheckCircleOutlined style={{ fontSize: 20, color: '#1677ff', marginBottom: 6 }} />
                 <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 3 }}>Cobrados</div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: '#1677ff' }}>
-                  {activeSession.totalOrders}
+                  {dashboardSession.totalOrders}
                 </div>
                 <div style={{ color: '#8c8c8c', fontSize: 10, marginTop: 4 }}>esta sesión</div>
               </Card>
@@ -315,16 +351,16 @@ export default function CashRegister() {
                 <DollarOutlined style={{ fontSize: 20, color: '#cf1322', marginBottom: 6 }} />
                 <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 3 }}>Gastos</div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: '#cf1322' }}>
-                  {fmt(activeSession.totalExpenses)}
+                  {fmt(dashboardSession.totalExpenses)}
                 </div>
                 <div style={{ color: '#8c8c8c', fontSize: 10, marginTop: 4 }}>
-                  efectivo: {fmt(activeSession.totalCashExpenses)}
+                  efectivo: {fmt(dashboardSession.totalCashExpenses)}
                 </div>
               </Card>
             </Col>
 
             {/* Pedidos activos */}
-            <Col xs={24} sm={12} lg={7}>
+            {!isReviewing && <Col xs={24} sm={12} lg={7}>
               <Card style={{ borderRadius: 12, borderColor: '#ffd591', height: '100%' }} styles={{ body: { padding: 16 } }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <Space size={6}>
@@ -378,15 +414,15 @@ export default function CashRegister() {
                   </div>
                 )}
               </Card>
-            </Col>
+            </Col>}
           </Row>
 
           {/* ── Medios de pago ───────────────────────────────────────────── */}
-          {activeSession.totals.length > 0 ? (
+          {dashboardSession.totals.length > 0 ? (
             <>
               <Title level={5} style={{ marginBottom: 10, marginTop: 4 }}>Recaudación por medio de pago</Title>
               <Row gutter={[10, 10]} style={{ marginBottom: 16 }}>
-                {activeSession.totals.map(t => (
+                {dashboardSession.totals.map(t => (
                   <Col xs={12} sm={8} md={6} lg={4} key={t.methodId}>
                     <Card
                       size="small"
@@ -415,7 +451,7 @@ export default function CashRegister() {
           )}
 
           {/* ── Últimas ventas del día ──────────────────────────────────── */}
-          {recentSales.length > 0 && (
+          {!isReviewing && recentSales.length > 0 && (
             <>
               <Title level={5} style={{ marginBottom: 10 }}>
                 <FireOutlined style={{ color: '#fa8c16', marginRight: 6 }} />
@@ -483,6 +519,8 @@ export default function CashRegister() {
             </>
           )}
         </>
+      ) : isReviewing ? (
+        <Alert type="info" showIcon title="Esta caja ya no se encuentra abierta. Selecciona otra caja o consulta el historial." style={{ marginBottom: 24 }} />
       ) : (
         <Alert
           type={activeRegisters.length === 0 ? 'error' : 'warning'}
@@ -500,6 +538,7 @@ export default function CashRegister() {
       <Table
         size="small"
         dataSource={history}
+        scroll={{ x: 900 }}
         rowKey="id"
         pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         expandable={{ expandedRowRender: (r) => <SessionDetail session={r} /> }}

@@ -7,6 +7,7 @@ import type { RoleDto, PermissionDto, CreateRoleDto, UpdateRoleDto } from '../..
 import { formatError } from '../../utils/errorHandler';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
+import { resolveRolePermissionIds } from '../../utils/rolePermissions';
 
 interface RoleFormValues {
   name: string;
@@ -29,6 +30,8 @@ export default function RoleList() {
   const [assignModalVisible, setAssignModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [assigningRoleId, setAssigningRoleId] = useState<string | null>(null);
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [assignSaving, setAssignSaving] = useState(false);
   const [form] = Form.useForm<RoleFormValues>();
   const [assignForm] = Form.useForm<AssignFormValues>();
   const canCreate = hasPermission(PERMISSIONS.admin.rolesCreate);
@@ -90,10 +93,12 @@ export default function RoleList() {
   };
 
   const handleAssignPermissions = async (values: AssignFormValues) => {
-    if (!assigningRoleId) return;
+    if (!assigningRoleId || assignSaving) return;
 
+    setAssignSaving(true);
     try {
-      await roleApi.assignPermissions(assigningRoleId, values.permissionIds);
+      const permissionIds = resolveRolePermissionIds(values.permissionIds, permissions);
+      await roleApi.assignPermissions(assigningRoleId, permissionIds);
       message.success('Permisos asignados');
       setAssignModalVisible(false);
       assignForm.resetFields();
@@ -101,6 +106,8 @@ export default function RoleList() {
       loadRoles();
     } catch (error: unknown) {
       message.error(formatError(error));
+    } finally {
+      setAssignSaving(false);
     }
   };
 
@@ -124,12 +131,22 @@ export default function RoleList() {
     setModalVisible(true);
   };
 
-  const handleOpenAssign = (role: RoleDto) => {
-    setAssigningRoleId(role.id);
-    assignForm.setFieldsValue({
-      permissionIds: role.permissions || [],
-    });
-    setAssignModalVisible(true);
+  const handleOpenAssign = async (role: RoleDto) => {
+    setAssignLoading(true);
+    try {
+      const response = await permissionApi.getAll();
+      const catalog = response.data;
+      if (!Array.isArray(catalog)) throw new Error('No se pudo cargar el listado de permisos.');
+      const permissionIds = resolveRolePermissionIds(role.permissions || [], catalog);
+      setPermissions(catalog);
+      setAssigningRoleId(role.id);
+      assignForm.setFieldsValue({ permissionIds });
+      setAssignModalVisible(true);
+    } catch (error: unknown) {
+      message.error(formatError(error));
+    } finally {
+      setAssignLoading(false);
+    }
   };
 
   const columns: ColumnsType<RoleDto> = [
@@ -158,7 +175,7 @@ export default function RoleList() {
       render: (_, record) => (
         <Space>
           {canUpdate && <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} />}
-          {canUpdate && <Button icon={<LockOutlined />} onClick={() => handleOpenAssign(record)} title="Asignar permisos" />}
+          {canUpdate && <Button icon={<LockOutlined />} disabled={assignLoading} onClick={() => handleOpenAssign(record)} title="Asignar permisos" />}
           {canDelete && <Popconfirm
             title="¿Eliminar rol?"
             onConfirm={() => handleDelete(record.id)}
@@ -230,8 +247,14 @@ export default function RoleList() {
       <Modal
         title="Asignar Permisos"
         open={assignModalVisible}
+        confirmLoading={assignSaving}
+        closable={!assignSaving}
+        maskClosable={!assignSaving}
+        keyboard={!assignSaving}
+        cancelButtonProps={{ disabled: assignSaving }}
         onOk={() => assignForm.submit()}
         onCancel={() => {
+          if (assignSaving) return;
           setAssignModalVisible(false);
           setAssigningRoleId(null);
           assignForm.resetFields();
@@ -244,6 +267,7 @@ export default function RoleList() {
             rules={[{ required: true, message: 'Selecciona al menos un permiso' }]}
           >
             <Select
+              disabled={assignSaving}
               mode="multiple"
               placeholder="Selecciona permisos"
               showSearch

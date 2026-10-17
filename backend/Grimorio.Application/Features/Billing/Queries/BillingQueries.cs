@@ -47,6 +47,7 @@ public class GetActiveCashSessionQuery : IRequest<CashSessionDto?>
 public class GetCashSessionsQuery : IRequest<List<CashSessionDto>>
 {
     public Guid BranchId { get; set; }
+    public bool OpenOnly { get; set; }
     public DateTime? FromUtc { get; set; }
     public DateTime? ToUtc { get; set; }
     public int PageSize { get; set; } = 30;

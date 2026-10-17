@@ -184,10 +184,10 @@ public class GetCashSessionsHandler : IRequestHandler<GetCashSessionsQuery, List
         if (req.FromUtc.HasValue) query = query.Where(s => s.OpenedAt >= req.FromUtc.Value);
         if (req.ToUtc.HasValue) query = query.Where(s => s.OpenedAt <= req.ToUtc.Value);
 
-        var sessions = await query
-            .OrderByDescending(s => s.OpenedAt)
-            .Take(req.PageSize)
-            .ToListAsync(ct);
+        if (req.OpenOnly) query = query.Where(s => s.Status == CashSessionStatus.Open);
+        query = query.OrderByDescending(s => s.OpenedAt);
+        if (!req.OpenOnly) query = query.Take(req.PageSize);
+        var sessions = await query.ToListAsync(ct);
 
         var sessionIds = sessions.Select(s => s.Id).ToList();
         var expenses = await _db.Expenses

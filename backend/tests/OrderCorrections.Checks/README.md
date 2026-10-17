@@ -1,5 +1,9 @@
 # Administrator Order Corrections
 
+Cash review checks also cover old open sessions beyond the recent-history limit,
+cashier identity and balance, branch isolation, view authorization, unchanged
+active-session ownership and refresh after closing a reviewed session.
+
 Uses a guarded disposable PostgreSQL database and a local HTTP/JWT server. No SRI,
 mail, real inventory or production services. Only localhost:15432, checks/checks.
 

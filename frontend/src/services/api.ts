@@ -869,7 +869,7 @@ export const cashApi = {
     apiClient.delete<void>(`/cash/cajas/${id}`),
   getActiveSession: (): Promise<AxiosResponse<CashSessionDto>> =>
     apiClient.get<CashSessionDto>('/cash/sesion-activa', { skipErrorLog: true } as AxiosRequestConfigWithSkipLog),
-  getSessions: (params?: { from?: string; to?: string; pageSize?: number }): Promise<AxiosResponse<CashSessionDto[]>> =>
+  getSessions: (params?: { from?: string; to?: string; pageSize?: number; openOnly?: boolean }): Promise<AxiosResponse<CashSessionDto[]>> =>
     apiClient.get<CashSessionDto[]>('/cash/sesiones', { params }),
   getSession: (id: string): Promise<AxiosResponse<CashSessionDto>> =>
     apiClient.get<CashSessionDto>(`/cash/sesiones/${id}`),

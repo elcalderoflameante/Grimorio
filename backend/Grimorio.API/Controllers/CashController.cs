@@ -166,12 +166,13 @@ public class CashController : ControllerBase
     [Authorize(Policy = "Billing.Cash.View")]
     [HttpGet("sesiones")]
     public async Task<IActionResult> GetSessions(
-        [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] int pageSize = 30)
+        [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] int pageSize = 30,
+        [FromQuery] bool openOnly = false)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
         return Ok(await _mediator.Send(new GetCashSessionsQuery
         {
-            BranchId = branchId, FromUtc = from, ToUtc = to, PageSize = pageSize,
+            BranchId = branchId, FromUtc = from, ToUtc = to, PageSize = pageSize, OpenOnly = openOnly,
         }));
     }
 
