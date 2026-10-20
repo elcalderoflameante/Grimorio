@@ -1,4 +1,4 @@
-import type { ThermalReceiptDto } from '../types';
+import type { OrderPrebillDto, ThermalReceiptDto } from '../types';
 import { formatBranchDateTime } from './branchTimeZone';
 
 const money = (value?: number) => `$${(value ?? 0).toFixed(2)}`;
@@ -55,13 +55,7 @@ const electronicDocument = (receipt: ThermalReceiptDto) => {
   `;
 };
 
-const buildHtml = (receipt: ThermalReceiptDto) => `
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>${esc(docLabel(receipt))} ${esc(receipt.orderNumber)}</title>
-    <style>
+const receiptStyles = `
       @page { size: auto; margin: 0; }
       * { box-sizing: border-box; }
       html { margin: 0; padding: 0; }
@@ -108,7 +102,15 @@ const buildHtml = (receipt: ThermalReceiptDto) => `
       .item-name { font-weight: 700; overflow-wrap: anywhere; }
       .small { font-size: 11px; }
       .break-word { overflow-wrap: anywhere; word-break: break-word; }
-    </style>
+`;
+
+const buildHtml = (receipt: ThermalReceiptDto) => `
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${esc(docLabel(receipt))} ${esc(receipt.orderNumber)}</title>
+    <style>${receiptStyles}</style>
   </head>
   <body>
     <div class="receipt">
@@ -166,13 +168,72 @@ const buildHtml = (receipt: ThermalReceiptDto) => `
 </html>
 `;
 
-export const printThermalReceipt = (receipt: ThermalReceiptDto) => {
+export const openThermalPrintWindow = () => {
   const printWindow = window.open('', '_blank', 'width=420,height=720');
   if (!printWindow) {
     throw new Error('No se pudo abrir la ventana de impresion.');
   }
+  return printWindow;
+};
 
+export const printThermalReceipt = (receipt: ThermalReceiptDto) => {
+  const printWindow = openThermalPrintWindow();
   printWindow.document.open();
   printWindow.document.write(buildHtml(receipt));
+  printWindow.document.close();
+};
+
+const writeField = (label: string, value?: string, tall = false) => `
+  <div class="write-field"><div>${esc(label)}</div><div class="write-line${tall ? ' tall' : ''}">${esc(value)}</div></div>`;
+
+export const printThermalPrebill = (bill: OrderPrebillDto, printWindow: Window) => {
+  if (printWindow.closed) return;
+  const items = bill.items.map(item => `<div class="item">
+    <div class="item-name">${esc(item.name)}</div>
+    ${(item.modifierSelections ?? []).map(s => `<div class="small">${esc(s.groupName)}: ${s.quantity > 1 ? `${qty(s.quantity)} x ` : ''}${esc(s.optionName)}</div>`).join('')}
+    <div class="item-line"><span>${qty(item.quantity)} x ${money(item.unitPrice)}</span><strong>${money(item.total)}</strong></div>
+  </div>`).join('');
+  printWindow.document.open();
+  printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8" />
+    <title>PRECUENTA ${esc(bill.orderNumber)}</title><style>${receiptStyles}
+      .write-field { margin-top: 3mm; break-inside: avoid; }
+      .write-line { min-height: 8mm; border-bottom: 1px solid #000; padding-top: 1mm; }
+      .write-line.tall { min-height: 12mm; }
+      .handwritten { break-inside: avoid; }
+    </style></head><body><div class="receipt">
+    <div class="title">${esc(bill.issuer.tradeName || bill.issuer.businessName)}</div>
+    <div class="center">${esc(bill.issuer.businessName)}</div>
+    <div class="center">RUC: ${esc(bill.issuer.ruc)}</div>
+    <div class="center">${esc(bill.issuer.address)}</div>
+    ${bill.issuer.phone ? `<div class="center">Tel: ${esc(bill.issuer.phone)}</div>` : ''}
+    <div class="section center strong">PRECUENTA</div>
+    <div class="center small strong">NO ES COMPROBANTE DE VENTA</div>
+    <div class="row"><span>Orden</span><strong>#${esc(bill.orderNumber)}</strong></div>
+    ${bill.tableCode ? `<div class="row"><span>Mesa</span><strong>${esc(bill.tableCode)}</strong></div>` : ''}
+    <div class="row"><span>Emitida</span><strong>${esc(formatBranchDateTime(bill.printedAt))}</strong></div>
+    ${bill.waiterName ? `<div class="row"><span>Atendido por</span><strong>${esc(bill.waiterName)}</strong></div>` : ''}
+    <div class="section">${items}</div>
+    <div class="section">
+      <div class="row"><span>Subtotal (imp. incluidos)</span><strong>${money(bill.subtotal)}</strong></div>
+      ${bill.discount > 0 ? `<div class="row"><span>Descuentos</span><strong>-${money(bill.discount)}</strong></div>` : ''}
+      <div class="row strong"><span>TOTAL PEDIDO</span><strong>${money(bill.total)}</strong></div>
+      ${bill.tax > 0 ? `<div class="row small"><span>Impuestos incluidos</span><span>${money(bill.tax)}</span></div>` : ''}
+      ${bill.paidAmount > 0 ? `<div class="row"><span>Abonos</span><strong>-${money(bill.paidAmount)}</strong></div>` : ''}
+      <div class="row strong"><span>POR PAGAR</span><strong>${money(bill.pendingAmount)}</strong></div>
+    </div>
+    <div class="section handwritten">${writeField('Propina voluntaria ($)')}
+      <div class="small">No incluida en el total.</div></div>
+    <div class="section">
+      <div class="center strong">DATOS PARA FACTURACION</div>
+      ${writeField('Nombre / Razon social', bill.customer?.name, true)}
+      ${writeField('Cedula / RUC', bill.customer?.taxId)}
+      ${writeField('Direccion', bill.customer?.address, true)}
+      ${writeField('Correo electronico', bill.customer?.email, true)}
+      ${writeField('Telefono', bill.customer?.phone)}
+    </div>
+    <div class="section center small">Cuenta provisional. Valores al momento de emision.<br />Gracias por su visita.</div>
+    </div><script>window.addEventListener('load', () => {
+      setTimeout(() => { window.focus(); window.print(); }, 250);
+    });</script></body></html>`);
   printWindow.document.close();
 };

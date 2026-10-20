@@ -1535,6 +1535,8 @@ export interface OrderItemDto {
 }
 
 export interface OrderDto {
+  paidAmount?: number;
+  pendingPaymentTotal?: number;
   paidAt?: string;
   id: string;
   number: number;
@@ -2219,6 +2221,23 @@ export interface ThermalReceiptItemDto {
   quantity: number;
   unitPrice: number;
   total: number;
+}
+
+export interface OrderPrebillDto {
+  orderId: string;
+  orderNumber: number;
+  tableCode?: string;
+  waiterName?: string;
+  printedAt: string;
+  issuer: ThermalReceiptIssuerDto;
+  customer?: ThermalReceiptCustomerDto | null;
+  items: (ThermalReceiptItemDto & { modifierSelections: ModifierSelectionDto[] })[];
+  subtotal: number;
+  discount: number;
+  tax: number;
+  total: number;
+  paidAmount: number;
+  pendingAmount: number;
 }
 
 export interface ThermalReceiptTotalsDto {

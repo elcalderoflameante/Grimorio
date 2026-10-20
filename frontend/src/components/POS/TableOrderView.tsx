@@ -5,6 +5,7 @@ import { ArrowLeftOutlined, CheckCircleOutlined, DeleteOutlined, DollarOutlined,
   MinusOutlined, PlusOutlined, PrinterOutlined, QuestionCircleOutlined, ReloadOutlined, SettingOutlined, SplitCellsOutlined } from '@ant-design/icons';
 import AdminOrderItemCorrectionModal from './AdminOrderItemCorrectionModal';
 import ChangeOrderTableButton from './ChangeOrderTableButton';
+import PrintOrderPrebillButton from './PrintOrderPrebillButton';
 import type {
   OrderDto, OrderItemDto, RestaurantTableDto, PaymentMethodConfigDto,
   OrderPaymentDto, AddOrderPaymentDto, CustomerDto, MenuCategoryDto,
@@ -1379,6 +1380,13 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
             )}
             {paymentStorageError && (
               <Alert type="error" showIcon title="No se puede acceder al intento de cobro guardado" />
+            )}
+            {hasPermission(PERMISSIONS.pos.ordersView) && !['Draft', 'Cancelled'].includes(order.status)
+              && !order.paidAt && (order.pendingPaymentTotal ?? remaining) > 0 && (
+              <PrintOrderPrebillButton orderId={order.id} customer={customer}
+                disabledReason={cart.length > 0 ? 'Guarda los nuevos ítems antes de imprimir la cuenta'
+                  : pendingPayment || paymentStorageError || paying ? 'Verifica el cobro pendiente antes de imprimir la cuenta'
+                  : saving || cancellingOrder || cancellingItemId ? 'Espera a que termine la operación' : undefined} />
             )}
             {pendingPayment && canChargeOrders ? (
               <Button block type="primary" onClick={openPayModal} icon={<ReloadOutlined />}>

@@ -58,3 +58,9 @@ POS.Orders.CorrectItems permission. They verify audited cancellation, prepared-d
 option changes and waste, denial without the claim or database grant, immediate
 revocation, inactive role/permission/user, branch isolation, paid-line protection,
 and separation from whole-order and legacy cancellation permissions.
+
+Prebill checks exercise the read-only POS endpoint with a waiter token and no cash
+permissions or session. They cover selected option snapshots, existing customer data,
+gross totals and tax, active partial payments, no-cache headers, repeated printing,
+draft/cancelled/paid order protection, branch isolation and unchanged orders, cash,
+payments, inventory, reservations and electronic documents.

@@ -137,6 +137,7 @@ import type {
 } from '../types';
 import { getDetailedError } from '../utils/errorHandler';
 import type { CorrectPaymentMethodDto, PaymentMethodCorrectionDto } from '../types/paymentMethodCorrection';
+import type { OrderPrebillDto } from '../types';
 
 const defaultApiBaseUrl = '/api';
 const API_BASE_URL = import.meta.env.VITE_API_URL || defaultApiBaseUrl;
@@ -717,6 +718,8 @@ export const posApi = {
     apiClient.get<ActiveOrderSummaryDto[]>('/pos/ordenes/activas/resumen'),
   getOrden: (id: string): Promise<AxiosResponse<OrderDto>> =>
     apiClient.get<OrderDto>(`/pos/ordenes/${id}`),
+  getPrebill: (id: string): Promise<AxiosResponse<OrderPrebillDto>> =>
+    apiClient.get<OrderPrebillDto>(`/pos/ordenes/${id}/precuenta`),
   createOrder: (data: CreateOrderDto): Promise<AxiosResponse<OrderDto>> =>
     apiClient.post<OrderDto>('/pos/ordenes', data),
   createDirectSale: (data: CreateOrderDto): Promise<AxiosResponse<OrderDto>> =>

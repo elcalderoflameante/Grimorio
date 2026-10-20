@@ -46,6 +46,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
 });
 builder.Services.AddHttpClient();
 builder.Services.AddAuthorization(options => {
+    options.AddPolicy(AppConstants.Permissions.PosOrdersView, policy => policy.RequireAssertion(context =>
+        context.User.IsInRole(AppConstants.Roles.Admin) || context.User.HasClaim(AppConstants.Claims.Permissions, AppConstants.Permissions.PosOrdersView)));
     options.AddPolicy(AppConstants.Permissions.BillingPaymentsCorrectMethod, policy => policy.RequireAssertion(context =>
         context.User.IsInRole(AppConstants.Roles.Admin) || context.User.HasClaim(AppConstants.Claims.Permissions, AppConstants.Permissions.BillingPaymentsCorrectMethod)));
     options.AddPolicy("Admin.Roles.Update", policy => policy.RequireRole(AppConstants.Roles.Admin));
@@ -288,5 +290,6 @@ try {
     await RolePermissionAssignmentChecks.Run(app.Services, client, Token(admin.Id), Token(waiter.Id, false),
         Token(admin.Id, branchId: foreign.Id), branch.Id, foreign.Id, Check);
     await ActiveOrderBalanceChecks.Run(app.Services, Check);
+    await OrderPrebillChecks.Run(app.Services, client, key, branch.Id, foreign.Id, waiter.Id, dish.Id, bbq, Check);
     Console.WriteLine($"Order correction and sale note invoice checks passed: {count}. Real isolated PostgreSQL and HTTP; no production services.");
 } finally { await app.StopAsync(); }

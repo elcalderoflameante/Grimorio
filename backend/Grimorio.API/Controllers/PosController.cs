@@ -202,6 +202,20 @@ public class PosController : ControllerBase
         catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
+    [Authorize(Policy = "POS.Orders.View")]
+    [HttpGet("ordenes/{id:guid}/precuenta")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> GetOrderPrebill(Guid id, CancellationToken ct)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        try
+        {
+            var result = await _mediator.Send(new GetOrderPrebillQuery(branchId, id), ct);
+            return result is null ? NotFound() : Ok(result);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
     [Authorize(Policy = "POS.Orders.Create")]
     [HttpPost("ordenes")]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderDto dto)
