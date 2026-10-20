@@ -87,6 +87,7 @@ StationItem item(
   String id, {
   String status = 'Pending',
   String name = 'Salchipapa',
+  String changeKind = '',
 }) => StationItem(
   orderItemId: id,
   orderId: 'order',
@@ -97,6 +98,7 @@ StationItem item(
   quantity: 2,
   status: status,
   confirmedAt: DateTime.utc(2026, 9, 23),
+  changeKind: changeKind,
   orderNotes: 'Sin cubiertos',
   modifierSelections: [const ModifierSelection(optionName: 'BBQ', quantity: 2)],
 );
@@ -131,9 +133,32 @@ void main() {
     expect(displayPreferences.mode, DisplaySizeMode.large);
   });
 
+  test('ready dishes move below active dishes without reordering them', () {
+    provider.items = [
+      item('ready-first', status: 'Ready'),
+      item('pending-first'),
+      item('preparing', status: 'InPreparation'),
+      item('ready-second', status: 'Ready'),
+      item('additional'),
+    ];
+
+    expect(
+      provider.orderedGroups.single.value.map((dish) => dish.orderItemId),
+      [
+        'pending-first',
+        'preparing',
+        'additional',
+        'ready-first',
+        'ready-second',
+      ],
+    );
+  });
+
   test(
-    'table transfer reloads labels without announcing duplicate dishes',
+    'table transfer reloads labels and announces the new table once',
     () async {
+      hub.onNewItems!([item('moved')]);
+      tts.messages.clear();
       final moved = StationItem(
         orderItemId: 'moved',
         orderId: 'order',
@@ -146,10 +171,12 @@ void main() {
         confirmedAt: DateTime.now(),
       );
       api.active = [moved];
-      hub.onOrderTableChanged!();
+      hub.onOrderTableChanged!('order', '9');
       await Future<void>.delayed(const Duration(milliseconds: 30));
       expect(provider.items.single.orderLabel, 'Mesa 9');
-      expect(tts.messages, isEmpty);
+      expect(tts.messages, hasLength(1));
+      expect(tts.messages.single, contains('Mesa 6, ahora mesa 9'));
+      tts.messages.clear();
       api.active = [];
       api.completed = [
         StationItem(
@@ -164,10 +191,11 @@ void main() {
           confirmedAt: DateTime.now(),
         ),
       ];
-      hub.onOrderTableChanged!();
+      hub.onOrderTableChanged!('order', '10');
       await Future<void>.delayed(const Duration(milliseconds: 30));
       expect(provider.completedOrders.single.orderLabel, 'Mesa 10');
-      expect(tts.messages, isEmpty);
+      expect(tts.messages, hasLength(1));
+      expect(tts.messages.single, contains('Mesa 9, ahora mesa 10'));
     },
   );
 
@@ -258,6 +286,17 @@ void main() {
     expect(tts.messages, hasLength(1));
     hub.onNewItems!([item('c')]);
     expect(tts.messages.last, startsWith('Item adicional'));
+  });
+
+  test('corrected options are announced as a change, not an addition', () {
+    hub.onNewItems!([
+      item('corrected', name: 'Combo 6', changeKind: 'Correction'),
+    ]);
+
+    expect(tts.messages, hasLength(1));
+    expect(tts.messages.single, startsWith('Opciones actualizadas'));
+    expect(tts.messages.single, contains('Combo 6'));
+    expect(tts.messages.single, contains('BBQ x2'));
   });
 
   test('cancelled dish does not prevent remaining ready dishes completing', () {

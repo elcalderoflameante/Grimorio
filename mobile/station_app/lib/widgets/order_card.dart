@@ -170,6 +170,27 @@ class _OrderDetails extends StatefulWidget {
 
 class _OrderDetailsState extends State<_OrderDetails> {
   final ScrollController _controller = ScrollController();
+  late String _itemsSignature;
+
+  String _signature(List<StationItem> items) =>
+      items.map((item) => '${item.orderItemId}:${item.status}').join('|');
+
+  @override
+  void initState() {
+    super.initState();
+    _itemsSignature = _signature(widget.items);
+  }
+
+  @override
+  void didUpdateWidget(covariant _OrderDetails oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextSignature = _signature(widget.items);
+    if (nextSignature == _itemsSignature) return;
+    _itemsSignature = nextSignature;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _controller.hasClients) _controller.jumpTo(0);
+    });
+  }
 
   @override
   void dispose() {

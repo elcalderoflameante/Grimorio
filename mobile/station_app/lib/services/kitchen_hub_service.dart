@@ -11,6 +11,8 @@ typedef ItemUpdatedCallback =
       String? notes,
     );
 typedef OrderCancelledCallback = void Function(String orderId);
+typedef OrderTableChangedCallback =
+    void Function(String orderId, String? tableCode);
 typedef ConnectionCallback = void Function(HubConnectionState state);
 
 class KitchenHubService {
@@ -19,7 +21,7 @@ class KitchenHubService {
   ItemsCallback? onNewItems;
   ItemUpdatedCallback? onItemUpdated;
   OrderCancelledCallback? onOrderCancelled;
-  VoidCallback? onOrderTableChanged;
+  OrderTableChangedCallback? onOrderTableChanged;
   ConnectionCallback? onConnectionChanged;
   Future<void> Function()? onResynchronized;
 
@@ -104,7 +106,12 @@ class KitchenHubService {
 
     _connection!.on('kitchen:order-table-changed', (args) {
       if (args == null || args.isEmpty) return;
-      onOrderTableChanged?.call();
+      final data = args[0] as Map<String, dynamic>?;
+      if (data == null) return;
+      onOrderTableChanged?.call(
+        data['orderId'] as String? ?? '',
+        data['tableCode'] as String?,
+      );
     });
 
     try {

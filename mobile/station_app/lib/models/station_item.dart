@@ -38,6 +38,7 @@ class StationItem {
   String status;
   final DateTime confirmedAt;
   final DateTime? updatedAt;
+  final String changeKind;
   final List<ModifierSelection> modifierSelections;
 
   StationItem({
@@ -55,29 +56,32 @@ class StationItem {
     required this.status,
     required this.confirmedAt,
     this.updatedAt,
+    this.changeKind = '',
     this.modifierSelections = const [],
   });
 
   factory StationItem.fromJson(Map<String, dynamic> json) => StationItem(
-        orderItemId: json['orderItemId'] as String,
-        orderId: json['orderId'] as String,
-        orderNumber: (json['orderNumber'] as num?)?.toInt() ?? 0,
-        orderType: json['orderType'] as String? ?? '',
-        tableCode: json['tableCode'] as String?,
-        customerName: json['customerName'] as String?,
-        orderNotes: json['orderNotes'] as String?,
-        itemName: json['itemName'] as String? ?? '',
-        quantity: (json['quantity'] as num?)?.toInt() ?? 0,
-        notes: json['notes'] as String?,
-        isTakeout: json['isTakeout'] as bool? ?? false,
-        status: json['status'] as String? ?? 'Pending',
-        confirmedAt: DateTime.tryParse(json['confirmedAt'] as String? ?? '') ??
-            DateTime.now(),
-        updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? ''),
-        modifierSelections: (json['modifierSelections'] as List<dynamic>? ?? [])
-            .map((e) => ModifierSelection.fromJson(e as Map<String, dynamic>))
-            .toList(),
-      );
+    orderItemId: json['orderItemId'] as String,
+    orderId: json['orderId'] as String,
+    orderNumber: (json['orderNumber'] as num?)?.toInt() ?? 0,
+    orderType: json['orderType'] as String? ?? '',
+    tableCode: json['tableCode'] as String?,
+    customerName: json['customerName'] as String?,
+    orderNotes: json['orderNotes'] as String?,
+    itemName: json['itemName'] as String? ?? '',
+    quantity: (json['quantity'] as num?)?.toInt() ?? 0,
+    notes: json['notes'] as String?,
+    isTakeout: json['isTakeout'] as bool? ?? false,
+    status: json['status'] as String? ?? 'Pending',
+    confirmedAt:
+        DateTime.tryParse(json['confirmedAt'] as String? ?? '') ??
+        DateTime.now(),
+    updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? ''),
+    changeKind: json['changeKind'] as String? ?? '',
+    modifierSelections: (json['modifierSelections'] as List<dynamic>? ?? [])
+        .map((e) => ModifierSelection.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
 
   String get orderLabel {
     if (tableCode != null) return 'Mesa $tableCode';

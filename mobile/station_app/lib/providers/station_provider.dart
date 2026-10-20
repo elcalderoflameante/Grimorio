@@ -113,7 +113,14 @@ class StationProvider extends ChangeNotifier {
         (a, b) =>
             a.value.first.confirmedAt.compareTo(b.value.first.confirmedAt),
       );
-    return entries;
+    return entries
+        .map(
+          (entry) => MapEntry(entry.key, [
+            ...entry.value.where((item) => item.status != 'Ready'),
+            ...entry.value.where((item) => item.status == 'Ready'),
+          ]),
+        )
+        .toList();
   }
 
   Future<void> init() async {
@@ -198,7 +205,29 @@ class StationProvider extends ChangeNotifier {
     _connecting = true;
     final session = ++_session;
     _hub.onResynchronized = _loadInitialItems;
-    _hub.onOrderTableChanged = () => _handleEvent(() {
+    _hub.onOrderTableChanged = (orderId, tableCode) => _handleEvent(() {
+      final active = items.where((item) => item.orderId == orderId);
+      final completed = completedOrders.where(
+        (order) => order.orderId == orderId,
+      );
+      if (active.isNotEmpty || completed.isNotEmpty) {
+        final orderNumber = active.isNotEmpty
+            ? active.first.orderNumber
+            : completed.first.orderNumber;
+        final previousLabel = active.isNotEmpty
+            ? active.first.orderLabel
+            : completed.first.orderLabel;
+        final newLabel = tableCode == null ? '' : 'Mesa $tableCode';
+        if (newLabel.isNotEmpty && previousLabel != newLabel) {
+          _tts.enqueue(
+            TtsService.buildTableChangedAnnouncement(
+              orderNumber: orderNumber,
+              previousLabel: previousLabel,
+              tableCode: tableCode,
+            ),
+          );
+        }
+      }
       unawaited(_loadInitialItems());
     });
     _hub.onConnectionChanged = (state) {
@@ -219,6 +248,7 @@ class StationProvider extends ChangeNotifier {
     _hub.onNewItems = (newItems) => _handleEvent(() {
       final brandNew = <String, List<StationItem>>{};
       final additions = <String, List<StationItem>>{};
+      final corrections = <String, List<StationItem>>{};
       final knownOrders = {
         ...items.map((item) => item.orderId),
         ...completedOrders.map((order) => order.orderId),
@@ -251,7 +281,9 @@ class StationProvider extends ChangeNotifier {
         completedOrders.removeWhere((e) => e.orderId == item.orderId);
         items.add(item);
 
-        if (knownOrders.contains(item.orderId)) {
+        if (item.changeKind == 'Correction') {
+          corrections.putIfAbsent(item.orderId, () => []).add(item);
+        } else if (knownOrders.contains(item.orderId)) {
           additions.putIfAbsent(item.orderId, () => []).add(item);
         } else {
           brandNew.putIfAbsent(item.orderId, () => []).add(item);
@@ -263,6 +295,9 @@ class StationProvider extends ChangeNotifier {
       }
       for (final entry in additions.entries) {
         _tts.enqueue(TtsService.buildAdditionAnnouncement(entry.value));
+      }
+      for (final entry in corrections.entries) {
+        _tts.enqueue(TtsService.buildCorrectionAnnouncement(entry.value));
       }
 
       notifyListeners();

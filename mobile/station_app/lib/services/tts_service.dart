@@ -109,6 +109,22 @@ class TtsService {
   static String buildAdditionAnnouncement(List<StationItem> items) =>
       _build('Item adicional', items);
 
+  static String buildCorrectionAnnouncement(List<StationItem> items) =>
+      _build('Opciones actualizadas', items);
+
+  static String buildTableChangedAnnouncement({
+    required int orderNumber,
+    required String previousLabel,
+    required String? tableCode,
+  }) {
+    final destination = tableCode?.trim();
+    if (destination == null || destination.isEmpty) {
+      return 'Cambio de mesa. Pedido numero $orderNumber.';
+    }
+    return 'Cambio de mesa. Pedido numero $orderNumber. '
+        '$previousLabel, ahora mesa $destination.';
+  }
+
   static String buildItemNotesUpdated(StationItem item, String? notes) {
     final label = item.tableCode != null && item.tableCode!.isNotEmpty
         ? 'Mesa ${item.tableCode}'

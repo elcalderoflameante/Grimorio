@@ -338,7 +338,7 @@ public class PosController : ControllerBase
         return Ok(result);
     }
 
-    private async Task NotifyAddedItemsAsync(OrderDto result)
+    private async Task NotifyAddedItemsAsync(OrderDto result, bool isCorrection = false)
     {
         // Drafts reach kitchen only when confirmed; retries have no added IDs.
         if (!string.Equals(result.Status, "Draft", StringComparison.OrdinalIgnoreCase))
@@ -368,6 +368,7 @@ public class PosController : ControllerBase
                     isTakeout = i.IsTakeout,
                     status = i.Status,
                     confirmedAt,
+                    changeKind = isCorrection ? "Correction" : "Addition",
                     modifierSelections = i.ModifierSelections.Select(s => new
                     {
                         groupName = s.GroupName,
@@ -499,7 +500,7 @@ public class PosController : ControllerBase
             if (task.StationId.HasValue)
                 await _kitchenHub.Clients.Group(KitchenHub.GetStationGroup(task.StationId.Value))
                     .SendAsync(KitchenHub.ItemUpdatedEvent, new { orderItemId = task.Id, orderId = result.Id, status = "Cancelled" });
-        await NotifyAddedItemsAsync(result);
+        await NotifyAddedItemsAsync(result, isCorrection: true);
         return Ok(result);
     }
 
