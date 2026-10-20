@@ -183,22 +183,28 @@ export const printThermalReceipt = (receipt: ThermalReceiptDto) => {
   printWindow.document.close();
 };
 
-const writeField = (label: string, value?: string, tall = false) => `
-  <div class="write-field"><div>${esc(label)}</div><div class="write-line${tall ? ' tall' : ''}">${esc(value)}</div></div>`;
+const writeField = (label: string, value?: string) => `
+  <div class="write-field"><span class="write-label">${esc(label)}:</span><span class="write-line">${esc(value)}</span></div>`;
 
 export const printThermalPrebill = (bill: OrderPrebillDto, printWindow: Window) => {
   if (printWindow.closed) return;
-  const items = bill.items.map(item => `<div class="item">
-    <div class="item-name">${esc(item.name)}</div>
-    ${(item.modifierSelections ?? []).map(s => `<div class="small">${esc(s.groupName)}: ${s.quantity > 1 ? `${qty(s.quantity)} x ` : ''}${esc(s.optionName)}</div>`).join('')}
-    <div class="item-line"><span>${qty(item.quantity)} x ${money(item.unitPrice)}</span><strong>${money(item.total)}</strong></div>
-  </div>`).join('');
+  const items = bill.items.map(item => {
+    const options = (item.modifierSelections ?? []).map(s =>
+      `${s.groupName ? `${esc(s.groupName)}: ` : ''}${s.quantity > 1 ? `${qty(s.quantity)} x ` : ''}${esc(s.optionName)}`
+    ).join('; ');
+    return `<div class="item">
+      <div class="item-name">${esc(item.name)}${options ? ` <span class="item-options">(${options})</span>` : ''}</div>
+      <div class="item-line"><span>${qty(item.quantity)} x ${money(item.unitPrice)}</span><strong>${money(item.total)}</strong></div>
+    </div>`;
+  }).join('');
   printWindow.document.open();
   printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8" />
     <title>PRECUENTA ${esc(bill.orderNumber)}</title><style>${receiptStyles}
-      .write-field { margin-top: 3mm; break-inside: avoid; }
-      .write-line { min-height: 8mm; border-bottom: 1px solid #000; padding-top: 1mm; }
-      .write-line.tall { min-height: 12mm; }
+      .item { margin-bottom: 3px; }
+      .item-options { font-weight: 400; }
+      .write-field { display: flex; align-items: flex-end; gap: 1mm; margin-top: 1mm; break-inside: avoid; }
+      .write-label { flex: 0 0 auto; font-size: 11px; padding-bottom: 1mm; }
+      .write-line { flex: 1; min-width: 0; min-height: 8mm; border-bottom: 1px solid #000; padding: 1mm 0; }
       .handwritten { break-inside: avoid; }
     </style></head><body><div class="receipt">
     <div class="title">${esc(bill.issuer.tradeName || bill.issuer.businessName)}</div>
@@ -212,6 +218,14 @@ export const printThermalPrebill = (bill: OrderPrebillDto, printWindow: Window) 
     ${bill.tableCode ? `<div class="row"><span>Mesa</span><strong>${esc(bill.tableCode)}</strong></div>` : ''}
     <div class="row"><span>Emitida</span><strong>${esc(formatBranchDateTime(bill.printedAt))}</strong></div>
     ${bill.waiterName ? `<div class="row"><span>Atendido por</span><strong>${esc(bill.waiterName)}</strong></div>` : ''}
+    <div class="section billing-details">
+      <div class="center strong">DATOS PARA FACTURACION</div>
+      ${writeField('Nombre / Razon social', bill.customer?.name)}
+      ${writeField('Cedula / RUC', bill.customer?.taxId)}
+      ${writeField('Direccion', bill.customer?.address)}
+      ${writeField('Correo electronico', bill.customer?.email)}
+      ${writeField('Telefono', bill.customer?.phone)}
+    </div>
     <div class="section">${items}</div>
     <div class="section">
       <div class="row"><span>Subtotal (imp. incluidos)</span><strong>${money(bill.subtotal)}</strong></div>
@@ -223,14 +237,6 @@ export const printThermalPrebill = (bill: OrderPrebillDto, printWindow: Window) 
     </div>
     <div class="section handwritten">${writeField('Propina voluntaria ($)')}
       <div class="small">No incluida en el total.</div></div>
-    <div class="section">
-      <div class="center strong">DATOS PARA FACTURACION</div>
-      ${writeField('Nombre / Razon social', bill.customer?.name, true)}
-      ${writeField('Cedula / RUC', bill.customer?.taxId)}
-      ${writeField('Direccion', bill.customer?.address, true)}
-      ${writeField('Correo electronico', bill.customer?.email, true)}
-      ${writeField('Telefono', bill.customer?.phone)}
-    </div>
     <div class="section center small">Cuenta provisional. Valores al momento de emision.<br />Gracias por su visita.</div>
     </div><script>window.addEventListener('load', () => {
       setTimeout(() => { window.focus(); window.print(); }, 250);
