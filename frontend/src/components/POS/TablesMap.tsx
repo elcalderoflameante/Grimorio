@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { App as AntApp, Badge, Button, Card, Empty, Spin, Tag, Tooltip } from 'antd';
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined, UserOutlined } from '@ant-design/icons';
 import { tableServiceApi } from '../../services/api';
 import type { RestaurantTableDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
@@ -117,6 +117,12 @@ export default function TablesMap({ branchId, onSelectTable, refreshKey }: Props
                     styles={{ body: { padding: '12px 8px' } }}
                   >
                     <div style={{ fontSize: 18, fontWeight: 700 }}>Mesa {table.code}</div>
+                    {(occupied || draft) && table.currentOrderWaiterName && (
+                      <div style={{ fontSize: 12, color: '#595959', marginTop: 4, overflowWrap: 'anywhere' }}>
+                        <UserOutlined aria-hidden style={{ marginRight: 4 }} />
+                        {table.currentOrderWaiterName}
+                      </div>
+                    )}
                     {!occupied && !draft && (
                       <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>{table.capacity} personas</div>
                     )}

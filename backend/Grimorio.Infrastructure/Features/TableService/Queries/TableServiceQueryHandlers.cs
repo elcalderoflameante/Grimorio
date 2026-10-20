@@ -31,6 +31,13 @@ public class GetRestaurantTablesQueryHandler : IRequestHandler<GetRestaurantTabl
                 .ThenInclude(o => o.Payments.Where(p => !p.IsDeleted))
             .ToListAsync(cancellationToken);
 
+        var waiterIds = tables.SelectMany(t => t.Orders)
+            .Where(o => o.WaiterId.HasValue).Select(o => o.WaiterId!.Value).Distinct().ToList();
+        var waiters = await _context.Users.AsNoTracking()
+            .Where(u => u.BranchId == request.BranchId && waiterIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.FirstName, u.LastName })
+            .ToDictionaryAsync(u => u.Id, cancellationToken);
+
         return tables
             .OrderBy(x => GetTableNumber(x.Code) ?? int.MaxValue)
             .ThenBy(x => x.Code, StringComparer.Create(CultureInfo.GetCultureInfo("es-EC"), ignoreCase: true))
@@ -57,6 +64,9 @@ public class GetRestaurantTablesQueryHandler : IRequestHandler<GetRestaurantTabl
                     ? "Free"
                     : activeOrder.Status == OrderStatus.Draft ? "Draft" : "Occupied",
                 CurrentOrderId = activeOrder?.Id,
+                CurrentOrderWaiterName = activeOrder?.WaiterId is Guid waiterId && waiters.TryGetValue(waiterId, out var waiter)
+                    ? string.Join(" ", new[] { FirstWord(waiter.FirstName), FirstWord(waiter.LastName) }.Where(n => n.Length > 0))
+                    : null,
                 CurrentOrderStartedAt = activeOrder?.ConfirmedAt ?? activeOrder?.CreatedAt,
                 CurrentOrderTotal = activeOrder?.Total ?? 0m,
                 PendingPaymentTotal = pendingPayment,
@@ -68,6 +78,9 @@ public class GetRestaurantTablesQueryHandler : IRequestHandler<GetRestaurantTabl
         => int.TryParse(code?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var number)
             ? number
             : null;
+
+    private static string FirstWord(string? value)
+        => value?.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? string.Empty;
 }
 
 public class GetRestaurantTableByTokenQueryHandler : IRequestHandler<GetRestaurantTableByTokenQuery, PublicTableInfoDto?>

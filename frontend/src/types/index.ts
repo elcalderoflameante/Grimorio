@@ -724,6 +724,7 @@ export interface RestaurantTableDto {
   posY: number;
   currentStatus: 'Free' | 'Draft' | 'Occupied';
   currentOrderId?: string;
+  currentOrderWaiterName?: string;
   currentOrderStartedAt?: string;
   currentOrderTotal?: number;
   pendingPaymentTotal?: number;

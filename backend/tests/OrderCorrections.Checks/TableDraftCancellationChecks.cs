@@ -61,5 +61,40 @@ internal static class TableDraftCancellationChecks
         var replacement = await Send(new CreateOrderCommand { BranchId = branchId, TableId = table.Id, Type = "DineIn", WaiterId = actor,
             Items = [new() { MenuItemId = dish, Quantity = 1, ModifierSelections = [new() { ModifierOptionId = size, Quantity = 1 }, new() { ModifierOptionId = flavor, Quantity = 1 }] }] });
         check(replacement.Id != draft.Id, "Freed table accepts a new order without deleting the cancelled draft history");
+
+        await Read(async db => {
+            var user = await db.Users.SingleAsync(u => u.Id == actor);
+            var originalFirstName = user.FirstName;
+            var originalLastName = user.LastName;
+            user.FirstName = "  Jessica Elizabeth  ";
+            user.LastName = "  Chicaiza Vargas  ";
+            await db.SaveChangesAsync();
+            try {
+                map = await Send(new GetRestaurantTablesQuery { BranchId = branchId });
+                check(map.Single(t => t.Id == table.Id).CurrentOrderWaiterName == "Jessica Chicaiza",
+                    "Table draft shows only the waiter's first name and first surname");
+                var order = await db.Orders.SingleAsync(o => o.Id == replacement.Id);
+                order.Status = OrderStatus.Confirmed;
+                await db.SaveChangesAsync();
+                map = await Send(new GetRestaurantTablesQuery { BranchId = branchId });
+                check(map.Single(t => t.Id == table.Id).CurrentOrderWaiterName == "Jessica Chicaiza",
+                    "Occupied table retains the assigned waiter name");
+                order.WaiterId = null;
+                await db.SaveChangesAsync();
+                map = await Send(new GetRestaurantTablesQuery { BranchId = branchId });
+                check(map.Single(t => t.Id == table.Id).CurrentOrderWaiterName == null,
+                    "Unassigned order does not invent a waiter name");
+                order.Status = OrderStatus.Cancelled;
+                await db.SaveChangesAsync();
+                map = await Send(new GetRestaurantTablesQuery { BranchId = branchId });
+                check(map.Single(t => t.Id == table.Id).CurrentOrderWaiterName == null,
+                    "Free table does not retain a previous waiter name");
+            }
+            finally {
+                user.FirstName = originalFirstName;
+                user.LastName = originalLastName;
+                await db.SaveChangesAsync();
+            }
+        });
     }
 }

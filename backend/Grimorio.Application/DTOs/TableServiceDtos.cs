@@ -16,6 +16,7 @@ public class RestaurantTableDto
     public int PosY { get; set; }
     public string CurrentStatus { get; set; } = "Free";
     public Guid? CurrentOrderId { get; set; }
+    public string? CurrentOrderWaiterName { get; set; }
     public DateTime? CurrentOrderStartedAt { get; set; }
     public decimal CurrentOrderTotal { get; set; }
     public decimal PendingPaymentTotal { get; set; }
