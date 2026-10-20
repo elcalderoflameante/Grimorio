@@ -199,22 +199,17 @@ export const printThermalPrebill = (bill: OrderPrebillDto, printWindow: Window) 
   }).join('');
   printWindow.document.open();
   printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8" />
-    <title>PRECUENTA ${esc(bill.orderNumber)}</title><style>${receiptStyles}
+    <title>PRECUENTA</title><style>${receiptStyles}
       .item { margin-bottom: 3px; }
       .item-options { font-weight: 400; }
-      .write-field { display: flex; align-items: flex-end; gap: 1mm; margin-top: 1mm; break-inside: avoid; }
-      .write-label { flex: 0 0 auto; font-size: 11px; padding-bottom: 1mm; }
-      .write-line { flex: 1; min-width: 0; min-height: 8mm; border-bottom: 1px solid #000; padding: 1mm 0; }
+      .write-field { display: flex; align-items: flex-end; gap: 1mm; margin-top: 0.5mm; break-inside: avoid; }
+      .write-label { flex: 0 0 auto; font-size: 11px; padding-bottom: 0.5mm; }
+      .write-line { flex: 1; min-width: 0; min-height: 5mm; border-bottom: 1px solid #000; padding: 0.5mm 0; }
       .handwritten { break-inside: avoid; }
     </style></head><body><div class="receipt">
-    <div class="title">${esc(bill.issuer.tradeName || bill.issuer.businessName)}</div>
-    <div class="center">${esc(bill.issuer.businessName)}</div>
-    <div class="center">RUC: ${esc(bill.issuer.ruc)}</div>
-    <div class="center">${esc(bill.issuer.address)}</div>
-    ${bill.issuer.phone ? `<div class="center">Tel: ${esc(bill.issuer.phone)}</div>` : ''}
+    <div class="title">${esc(bill.issuer.tradeName || 'EL CALDERO FLAMEANTE')}</div>
     <div class="section center strong">PRECUENTA</div>
     <div class="center small strong">NO ES COMPROBANTE DE VENTA</div>
-    <div class="row"><span>Orden</span><strong>#${esc(bill.orderNumber)}</strong></div>
     ${bill.tableCode ? `<div class="row"><span>Mesa</span><strong>${esc(bill.tableCode)}</strong></div>` : ''}
     <div class="row"><span>Emitida</span><strong>${esc(formatBranchDateTime(bill.printedAt))}</strong></div>
     ${bill.waiterName ? `<div class="row"><span>Atendido por</span><strong>${esc(bill.waiterName)}</strong></div>` : ''}
@@ -225,18 +220,17 @@ export const printThermalPrebill = (bill: OrderPrebillDto, printWindow: Window) 
       ${writeField('Direccion', bill.customer?.address)}
       ${writeField('Correo electronico', bill.customer?.email)}
       ${writeField('Telefono', bill.customer?.phone)}
+      <div class="handwritten">${writeField('Propina voluntaria ($)')}
+        <div class="small">No incluida en el total.</div></div>
     </div>
     <div class="section">${items}</div>
     <div class="section">
-      <div class="row"><span>Subtotal (imp. incluidos)</span><strong>${money(bill.subtotal)}</strong></div>
-      ${bill.discount > 0 ? `<div class="row"><span>Descuentos</span><strong>-${money(bill.discount)}</strong></div>` : ''}
-      <div class="row strong"><span>TOTAL PEDIDO</span><strong>${money(bill.total)}</strong></div>
-      ${bill.tax > 0 ? `<div class="row small"><span>Impuestos incluidos</span><span>${money(bill.tax)}</span></div>` : ''}
+      <div class="row"><span>Subtotal (con IVA)</span><span>${money(bill.subtotal)}</span></div>
+      <div class="row"><span>Descuentos</span><span>${bill.discount > 0 ? '-' : ''}${money(bill.discount)}</span></div>
+      <div class="row"><span>IVA (incluido)</span><span>${money(bill.tax)}</span></div>
       ${bill.paidAmount > 0 ? `<div class="row"><span>Abonos</span><strong>-${money(bill.paidAmount)}</strong></div>` : ''}
       <div class="row strong"><span>POR PAGAR</span><strong>${money(bill.pendingAmount)}</strong></div>
     </div>
-    <div class="section handwritten">${writeField('Propina voluntaria ($)')}
-      <div class="small">No incluida en el total.</div></div>
     <div class="section center small">Cuenta provisional. Valores al momento de emision.<br />Gracias por su visita.</div>
     </div><script>window.addEventListener('load', () => {
       setTimeout(() => { window.focus(); window.print(); }, 250);
