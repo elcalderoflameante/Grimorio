@@ -41,6 +41,8 @@ Antes de distribuir una APK, comprobar en una tablet real:
 4. Desconectar Wi-Fi, modificar un pedido y reconectar: verificar pantalla e historial.
 5. Avisos de voz para nuevos pedidos, adicionales, correcciones de opciones,
    cambios de mesa y cambios de observaciones.
+6. Deteccion de una version superior, descarga, validacion SHA-256 y apertura
+   del instalador de Android.
 
 La voz de la app reproduce avisos; los comandos de voz se gestionan con Alexa.
 El canal general funciona en modo de solo recepción: se conecta automáticamente
@@ -122,6 +124,19 @@ Para actualizar la app instalada en tablets o pantallas de estacion:
 3. Volver a ejecutar `flutter build apk --release --dart-define=API_BASE_URL=https://erp.elcalderoflameante.com/api`.
 4. Reemplazar `frontend\public\downloads\grimorio-estaciones.apk`.
 5. Desplegar el frontend.
+
+La app consulta `/downloads/station-version.json` al abrir y cada seis horas.
+Despues de copiar la APK, actualizar en ese archivo `versionCode`,
+`versionName` y el hash obtenido con:
+
+```powershell
+Get-FileHash ..\..\frontend\public\downloads\grimorio-estaciones.apk -Algorithm SHA256
+```
+
+La primera version que incorpora el actualizador debe instalarse manualmente.
+Las siguientes se descargan desde la app y solo requieren confirmar el
+instalador de Android. Si el dispositivo lo solicita, habilitar una sola vez
+`Instalar aplicaciones desconocidas` para Grimorio KDS.
 
 Android solo aceptara la actualizacion si la nueva APK esta firmada con la misma llave y tiene un `versionCode` mayor.
 

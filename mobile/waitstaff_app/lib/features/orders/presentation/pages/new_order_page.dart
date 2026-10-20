@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/api_config.dart';
 import '../../../../core/network/api_error.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_update_gate.dart';
 import '../../data/models/order_models.dart';
 import '../../data/models/cart_catalog_validation.dart';
 import '../../data/models/pending_order_items_update.dart';
@@ -54,6 +55,7 @@ class NewOrderPage extends ConsumerStatefulWidget {
 class _NewOrderPageState extends ConsumerState<NewOrderPage>
     with WidgetsBindingObserver {
   Timer? _catalogTimer;
+  VoidCallback? _releaseUpdateDeferral;
   Future<bool>? _catalogRefresh;
   bool _selectingModifiers = false;
   String? _catalogNotice;
@@ -164,7 +166,14 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _releaseUpdateDeferral ??= AppUpdateGate.defer(context);
+  }
+
+  @override
   void dispose() {
+    _releaseUpdateDeferral?.call();
     _catalogTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _notesCtrl.dispose();

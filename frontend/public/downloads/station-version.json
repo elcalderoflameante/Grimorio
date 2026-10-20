@@ -1,0 +1,8 @@
+{
+  "versionCode": 16,
+  "versionName": "1.0.15",
+  "required": true,
+  "apkUrl": "/downloads/grimorio-estaciones.apk",
+  "sha256": "6ef0cb13016cbda594dc8c7f17a3511716765f7d76b01a1dd449760e44de23fa",
+  "message": "Actualizacion de estabilidad del monitor de cocina."
+}

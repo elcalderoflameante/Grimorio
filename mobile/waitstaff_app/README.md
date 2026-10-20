@@ -83,9 +83,52 @@ Para actualizar la app instalada en los telefonos:
 2. Subir `version` en `pubspec.yaml`, por ejemplo `1.0.1+2`.
 3. Volver a ejecutar `flutter build apk --release --dart-define=API_BASE_URL=https://erp.elcalderoflameante.com/api`.
 4. Reemplazar `frontend\public\downloads\grimorio-meseros.apk`.
-5. Desplegar el frontend.
+5. Actualizar `frontend/public/downloads/waitstaff-version.json` con la misma
+   version y el SHA-256 exacto del APK publicado.
+6. Desplegar el frontend.
 
 Android solo aceptara la actualizacion si la nueva APK esta firmada con la misma llave y tiene un `versionCode` mayor.
+
+### Aviso y descarga dentro de la app
+
+Desde `1.0.26+27`, Meseros consulta `/downloads/waitstaff-version.json` al iniciar,
+cada seis horas y al volver al primer plano si pasaron al menos cinco minutos
+desde la ultima consulta. No requiere una sesion iniciada. Si no hay conexion
+o no existe el manifiesto, la app sigue funcionando.
+
+La primera instalacion de esta version se hace descargando el APK desde el ERP.
+Las versiones anteriores no tienen actualizador y no pueden detectar esta mejora.
+Las siguientes actualizaciones se anuncian dentro de Meseros. El usuario pulsa
+Actualizar ahora, ve el progreso y confirma la instalacion del sistema Android.
+La primera vez debe permitir instalar aplicaciones desde Meseros. No es una
+instalacion silenciosa y no requiere desinstalar ni borrar los datos.
+
+El aviso se aplaza mientras este abierta la toma de pedidos, incluso si el
+pedido esta esperando verificar un envio. No se reinicia ni cierra el editor.
+Si el manifiesto tiene `required: false`, tambien permite posponer el aviso.
+
+El APK se descarga al cache privado de actualizaciones y se verifica su SHA-256.
+Solo se aceptan enlaces del mismo servidor; Android comprueba ademas que sea
+el paquete de Meseros, una version mayor y una firma compatible con la instalada.
+Publicar siempre APK y manifiesto en el mismo despliegue; no reutilizar la
+misma version para binarios diferentes.
+
+```json
+{
+  "versionCode": 28,
+  "versionName": "1.0.27",
+  "required": false,
+  "apkUrl": "/downloads/grimorio-meseros.apk",
+  "sha256": "REEMPLAZAR_POR_EL_SHA256_REAL_DEL_APK",
+  "message": "Descripcion breve de los cambios."
+}
+```
+
+Obtener el hash despues de copiar el APK a `frontend/public/downloads`:
+
+```powershell
+Get-FileHash ../../frontend/public/downloads/grimorio-meseros.apk -Algorithm SHA256
+```
 
 ## Instalacion en telefonos
 

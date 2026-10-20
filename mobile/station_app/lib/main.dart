@@ -8,6 +8,7 @@ import 'providers/station_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/station_picker_screen.dart';
 import 'screens/kds_screen.dart';
+import 'widgets/app_update_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,7 +41,7 @@ class StationApp extends StatelessWidget {
           ),
           scaffoldBackgroundColor: const Color(0xFF1A1A2E),
         ),
-        home: const _RootNavigator(),
+        home: const AppUpdateGate(child: _RootNavigator()),
         builder: (context, child) {
           final station = context.watch<StationProvider>();
           if (station.appState != AppState.ready) return child!;

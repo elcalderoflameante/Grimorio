@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:grimorio_voice/grimorio_voice.dart';
 import 'core/constants/api_config.dart';
 import 'core/services/alert_service.dart';
+import 'core/widgets/app_update_gate.dart';
 import 'features/auth/data/services/auth_storage_service.dart';
 import 'features/auth/presentation/providers/auth_controller.dart';
 
@@ -38,15 +39,17 @@ class MyApp extends ConsumerWidget {
       theme: AppTheme.magicTheme(),
       themeMode: ThemeMode.dark,
       routerConfig: router,
-      builder: (context, child) => auth.isAuthenticated
-          ? VoiceShell(
-              key: ValueKey(auth.session!.accessToken),
-              apiBaseUrl: ApiConfig.baseUrl,
-              readToken: ref.read(authStorageServiceProvider).readAccessToken,
-              onChannelBusy: ref.read(alertServiceProvider).setVoiceBusy,
-              child: child!,
-            )
-          : child!,
+      builder: (context, child) => AppUpdateGate(
+        child: auth.isAuthenticated
+            ? VoiceShell(
+                key: ValueKey(auth.session!.accessToken),
+                apiBaseUrl: ApiConfig.baseUrl,
+                readToken: ref.read(authStorageServiceProvider).readAccessToken,
+                onChannelBusy: ref.read(alertServiceProvider).setVoiceBusy,
+                child: child!,
+              )
+            : child!,
+      ),
     );
   }
 }
