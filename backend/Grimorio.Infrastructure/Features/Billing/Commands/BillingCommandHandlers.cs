@@ -2037,6 +2037,18 @@ internal static class BillingMapper
             Id = i.Id,
             OrderItemId = i.OrderItemId,
             ItemName = i.ItemName ?? i.OrderItem?.MenuItem?.Name ?? string.Empty,
+            ModifierSelections = i.OrderItem?.ModifierSelections.Where(s => !s.IsDeleted)
+                .OrderBy(s => s.CreatedAt).ThenBy(s => s.Id)
+                .Select(s => new ModifierSelectionDto
+                {
+                    ModifierGroupId = s.ModifierGroupId,
+                    ModifierOptionId = s.ModifierOptionId,
+                    GroupName = s.GroupName,
+                    OptionName = s.OptionName,
+                    Quantity = s.Quantity,
+                    UnitPriceDelta = s.UnitPriceDelta,
+                    TotalPriceDelta = s.UnitPriceDelta * s.Quantity,
+                }).ToList() ?? [],
             Quantity = i.Quantity,
             UnitPrice = i.UnitPrice,
             Total = i.Total,

@@ -400,9 +400,12 @@ public class GetSalesHandler : IRequestHandler<GetSalesQuery, List<OrderPaymentD
     public async Task<List<OrderPaymentDto>> Handle(GetSalesQuery req, CancellationToken ct)
     {
         var query = _db.OrderPayments
+            .AsNoTracking()
             .Include(p => p.Lines).ThenInclude(l => l.Config)
             .Include(p => p.Lines).ThenInclude(l => l.EmployeeConsumption).ThenInclude(c => c!.Employee)
             .Include(p => p.Items).ThenInclude(i => i.OrderItem).ThenInclude(i => i!.MenuItem)
+            .Include(p => p.Items).ThenInclude(i => i.OrderItem)
+                .ThenInclude(i => i!.ModifierSelections.Where(s => !s.IsDeleted))
             .Include(p => p.Customer)
             .Include(p => p.CashSession).ThenInclude(s => s!.CashRegister)
             .Include(p => p.Order).ThenInclude(o => o!.Table)
@@ -412,6 +415,7 @@ public class GetSalesHandler : IRequestHandler<GetSalesQuery, List<OrderPaymentD
         if (req.ToUtc.HasValue) query = query.Where(p => p.PaidAt <= req.ToUtc.Value);
 
         var payments = await query
+            .AsSplitQuery()
             .OrderByDescending(p => p.PaidAt)
             .Take(req.PageSize)
             .ToListAsync(ct);

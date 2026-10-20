@@ -62,19 +62,24 @@ const buildHtml = (receipt: ThermalReceiptDto) => `
     <meta charset="utf-8" />
     <title>${esc(docLabel(receipt))} ${esc(receipt.orderNumber)}</title>
     <style>
-      @page { size: 80mm auto; margin: 0; }
+      @page { size: auto; margin: 0; }
       * { box-sizing: border-box; }
+      html { margin: 0; padding: 0; }
       body {
         margin: 0;
         background: #fff;
         color: #000;
-        font-family: "Courier New", Courier, monospace;
-        font-size: 11px;
-        line-height: 1.25;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 12px;
+        line-height: 1.35;
+        font-variant-numeric: tabular-nums;
       }
       .receipt {
-        width: 80mm;
-        padding: 4mm;
+        /* The LR2000 uses 80mm paper with a 72mm printable area. */
+        width: 72mm;
+        max-width: 100%;
+        padding: 2mm;
+        overflow-wrap: anywhere;
       }
       .center { text-align: center; }
       .strong { font-weight: 700; }
@@ -90,18 +95,19 @@ const buildHtml = (receipt: ThermalReceiptDto) => `
         padding-top: 6px;
       }
       .row, .item-line {
-        display: flex;
-        justify-content: space-between;
-        gap: 8px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr);
+        column-gap: 2mm;
+        align-items: start;
+        break-inside: avoid;
       }
-      .item { margin-bottom: 5px; }
+      .row > *, .item-line > * { min-width: 0; overflow-wrap: anywhere; }
+      .row > :last-child, .item-line > :last-child { text-align: right; }
+      .item-line { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .item { margin-bottom: 6px; break-inside: avoid; }
       .item-name { font-weight: 700; overflow-wrap: anywhere; }
-      .small { font-size: 10px; }
+      .small { font-size: 11px; }
       .break-word { overflow-wrap: anywhere; word-break: break-word; }
-      @media print {
-        body { width: 80mm; }
-        .receipt { padding: 3mm; }
-      }
     </style>
   </head>
   <body>

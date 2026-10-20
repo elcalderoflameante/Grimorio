@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { App as AntApp, Table, Button, Space, Modal, Form, Input, Switch, Select, Popconfirm, Tag, Tooltip, Alert } from 'antd';
-import { KeyOutlined, PlusOutlined, EditOutlined, DeleteOutlined, LockOutlined, UnlockOutlined, ReloadOutlined, CopyOutlined } from '@ant-design/icons';
+import { KeyOutlined, UserAddOutlined, EditOutlined, DeleteOutlined, TeamOutlined, NumberOutlined, ReloadOutlined, CopyOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { userApi, roleApi } from '../../services/api';
 import type { UserDto, RoleDto, CreateUserDto, UpdateUserDto, UserEmployeeOptionDto } from '../../types';
@@ -270,21 +270,21 @@ export default function UserList() {
       key: 'actions',
       render: (_, record) => (
         <Space>
-          {canUpdate && <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} />}
-          {canUpdate && <Button icon={<LockOutlined />} onClick={() => handleOpenAssign(record)} title="Asignar roles" />}
-          {canUpdate && <Button icon={<KeyOutlined />} onClick={() => handleOpenKdsPin(record)} title="PIN de acceso" />}
-          {canResetPassword && record.id !== user?.userId && <Button icon={<UnlockOutlined />} title="Restablecer contrasena" aria-label="Restablecer contrasena" onClick={() => {
+          {canUpdate && <Tooltip title="Editar usuario" trigger={['hover', 'focus']}><Button aria-label="Editar usuario" icon={<EditOutlined />} onClick={() => handleEdit(record)} /></Tooltip>}
+          {canUpdate && <Tooltip title="Asignar roles" trigger={['hover', 'focus']}><Button aria-label="Asignar roles" icon={<TeamOutlined />} onClick={() => handleOpenAssign(record)} /></Tooltip>}
+          {canUpdate && <Tooltip title="Configurar PIN de acceso" trigger={['hover', 'focus']}><Button aria-label="Configurar PIN de acceso" icon={<NumberOutlined />} onClick={() => handleOpenKdsPin(record)} /></Tooltip>}
+          {canResetPassword && record.id !== user?.userId && <Tooltip title="Restablecer contraseña" trigger={['hover', 'focus']}><Button icon={<KeyOutlined />} aria-label="Restablecer contraseña" onClick={() => {
             setResetUser(record);
             setResetDone(false);
             generateTemporaryPassword();
-          }} />}
+          }} /></Tooltip>}
           {canDelete && <Popconfirm
             title="¿Eliminar usuario?"
             onConfirm={() => handleDelete(record.id)}
             okText="Sí"
             cancelText="No"
           >
-            <Button icon={<DeleteOutlined />} danger />
+            <Tooltip title="Eliminar usuario" trigger={['hover', 'focus']}><Button aria-label="Eliminar usuario" icon={<DeleteOutlined />} danger /></Tooltip>
           </Popconfirm>}
         </Space>
       ),
@@ -316,7 +316,7 @@ export default function UserList() {
       <div style={{ marginBottom: 16 }}>
         {canCreate && <Button
           type="primary"
-          icon={<PlusOutlined />}
+          icon={<UserAddOutlined />}
           onClick={() => {
             setEditingId(null);
             form.resetFields();

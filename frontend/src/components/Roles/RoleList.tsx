@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { App as AntApp, Table, Button, Space, Modal, Form, Input, Switch, Select, Popconfirm, Tag } from 'antd';
+import { useEffect, useRef, useState } from 'react';
+import { App as AntApp, Table, Button, Space, Modal, Form, Input, Switch, Popconfirm, Tag, Tooltip } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, LockOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { roleApi, permissionApi } from '../../services/api';
@@ -8,6 +8,8 @@ import { formatError } from '../../utils/errorHandler';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
 import { resolveRolePermissionIds } from '../../utils/rolePermissions';
+import { permissionPresentation } from '../../utils/permissionPresentation';
+import PermissionPicker from './PermissionPicker';
 
 interface RoleFormValues {
   name: string;
@@ -32,6 +34,8 @@ export default function RoleList() {
   const [assigningRoleId, setAssigningRoleId] = useState<string | null>(null);
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignSaving, setAssignSaving] = useState(false);
+  const assignInFlight = useRef(false);
+  const [assigningRoleName, setAssigningRoleName] = useState('');
   const [form] = Form.useForm<RoleFormValues>();
   const [assignForm] = Form.useForm<AssignFormValues>();
   const canCreate = hasPermission(PERMISSIONS.admin.rolesCreate);
@@ -93,8 +97,9 @@ export default function RoleList() {
   };
 
   const handleAssignPermissions = async (values: AssignFormValues) => {
-    if (!assigningRoleId || assignSaving) return;
+    if (!assigningRoleId || assignInFlight.current) return;
 
+    assignInFlight.current = true;
     setAssignSaving(true);
     try {
       const permissionIds = resolveRolePermissionIds(values.permissionIds, permissions);
@@ -107,6 +112,7 @@ export default function RoleList() {
     } catch (error: unknown) {
       message.error(formatError(error));
     } finally {
+      assignInFlight.current = false;
       setAssignSaving(false);
     }
   };
@@ -140,6 +146,7 @@ export default function RoleList() {
       const permissionIds = resolveRolePermissionIds(role.permissions || [], catalog);
       setPermissions(catalog);
       setAssigningRoleId(role.id);
+      setAssigningRoleName(role.name);
       assignForm.setFieldsValue({ permissionIds });
       setAssignModalVisible(true);
     } catch (error: unknown) {
@@ -157,7 +164,12 @@ export default function RoleList() {
       key: 'permissions',
       render: (_, record) => (
         record.permissions && record.permissions.length > 0 ? (
-          record.permissions.map(p => <Tag key={p}>{p}</Tag>)
+          <Space size={[4, 4]} wrap>{Object.entries(record.permissions.reduce<Record<string, number>>((groups, code) => {
+            const permission = permissions.find(p => p.code === code || p.id === code);
+            const name = permission ? permissionPresentation(permission).module : 'Otros';
+            groups[name] = (groups[name] ?? 0) + 1;
+            return groups;
+          }, {})).map(([name, count]) => <Tag key={name}>{name}: {count}</Tag>)}</Space>
         ) : (
           <span style={{ color: '#ccc' }}>Sin permisos</span>
         )
@@ -174,8 +186,8 @@ export default function RoleList() {
       key: 'actions',
       render: (_, record) => (
         <Space>
-          {canUpdate && <Button icon={<EditOutlined />} onClick={() => handleEdit(record)} />}
-          {canUpdate && <Button icon={<LockOutlined />} disabled={assignLoading} onClick={() => handleOpenAssign(record)} title="Asignar permisos" />}
+          {canUpdate && <Tooltip title="Editar rol"><Button aria-label={`Editar rol ${record.name}`} icon={<EditOutlined />} onClick={() => handleEdit(record)} /></Tooltip>}
+          {canUpdate && <Tooltip title="Asignar permisos"><Button aria-label={`Permisos de ${record.name}`} icon={<LockOutlined />} disabled={assignLoading} onClick={() => handleOpenAssign(record)} /></Tooltip>}
           {canDelete && <Popconfirm
             title="¿Eliminar rol?"
             onConfirm={() => handleDelete(record.id)}
@@ -210,6 +222,7 @@ export default function RoleList() {
         dataSource={roles}
         loading={loading}
         rowKey="id"
+        scroll={{ x: 760 }}
         pagination={{ defaultPageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
       />
 
@@ -245,7 +258,12 @@ export default function RoleList() {
       </Modal>
 
       <Modal
-        title="Asignar Permisos"
+        title={`Permisos del rol: ${assigningRoleName}`}
+        forceRender
+        width={920}
+        styles={{ body: { maxHeight: '65vh', overflowY: 'auto', paddingRight: 8 } }}
+        okText="Guardar permisos"
+        cancelText="Cancelar"
         open={assignModalVisible}
         confirmLoading={assignSaving}
         closable={!assignSaving}
@@ -262,20 +280,13 @@ export default function RoleList() {
       >
         <Form form={assignForm} layout="vertical" onFinish={handleAssignPermissions}>
           <Form.Item
-            label="Permisos"
             name="permissionIds"
             rules={[{ required: true, message: 'Selecciona al menos un permiso' }]}
           >
-            <Select
+            <PermissionPicker
+              key={assigningRoleId}
+              permissions={permissions}
               disabled={assignSaving}
-              mode="multiple"
-              placeholder="Selecciona permisos"
-              showSearch
-              optionFilterProp="label"
-              options={permissions.map(p => ({
-                label: `${p.code} - ${p.description}`,
-                value: p.id,
-              }))}
             />
           </Form.Item>
         </Form>

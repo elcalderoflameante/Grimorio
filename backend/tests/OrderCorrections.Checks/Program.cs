@@ -205,6 +205,18 @@ try {
     Check(settled.PaidAt.HasValue && settled.Total == 10, "Cancel last unpaid item settles existing paid balance");
     Check(JsonSerializer.Serialize(await Send(new GetActiveCashSessionQuery { BranchId = branch.Id, UserId = admin.Id })) == cashBefore, "Correction does not change previous cash receipts");
     await Correct(sideItem.Id, Data(replace: true), HttpStatusCode.BadRequest);
+    var detailedSale = (await Send(new GetSalesQuery { BranchId = branch.Id, PageSize = 200 }))
+        .Single(p => p.OrderId == partiallyPaid.Id);
+    Check(detailedSale.Items.Count == 1 && detailedSale.Items.Single().OrderItemId == sideItem.Id,
+        "Sales options belong only to the line included in each partial payment");
+    var soldOptions = detailedSale.Items.Single().ModifierSelections;
+    var expectedFlavor = sideItem.ModifierSelections.Single(s => s.GroupName == "Flavor");
+    Check(soldOptions.Count == 2 && soldOptions.Any(s => s.GroupName == "Size" && s.OptionName == "Small")
+        && soldOptions.Any(s => s.GroupName == "Flavor" && s.ModifierOptionId == expectedFlavor.ModifierOptionId
+            && s.OptionName == expectedFlavor.OptionName && s.Quantity == 1),
+        "Sales detail includes stored modifier names, groups and quantities");
+    Check(detailedSale.OrderAmount == 10 && detailedSale.Items.Single().Total == 10,
+        "Informational sales options do not change paid totals");
     var authorization = await Order("Confirmed"); var authorizationId = authorization.Items.Single().Id;
     await Correct(authorizationId, Data(), HttpStatusCode.Forbidden, Token(waiter.Id, false));
     await Correct(authorizationId, Data(), HttpStatusCode.BadRequest, Token(waiter.Id));

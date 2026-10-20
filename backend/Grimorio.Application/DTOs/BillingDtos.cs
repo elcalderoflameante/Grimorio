@@ -347,6 +347,7 @@ public class OrderPaymentItemDto
     public Guid Id { get; set; }
     public Guid OrderItemId { get; set; }
     public string ItemName { get; set; } = string.Empty;
+    public List<ModifierSelectionDto> ModifierSelections { get; set; } = [];
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal Total { get; set; }

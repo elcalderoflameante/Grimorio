@@ -2168,6 +2168,7 @@ export interface OrderPaymentItemDto {
   id: string;
   orderItemId: string;
   itemName: string;
+  modifierSelections?: ModifierSelectionDto[];
   quantity: number;
   unitPrice: number;
   total: number;

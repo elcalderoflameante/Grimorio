@@ -91,7 +91,23 @@ function PaymentDetail({ payment }: { payment: OrderPaymentDto }) {
         locale={{ emptyText: 'Este cobro no tiene ítems detallados' }}
         style={{ marginTop: 8 }}
         columns={[
-          { title: 'Producto', dataIndex: 'itemName' },
+          {
+            title: 'Producto', dataIndex: 'itemName',
+            render: (name: string, item: OrderPaymentDto['items'][number]) => (
+              <div style={{ minWidth: 220, maxWidth: 520, overflowWrap: 'anywhere' }}>
+                <div>{name}</div>
+                {!!item.modifierSelections?.length && <Space size={[4, 4]} wrap style={{ marginTop: 4, maxWidth: '100%' }}>
+                  {item.modifierSelections.map((selection, index) => (
+                    <Tag key={`${selection.modifierGroupId}:${selection.modifierOptionId}:${index}`}
+                      style={{ margin: 0, whiteSpace: 'normal', overflowWrap: 'anywhere', maxWidth: '100%' }}>
+                      {selection.groupName ? `${selection.groupName}: ` : ''}
+                      {selection.quantity > 1 ? `${formatQuantity(selection.quantity)} x ` : ''}{selection.optionName}
+                    </Tag>
+                  ))}
+                </Space>}
+              </div>
+            ),
+          },
           { title: 'Cantidad', dataIndex: 'quantity', width: 100, align: 'right', render: formatQuantity },
           { title: 'Precio unit.', dataIndex: 'unitPrice', width: 120, align: 'right', render: formatMoney },
           { title: 'Total', dataIndex: 'total', width: 110, align: 'right', render: formatMoney },
