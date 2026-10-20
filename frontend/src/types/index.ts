@@ -2235,6 +2235,8 @@ export interface OrderPrebillDto {
   items: (ThermalReceiptItemDto & { modifierSelections: ModifierSelectionDto[] })[];
   subtotal: number;
   discount: number;
+  subtotalWithoutTax: number;
+  discountWithoutTax: number;
   tax: number;
   total: number;
   paidAmount: number;

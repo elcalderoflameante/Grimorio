@@ -17,6 +17,7 @@ public class GetOrderPrebillQueryHandler(GrimorioDbContext db) : IRequestHandler
             .Include(o => o.Customer)
             .Include(o => o.Payments.Where(p => !p.IsDeleted))
             .Include(o => o.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled)).ThenInclude(i => i.MenuItem)
+            .Include(o => o.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled)).ThenInclude(i => i.TaxRate)
             .Include(o => o.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled))
                 .ThenInclude(i => i.ModifierSelections.Where(s => !s.IsDeleted))
             .AsSplitQuery()
@@ -31,6 +32,11 @@ public class GetOrderPrebillQueryHandler(GrimorioDbContext db) : IRequestHandler
         var tax = await db.BranchTaxConfigs.AsNoTracking().SingleOrDefaultAsync(c => c.BranchId == request.BranchId && !c.IsDeleted, ct);
         var waiter = order.WaiterId.HasValue ? await db.Users.AsNoTracking()
             .SingleOrDefaultAsync(u => u.Id == order.WaiterId && u.BranchId == request.BranchId && !u.IsDeleted, ct) : null;
+
+        // Match invoice line rounding, while retaining the saved order total and IVA.
+        var discountWithoutTax = order.Items.Sum(i => SriInvoiceLineFactory.Amounts(new SriInvoiceLine(
+            "", "", i.Quantity, i.UnitPrice, i.TaxRate?.SriCode ?? "6", i.TaxRate?.Percentage ?? 0m,
+            i.TotalPrice + i.DiscountAmount, i.TotalPrice)).Discount);
 
         return new OrderPrebillDto
         {
@@ -61,6 +67,8 @@ public class GetOrderPrebillQueryHandler(GrimorioDbContext db) : IRequestHandler
                 }).ToList(),
             }).ToList(),
             Subtotal = order.Subtotal, Discount = order.DiscountTotal, Tax = order.TaxAmount,
+            SubtotalWithoutTax = order.Total - order.TaxAmount + discountWithoutTax,
+            DiscountWithoutTax = discountWithoutTax,
             Total = order.Total, PaidAmount = paid, PendingAmount = pending,
         };
     }

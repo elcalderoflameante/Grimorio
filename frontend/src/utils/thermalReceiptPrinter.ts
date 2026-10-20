@@ -188,6 +188,9 @@ const writeField = (label: string, value?: string) => `
 
 export const printThermalPrebill = (bill: OrderPrebillDto, printWindow: Window) => {
   if (printWindow.closed) return;
+  if (!Number.isFinite(bill.subtotalWithoutTax) || !Number.isFinite(bill.discountWithoutTax)) {
+    throw new Error('Actualiza el backend para imprimir el desglose sin IVA de la precuenta.');
+  }
   const items = bill.items.map(item => {
     const options = (item.modifierSelections ?? []).map(s =>
       `${s.groupName ? `${esc(s.groupName)}: ` : ''}${s.quantity > 1 ? `${qty(s.quantity)} x ` : ''}${esc(s.optionName)}`
@@ -220,16 +223,16 @@ export const printThermalPrebill = (bill: OrderPrebillDto, printWindow: Window) 
       ${writeField('Direccion', bill.customer?.address)}
       ${writeField('Correo electronico', bill.customer?.email)}
       ${writeField('Telefono', bill.customer?.phone)}
-      <div class="handwritten">${writeField('Propina voluntaria ($)')}
-        <div class="small">No incluida en el total.</div></div>
+      <div class="handwritten">${writeField('Propina $')}</div>
     </div>
     <div class="section">${items}</div>
     <div class="section">
-      <div class="row"><span>Subtotal (con IVA)</span><span>${money(bill.subtotal)}</span></div>
-      <div class="row"><span>Descuentos</span><span>${bill.discount > 0 ? '-' : ''}${money(bill.discount)}</span></div>
-      <div class="row"><span>IVA (incluido)</span><span>${money(bill.tax)}</span></div>
+      <div class="row"><span>Subtotal sin IVA</span><span>${money(bill.subtotalWithoutTax)}</span></div>
+      <div class="row"><span>Descuentos</span><span>${bill.discountWithoutTax > 0 ? '-' : ''}${money(bill.discountWithoutTax)}</span></div>
+      <div class="row"><span>IVA</span><span>${money(bill.tax)}</span></div>
+      <div class="row strong"><span>TOTAL</span><strong>${money(bill.total)}</strong></div>
       ${bill.paidAmount > 0 ? `<div class="row"><span>Abonos</span><strong>-${money(bill.paidAmount)}</strong></div>` : ''}
-      <div class="row strong"><span>POR PAGAR</span><strong>${money(bill.pendingAmount)}</strong></div>
+      ${bill.paidAmount > 0 ? `<div class="row strong"><span>POR PAGAR</span><strong>${money(bill.pendingAmount)}</strong></div>` : ''}
     </div>
     <div class="section center small">Cuenta provisional. Valores al momento de emision.<br />Gracias por su visita.</div>
     </div><script>window.addEventListener('load', () => {

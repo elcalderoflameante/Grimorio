@@ -12,6 +12,8 @@ public class OrderPrebillDto
     public List<OrderPrebillItemDto> Items { get; set; } = [];
     public decimal Subtotal { get; set; }
     public decimal Discount { get; set; }
+    public decimal SubtotalWithoutTax { get; set; }
+    public decimal DiscountWithoutTax { get; set; }
     public decimal Tax { get; set; }
     public decimal Total { get; set; }
     public decimal PaidAmount { get; set; }
