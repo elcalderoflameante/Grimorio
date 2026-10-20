@@ -276,6 +276,11 @@ export default function PublicTableRequest() {
       setOrderError(null);
       const response = await tableServiceApi.getActivePublicTableOrder(token);
       setActiveOrder(response.data);
+      if (response.data) {
+        setCart(current => current.length > 0 ? [] : current);
+        setItemDraft(null);
+        orderSubmissionIdRef.current = null;
+      }
     } catch {
       setOrderError('No se pudo cargar el pedido en este momento.');
     } finally {
@@ -517,20 +522,23 @@ export default function PublicTableRequest() {
     });
   };
 
-  const toggleModifierOption = (groupId: string, option: PublicMenuItemModifierOptionDto) => {
+  const toggleModifierOption = (groupId: string, option: PublicMenuItemModifierOptionDto, delta = 1) => {
     if (!itemDraft || !option.isAvailable) return;
     const group = itemDraft.item.modifierGroups.find(g => g.id === groupId);
     if (!group) return;
 
     const current = itemDraft.selectedOptions[groupId] ?? [];
-    const exists = current.some(o => o.id === option.id);
+    const selectedCount = current.filter(o => o.id === option.id).length;
     let next: PublicMenuItemModifierOptionDto[];
-    if (exists) {
-      next = current.filter(o => o.id !== option.id);
+    if (delta < 0 || (selectedCount > 0 && !group.allowDuplicates)) {
+      const index = current.findIndex(o => o.id === option.id);
+      if (index < 0) return;
+      next = current.filter((_, position) => position !== index);
     } else if (group.maxSelections <= 1) {
       next = [option];
     } else {
-      next = current.length >= group.maxSelections ? current : [...current, option];
+      if (current.length >= group.maxSelections) return;
+      next = [...current, option];
     }
 
     setItemDraft({
@@ -543,6 +551,7 @@ export default function PublicTableRequest() {
   const addDraftToCart = () => {
     if (!publicOrderingEnabled) return;
     if (!itemDraft) return;
+    if (activeOrder) return;
     const { item, selectedOptions } = itemDraft;
 
     for (const group of item.modifierGroups) {
@@ -564,11 +573,14 @@ export default function PublicTableRequest() {
         ? selectedPromotion
         : undefined;
     const modifierTotal = selected.reduce((sum, option) => sum + option.priceDelta, 0);
-    const modifierSelections = selected.map(option => ({
-      modifierOptionId: option.id,
-      quantity: 1,
+    const modifierSelections = [...new Set(selected.map(option => option.id))].map(id => ({
+      modifierOptionId: id,
+      quantity: selected.filter(option => option.id === id).length,
     }));
-    const modifierLabels = selected.map(option => `${option.name}${option.priceDelta ? ` (${money(option.priceDelta)})` : ''}`);
+    const modifierLabels = modifierSelections.map(selection => {
+      const option = selected.find(entry => entry.id === selection.modifierOptionId)!;
+      return `${selection.quantity} x ${option.name}${option.priceDelta ? ` (${money(option.priceDelta)})` : ''}`;
+    });
 
     setCart(prev => [
       ...prev,
@@ -604,7 +616,7 @@ export default function PublicTableRequest() {
 
   const submitDraftOrder = async () => {
     if (!publicOrderingEnabled) return;
-    if (!token || cart.length === 0 || isSubmitting) return;
+    if (!token || cart.length === 0 || isSubmitting || activeOrder) return;
 
     try {
       setIsSubmitting(true);
@@ -779,6 +791,12 @@ export default function PublicTableRequest() {
                       El menu esta disponible solo para consulta en este momento.
                     </div>
                   )}
+                  {publicOrderingEnabled && activeOrder && (
+                    <div className="mb-2 rounded-lg border-2 border-[#8B5E3C] bg-[#f5f1ed] p-2 text-center text-[11px] font-bold text-[#6d4c3d]">
+                      Esta mesa ya tiene un pedido abierto. Pide al mesero cualquier producto adicional.
+                      <button onClick={() => setTab('order')} className="ml-1 underline">Ver pedido</button>
+                    </div>
+                  )}
 
                   <div className="space-y-1.5">
                     {selectedCategoryId === PROMOTIONS_CATEGORY_ID && !selectedPromotionId && activePromotions.map(promotion => {
@@ -829,7 +847,7 @@ export default function PublicTableRequest() {
                       <button
                         key={item.id}
                         onClick={() => openItemDraft(item)}
-                        disabled={!item.isAvailable}
+                        disabled={!item.isAvailable || !publicOrderingEnabled || !!activeOrder}
                         className="w-full rounded-lg border-2 border-[#8B5E3C] bg-[#f5f1ed]/95 p-2.5 text-left shadow-md disabled:opacity-55"
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -932,6 +950,12 @@ export default function PublicTableRequest() {
                       <span>Subtotal</span>
                       <span>{money(activeOrder.subtotal)}</span>
                     </div>
+                    {activeOrder.discountTotal > 0 && (
+                      <div className="mt-1 flex justify-between">
+                        <span>Descuentos</span>
+                        <span>-{money(activeOrder.discountTotal)}</span>
+                      </div>
+                    )}
                     <div className="mt-1 flex justify-between">
                       <span>Impuestos</span>
                       <span>{money(activeOrder.taxAmount)}</span>
@@ -967,7 +991,7 @@ export default function PublicTableRequest() {
           )}
         </div>
 
-        {publicOrderingEnabled && cart.length > 0 && (
+        {publicOrderingEnabled && !activeOrder && cart.length > 0 && (
           <div className="fixed inset-x-0 bottom-0 z-30 border-t-2 border-[#8B5E3C] bg-[#2f1f18] px-3 py-1.5 text-[#f5ead8] shadow-2xl">
             <div className="mx-auto flex max-w-md items-center gap-3">
               <div className="min-w-0 flex-1">
@@ -1049,7 +1073,7 @@ export default function PublicTableRequest() {
         </div>
       )}
 
-      {itemDraft && itemDraft.item.id === '__cart__' && (
+      {itemDraft && !activeOrder && itemDraft.item.id === '__cart__' && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 sm:items-center">
           <div className="max-h-[84vh] w-full max-w-md overflow-y-auto rounded-t-lg border-2 border-[#8B5E3C] bg-[#f5f1ed] p-3 shadow-2xl sm:rounded-lg">
             <h3 className="text-base font-bold text-[#3e2723] [font-family:'Eagle_Lake',serif]">Carrito</h3>
@@ -1089,7 +1113,7 @@ export default function PublicTableRequest() {
         </div>
       )}
 
-      {itemDraft && itemDraft.item.id !== '__cart__' && (
+      {itemDraft && !activeOrder && itemDraft.item.id !== '__cart__' && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 sm:items-center">
           <div className="max-h-[86vh] w-full max-w-md overflow-y-auto rounded-t-lg border-2 border-[#8B5E3C] bg-[#f5f1ed] p-3 shadow-2xl sm:rounded-lg">
             <div className="flex items-start justify-between gap-3">
@@ -1131,17 +1155,27 @@ export default function PublicTableRequest() {
                   </p>
                   <div className="mt-2 space-y-1.5">
                     {group.options.map(option => {
-                      const active = selected.some(o => o.id === option.id);
+                      const selectedQuantity = selected.filter(o => o.id === option.id).length;
+                      const active = selectedQuantity > 0;
                       return (
-                        <button
+                        <div
                           key={option.id}
-                          disabled={!option.isAvailable}
-                          onClick={() => toggleModifierOption(group.id, option)}
                           className={`flex w-full items-center justify-between rounded-lg border-2 px-2 py-1.5 text-left text-[11px] ${active ? 'border-[#8B5E3C] bg-[#e8d9c0]' : 'border-[#D2B48C] bg-white/70'} disabled:opacity-50`}
                         >
-                          <span className="font-bold text-[#3e2723]">{option.name}</span>
-                          <span className="text-[#6d4c3d]">{option.isAvailable ? (option.priceDelta ? `+${money(option.priceDelta)}` : 'Incluido') : 'No disponible'}</span>
-                        </button>
+                          <div className="min-w-0 flex-1">
+                            <span className="block font-bold text-[#3e2723]">{option.name}</span>
+                            <span className="text-[#6d4c3d]">{option.isAvailable ? (option.priceDelta ? `+${money(option.priceDelta)}` : 'Incluido') : 'No disponible'}</span>
+                          </div>
+                          {group.allowDuplicates ? (
+                            <div className="ml-2 flex shrink-0 items-center gap-1">
+                              <button type="button" aria-label={`Quitar ${option.name}`} disabled={selectedQuantity === 0} onClick={() => toggleModifierOption(group.id, option, -1)} className="h-8 w-8 rounded-md border border-[#8B5E3C] font-bold disabled:opacity-40">-</button>
+                              <span className="w-5 text-center font-bold">{selectedQuantity}</span>
+                              <button type="button" aria-label={`Agregar ${option.name}`} disabled={!option.isAvailable || selected.length >= group.maxSelections} onClick={() => toggleModifierOption(group.id, option)} className="h-8 w-8 rounded-md border border-[#8B5E3C] font-bold disabled:opacity-40">+</button>
+                            </div>
+                          ) : (
+                            <button type="button" aria-label={`${active ? 'Quitar' : 'Seleccionar'} ${option.name}`} aria-pressed={active} disabled={!option.isAvailable || (!active && selected.length >= group.maxSelections && group.maxSelections > 1)} onClick={() => toggleModifierOption(group.id, option)} className="ml-2 h-8 min-w-8 rounded-md border border-[#8B5E3C] px-2 font-bold disabled:opacity-40">{active ? '-' : '+'}</button>
+                          )}
+                        </div>
                       );
                     })}
                   </div>

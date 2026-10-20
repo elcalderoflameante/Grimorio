@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { SetStateAction } from 'react';
 import { App as AntApp, Alert, Badge, Button, Card, Checkbox, Col, Divider, Empty, Input, InputNumber, Popconfirm,
   Grid, Modal, Row, Select, Space, Spin, Tabs, Tag, Tooltip, Typography } from 'antd';
 import { ArrowLeftOutlined, CheckCircleOutlined, DeleteOutlined, DollarOutlined, EditOutlined,
@@ -6,6 +7,7 @@ import { ArrowLeftOutlined, CheckCircleOutlined, DeleteOutlined, DollarOutlined,
 import AdminOrderItemCorrectionModal from './AdminOrderItemCorrectionModal';
 import ChangeOrderTableButton from './ChangeOrderTableButton';
 import PrintOrderPrebillButton from './PrintOrderPrebillButton';
+import ClientPaymentTabs from './ClientPaymentTabs';
 import type {
   OrderDto, OrderItemDto, RestaurantTableDto, PaymentMethodConfigDto,
   OrderPaymentDto, AddOrderPaymentDto, CustomerDto, MenuCategoryDto,
@@ -22,6 +24,8 @@ import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
 import { clearPendingPayment, pendingPaymentStorageKey, readPendingPayment } from '../../utils/pendingPayment';
 import { allocatePaymentTotal, getPaymentLineTotal as calculatePaymentLineTotal } from '../../utils/orderPaymentPricing';
+import { clientAvailableQuantity, createClientPaymentAccount, paidItemQuantities, reconcileClientPayments } from '../../utils/clientPaymentAccounts';
+import type { ClientPaymentAccount, SplitRow } from '../../utils/clientPaymentAccounts';
 
 function modifiersLabel(selections: CreateModifierSelectionDto[] | undefined, items: MenuItemDto[], menuItemId: string): string | null {
   if (!selections || selections.length === 0) return null;
@@ -91,7 +95,6 @@ interface PayLine {
   authorizationNumber?: string;
   employeeId?: string;
 }
-interface SplitRow { checked: boolean; qty: number }
 interface CartLine {
   menuItemId: string; name: string; price: number; quantity: number;
   promotionId?: string; notes?: string; modifierSelections?: CreateModifierSelectionDto[];
@@ -138,10 +141,35 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
 
   const [showPayModal, setShowPayModal] = useState(false);
   const [payTab, setPayTab] = useState<'single' | 'split'>('single');
-  const [docType, setDocType] = useState('NotaDeVenta');
-  const [customer, setCustomer] = useState<CustomerDto | null>(null);
-  const [payLines, setPayLines] = useState<PayLine[]>([]);
-  const [splitRows, setSplitRows] = useState<Record<string, SplitRow>>({});
+  const [singlePayment, setSinglePayment] = useState(() => createClientPaymentAccount(0));
+  const [clientAccounts, setClientAccounts] = useState<ClientPaymentAccount[]>([]);
+  const [activeClientId, setActiveClientId] = useState(1);
+  const clientNumber = useRef(0);
+  const [refreshingPayments, setRefreshingPayments] = useState(false);
+  const [paymentRefreshError, setPaymentRefreshError] = useState(false);
+  const pendingClientId = useRef<number | null>(null);
+  const activeClient = clientAccounts.find(account => account.id === activeClientId);
+  const currentPayment = payTab === 'split' ? activeClient ?? createClientPaymentAccount(activeClientId) : singlePayment;
+  const { docType, customer, splitRows } = currentPayment;
+  const defaultMethod = methods[0];
+  const defaultPayLine: PayLine | undefined = defaultMethod && (defaultMethod.isCard
+    ? { methodId: defaultMethod.id, amountTendered: 0, cardPaymentType: 'Debit', cardBankId: cardBanks[0]?.id, cardBrand: 'Visa', authorizationNumber: '' }
+    : { methodId: defaultMethod.id, amountTendered: 0 });
+  const payLines = currentPayment.payLines.length ? currentPayment.payLines : defaultPayLine ? [defaultPayLine] : [];
+  const updatePaymentField = <K extends 'docType' | 'customer' | 'payLines' | 'splitRows'>(key: K, action: SetStateAction<ClientPaymentAccount[K]>) => {
+    const update = (account: ClientPaymentAccount) => {
+      if (account.payment) return account;
+      const previous = key === 'payLines' ? (account.payLines.length ? account.payLines : payLines) : account[key];
+      const value = typeof action === 'function' ? (action as (v: ClientPaymentAccount[K]) => ClientPaymentAccount[K])(previous as ClientPaymentAccount[K]) : action;
+      return { ...account, [key]: value };
+    };
+    if (payTab === 'split') setClientAccounts(accounts => accounts.map(a => a.id === activeClientId ? update(a) : a));
+    else setSinglePayment(update);
+  };
+  const setDocType = (value: string) => updatePaymentField('docType', value);
+  const setCustomer = (value: CustomerDto | null) => updatePaymentField('customer', value);
+  const setPayLines = (value: SetStateAction<PayLine[]>) => updatePaymentField('payLines', value);
+  const setSplitRows = (value: SetStateAction<Record<string, SplitRow>>) => updatePaymentField('splitRows', value);
   const [paying, setPaying] = useState(false);
   const [pendingPayment, setPendingPayment] = useState<AddOrderPaymentDto | null>(null);
   const paymentInFlight = useRef(false);
@@ -200,13 +228,14 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       ]);
       if (orderRes.status === 'fulfilled') {
         setOrder(orderRes.value.data);
-        const rows: Record<string, SplitRow> = {};
-        orderRes.value.data.items.forEach(i => { rows[i.id] = { checked: false, qty: i.quantity }; });
-        setSplitRows(rows);
+        if (paymentsRes.status === 'fulfilled') {
+          setClientAccounts(accounts => reconcileClientPayments(accounts, orderRes.value.data, paymentsRes.value.data));
+        }
       } else {
         message.error('Error al cargar la orden');
       }
       if (paymentsRes.status === 'fulfilled') setPayments(paymentsRes.value.data);
+      setPaymentRefreshError(orderRes.status !== 'fulfilled' || paymentsRes.status !== 'fulfilled');
       if (methodsRes.status === 'fulfilled') setMethods(methodsRes.value.data);
       if (banksRes.status === 'fulfilled') setCardBanks(banksRes.value.data);
       if (employeesRes.status === 'fulfilled') setEmployees(employeesRes.value.data);
@@ -234,40 +263,17 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
     } finally {
       setLoading(false);
     }
-  }, [orderId]);
+  }, [orderId, message]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  useEffect(() => {
-    if (showPayModal && methods.length > 0) {
-      const method = methods[0];
-      setPayLines([method.isCard
-        ? {
-            methodId: method.id,
-            amountTendered: 0,
-            cardPaymentType: 'Debit',
-            cardBankId: cardBanks[0]?.id,
-            cardBrand: 'Visa',
-            authorizationNumber: '',
-          }
-        : { methodId: method.id, amountTendered: 0 },
-      ]);
-      setDocType('NotaDeVenta');
-      setCustomer(null);
-      setPayTab('single');
-    }
-  }, [cardBanks, methods, showPayModal]);
-
   const alreadyPaid = payments.reduce((s, p) => s + p.orderAmount, 0);
-  const paidQtyByItem = payments.reduce<Record<string, number>>((acc, payment) => {
-    payment.items?.forEach(item => {
-      acc[item.orderItemId] = (acc[item.orderItemId] ?? 0) + item.quantity;
-    });
-    return acc;
-  }, {});
+  const paidQtyByItem = paidItemQuantities(payments);
   const hasAmbiguousPayments = payments.some(payment => !payment.items?.length);
   const getPendingItemQty = (itemId: string, quantity: number) =>
     Math.max(0, quantity - (paidQtyByItem[itemId] ?? 0));
+  const getClientItemQty = (itemId: string, quantity: number) => clientAvailableQuantity(
+    itemId, getPendingItemQty(itemId, quantity), clientAccounts, activeClientId);
   const isItemPaid = (itemId: string) => (paidQtyByItem[itemId] ?? 0) > 0;
   const activeOrderItems = order?.items.filter(item => item.status !== 'Cancelled') ?? [];
   const canCancelWholeOrder = canCancelOrders
@@ -329,7 +335,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
     .reduce((sum, item) => sum + getSelectedPaymentTotal(item, getPendingItemQty(item.id, item.quantity)), 0) * 100) / 100;
   const splitSubtotal = Math.round(activeOrderItems.reduce((sum, item) => {
     const row = splitRows[item.id];
-    const pendingQty = getPendingItemQty(item.id, item.quantity);
+    const pendingQty = getClientItemQty(item.id, item.quantity);
     const qty = Math.min(row?.qty ?? pendingQty, pendingQty);
     return row?.checked && qty > 0 ? sum + getSelectedPaymentTotal(item, qty) : sum;
   }, 0) * 100) / 100;
@@ -361,7 +367,10 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
     return method?.purpose !== 'EmployeePayrollDeduction' || !!l.employeeId;
   });
   const canPay = targetAmount > 0.001 && !needsCustomer && tenderCoversAmount
-    && cardDetailsComplete && employeeDetailsComplete;
+    && cardDetailsComplete && employeeDetailsComplete && payLines.length > 0
+    && !refreshingPayments && !paymentRefreshError && !order?.paidAt
+    && order?.status !== 'Cancelled' && order?.status !== 'Draft'
+    && (payTab !== 'split' || (!!activeClient && !activeClient.payment && !hasAmbiguousPayments));
 
   const handlePrintPayment = useCallback(async (paymentId: string) => {
     try {
@@ -533,8 +542,44 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
     }
   };
 
+  const refreshPaymentState = async (confirmed?: OrderPaymentDto, ownerId?: number | null) => {
+    setRefreshingPayments(true);
+    try {
+      const [orderResult, paymentsResult] = await Promise.all([
+        posApi.getOrden(orderId), cashApi.getOrderPayments(orderId),
+      ]);
+      const updatedOrder = orderResult.data;
+      const updatedPayments = paymentsResult.data;
+      const accounts = reconcileClientPayments(clientAccounts.map(a =>
+        confirmed && a.id === ownerId ? { ...a, payment: confirmed } : a), updatedOrder, updatedPayments);
+      const paid = paidItemQuantities(updatedPayments);
+      const itemsPending = updatedOrder.items.some(i => i.status !== 'Cancelled' && i.quantity > (paid[i.id] ?? 0));
+      if (itemsPending && !updatedOrder.paidAt && !accounts.some(a => !a.payment)) {
+        accounts.push(createClientPaymentAccount(Math.max(0, ...accounts.map(a => a.id)) + 1));
+      }
+      if (confirmed && ownerId != null) {
+        let next = accounts.find(a => !a.payment && Object.values(a.splitRows).some(r => r.checked));
+        next ??= accounts.find(a => !a.payment);
+        setActiveClientId(next?.id ?? ownerId);
+      } else if (!accounts.some(a => a.id === activeClientId) || !showPayModal) {
+        setActiveClientId((accounts.find(a => !a.payment) ?? accounts[0])?.id ?? 1);
+      }
+      setOrder(updatedOrder);
+      setPayments(updatedPayments);
+      setClientAccounts(accounts);
+      setPaymentRefreshError(false);
+      return true;
+    } catch (error) {
+      setPaymentRefreshError(true);
+      message.error(formatError(error));
+      return false;
+    } finally {
+      setRefreshingPayments(false);
+    }
+  };
+
   const handlePay = async () => {
-    if (paymentInFlight.current || !canChargeOrders || !order || paymentStorageError) return;
+    if (paymentInFlight.current || refreshingPayments || !canChargeOrders || !order || paymentStorageError) return;
     if (!pendingPayment && !canPay) return;
     if (!pendingPayment && totalChange > 0 && !hasCashLine) {
       message.warning('Hay excedente pero ningún medio acepta vuelto.');
@@ -544,6 +589,8 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
     setPaying(true);
     let submitted: AddOrderPaymentDto | null = null;
     let confirmedPayment: OrderPaymentDto | null = null;
+    let rejected = false;
+    const ownerId = pendingPayment ? pendingClientId.current : payTab === 'split' ? activeClientId : null;
     try {
       const stored = readPendingPayment(paymentStorageKey);
       if (stored && stored.idempotencyKey !== pendingPayment?.idempotencyKey) {
@@ -562,7 +609,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
               .filter(item => splitRows[item.id]?.checked)
               .map(item => ({
                 orderItemId: item.id,
-                quantity: Math.min(splitRows[item.id]?.qty ?? 0, getPendingItemQty(item.id, item.quantity)),
+                quantity: Math.min(splitRows[item.id]?.qty ?? 0, getClientItemQty(item.id, item.quantity)),
               }))
               .filter(item => item.quantity > 0)
           : [],
@@ -578,10 +625,13 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       };
       // Persist the exact request before sending; ambiguous failures must reuse it unchanged.
       localStorage.setItem(paymentStorageKey, JSON.stringify(dto));
+      pendingClientId.current = ownerId;
       setPendingPayment(dto);
       submitted = dto;
       const { data: payment } = await cashApi.payOrder(order.id, dto);
       confirmedPayment = payment;
+      setPayments(previous => previous.some(p => p.id === payment.id) ? previous : [...previous, payment]);
+      if (ownerId != null) setClientAccounts(accounts => accounts.map(a => a.id === ownerId ? { ...a, payment } : a));
       clearPendingPayment(paymentStorageKey, dto.idempotencyKey);
       setPendingPayment(null);
       if (payment.documentType === 'Factura') {
@@ -595,12 +645,13 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       } else {
         message.success('Cobro registrado');
       }
-      setShowPayModal(false);
+      setSinglePayment(createClientPaymentAccount(0));
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string; code?: string } } };
       if (confirmedPayment) {
         message.warning('Cobro confirmado. No se pudo limpiar el intento local; al verificarlo se recuperara el mismo pago.');
       } else if (submitted && err.response?.data?.code === 'payment_rejected') {
+        rejected = true;
         try {
           clearPendingPayment(paymentStorageKey, submitted.idempotencyKey);
           setPendingPayment(null);
@@ -614,21 +665,22 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
           : 'No se pudo guardar el intento de cobro en este navegador. No se envio el pago.');
       }
     } finally {
-      setPaying(false);
-      paymentInFlight.current = false;
+      if (!confirmedPayment) {
+        setPaying(false);
+        paymentInFlight.current = false;
+      }
     }
     if (confirmedPayment) {
       try {
-        await handlePrintPayment(confirmedPayment.id);
-      } catch {
-        message.warning('El cobro esta confirmado, pero no se pudo imprimir el comprobante.');
-      }
-      try {
-        await loadAll();
+        await refreshPaymentState(confirmedPayment, ownerId);
         onTableUpdated();
-      } catch {
-        message.warning('El cobro esta confirmado. Actualiza la pantalla para ver el saldo.');
+        await handlePrintPayment(confirmedPayment.id);
+      } finally {
+        setPaying(false);
+        paymentInFlight.current = false;
       }
+    } else if (rejected) {
+      await refreshPaymentState();
     }
   };
 
@@ -637,6 +689,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       setPendingPayment(readPendingPayment(paymentStorageKey));
       setPaymentStorageError(false);
       setShowPayModal(true);
+      void refreshPaymentState();
     } catch {
       setPaymentStorageError(true);
       message.error('No se puede recuperar el intento local. Revisa los pagos registrados antes de continuar.');
@@ -734,6 +787,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       <div style={{ marginBottom: 10 }}>
         <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>Documento</Text>
         <Select
+          aria-label="Tipo de comprobante"
           style={{ width: '100%' }}
           options={DOC_OPTIONS}
           value={docType}
@@ -766,13 +820,15 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
             <div key={idx} style={{ marginBottom: 8, padding: m?.isCard ? 8 : 0, border: m?.isCard ? '1px solid #f0f0f0' : undefined, borderRadius: 6 }}>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <Select
-                  style={{ width: 150 }}
+                  aria-label="Medio de pago"
+                  style={{ width: 150, maxWidth: '48%' }}
                   value={line.methodId}
                   onChange={v => setPayLines(prev => prev.map((l, i) => i === idx ? buildLineForMethod(v, l.amountTendered) : l))}
                   options={methodOptions}
                 />
                 <InputNumber
-                  style={{ flex: 1 }}
+                  aria-label="Monto recibido"
+                  style={{ flex: 1, minWidth: 60 }}
                   prefix="$"
                   min={0}
                   precision={2}
@@ -872,19 +928,24 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         Selecciona los ítems de este cobro:
       </Text>
       {order.items.filter(i => i.status !== 'Cancelled' && getPendingItemQty(i.id, i.quantity) > 0).map(item => {
-        const pendingQty = getPendingItemQty(item.id, item.quantity);
+        const pendingQty = getClientItemQty(item.id, item.quantity);
+        const reservedQty = getPendingItemQty(item.id, item.quantity) - pendingQty;
         const row = splitRows[item.id] ?? { checked: false, qty: pendingQty };
         const selectedQty = Math.min(row.qty, pendingQty);
+        const selected = row.checked && pendingQty > 0;
+        const fullyAssignedElsewhere = reservedQty > 0 && pendingQty === 0;
         const paymentUnitTotal = getPaymentUnitTotal(item, hasCardLine);
         return (
           <div key={item.id} style={{
             display: 'flex', alignItems: 'center', gap: 8,
             padding: '6px 8px', marginBottom: 4, borderRadius: 6,
-            background: row.checked ? '#e6f4ff' : '#fafafa',
-            border: `1px solid ${row.checked ? '#91caff' : '#f0f0f0'}`,
+            background: selected ? '#e6f4ff' : fullyAssignedElsewhere ? '#fff2e8' : reservedQty > 0 ? '#fffbe6' : '#fafafa',
+            border: `1px solid ${selected ? '#91caff' : fullyAssignedElsewhere ? '#ffbb96' : reservedQty > 0 ? '#ffe58f' : '#f0f0f0'}`,
           }}>
             <Checkbox
-              checked={row.checked}
+              aria-label={`Seleccionar ${item.itemName}`}
+              disabled={pendingQty <= 0}
+              checked={row.checked && pendingQty > 0}
               onChange={e => setSplitRows(prev => ({
                 ...prev,
                 [item.id]: {
@@ -897,11 +958,19 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
             <div style={{ flex: 1, minWidth: 0 }}>
               <Text style={{ display: 'block', fontSize: 13, overflowWrap: 'anywhere' }}>{item.itemName}</Text>
               <Text type="secondary" style={{ fontSize: 11 }}>${paymentUnitTotal.toFixed(2)} c/u</Text>
+              {item.modifierSelections?.length > 0 && (
+                <div style={{ fontSize: 11, color: '#595959', overflowWrap: 'anywhere' }}>
+                  {item.modifierSelections.map(s => `${s.optionName}${s.quantity > 1 ? ` x${s.quantity}` : ''}`).join(', ')}
+                </div>
+              )}
+              {reservedQty > 0 && <div style={{ fontSize: 11, color: '#873800', fontWeight: 600 }}>{reservedQty} en otros clientes</div>}
             </div>
-            {row.checked ? (
+            {row.checked && pendingQty > 0 ? (
               <InputNumber
+                aria-label={`Cantidad de ${item.itemName}`}
+                precision={0}
                 size="small" min={1} max={pendingQty} value={selectedQty} style={{ width: 60 }}
-                onChange={v => setSplitRows(prev => ({ ...prev, [item.id]: { ...prev[item.id], qty: Math.min(v ?? 1, pendingQty) } }))}
+                onChange={v => setSplitRows(prev => ({ ...prev, [item.id]: { ...prev[item.id], qty: Math.max(1, Math.min(Math.floor(v ?? 1), pendingQty)) } }))}
               />
             ) : (
               <Text type="secondary" style={{ fontSize: 12 }}>×{pendingQty}</Text>
@@ -935,7 +1004,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
           <Tag>Orden #{order.number}</Tag>
           <Tag color={STATUS_COLORS[order.status]}>{STATUS_LABELS[order.status] ?? order.status}</Tag>
         </Space>
-        <Button icon={<ReloadOutlined />} size="small" onClick={loadAll} />
+        <Button icon={<ReloadOutlined />} size="small" onClick={loadAll} disabled={paying || refreshingPayments} />
       </div>
 
       <Row gutter={12} style={{ flex: 1, minHeight: 0 }}>
@@ -1397,6 +1466,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
             ) : canChargeOrders ? (
               <Button
                 type="primary" block size="large" icon={<DollarOutlined />}
+                aria-label="Cobrar"
                 onClick={openPayModal}
                 disabled={methods.length === 0}
               >
@@ -1421,7 +1491,9 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         keyboard={!paying}
         maskClosable={!paying}
         footer={null}
-        width={520}
+        width={640}
+        style={{ top: 24 }}
+        styles={{ body: { maxHeight: 'calc(100dvh - 150px)', overflowY: 'auto', overflowX: 'hidden' } }}
         destroyOnHidden
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, marginTop: 4 }}>
@@ -1434,51 +1506,70 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
           </Space>
         </div>
 
+        <Space wrap style={{ marginBottom: 12 }}>
+          <Text type="secondary">Cobrado: ${alreadyPaid.toFixed(2)}</Text>
+          <Text type="secondary">{payments.length} cobro(s)</Text>
+        </Space>
+        {paymentRefreshError && <Alert type="error" showIcon title="No se pudo actualizar el saldo y los platos cobrados"
+          action={<Button size="small" loading={refreshingPayments} onClick={() => void refreshPaymentState()}>Actualizar</Button>} style={{ marginBottom: 12 }} />}
+        {order.paidAt && <Alert type="success" showIcon title="Cuenta saldada. Mesa disponible." style={{ marginBottom: 12 }} />}
+
+        <div inert={paying || refreshingPayments}>
         {pendingPayment ? (
           <Alert type="warning" showIcon
             title={`Cobro pendiente de verificar: $${pendingPayment.orderAmount.toFixed(2)}`}
             description="Se recuperara el pago si ya fue registrado; de lo contrario se reintentara la misma solicitud. No registres otro cobro por este importe."
           />
         ) : <Tabs
+          destroyOnHidden
           activeKey={payTab}
-          onChange={k => setPayTab(k as 'single' | 'split')}
+          onChange={k => { if (!paymentInFlight.current) setPayTab(k as 'single' | 'split'); }}
           size="small"
           items={[
             {
               key: 'single',
               label: <Space><DollarOutlined />Cobro único</Space>,
-              children: paymentForm,
+              children: order.paidAt ? <Text>Cuenta saldada</Text> : paymentForm,
             },
             {
               key: 'split',
               label: <Space><SplitCellsOutlined />Cuenta dividida</Space>,
               children: (
-                <div>
+                <ClientPaymentTabs accounts={clientAccounts} activeId={activeClientId} disabled={paying || refreshingPayments}
+                  canAdd={!isFullyPaid && !order.paidAt}
+                  onChange={setActiveClientId}
+                  onAdd={() => {
+                    clientNumber.current = Math.max(clientNumber.current, ...clientAccounts.map(a => a.id)) + 1;
+                    const next = createClientPaymentAccount(clientNumber.current);
+                    setClientAccounts(accounts => [...accounts, next]);
+                    setActiveClientId(next.id);
+                  }}
+                  onRemove={id => {
+                    const accounts = clientAccounts.filter(a => a.id !== id || a.payment);
+                    if (!accounts.some(a => !a.payment)) accounts.push(createClientPaymentAccount(Math.max(id, ...accounts.map(a => a.id)) + 1));
+                    setClientAccounts(accounts);
+                    setActiveClientId((accounts.find(a => !a.payment) ?? accounts[0]).id);
+                  }}
+                  onPrint={id => void handlePrintPayment(id)}>
+                  {hasAmbiguousPayments && <Alert type="warning" showIcon title="Hay pagos anteriores sin detalle de platos. Revisa la cuenta antes de dividirla." />}
                   {splitSelector}
-                  {splitSubtotal > 0.001 ? (
-                    <>
-                      <Divider style={{ margin: '8px 0' }} />
-                      {paymentForm}
-                    </>
-                  ) : (
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      Selecciona ítems para calcular el monto de este cobro
-                    </Text>
-                  )}
-                </div>
+                  <Divider style={{ margin: '8px 0' }} />
+                  <div key={activeClientId}>{paymentForm}</div>
+                </ClientPaymentTabs>
               ),
             },
           ]}
         />}
+        </div>
 
         <Divider style={{ margin: '12px 0' }} />
 
-        <Button
+        {(pendingPayment || (!order.paidAt && (payTab !== 'split' || !activeClient?.payment))) && <Button
           type="primary" block size="large" loading={paying}
-          disabled={paymentStorageError || (!pendingPayment && !canPay)} onClick={handlePay} icon={<DollarOutlined />}
+          disabled={paymentStorageError || refreshingPayments || (!pendingPayment && !canPay)} onClick={handlePay} icon={<DollarOutlined />}
         >
           {pendingPayment ? 'Verificar / reintentar cobro' : `Confirmar cobro $${targetAmount.toFixed(2)}`}
-        </Button>
+        </Button>}
       </Modal>
 
       {/* Observation modal */}
