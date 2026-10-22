@@ -10,7 +10,9 @@ test('clients have independent customer, document, payment methods and selection
   const first = account(1), second = account(2);
   first.docType = 'Factura'; first.customer = { id: 'customer' }; first.payLines.push({ methodId: 'cash', amountTendered: 5 });
   first.splitRows.dish = { checked: true, qty: 1 };
+  first.loyaltyMember = { id: 'member-1', customerId: 'different-from-invoice' };
   assert.equal(second.docType, 'NotaDeVenta'); assert.equal(second.customer, null);
+  assert.equal(second.loyaltyMember, null);
   assert.deepEqual(second.payLines, []); assert.deepEqual(second.splitRows, {});
 });
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { restaurantContact as contact, restaurantDishes } from './restaurantContent';
 import './RestaurantHome.css';
+import PublicLoyaltyLink from '../components/Marketing/PublicLoyaltyLink';
 
 const categories = ['Todo', 'Parrilla', 'Bebidas'];
 const staffLoginUrl = `${((import.meta.env.VITE_ERP_APP_URL as string | undefined) ?? '').replace(/\/$/, '')}/login`;
@@ -28,6 +29,7 @@ export default function RestaurantHome() {
           <a href="#sabores" onClick={() => setMenuOpen(false)}>Nuestros sabores</a>
           <a href="#experiencia" onClick={() => setMenuOpen(false)}>La experiencia</a>
           <a href="#elixires" onClick={() => setMenuOpen(false)}>Micheladas</a>
+          <PublicLoyaltyLink>Recompensas</PublicLoyaltyLink>
           {hasContact && <a href="#visitanos" onClick={() => setMenuOpen(false)}>Visítanos <span aria-hidden="true">↗</span></a>}
         </nav>
         <span className="caldero-header-note">FAST FOOD <i>&</i> GRILL</span>

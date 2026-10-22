@@ -49,6 +49,7 @@ services:
       - data_protection_keys:/app/keys
       - api_logs:/app/logs
       - api_uploads:/app/wwwroot/uploads
+      - responsibility_evidence:/app/private/responsibilities
     logging:
       driver: json-file
       options:
@@ -83,6 +84,7 @@ services:
         max-file: "3"
 
 volumes:
+  responsibility_evidence:
   postgres_data:
   api_logs:
   api_uploads:

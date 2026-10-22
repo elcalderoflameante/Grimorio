@@ -171,6 +171,9 @@ public static class AuthSeeder
                 AppConstants.Permissions.BillingCashOpen,
                 AppConstants.Permissions.BillingCashClose,
                 AppConstants.Permissions.BillingCashCharge,
+                AppConstants.Permissions.MarketingLoyaltyView,
+                AppConstants.Permissions.MarketingLoyaltyEnroll,
+                AppConstants.Permissions.MarketingLoyaltyUse,
                 AppConstants.Permissions.BillingCashRegistersView,
                 AppConstants.Permissions.BillingPaymentMethodsView,
                 AppConstants.Permissions.BillingSriView,
@@ -183,6 +186,7 @@ public static class AuthSeeder
             ],
             [AppConstants.Roles.Waiter] =
             [
+                AppConstants.Permissions.OperationsResponsibilitiesExecute,
                 AppConstants.Permissions.AdminBranchView,
                 AppConstants.Permissions.MenuCategoriesView,
                 AppConstants.Permissions.MenuItemsView,

@@ -1,4 +1,5 @@
 import type { AddPaymentLineDto, CustomerDto, OrderDto, OrderPaymentDto } from '../types';
+import type { LoyaltyMemberReference } from '../services/loyaltyApi';
 
 export interface SplitRow { checked: boolean; qty: number }
 
@@ -6,13 +7,14 @@ export interface ClientPaymentAccount {
   id: number;
   docType: string;
   customer: CustomerDto | null;
+  loyaltyMember: LoyaltyMemberReference | null;
   payLines: AddPaymentLineDto[];
   splitRows: Record<string, SplitRow>;
   payment?: OrderPaymentDto;
 }
 
 export const createClientPaymentAccount = (id: number): ClientPaymentAccount => ({
-  id, docType: 'NotaDeVenta', customer: null, payLines: [], splitRows: {},
+  id, docType: 'NotaDeVenta', customer: null, loyaltyMember: null, payLines: [], splitRows: {},
 });
 
 export function paidItemQuantities(payments: OrderPaymentDto[]) {

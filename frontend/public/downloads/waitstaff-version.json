@@ -1,8 +1,8 @@
 {
-  "versionCode": 27,
-  "versionName": "1.0.26",
+  "versionCode": 28,
+  "versionName": "1.0.27",
   "required": false,
   "apkUrl": "/downloads/grimorio-meseros.apk",
-  "sha256": "c84437f90b038900e2c9adfeee64e426e406cffcef25c9e1c5fa96bd1e2527ba",
-  "message": "Actualizaciones desde la app, sin interrumpir la toma de pedidos."
+  "sha256": "fad6ede95b8d4fd6f9f902559da99605f6792864cc72476ef2317cf9916bd615",
+  "message": "Nueva sección Mi jornada: tareas asignadas, controles, novedades y evidencias fotográficas desde la cámara."
 }

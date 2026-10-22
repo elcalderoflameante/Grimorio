@@ -1,4 +1,15 @@
 export const PERMISSIONS = {
+  operations: {
+    responsibilitiesView: 'Operations.Responsibilities.View',
+    responsibilitiesManage: 'Operations.Responsibilities.Manage',
+    responsibilitiesExecute: 'Operations.Responsibilities.Execute',
+  },
+  marketing: {
+    loyaltyView: 'Marketing.Loyalty.View',
+    loyaltyManage: 'Marketing.Loyalty.Manage',
+    loyaltyEnroll: 'Marketing.Loyalty.Enroll',
+    loyaltyUse: 'Marketing.Loyalty.Use',
+  },
   admin: {
     usersView: 'Admin.Users.View',
     usersCreate: 'Admin.Users.Create',

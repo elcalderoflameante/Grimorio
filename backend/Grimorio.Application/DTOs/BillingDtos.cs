@@ -491,6 +491,7 @@ public class AddPaymentLineDto
 
 public class AddOrderPaymentDto
 {
+    public Guid? LoyaltyMemberId { get; set; }
     public Guid IdempotencyKey { get; set; }
     public decimal OrderAmount { get; set; }
     public string DocumentType { get; set; } = "NotaDeVenta";

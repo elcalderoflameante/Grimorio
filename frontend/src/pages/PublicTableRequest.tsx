@@ -12,6 +12,7 @@ import salsaMayonesa from '../assets/salsa-mayonesa.png';
 import salsaTomateImg from '../assets/salsa-tomate.png';
 import servilletasImg from '../assets/servilletas.png';
 import RusticButton from '../components/Public/RusticButton';
+import PublicLoyaltyLink from '../components/Marketing/PublicLoyaltyLink';
 import { resolveMediaUrl, tableServiceApi } from '../services/api';
 import type {
   CreateModifierSelectionDto,
@@ -672,6 +673,9 @@ export default function PublicTableRequest() {
             </h1>
           </div>
 
+          <div className="mb-3 text-center">
+            <PublicLoyaltyLink className="text-sm font-bold underline">Mi tarjeta de recompensas</PublicLoyaltyLink>
+          </div>
           {activeRequestId && activeRequestStatus && (
             <div role="status" className="mb-2 rounded-lg border-2 border-[#8B5E3C] bg-[#f5f1ed] p-2 text-center text-xs text-[#3e2723]">
               <p className="font-bold">{STATUS_MESSAGES[activeRequestStatus]?.title ?? 'Solicitud completada'}</p>

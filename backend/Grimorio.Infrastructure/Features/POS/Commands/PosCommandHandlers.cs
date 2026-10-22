@@ -1544,6 +1544,8 @@ internal static class PosMapper
         Grimorio.Domain.Entities.Menu.MenuItem menuItem,
         IReadOnlyList<Promotion> activePromotions)
     {
+        if (menuItem.SaleVisibility == Grimorio.Domain.Entities.Menu.MenuItemSaleVisibility.RewardsOnly)
+            throw new InvalidOperationException("Este producto pertenece al catalogo privado de recompensas.");
         if (menuItem.SaleVisibility == Grimorio.Domain.Entities.Menu.MenuItemSaleVisibility.ComponentsOnly)
             throw new InvalidOperationException($"{menuItem.Name} solo puede venderse dentro de un combo.");
         if (!promotionId.HasValue)

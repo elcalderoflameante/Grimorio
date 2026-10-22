@@ -300,12 +300,15 @@ public class CashController : ControllerBase
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
         if (!TryGetUserId(out var userId)) return Unauthorized();
+        if (dto.LoyaltyMemberId.HasValue && !User.IsInRole(AppConstants.Roles.Admin)
+            && !User.HasClaim(AppConstants.Claims.Permissions, AppConstants.Permissions.MarketingLoyaltyUse)) return Forbid();
         try
         {
             var result = await _mediator.Send(new PayOrderCommand
             {
                 OrderId = orderId, BranchId = branchId, UserId = userId,
                 IdempotencyKey = dto.IdempotencyKey,
+                LoyaltyMemberId = dto.LoyaltyMemberId,
                 OrderAmount = dto.OrderAmount,
                 DocumentType = dto.DocumentType,
                 CustomerId = dto.CustomerId, CashSessionId = dto.CashSessionId,

@@ -1007,12 +1007,17 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
         if (session.Status != CashSessionStatus.Open)
             throw new PaymentRejectedException("La sesion de caja ya fue cerrada. Abre una nueva caja para cobrar.");
 
+        if (req.LoyaltyMemberId.HasValue && !await _db.LoyaltyMembers.AnyAsync(m => m.Id == req.LoyaltyMemberId.Value
+            && m.BranchId == req.BranchId && m.IsActive, ct))
+            throw new PaymentRejectedException("La tarjeta no pertenece a un miembro activo de esta sucursal.");
+
         var payment = new OrderPayment
         {
             Id = Guid.NewGuid(), BranchId = req.BranchId,
             IdempotencyKey = req.IdempotencyKey,
             OrderId = order.Id, CashSessionId = session.Id,
             CustomerId = req.CustomerId, DocumentType = docType,
+            LoyaltyMemberId = req.LoyaltyMemberId,
             OrderAmount = req.OrderAmount, PaidAt = paidAt,
             Customer = customer,
         };
@@ -1151,6 +1156,7 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
             await _db.SaveChangesAsync(ct);
         }
 
+        await Grimorio.Infrastructure.Features.Marketing.LoyaltyAccrual.RecordAsync(_db, payment, ct);
         await transaction.CommitAsync(ct);
 
         // The persisted pending document is processed by the background worker.
@@ -1161,7 +1167,7 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
     {
         var originalCustomer = payment.NoteConvertedAt.HasValue ? payment.NoteOriginalCustomerId : payment.CustomerId;
         var originalType = payment.NoteConvertedAt.HasValue ? DocumentType.NotaDeVenta : payment.DocumentType;
-        if (payment.OrderId != req.OrderId || payment.OrderAmount != req.OrderAmount
+        if (payment.LoyaltyMemberId != req.LoyaltyMemberId || payment.OrderId != req.OrderId || payment.OrderAmount != req.OrderAmount
             || originalCustomer != req.CustomerId || originalType.ToString() != req.DocumentType
             || (req.CashSessionId.HasValue && payment.CashSessionId != req.CashSessionId))
             throw new PaymentIdempotencyConflictException();

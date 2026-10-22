@@ -17,9 +17,12 @@ interface Props {
   branchId: string;
   value: CustomerDto | null;
   onChange: (customer: CustomerDto | null) => void;
+  allowCreate?: boolean;
+  excludeFinalConsumer?: boolean;
+  ariaLabel?: string;
 }
 
-export default function CustomerSelector({ value, onChange }: Props) {
+export default function CustomerSelector({ value, onChange, allowCreate = true, excludeFinalConsumer = false, ariaLabel }: Props) {
   const { message } = AntApp.useApp();
 
   const { hasPermission } = useAuth();
@@ -28,7 +31,9 @@ export default function CustomerSelector({ value, onChange }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [createForm] = Form.useForm();
   const [saving, setSaving] = useState(false);
-  const canManageCustomers = hasPermission(PERMISSIONS.billing.customersManage);
+  const canManageCustomers = allowCreate && hasPermission(PERMISSIONS.billing.customersManage);
+  const selectableCustomers = [...(value && !customers.some(c => c.id === value.id) ? [value] : []), ...customers]
+    .filter(c => !excludeFinalConsumer || c.taxIdType !== 'FinalConsumer');
 
   useEffect(() => {
     customersApi.getAll({ activeOnly: true, search: search || undefined })
@@ -58,6 +63,7 @@ export default function CustomerSelector({ value, onChange }: Props) {
     <>
       <Space.Compact style={{ width: '100%' }}>
         <Select
+          aria-label={ariaLabel}
           allowClear
           showSearch
           style={{ flex: 1, minWidth: 0 }}
@@ -65,8 +71,8 @@ export default function CustomerSelector({ value, onChange }: Props) {
           value={value?.id ?? null}
           filterOption={false}
           onSearch={setSearch}
-          onChange={id => onChange(customers.find(c => c.id === id) ?? null)}
-          options={customers.map(c => ({
+          onChange={id => onChange(selectableCustomers.find(c => c.id === id) ?? null)}
+          options={selectableCustomers.map(c => ({
             value: c.id,
             label: `${c.name}${c.taxId ? ` — ${c.taxId}` : ''}`,
           }))}

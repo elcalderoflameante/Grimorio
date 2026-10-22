@@ -26,6 +26,16 @@ Convencion de nombres:
 | `Admin.Branch.View` | Ver datos de sucursal | Administracion > Sucursal | `GET /api/branches/current` |
 | `Admin.Branch.Update` | Editar datos de sucursal | Administracion > Sucursal | `PUT /api/branches/current` |
 
+## Operaciones
+
+| Permiso | Descripcion | Menu / pantalla | Endpoints principales |
+| --- | --- | --- | --- |
+| `Operations.Responsibilities.View` | Consultar configuracion, cumplimiento y evidencia privada de la sucursal | Operaciones > Responsabilidades | `GET /api/operations/responsibilities/catalog`, `GET /api/operations/responsibilities/day`, `GET /api/operations/responsibilities/evidence/{id}` |
+| `Operations.Responsibilities.Manage` | Configurar areas, puestos, tareas, rotaciones y reasignar pendientes con motivo | Operaciones > Responsabilidades | `POST /api/operations/responsibilities/{areas,positions,tasks,assignments}`, `PUT /api/operations/responsibilities/{areas,positions,tasks,assignments}/{id}`, `POST /api/operations/responsibilities/activities/{id}/transfer` |
+| `Operations.Responsibilities.Execute` | Consultar y registrar unicamente las actividades del empleado vinculado al usuario | App meseros > Mi jornada | `GET /api/operations/responsibilities/my-day`, `GET /api/operations/responsibilities/activities/{id}`, `POST /api/operations/responsibilities/activities/{id}/captures`, `DELETE /api/operations/responsibilities/captures/{id}`, `PUT /api/operations/responsibilities/captures/{id}/photo`, `POST /api/operations/responsibilities/activities/{id}/complete`, `GET /api/operations/responsibilities/evidence/{id}` |
+
+Los permisos de administracion y ejecucion son independientes. Las consultas de evidencia verifican tambien sucursal y propiedad o permiso de supervision; conocer el identificador de una foto no habilita su descarga.
+
 ## RRHH
 
 | Permiso | Descripcion | Menu / pantalla | Endpoints principales |

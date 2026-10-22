@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../orders/presentation/pages/orders_page.dart';
+import '../../../auth/presentation/providers/auth_controller.dart';
+import '../../../responsibilities/presentation/responsibilities_page.dart';
+import '../../../responsibilities/data/responsibility_api_service.dart';
 import '../../../table_requests/data/models/table_service_models.dart';
 import '../../../table_requests/presentation/pages/table_requests_page.dart';
 import '../../../table_requests/presentation/providers/table_requests_controller.dart';
@@ -17,10 +20,21 @@ class HomeShellPage extends ConsumerStatefulWidget {
 class _HomeShellPageState extends ConsumerState<HomeShellPage> {
   int _selectedIndex = 0;
 
-  static const _pages = [OrdersPage(), TableRequestsPage()];
-
   @override
   Widget build(BuildContext context) {
+    final canExecute =
+        ref
+            .watch(authControllerProvider)
+            .session
+            ?.permissions
+            .contains('Operations.Responsibilities.Execute') ==
+        true;
+    final pages = [
+      const OrdersPage(),
+      const TableRequestsPage(),
+      if (canExecute) const ResponsibilitiesPage(),
+    ];
+    final pendingTasks = ref.watch(responsibilityPendingCountProvider);
     final state = ref.watch(tableRequestsControllerProvider);
     final activeCount = state.requests
         .where(
@@ -31,7 +45,10 @@ class _HomeShellPageState extends ConsumerState<HomeShellPage> {
         .length;
 
     return Scaffold(
-      body: IndexedStack(index: _selectedIndex, children: _pages),
+      body: IndexedStack(
+        index: _selectedIndex < pages.length ? _selectedIndex : 0,
+        children: pages,
+      ),
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(
@@ -41,7 +58,7 @@ class _HomeShellPageState extends ConsumerState<HomeShellPage> {
             ),
           ),
           child: NavigationBar(
-            selectedIndex: _selectedIndex,
+            selectedIndex: _selectedIndex < pages.length ? _selectedIndex : 0,
             onDestinationSelected: (i) => setState(() => _selectedIndex = i),
             destinations: [
               const NavigationDestination(
@@ -60,6 +77,18 @@ class _HomeShellPageState extends ConsumerState<HomeShellPage> {
                 ),
                 label: 'Solicitudes',
               ),
+              if (canExecute)
+                NavigationDestination(
+                  icon: _RequestsBadge(
+                    count: pendingTasks,
+                    icon: Icons.assignment_outlined,
+                  ),
+                  selectedIcon: _RequestsBadge(
+                    count: pendingTasks,
+                    icon: Icons.assignment,
+                  ),
+                  label: 'Mi jornada',
+                ),
             ],
           ),
         ),

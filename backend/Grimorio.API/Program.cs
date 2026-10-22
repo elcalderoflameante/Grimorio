@@ -22,6 +22,8 @@ using FluentValidation.AspNetCore;
 using Grimorio.API.Hubs;
 using Grimorio.API.Services.Voice;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 
 // Carga variables de entorno desde .env (solo en desarrollo)
 var envCandidates = new[] { "../../.env", "../.env", ".env" };
@@ -177,6 +179,17 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.AddSingleton<IAuthorizationHandler, Grimorio.API.Authorization.AdminBypassHandler>();
 
 // === Authorization policies ===
+builder.Services.AddRateLimiter(options => {
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("loyalty-enrollment", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions {
+            PermitLimit = 12, Window = TimeSpan.FromMinutes(1), QueueLimit = 0,
+        }));
+    options.AddPolicy("loyalty-public", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions {
+            PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0,
+        }));
+});
 builder.Services.AddAuthorization(options =>
 {
     Grimorio.API.Authorization.ProductionAuthorization.AddPolicies(options);
@@ -219,6 +232,11 @@ if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
 
 // === HTTP client para llamadas al SRI ===
 builder.Services.AddHttpClient();
+builder.Services.Configure<Grimorio.Infrastructure.Features.Marketing.LoyaltyWhatsAppOptions>(builder.Configuration.GetSection("LoyaltyWhatsApp"));
+builder.Services.AddHttpClient<Grimorio.Infrastructure.Features.Marketing.ILoyaltyCodeSender,
+    Grimorio.Infrastructure.Features.Marketing.WhatsAppLoyaltyCodeSender>(client => client.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddScoped<Grimorio.Infrastructure.Features.Marketing.PublicLoyaltyService>();
+builder.Services.AddScoped<Grimorio.Infrastructure.Features.Operations.ResponsibilityService>();
 builder.Services.AddScoped<Grimorio.Infrastructure.Services.Sri.SriSoapClient>();
 builder.Services.AddScoped<Grimorio.Infrastructure.Services.Email.IEmailService,
                            Grimorio.Infrastructure.Services.Email.SmtpEmailService>();
@@ -270,6 +288,8 @@ builder.Services.AddScoped<AttendanceKioskAuthenticator>();
 builder.Services.AddSingleton<AttendanceRecognitionTickets>();
 builder.Services.AddSingleton<SFaceBiometricService>();
 builder.Services.AddHostedService<SriInvoiceRetryBackgroundService>();
+builder.Services.AddHostedService<LoyaltyChallengeCleanupWorker>();
+builder.Services.AddHostedService<ResponsibilityScheduleWorker>();
 
 // === Registrar MediatR ===
 builder.Services.AddMediatR(config =>
@@ -321,6 +341,7 @@ app.UseStaticFiles();
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.MapControllers();
 app.MapHub<TableServiceHub>(AppConstants.Hubs.TableServicePath);
 app.MapHub<KitchenHub>(AppConstants.Hubs.KitchenPath);

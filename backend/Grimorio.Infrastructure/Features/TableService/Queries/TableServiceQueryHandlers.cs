@@ -175,6 +175,7 @@ public class GetPublicTableMenuQueryHandler : IRequestHandler<GetPublicTableMenu
                 x.BranchId == table.BranchId &&
                 x.IsActive &&
                 x.AvailableForSale &&
+                x.SaleVisibility != MenuItemSaleVisibility.RewardsOnly &&
                 !x.IsDeleted &&
                 x.Category != null &&
                 x.Category.IsActive &&

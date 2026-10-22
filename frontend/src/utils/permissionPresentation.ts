@@ -17,10 +17,14 @@ export function permissionActionSection(code: string): typeof permissionActionSe
 }
 
 const modules: Record<string, string> = {
+  Operations: 'Operaciones',
+  Marketing: 'Marketing y fidelizacion',
   Admin: 'Administración', RRHH: 'Personal', POS: 'POS', Menu: 'Menú',
   Inventory: 'Inventario', Purchases: 'Compras', Billing: 'Facturación', Finance: 'Finanzas',
 };
 const screens: Record<string, string> = {
+  Responsibilities: 'Responsabilidades y evidencias',
+  Loyalty: 'Fidelizacion',
   Users: 'Usuarios', Roles: 'Roles', Permissions: 'Permisos', Branch: 'Sucursal',
   Employees: 'Empleados', Positions: 'Cargos', Scheduling: 'Horarios y turnos',
   Payroll: 'Rol de pagos', Attendance: 'Asistencia', Orders: 'Pedidos',
@@ -84,6 +88,7 @@ export function missingPermissionDependencies(selected: PermissionDto[], catalog
     if (segments.length === 3 && segments[2] !== 'View') candidates.push(`${segments[0]}.${segments[1]}.View`);
     if (permission.code === 'Finance.Expenses.Create') candidates.push('Finance.Config.View', 'Billing.PaymentMethods.View');
     if (permission.code === 'Billing.Payments.CorrectMethod') candidates.push('Billing.Cash.View', 'Billing.PaymentMethods.View');
+    if (permission.code === 'Marketing.Loyalty.Manage') candidates.push('Menu.Items.View');
     for (const code of candidates) {
       const dependency = available.get(code);
       if (dependency && !codes.has(code)) missing.set(code, dependency);

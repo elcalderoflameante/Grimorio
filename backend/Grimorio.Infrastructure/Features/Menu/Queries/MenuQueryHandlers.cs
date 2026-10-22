@@ -65,7 +65,9 @@ public class GetItemsMenuHandler : IRequestHandler<GetMenuItemsQuery, List<MenuI
 
         if (req.CategoryId.HasValue) query = query.Where(x => x.MenuCategoryId == req.CategoryId.Value);
         if (req.ActiveOnly == true) query = query.Where(x => x.IsActive);
-        if (req.AvailableOnly == true) query = query.Where(x => x.AvailableForSale && x.SaleVisibility != MenuItemSaleVisibility.ComponentsOnly);
+        if (req.AvailableOnly == true) query = query.Where(x => x.AvailableForSale
+            && x.SaleVisibility != MenuItemSaleVisibility.ComponentsOnly && x.SaleVisibility != MenuItemSaleVisibility.RewardsOnly);
+        if (req.Lightweight) query = query.Where(x => x.SaleVisibility != MenuItemSaleVisibility.RewardsOnly);
 
         if (req.Lightweight)
         {

@@ -4,6 +4,7 @@ import WalkieTalkie from '../components/Voice/WalkieTalkie';
 import { UserOutlined,
   LogoutOutlined,
   HomeOutlined,
+  GiftOutlined,
   SettingOutlined,
   TeamOutlined,
   SafetyOutlined,
@@ -88,6 +89,8 @@ import FinanceConfig from '../components/Finance/FinanceConfig';
 import ExpensesList from '../components/Finance/ExpensesList';
 import IncomeStatement from '../components/Finance/IncomeStatement';
 import CostCenterProfitability from '../components/Finance/CostCenterProfitability';
+import LoyaltyModule from '../components/Marketing/LoyaltyModule';
+import ResponsibilitiesModule from '../components/Operations/ResponsibilitiesModule';
 import { inventoryApi } from '../services/api';
 import type { StockAlertDto } from '../types';
 import type { MenuProps } from 'antd';
@@ -363,6 +366,27 @@ export default function Dashboard() {
         ],
       },
       {
+        key: 'operations',
+        label: 'Operaciones',
+        icon: <ToolOutlined />,
+        children: [
+          { key: 'operations-responsibilities', label: 'Responsabilidades', icon: <UnorderedListOutlined />, permission: PERMISSIONS.operations.responsibilitiesView },
+        ],
+      },
+      {
+        key: 'marketing',
+        label: 'Marketing y fidelizacion',
+        icon: <GiftOutlined />,
+        children: [
+          { key: 'marketing-summary', label: 'Resumen', icon: <BarChartOutlined />, permission: PERMISSIONS.marketing.loyaltyView },
+          { key: 'marketing-members', label: 'Miembros y tarjetas', icon: <ContactsOutlined />, permission: PERMISSIONS.marketing.loyaltyView },
+          ...(hasPermission(PERMISSIONS.marketing.loyaltyManage) ? [
+            { key: 'marketing-rewards', label: 'Recompensas', icon: <GiftOutlined />, permission: PERMISSIONS.menu.itemsView },
+            { key: 'marketing-config', label: 'Programa', icon: <SettingOutlined />, permission: PERMISSIONS.menu.itemsView },
+          ] : []),
+        ],
+      },
+      {
         key: 'finance',
         label: 'Finanzas',
         icon: <BarChartOutlined />,
@@ -529,6 +553,16 @@ case 'pos-estaciones':
         return <InvoiceTemplateEditor />;
       case 'finance-config':
         return <FinanceConfig />;
+      case 'marketing-summary':
+        return <LoyaltyModule key="summary" section="summary" />;
+      case 'operations-responsibilities':
+        return <ResponsibilitiesModule />;
+      case 'marketing-members':
+        return <LoyaltyModule key="members" section="members" />;
+      case 'marketing-config':
+        return <LoyaltyModule key="config" section="config" />;
+      case 'marketing-rewards':
+        return <MenuItemsList key="rewards" rewardCatalog />;
       case 'finance-expenses':
         return <ExpensesList />;
       case 'finance-income-statement':
@@ -684,7 +718,7 @@ case 'pos-estaciones':
       >
         <Menu
           theme="light"
-          mode="vertical"
+          mode="inline"
           selectedKeys={[selectedMenu]}
           items={menuItems}
           onClick={(e) => {

@@ -254,6 +254,7 @@ public class PaymentLineCommand
 
 public class PayOrderCommand : IRequest<OrderPaymentDto>
 {
+    public Guid? LoyaltyMemberId { get; set; }
     public Guid OrderId { get; set; }
     public Guid BranchId { get; set; }
     public Guid UserId { get; set; }

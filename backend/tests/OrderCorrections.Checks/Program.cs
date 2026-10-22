@@ -31,8 +31,7 @@ using Npgsql;
 
 var connection = Environment.GetEnvironmentVariable("CORRECTION_CHECKS_CONNECTION") ?? throw new Exception("Set CORRECTION_CHECKS_CONNECTION.");
 var destination = new NpgsqlConnectionStringBuilder(connection);
-if (destination.Host != "127.0.0.1" || destination.Port != 15432 || destination.Database != "checks" || destination.Username != "checks")
-    throw new Exception("Only disposable localhost:15432 checks database is allowed.");
+ChecksDatabaseTarget.Validate(destination);
 var count = 0;
 void Check(bool value, string name) { if (!value) throw new Exception(name); count++; }
 var builder = WebApplication.CreateBuilder(args);
@@ -45,7 +44,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
     ValidateIssuerSigningKey = true, IssuerSigningKey = key, ValidateIssuer = false, ValidateAudience = false, ValidateLifetime = true,
 });
 builder.Services.AddHttpClient();
+builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+var whatsapp = new Grimorio.Infrastructure.Features.Marketing.LoyaltyWhatsAppOptions();
+builder.Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(whatsapp));
+builder.Services.AddSingleton<Grimorio.Infrastructure.Features.Marketing.ILoyaltyCodeSender, FakeLoyaltyCodeSender>();
+builder.Services.AddScoped<Grimorio.Infrastructure.Features.Marketing.PublicLoyaltyService>();
+builder.Services.AddRateLimiter(options => options.AddPolicy("loyalty-public", _ => System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("checks")));
+builder.Services.AddRateLimiter(options => options.AddPolicy("loyalty-enrollment", _ => System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("checks")));
 builder.Services.AddAuthorization(options => {
+    foreach (var permission in new[] { AppConstants.Permissions.MarketingLoyaltyView, AppConstants.Permissions.MarketingLoyaltyManage,
+        AppConstants.Permissions.MarketingLoyaltyEnroll, AppConstants.Permissions.MarketingLoyaltyUse })
+        options.AddPolicy(permission, policy => policy.RequireAssertion(context => context.User.IsInRole(AppConstants.Roles.Admin)
+            || context.User.HasClaim(AppConstants.Claims.Permissions, permission)));
     options.AddPolicy(AppConstants.Permissions.PosOrdersView, policy => policy.RequireAssertion(context =>
         context.User.IsInRole(AppConstants.Roles.Admin) || context.User.HasClaim(AppConstants.Claims.Permissions, AppConstants.Permissions.PosOrdersView)));
     options.AddPolicy(AppConstants.Permissions.BillingPaymentsCorrectMethod, policy => policy.RequireAssertion(context =>
@@ -58,7 +68,7 @@ builder.Services.AddAuthorization(options => {
         context.User.IsInRole(AppConstants.Roles.Admin) || context.User.HasClaim(AppConstants.Claims.Permissions, AppConstants.Permissions.PosOrdersCorrectItems)));
     options.AddPolicy(AppConstants.Permissions.PosOrdersCancel, policy => policy.RequireRole(AppConstants.Roles.Admin));
 });
-await using var app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.MapControllers();
+await using var app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter(); app.MapControllers();
 async Task Read(Func<GrimorioDbContext, Task> action) { await using var scope = app.Services.CreateAsyncScope(); await action(scope.ServiceProvider.GetRequiredService<GrimorioDbContext>()); }
 async Task<T> Send<T>(IRequest<T> request) { await using var scope = app.Services.CreateAsyncScope(); return await scope.ServiceProvider.GetRequiredService<IMediator>().Send(request); }
 var branch = new Branch { Name = "Correction checks", Code = "COR" };
@@ -78,6 +88,7 @@ var articles = new[] { "Base", "BBQ", "Teriyaki", "Unavailable" }.Select(name =>
     BranchId = branch.Id, Name = name, CategoryId = inventoryCategory.Id, BaseUnitId = unit.Id }).ToArray();
 await Read(async db => {
     if (Environment.GetEnvironmentVariable("CORRECTION_CHECKS_ALLOW_RESET") == "true") await db.Database.EnsureDeletedAsync();
+    await LoyaltyProfileMigrationChecks.Run(db, Check);
     await db.Database.MigrateAsync(); Check(!db.Database.HasPendingModelChanges(), "Migration matches model");
     db.AddRange(branch, foreign, admin, waiter, role, station, category, inventoryCategory, unit, warehouse, register, session, cash);
     db.UserRoles.Add(new UserRole { BranchId = branch.Id, UserId = admin.Id, RoleId = role.Id }); db.AddRange(articles);
@@ -291,5 +302,10 @@ try {
         Token(admin.Id, branchId: foreign.Id), branch.Id, foreign.Id, Check);
     await ActiveOrderBalanceChecks.Run(app.Services, Check);
     await OrderPrebillChecks.Run(app.Services, client, key, branch.Id, foreign.Id, waiter.Id, dish.Id, bbq, Check);
-    Console.WriteLine($"Order correction and sale note invoice checks passed: {count}. Real isolated PostgreSQL and HTTP; no production services.");
+    await LoyaltyChecks.Run(app.Services, client, Token(admin.Id), Token(waiter.Id, false), branch.Id, foreign.Id,
+        admin.Id, dish.Id, small, bbq, cash.Id, session.Id, Check);
+    await LoyaltyProfileChecks.Run(app.Services, client, key, Token(admin.Id), Token(waiter.Id, false), branch.Id, foreign.Id,
+        admin.Id, dish.Id, small, bbq, cash.Id, session.Id, Check);
+    await PublicLoyaltyChecks.Run(app.Services, client, whatsapp, branch.Id, Check);
+    Console.WriteLine($"Order correction, billing and loyalty checks passed: {count}. Real isolated PostgreSQL and HTTP; no production services.");
 } finally { await app.StopAsync(); }

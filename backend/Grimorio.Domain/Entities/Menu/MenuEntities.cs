@@ -10,6 +10,7 @@ public enum MenuItemSaleVisibility
     MenuAndPromotions = 1,
     PromotionsOnly = 2,
     ComponentsOnly = 3,
+    RewardsOnly = 4,
 }
 
 public class MenuCategory : BaseEntity

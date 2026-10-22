@@ -253,6 +253,8 @@ public class OrderPaymentConfiguration : BaseEntityConfiguration<OrderPayment>
             .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(x => x.OrderId);
+        builder.HasOne<Grimorio.Domain.Entities.Marketing.LoyaltyMember>().WithMany()
+            .HasForeignKey(x => x.LoyaltyMemberId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(x => new { x.BranchId, x.PaidAt });
         builder.HasIndex(x => new { x.BranchId, x.IdempotencyKey })
             .IsUnique()

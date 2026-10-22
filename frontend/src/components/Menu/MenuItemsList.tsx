@@ -26,7 +26,7 @@ interface ItemFilters {
 
 const normalizeSearch = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-export default function MenuItemsList() {
+export default function MenuItemsList({ rewardCatalog = false }: { rewardCatalog?: boolean }) {
   const { message, modal: dialogs } = AntApp.useApp();
 
   const { hasPermission } = useAuth();
@@ -66,6 +66,7 @@ export default function MenuItemsList() {
   const filteredItems = useMemo(() => {
     const terms = normalizeSearch(filters.search ?? '').trim().split(/\s+/).filter(Boolean);
     return items.filter(item => {
+      if ((item.saleVisibility === 'RewardsOnly') !== rewardCatalog) return false;
       const searchable = normalizeSearch([item.name, item.generalName, item.internalCode].filter(Boolean).join(' '));
       return terms.every(term => searchable.includes(term))
         && (!filters.categoryId || item.menuCategoryId === filters.categoryId)
@@ -76,7 +77,7 @@ export default function MenuItemsList() {
         && (filters.availableForSale === undefined || item.availableForSale === filters.availableForSale)
         && (!filters.saleVisibility || item.saleVisibility === filters.saleVisibility);
     });
-  }, [items, filters]);
+  }, [items, filters, rewardCatalog]);
 
   const priceBreakdown = useMemo(() => {
     if (!formPrice || formPrice <= 0) return null;
@@ -133,7 +134,7 @@ export default function MenuItemsList() {
         availableForSale: true,
         price: 0,
         displayOrder: 0,
-        saleVisibility: 'MenuAndPromotions',
+        saleVisibility: rewardCatalog ? 'RewardsOnly' : 'MenuAndPromotions',
         isCombo: false,
         comboComponents: [],
       });
@@ -259,8 +260,8 @@ export default function MenuItemsList() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-        <Title level={5} style={{ margin: 0 }}>Ítems del Menú</Title>
-        {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>Nuevo ítem</Button>}
+        <Title level={5} style={{ margin: 0 }}>{rewardCatalog ? 'Catalogo de recompensas' : 'Ítems del Menú'}</Title>
+        {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>{rewardCatalog ? 'Nueva recompensa' : 'Nuevo ítem'}</Button>}
       </div>
 
       <Space wrap style={{ marginBottom: 16, width: '100%' }}>
@@ -312,7 +313,7 @@ export default function MenuItemsList() {
           onChange={availableForSale => updateFilters({ availableForSale })}
           style={{ width: 170 }}
         />
-        <Select
+        {!rewardCatalog && <Select
           aria-label="Filtrar por visibilidad de venta"
           placeholder="Visibilidad de venta"
           allowClear
@@ -324,7 +325,7 @@ export default function MenuItemsList() {
           value={filters.saleVisibility}
           onChange={saleVisibility => updateFilters({ saleVisibility })}
           style={{ width: 190 }}
-        />
+        />}
         <Tooltip title="Limpiar filtros">
           <Button
             aria-label="Limpiar filtros"
@@ -537,7 +538,8 @@ export default function MenuItemsList() {
               <Select options={categoriaOptions} placeholder="Seleccionar" />
             </Form.Item>
             <Form.Item name="saleVisibility" label="Visibilidad de venta" rules={[{ required: true }]}>
-              <Select options={[
+              <Select disabled={rewardCatalog} options={[
+                { value: 'RewardsOnly', label: 'Solo recompensas' },
                 { value: 'MenuAndPromotions', label: 'Menú y promociones' },
                 { value: 'PromotionsOnly', label: 'Solo promociones' },
                 { value: 'ComponentsOnly', label: 'Solo combos' },

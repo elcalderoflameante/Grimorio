@@ -136,9 +136,24 @@ public static class AppConstants
         public const string FinanceExpensesView = "Finance.Expenses.View";
         public const string FinanceExpensesCreate = "Finance.Expenses.Create";
         public const string FinanceExpensesCancel = "Finance.Expenses.Cancel";
+        public const string MarketingLoyaltyView = "Marketing.Loyalty.View";
+        public const string MarketingLoyaltyManage = "Marketing.Loyalty.Manage";
+        public const string MarketingLoyaltyEnroll = "Marketing.Loyalty.Enroll";
+        public const string MarketingLoyaltyUse = "Marketing.Loyalty.Use";
+
+        public const string OperationsResponsibilitiesView = "Operations.Responsibilities.View";
+        public const string OperationsResponsibilitiesManage = "Operations.Responsibilities.Manage";
+        public const string OperationsResponsibilitiesExecute = "Operations.Responsibilities.Execute";
 
         public static readonly IReadOnlyList<PermissionDefinition> All =
         [
+            new(OperationsResponsibilitiesView, "Consultar jornadas y evidencias operativas", "Operations"),
+            new(OperationsResponsibilitiesManage, "Configurar responsabilidades y reemplazos", "Operations"),
+            new(OperationsResponsibilitiesExecute, "Realizar las actividades asignadas al propio empleado", "Operations"),
+            new(MarketingLoyaltyView, "Consultar miembros, visitas y premios", "Marketing"),
+            new(MarketingLoyaltyManage, "Configurar el programa y su escalera de recompensas", "Marketing"),
+            new(MarketingLoyaltyEnroll, "Inscribir miembros y actualizar sus fichas de fidelizacion", "Marketing"),
+            new(MarketingLoyaltyUse, "Identificar tarjetas y acreditar visitas al cobrar", "Marketing"),
             new(AdminUsersView, "Ver usuarios", "Admin"),
             new(AdminUsersCreate, "Crear usuarios", "Admin"),
             new(AdminUsersUpdate, "Editar usuarios y asignar roles", "Admin"),

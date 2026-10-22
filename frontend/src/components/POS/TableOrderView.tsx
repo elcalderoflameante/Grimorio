@@ -8,6 +8,7 @@ import AdminOrderItemCorrectionModal from './AdminOrderItemCorrectionModal';
 import ChangeOrderTableButton from './ChangeOrderTableButton';
 import PrintOrderPrebillButton from './PrintOrderPrebillButton';
 import ClientPaymentTabs from './ClientPaymentTabs';
+import LoyaltyMemberPicker from '../Marketing/LoyaltyMemberPicker';
 import type {
   OrderDto, OrderItemDto, RestaurantTableDto, PaymentMethodConfigDto,
   OrderPaymentDto, AddOrderPaymentDto, CustomerDto, MenuCategoryDto,
@@ -156,7 +157,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
     ? { methodId: defaultMethod.id, amountTendered: 0, cardPaymentType: 'Debit', cardBankId: cardBanks[0]?.id, cardBrand: 'Visa', authorizationNumber: '' }
     : { methodId: defaultMethod.id, amountTendered: 0 });
   const payLines = currentPayment.payLines.length ? currentPayment.payLines : defaultPayLine ? [defaultPayLine] : [];
-  const updatePaymentField = <K extends 'docType' | 'customer' | 'payLines' | 'splitRows'>(key: K, action: SetStateAction<ClientPaymentAccount[K]>) => {
+  const updatePaymentField = <K extends 'docType' | 'customer' | 'payLines' | 'splitRows' | 'loyaltyMember'>(key: K, action: SetStateAction<ClientPaymentAccount[K]>) => {
     const update = (account: ClientPaymentAccount) => {
       if (account.payment) return account;
       const previous = key === 'payLines' ? (account.payLines.length ? account.payLines : payLines) : account[key];
@@ -601,6 +602,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       const dto: AddOrderPaymentDto = stored ?? pendingPayment ?? {
         idempotencyKey: createIdempotencyKey(),
         orderAmount: targetAmount,
+        loyaltyMemberId: currentPayment.loyaltyMember?.id,
         documentType: docType,
         customerId: customer?.id,
         cashSessionId,
@@ -784,6 +786,8 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
 
   const paymentForm = (
     <>
+      {hasPermission(PERMISSIONS.marketing.loyaltyUse) && <LoyaltyMemberPicker value={currentPayment.loyaltyMember}
+        onChange={member => updatePaymentField('loyaltyMember', member)} />}
       <div style={{ marginBottom: 10 }}>
         <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>Documento</Text>
         <Select

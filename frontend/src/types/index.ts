@@ -1160,7 +1160,7 @@ export interface CreateMenuCategoryDto {
   costCenterId?: string;
 }
 
-export type MenuItemSaleVisibility = 'MenuAndPromotions' | 'PromotionsOnly' | 'ComponentsOnly';
+export type MenuItemSaleVisibility = 'MenuAndPromotions' | 'PromotionsOnly' | 'ComponentsOnly' | 'RewardsOnly';
 
 export interface MenuItemDto {
   isCombo?: boolean;
@@ -2360,6 +2360,7 @@ export interface AddPaymentLineDto {
 }
 
 export interface AddOrderPaymentDto {
+  loyaltyMemberId?: string;
   idempotencyKey: string;
   orderAmount: number;
   documentType: string;

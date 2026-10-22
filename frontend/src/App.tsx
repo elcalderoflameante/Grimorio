@@ -6,6 +6,8 @@ import { useAuth } from './context/useAuth';
 import Login from './pages/Login';
 import RestaurantHome from './pages/RestaurantHome';
 import PublicTableRequest from './pages/PublicTableRequest';
+import PublicLoyaltyCard from './pages/PublicLoyaltyCard';
+import PublicLoyaltyEnrollment from './pages/PublicLoyaltyEnrollment';
 import { grimorioAppTheme } from './theme/grimorioTheme';
 import type { ReactNode } from 'react';
 import RequiredPasswordChange from './components/Profile/RequiredPasswordChange';
@@ -84,6 +86,8 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginRoute />} />
           <Route path="/mesa/:token" element={<PublicTableRequest />} />
+          <Route path="/fidelizacion/:token" element={<PublicLoyaltyCard />} />
+          <Route path="/fidelizacion" element={<PublicLoyaltyEnrollment />} />
           
           <Route
             path="/dashboard"

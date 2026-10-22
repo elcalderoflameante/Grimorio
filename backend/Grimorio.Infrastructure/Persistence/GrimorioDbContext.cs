@@ -10,6 +10,8 @@ using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.POS;
 using Grimorio.Domain.Entities.Purchases;
 using Grimorio.Domain.Entities.Finance;
+using Grimorio.Domain.Entities.Marketing;
+using Grimorio.Domain.Entities.Operations;
 
 namespace Grimorio.Infrastructure.Persistence;
 
@@ -35,6 +37,15 @@ public class GrimorioDbContext : DbContext
     public DbSet<PaymentMethodCorrection> PaymentMethodCorrections { get; set; } = null!;
     public DbSet<UserRole> UserRoles { get; set; } = null!;
     public DbSet<UserPushToken> UserPushTokens { get; set; } = null!;
+
+    // === Operations ===
+    public DbSet<ResponsibilityArea> ResponsibilityAreas { get; set; } = null!;
+    public DbSet<ResponsibilityPosition> ResponsibilityPositions { get; set; } = null!;
+    public DbSet<ResponsibilityTask> ResponsibilityTasks { get; set; } = null!;
+    public DbSet<ResponsibilityAssignment> ResponsibilityAssignments { get; set; } = null!;
+    public DbSet<ResponsibilityActivity> ResponsibilityActivities { get; set; } = null!;
+    public DbSet<ResponsibilityEvidence> ResponsibilityEvidence { get; set; } = null!;
+    public DbSet<ResponsibilityTransfer> ResponsibilityTransfers { get; set; } = null!;
 
     // === Organization ===
     public DbSet<Branch> Branches { get; set; } = null!;
@@ -134,6 +145,12 @@ public class GrimorioDbContext : DbContext
     public DbSet<ExpenseCategory> ExpenseCategories { get; set; } = null!;
     public DbSet<Expense> Expenses { get; set; } = null!;
     public DbSet<SaleTip> SaleTips { get; set; } = null!;
+    public DbSet<LoyaltyProgram> LoyaltyPrograms { get; set; } = null!;
+    public DbSet<LoyaltyMember> LoyaltyMembers { get; set; } = null!;
+    public DbSet<LoyaltyPhoneChallenge> LoyaltyPhoneChallenges { get; set; } = null!;
+    public DbSet<LoyaltyContribution> LoyaltyContributions { get; set; } = null!;
+    public DbSet<LoyaltyVisit> LoyaltyVisits { get; set; } = null!;
+    public DbSet<LoyaltyReward> LoyaltyRewards { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

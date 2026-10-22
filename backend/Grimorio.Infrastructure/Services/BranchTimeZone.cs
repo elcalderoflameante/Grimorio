@@ -15,6 +15,9 @@ public static class BranchTimeZone
     public static DateOnly DateFromUtc(DateTime utcDateTime, string? timeZoneId) =>
         DateOnly.FromDateTime(FromUtc(utcDateTime, timeZoneId));
 
+    public static DateTime ToUtc(DateTime localDateTime, string? timeZoneId) =>
+        TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(localDateTime, DateTimeKind.Unspecified), Resolve(timeZoneId));
+
     public static bool IsValid(string? timeZoneId)
     {
         try
