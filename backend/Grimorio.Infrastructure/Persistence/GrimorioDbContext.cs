@@ -57,6 +57,7 @@ public class GrimorioDbContext : DbContext
     public DbSet<AttendanceKioskDevice> AttendanceKioskDevices { get; set; } = null!;
     public DbSet<EmployeeFacialTemplate> EmployeeFacialTemplates { get; set; } = null!;
     public DbSet<AttendanceCorrection> AttendanceCorrections { get; set; } = null!;
+    public DbSet<AttendanceKioskOperation> AttendanceKioskOperations { get; set; } = null!;
 
     // === Scheduling ===
     public DbSet<WorkArea> WorkAreas { get; set; } = null!;

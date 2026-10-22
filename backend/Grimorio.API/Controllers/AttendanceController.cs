@@ -25,15 +25,18 @@ public sealed class AttendanceController : ControllerBase
     private readonly SFaceBiometricService _biometricService;
     private readonly GrimorioDbContext _dbContext;
     private readonly AttendanceRecognitionTickets _tickets;
+    private readonly AttendanceOperationExecutor _operations;
 
     public AttendanceController(IMediator mediator, AttendanceKioskAuthenticator kioskAuthenticator,
-        SFaceBiometricService biometricService, GrimorioDbContext dbContext, AttendanceRecognitionTickets tickets)
+        SFaceBiometricService biometricService, GrimorioDbContext dbContext, AttendanceRecognitionTickets tickets,
+        AttendanceOperationExecutor operations)
     {
         _mediator = mediator;
         _kioskAuthenticator = kioskAuthenticator;
         _biometricService = biometricService;
         _dbContext = dbContext;
         _tickets = tickets;
+        _operations = operations;
     }
 
     [Authorize(Policy = AppConstants.Permissions.RrhhAttendanceEnroll)]
@@ -294,12 +297,17 @@ public sealed class AttendanceController : ControllerBase
             return BadRequest(new { message = "Una marcación manual requiere autorización administrativa." });
 
         command.EmployeeId = employeeId;
-        if (body.Method != AttendanceMethod.Face || !_tickets.Consume(kiosk.Id, employeeId, body.RecognitionToken))
+        if (body.Method != AttendanceMethod.Face)
             return Conflict(new { message = "Identifica nuevamente tu rostro para registrar la marcación." });
         command.KioskDeviceId = kiosk.Id;
         command.Method = body.Method;
         command.EvidencePath = body.EvidencePath;
-        try { return Ok(await _mediator.Send(command, cancellationToken)); }
+        try
+        {
+            return Ok(await _operations.ExecuteAsync(body.OperationId ?? Guid.NewGuid(), kiosk.BranchId,
+                kiosk.Id, employeeId, typeof(TCommand).Name, body.RecognitionToken, body.EvidencePath,
+                ct => _mediator.Send(command, ct), cancellationToken));
+        }
         catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
         catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
     }
@@ -335,6 +343,7 @@ public sealed class AttendanceController : ControllerBase
 
 public sealed class KioskMarkRequest
 {
+    public Guid? OperationId { get; set; }
     public string? RecognitionToken { get; set; }
     public AttendanceMethod Method { get; set; } = AttendanceMethod.Face;
     public string? EvidencePath { get; set; }

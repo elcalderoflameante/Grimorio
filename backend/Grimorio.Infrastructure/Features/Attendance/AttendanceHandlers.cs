@@ -428,6 +428,8 @@ public sealed class AttendanceHandlers :
     public async Task<AttendanceAdminRowDto> Handle(CreateManualAttendanceCommand request,
         CancellationToken cancellationToken)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        await AttendanceEmployeeLock.AcquireAsync(_context, request.EmployeeId, cancellationToken);
         var employee = await _context.Employees.FirstOrDefaultAsync(x => x.Id == request.EmployeeId &&
                 x.BranchId == request.BranchId && x.IsActive && !x.IsDeleted, cancellationToken)
             ?? throw new KeyNotFoundException("Empleado activo no encontrado en la sucursal.");
@@ -441,6 +443,7 @@ public sealed class AttendanceHandlers :
 
         var timeZoneId = await GetBranchTimeZoneId(request.BranchId, cancellationToken);
         var workDate = BranchTimeZone.DateFromUtc(clockIn, timeZoneId);
+        await ValidateClockingConflicts(request.EmployeeId, Guid.Empty, workDate, clockIn, clockOut, cancellationToken);
         if (await _context.EmployeeClockings.AnyAsync(x => x.EmployeeId == request.EmployeeId &&
                 x.WorkDate == workDate && !x.IsDeleted, cancellationToken))
             throw new InvalidOperationException("El empleado ya tiene una jornada registrada para esa fecha. Utiliza la opción Corregir.");
@@ -504,12 +507,19 @@ public sealed class AttendanceHandlers :
             throw new InvalidOperationException("El empleado ya tiene una jornada registrada para esa fecha.");
         }
 
+        await transaction.CommitAsync(cancellationToken);
         return MapAdmin(clocking, employee, 1);
     }
 
     public async Task<AttendanceAdminRowDto> Handle(CorrectAttendanceCommand request,
         CancellationToken cancellationToken)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        var employeeId = await _context.EmployeeClockings.AsNoTracking()
+            .Where(x => x.Id == request.EmployeeClockingId && x.BranchId == request.BranchId && !x.IsDeleted)
+            .Select(x => (Guid?)x.EmployeeId).SingleOrDefaultAsync(cancellationToken)
+            ?? throw new KeyNotFoundException("Jornada no encontrada.");
+        await AttendanceEmployeeLock.AcquireAsync(_context, employeeId, cancellationToken);
         var clocking = await _context.EmployeeClockings.Include(x => x.Employee).Include(x => x.Break)
             .FirstOrDefaultAsync(x => x.Id == request.EmployeeClockingId && x.BranchId == request.BranchId &&
                                       !x.IsDeleted, cancellationToken)
@@ -530,6 +540,7 @@ public sealed class AttendanceHandlers :
 
         var correctedTimeZone = await GetBranchTimeZoneId(request.BranchId, cancellationToken);
         var correctedDate = BranchTimeZone.DateFromUtc(clockIn, correctedTimeZone);
+        await ValidateClockingConflicts(clocking.EmployeeId, clocking.Id, correctedDate, clockIn, clockOut, cancellationToken);
         if (await _context.EmployeeClockings.AnyAsync(x => x.EmployeeId == clocking.EmployeeId &&
             x.Id != clocking.Id && x.WorkDate == correctedDate && !x.IsDeleted, cancellationToken))
             throw new InvalidOperationException("Ya existe otra jornada para esa fecha.");
@@ -585,8 +596,22 @@ public sealed class AttendanceHandlers :
             AfterJson = afterJson
         });
         await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return MapAdmin(clocking, clocking.Employee!, await _context.AttendanceCorrections.CountAsync(
             x => x.EmployeeClockingId == clocking.Id && !x.IsDeleted, cancellationToken));
+    }
+
+    private async Task ValidateClockingConflicts(Guid employeeId, Guid excludingId, DateOnly date,
+        DateTime start, DateTime? end, CancellationToken ct)
+    {
+        var existing = _context.EmployeeClockings.Where(x => x.EmployeeId == employeeId && x.Id != excludingId && !x.IsDeleted);
+        if (await existing.AnyAsync(x => x.WorkDate == date, ct))
+            throw new InvalidOperationException("El empleado ya tiene una jornada para esa fecha. Utiliza Corregir.");
+        if (!end.HasValue && await existing.AnyAsync(x => x.ClockOutTimeUtc == null, ct))
+            throw new InvalidOperationException("El empleado tiene otra jornada abierta. Debe cerrarla antes de abrir una nueva.");
+        if (await existing.AnyAsync(x => (!end.HasValue || x.ClockInTimeUtc < end.Value) &&
+            (x.ClockOutTimeUtc == null || x.ClockOutTimeUtc > start), ct))
+            throw new InvalidOperationException("Las horas se superponen con otra jornada del empleado.");
     }
 
     private async Task<(Employee Employee, AttendanceKioskDevice Kiosk)> LoadEmployeeAndKiosk(

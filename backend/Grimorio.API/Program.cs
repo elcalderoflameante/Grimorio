@@ -286,6 +286,7 @@ builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddScoped<IFcmPushNotificationService, FcmPushNotificationService>();
 builder.Services.AddScoped<AttendanceKioskAuthenticator>();
 builder.Services.AddSingleton<AttendanceRecognitionTickets>();
+builder.Services.AddScoped<AttendanceOperationExecutor>();
 builder.Services.AddSingleton<SFaceBiometricService>();
 builder.Services.AddHostedService<SriInvoiceRetryBackgroundService>();
 builder.Services.AddHostedService<LoyaltyChallengeCleanupWorker>();

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import '../../../biometrics/data/face_detection_service.dart';
 import '../../../biometrics/domain/active_liveness_challenge.dart';
@@ -32,13 +33,18 @@ class _KioskCameraPageState extends State<KioskCameraPage>
   bool _active = true;
   int _session = 0;
   bool _awaitingDeparture = false;
-  int _emptyFrames = 0;
+  DateTime? _absentSince;
   bool _canStartBreak = true;
   bool _processing = false;
   bool _initializingCamera = false;
   bool _coolingDown = false;
   IdentifiedEmployee? _pendingEmployee;
   bool _marking = false;
+  bool _recoveringMark = false;
+  bool _unconfirmedMark = false;
+  bool _fileScanning = false;
+  DateTime? _lastFrameAt;
+  Future<void>? _cameraDisposal;
   String _message = 'Acércate a la cámara';
   Color _statusColor = const Color(0xFF1890FF);
 
@@ -52,8 +58,10 @@ class _KioskCameraPageState extends State<KioskCameraPage>
   Future<void> _initializeCamera() async {
     if (!mounted || !_active || _initializingCamera || _camera != null) return;
     _initializingCamera = true;
+    final session = _session;
     CameraController? initializingController;
     try {
+      await _cameraDisposal;
       final available = await availableCameras();
       if (available.isEmpty) {
         throw CameraException(
@@ -69,35 +77,69 @@ class _KioskCameraPageState extends State<KioskCameraPage>
         selected,
         ResolutionPreset.medium,
         enableAudio: false,
+        imageFormatGroup: Platform.isAndroid
+            ? ImageFormatGroup.nv21
+            : ImageFormatGroup.bgra8888,
       );
       initializingController = controller;
       await controller.initialize();
-      if (!mounted || !_active) {
+      if (!mounted || !_active || session != _session) {
         await controller.dispose();
         return;
       }
       setState(() => _camera = controller);
-      _scanTimer = Timer.periodic(
-        const Duration(milliseconds: 500),
-        (_) => _inspectFrame(),
-      );
+      _fileScanning = !Platform.isAndroid;
+      await _recoverPendingMark();
+      if (!mounted || !_active || controller != _camera) return;
+      await _startScanning();
     } catch (error, stackTrace) {
       await initializingController?.dispose();
       debugPrint('No se pudo iniciar la cámara: $error\n$stackTrace');
       if (mounted) {
         setState(() {
+          if (_camera == initializingController) _camera = null;
           _statusColor = Colors.redAccent;
           _message = 'No se pudo iniciar la cámara frontal';
         });
       }
     } finally {
-      if (mounted) setState(() => _initializingCamera = false);
+      if (mounted) {
+        setState(() => _initializingCamera = false);
+        if (_active && session != _session && _camera == null) {
+          unawaited(_initializeCamera());
+        }
+      }
     }
   }
 
-  Future<void> _inspectFrame() async {
+  Future<void> _startScanning() async {
+    _scanTimer?.cancel();
+    final camera = _camera;
+    if (!mounted || !_active || camera == null || !camera.value.isInitialized) {
+      return;
+    }
+    if (_fileScanning) {
+      _scanTimer = Timer.periodic(
+        const Duration(milliseconds: 350),
+        (_) => _inspectFrame(),
+      );
+      return;
+    }
+    if (!camera.value.isStreamingImages) {
+      try {
+        await camera.startImageStream((frame) => _inspectFrame(frame));
+      } on CameraException {
+        _fileScanning = true;
+        await _startScanning();
+      }
+    }
+  }
+
+  Future<void> _inspectFrame([CameraImage? frame]) async {
     final camera = _camera;
     if (!_active ||
+        _recoveringMark ||
+        _unconfirmedMark ||
         _pendingEmployee != null ||
         _processing ||
         _coolingDown ||
@@ -107,16 +149,57 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       return;
     }
     _processing = true;
+    if (frame != null &&
+        _lastFrameAt != null &&
+        DateTime.now().difference(_lastFrameAt!) <
+            const Duration(milliseconds: 100)) {
+      _processing = false;
+      return;
+    }
+    _lastFrameAt = DateTime.now();
     XFile? capture;
     try {
-      capture = await camera.takePicture();
-      final result = await _faceDetection.inspectFile(capture.path);
+      final FaceDetectionResult result;
+      if (frame != null) {
+        if (frame.format.group != ImageFormatGroup.nv21 ||
+            frame.planes.length != 1) {
+          await camera.stopImageStream();
+          _fileScanning = true;
+          await _startScanning();
+          return;
+        }
+        const rotations = {
+          DeviceOrientation.portraitUp: 0,
+          DeviceOrientation.landscapeLeft: 90,
+          DeviceOrientation.portraitDown: 180,
+          DeviceOrientation.landscapeRight: 270,
+        };
+        final deviceRotation = rotations[camera.value.deviceOrientation]!;
+        final sensorRotation = camera.description.sensorOrientation;
+        final rotation =
+            camera.description.lensDirection == CameraLensDirection.front
+            ? (sensorRotation + deviceRotation) % 360
+            : (sensorRotation - deviceRotation + 360) % 360;
+        result = await _faceDetection.inspectNv21(
+          frame.planes.single.bytes,
+          frame.width,
+          frame.height,
+          rotation,
+        );
+      } else {
+        capture = await camera.takePicture();
+        result = await _faceDetection.inspectFile(capture.path);
+      }
       if (!mounted || !_active || camera != _camera) return;
       if (_awaitingDeparture) {
-        _emptyFrames = result.issues.contains(FaceQualityIssue.noFace)
-            ? _emptyFrames + 1
-            : 0;
-        if (_emptyFrames >= 2) {
+        if (result.issues.contains(FaceQualityIssue.noFace)) {
+          _absentSince ??= DateTime.now();
+        } else {
+          _absentSince = null;
+        }
+        if (_absentSince != null &&
+            DateTime.now().difference(_absentSince!) >=
+                const Duration(seconds: 1)) {
           _awaitingDeparture = false;
           _liveness.reset();
           setState(() => _message = _liveness.instruction);
@@ -130,6 +213,9 @@ class _KioskCameraPageState extends State<KioskCameraPage>
           _message = 'Identificando...';
         });
         _scanTimer?.cancel();
+        if (camera.value.isStreamingImages) await camera.stopImageStream();
+        if (!mounted || !_active || camera != _camera) return;
+        capture ??= await camera.takePicture();
         await _identify(capture.path);
       } else if (_liveness.step != LivenessStep.center || result.isAcceptable) {
         setState(() {
@@ -204,13 +290,19 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       final serverMessage = data is Map ? data['message']?.toString() : null;
       setState(() {
         _statusColor = Colors.redAccent;
-        _message = serverMessage ?? 'No se pudo identificar el rostro';
+        _unconfirmedMark = _attendanceApi.hasUnconfirmedMark;
+        _message = _unconfirmedMark
+            ? 'Marcación pendiente de confirmación. Pulsa Reintentar conexión.'
+            : serverMessage ?? 'No se pudo identificar el rostro';
       });
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _statusColor = Colors.redAccent;
-        _message = 'No se pudo identificar el rostro';
+        _unconfirmedMark = _attendanceApi.hasUnconfirmedMark;
+        _message = _unconfirmedMark
+            ? 'Marcación pendiente de confirmación. Pulsa Reintentar conexión.'
+            : 'No se pudo identificar el rostro';
       });
       debugPrint('Error durante identificación facial: $error');
     } finally {
@@ -267,16 +359,21 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       final data = error.response?.data;
       setState(() {
         _statusColor = Colors.redAccent;
-        _message = data is Map
+        _unconfirmedMark = _attendanceApi.hasUnconfirmedMark;
+        _message = _unconfirmedMark
+            ? 'Marcación pendiente de confirmación. Pulsa Reintentar conexión.'
+            : data is Map
             ? data['message']?.toString() ?? 'No se pudo registrar la marcación'
             : 'No se pudo registrar la marcación';
       });
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _message =
-              'No se pudo confirmar la marcación. Identifícate nuevamente.',
-        );
+        setState(() {
+          _unconfirmedMark = _attendanceApi.hasUnconfirmedMark;
+          _message = _unconfirmedMark
+              ? 'Marcación pendiente de confirmación. Pulsa Reintentar conexión.'
+              : 'No se pudo confirmar la marcación. Identifícate nuevamente.';
+        });
       }
     } finally {
       if (confirmation != null) {
@@ -295,7 +392,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
   }
 
   Future<void> _startCooldown() async {
-    if (!mounted || !_active || _coolingDown) return;
+    if (!mounted || !_active || _coolingDown || _unconfirmedMark) return;
     _scanTimer?.cancel();
     _selectionTimer?.cancel();
     _coolingDown = true;
@@ -310,15 +407,41 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       _liveness = ActiveLivenessChallenge();
       _statusColor = const Color(0xFF1890FF);
       _awaitingDeparture = true;
-      _emptyFrames = 0;
+      _absentSince = null;
       _message = 'Retírate de la cámara para la siguiente marcación';
       _pendingEmployee = null;
       _coolingDown = false;
     });
-    _scanTimer = Timer.periodic(
-      const Duration(milliseconds: 500),
-      (_) => _inspectFrame(),
-    );
+    await _startScanning();
+  }
+
+  Future<void> _recoverPendingMark() async {
+    if (_recoveringMark) return;
+    setState(() => _recoveringMark = true);
+    try {
+      final result = await _attendanceApi.recoverPendingMark();
+      if (!mounted) return;
+      setState(() {
+        _unconfirmedMark = false;
+        if (result != null) {
+          _statusColor = const Color(0xFF52C41A);
+          _message = '${result.employeeName}: marcación confirmada';
+        }
+      });
+      if (result != null) await _startCooldown();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _unconfirmedMark = _attendanceApi.hasUnconfirmedMark;
+        _statusColor = Colors.orange;
+        _message = _unconfirmedMark
+            ? 'No se pudo confirmar la última marcación. Reintenta la conexión.'
+            : 'Identifícate nuevamente para marcar.';
+      });
+      if (!_unconfirmedMark) await _startCooldown();
+    } finally {
+      if (mounted) setState(() => _recoveringMark = false);
+    }
   }
 
   String _messageFor(FaceQualityIssue issue) => switch (issue) {
@@ -341,7 +464,12 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       _selectionTimer?.cancel();
       _pendingEmployee = null;
       _liveness.reset();
-      _camera?.dispose();
+      final camera = _camera;
+      if (camera != null) {
+        _cameraDisposal = camera.dispose().catchError((Object error) {
+          debugPrint('Error al liberar la cámara: $error');
+        });
+      }
       _camera = null;
     } else if (state == AppLifecycleState.resumed) {
       _active = true;
@@ -444,6 +572,20 @@ class _KioskCameraPageState extends State<KioskCameraPage>
                             textAlign: TextAlign.center,
                             style: TextStyle(fontSize: 20, color: _statusColor),
                           ),
+                          if (_unconfirmedMark || _recoveringMark) ...[
+                            const SizedBox(height: 12),
+                            FilledButton.icon(
+                              onPressed: _recoveringMark
+                                  ? null
+                                  : _recoverPendingMark,
+                              icon: const Icon(Icons.sync),
+                              label: Text(
+                                _recoveringMark
+                                    ? 'Verificando marcación...'
+                                    : 'Reintentar conexión',
+                              ),
+                            ),
+                          ],
                           if (_pendingEmployee != null) ...[
                             const SizedBox(height: 16),
                             Row(

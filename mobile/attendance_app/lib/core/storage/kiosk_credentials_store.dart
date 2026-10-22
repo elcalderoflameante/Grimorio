@@ -12,12 +12,13 @@ class KioskCredentialsStore {
     : _storage =
           storage ??
           const FlutterSecureStorage(
-            aOptions: AndroidOptions(resetOnError: true),
+            aOptions: AndroidOptions(resetOnError: false),
           );
 
   static const _kioskIdKey = 'attendance_kiosk_id';
   static const _apiKeyKey = 'attendance_kiosk_api_key';
   static const _deviceIdentifierKey = 'attendance_device_identifier';
+  static const _pendingMarkKey = 'attendance_pending_mark';
   final FlutterSecureStorage _storage;
 
   Future<KioskCredentials?> read() async {
@@ -33,11 +34,17 @@ class KioskCredentialsStore {
   }
 
   Future<void> clearCredentials() async {
+    await clearPendingMark();
     await _storage.delete(key: _kioskIdKey);
     await _storage.delete(key: _apiKeyKey);
   }
 
   Future<void> clear() => _storage.deleteAll();
+
+  Future<String?> readPendingMark() => _storage.read(key: _pendingMarkKey);
+  Future<void> savePendingMark(String json) =>
+      _storage.write(key: _pendingMarkKey, value: json);
+  Future<void> clearPendingMark() => _storage.delete(key: _pendingMarkKey);
 
   Future<String> getOrCreateDeviceIdentifier() async {
     final existing = await _storage.read(key: _deviceIdentifierKey);

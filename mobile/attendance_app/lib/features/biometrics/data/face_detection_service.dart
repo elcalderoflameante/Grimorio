@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
+import 'dart:ui';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image/image.dart' as img;
 import '../domain/face_detection_result.dart';
@@ -20,6 +21,40 @@ class FaceDetectionService {
 
   Future<FaceDetectionResult> inspectFile(String imagePath) async {
     final input = InputImage.fromFilePath(imagePath);
+    final size = await _readImageSize(imagePath);
+    return _inspect(input, size);
+  }
+
+  Future<FaceDetectionResult> inspectNv21(
+    Uint8List bytes,
+    int width,
+    int height,
+    int rotation,
+  ) {
+    final imageRotation = InputImageRotationValue.fromRawValue(rotation);
+    if (imageRotation == null) {
+      throw StateError('Rotación de cámara no válida.');
+    }
+    final input = InputImage.fromBytes(
+      bytes: bytes,
+      metadata: InputImageMetadata(
+        size: Size(width.toDouble(), height.toDouble()),
+        rotation: imageRotation,
+        format: InputImageFormat.nv21,
+        bytesPerRow: width,
+      ),
+    );
+    final sideways = rotation == 90 || rotation == 270;
+    return _inspect(input, (
+      width: (sideways ? height : width).toDouble(),
+      height: (sideways ? width : height).toDouble(),
+    ));
+  }
+
+  Future<FaceDetectionResult> _inspect(
+    InputImage input,
+    ({double width, double height}) imageSize,
+  ) async {
     final List<Face> faces;
     try {
       faces = await _detector.processImage(input);
@@ -36,15 +71,6 @@ class FaceDetectionService {
     }
 
     final face = faces.single;
-    final ({double width, double height}) imageSize;
-    try {
-      imageSize = await _readImageSize(imagePath);
-    } catch (error) {
-      throw FaceDetectionException(
-        'No se pudieron leer las dimensiones',
-        error,
-      );
-    }
     final issues = <FaceQualityIssue>{};
     final faceRatio = face.boundingBox.width / imageSize.width;
     if (faceRatio < 0.28) issues.add(FaceQualityIssue.tooSmall);
@@ -79,13 +105,10 @@ class FaceDetectionService {
   }
 
   Future<({double width, double height})> _readImageSize(String path) async {
-    return compute(_decodeImageSize, path);
-  }
-
-  static Future<({double width, double height})> _decodeImageSize(
-    String path,
-  ) async {
-    final decoded = img.decodeImage(await File(path).readAsBytes());
+    // Camera pictures are JPEGs: read the header, not every decoded pixel.
+    final decoded = img.JpegDecoder().startDecode(
+      await File(path).readAsBytes(),
+    );
     if (decoded == null) {
       throw StateError('No se pudo decodificar la fotografía.');
     }

@@ -3,6 +3,15 @@ using Grimorio.SharedKernel;
 
 namespace Grimorio.Domain.Entities.Organization;
 
+/// <summary>Durable receipt committed in the same transaction as a kiosk clocking.</summary>
+public class AttendanceKioskOperation : BaseEntity
+{
+    public Guid KioskDeviceId { get; set; }
+    public Guid EmployeeId { get; set; }
+    public string RequestHash { get; set; } = string.Empty;
+    public string ResponseJson { get; set; } = string.Empty;
+}
+
 /// <summary>Jornada diaria. WorkDate representa el día calendario de Ecuador (UTC-5).</summary>
 public class EmployeeClocking : BaseEntity
 {
