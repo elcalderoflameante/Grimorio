@@ -105,4 +105,33 @@ foreach (var rate in new[] { 0m, 5m, 15m })
     Check(plain.Discount == 0 && plain.OriginalSubtotal == plain.Subtotal && plain.Subtotal + plain.Tax == plain.Total,
         "Explicit zero discount snapshot reconciles across tax rates");
 }
-Console.WriteLine($"Invoice savings checks passed: {count}. No SRI or email requests.");
+var debit = new PaymentMethodConfig { Name = "Tarjeta", IsCard = true };
+var cash = new PaymentMethodConfig { Name = "Efectivo", IsCash = true };
+var transfer = new PaymentMethodConfig { Name = "Transferencia" };
+XElement Payments(params PaymentLine[] paymentLines)
+{
+    var total = paymentLines.Where(l => !l.IsDeleted).Sum(l => l.AmountTendered - l.Change);
+    var data = new SriInvoiceData(config, new OrderPayment { OrderAmount = total, Lines = paymentLines.ToList() },
+        order, [new SriInvoiceLine("CHECK", "Payment check", 1, total, "0", 0)], new string('1', 49), 56, null);
+    return XDocument.Parse(SriXmlBuilder.Build(data)).Root!.Element("infoFactura")!.Element("pagos")!;
+}
+PaymentLine Pay(PaymentMethodConfig method, CardPaymentType? card, decimal amount, decimal change = 0) =>
+    new() { Config = method, CardPaymentType = card, AmountTendered = amount, Change = change };
+foreach (var (line, expected) in new[] {
+    (Pay(debit, CardPaymentType.Debit, 29.30m), "16"),
+    (Pay(debit, CardPaymentType.Credit, 29.30m), "19"),
+    (Pay(cash, null, 30, .70m), "01"),
+    (Pay(transfer, null, 29.30m), "20") })
+{
+    var entry = Payments(line).Element("pago")!;
+    Check(entry.Element("formaPago")!.Value == expected, $"SRI payment code {expected}");
+    Check(Number(entry, "total") == 29.30m, "Net payment amount preserved");
+}
+var removedDebit = Pay(debit, CardPaymentType.Debit, 99); removedDebit.IsDeleted = true;
+var mixedPayments = Payments(Pay(debit, CardPaymentType.Debit, 10), Pay(debit, CardPaymentType.Debit, 5),
+    Pay(debit, CardPaymentType.Credit, 9.30m), Pay(cash, null, 5), removedDebit);
+var byCode = mixedPayments.Elements("pago").ToDictionary(p => p.Element("formaPago")!.Value, p => Number(p, "total"));
+Check(byCode.Count == 3 && byCode["16"] == 15 && byCode["19"] == 9.30m && byCode["01"] == 5,
+    "Mixed payments group debit separately, ignoring deleted lines");
+Check(!byCode.ContainsKey("08") && byCode.Values.Sum() == 29.30m, "No obsolete debit code or changed totals");
+Console.WriteLine($"Invoice savings and payment code checks passed: {count}. No database, SRI or email requests.");

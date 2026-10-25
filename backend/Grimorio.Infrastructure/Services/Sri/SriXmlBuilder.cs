@@ -265,9 +265,9 @@ public static class SriXmlBuilder
     private static string MapPaymentMethod(PaymentLine line)
     {
         // Código de forma de pago SRI
-        // 01 = efectivo, 08 = tarjeta débito, 19 = tarjeta crédito, 20 = transferencia
+        // 01 = efectivo, 16 = tarjeta débito, 19 = tarjeta crédito, 20 = transferencia
         if (line.Config?.IsCash == true) return "01";
-        if (line.CardPaymentType == CardPaymentType.Debit) return "08";
+        if (line.CardPaymentType == CardPaymentType.Debit) return "16";
         if (line.CardPaymentType == CardPaymentType.Credit) return "19";
         if (line.Config?.Name?.Contains("transfer", StringComparison.OrdinalIgnoreCase) == true) return "20";
         return "01";
