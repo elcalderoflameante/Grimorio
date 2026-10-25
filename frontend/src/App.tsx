@@ -8,6 +8,7 @@ import RestaurantHome from './pages/RestaurantHome';
 import PublicTableRequest from './pages/PublicTableRequest';
 import PublicLoyaltyCard from './pages/PublicLoyaltyCard';
 import PublicLoyaltyEnrollment from './pages/PublicLoyaltyEnrollment';
+import PublicLoyaltyPrivacy from './pages/PublicLoyaltyPrivacy';
 import { grimorioAppTheme } from './theme/grimorioTheme';
 import type { ReactNode } from 'react';
 import RequiredPasswordChange from './components/Profile/RequiredPasswordChange';
@@ -88,6 +89,8 @@ export default function App() {
           <Route path="/mesa/:token" element={<PublicTableRequest />} />
           <Route path="/fidelizacion/:token" element={<PublicLoyaltyCard />} />
           <Route path="/fidelizacion" element={<PublicLoyaltyEnrollment />} />
+          <Route path="/fidelizacion/privacidad" element={<PublicLoyaltyPrivacy />} />
+          <Route path="/fidelizacion/eliminar-datos" element={<PublicLoyaltyPrivacy deletion />} />
           
           <Route
             path="/dashboard"

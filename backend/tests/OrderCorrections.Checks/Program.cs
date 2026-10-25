@@ -29,6 +29,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 
+if (args.Contains("--purchase-xml-dates-only")) { PurchaseXmlDateChecks.Run(); return; }
+if (args.Contains("--article-menu-usage-only")) { await ArticleMenuUsageChecks.Run(); return; }
+
 var connection = Environment.GetEnvironmentVariable("CORRECTION_CHECKS_CONNECTION") ?? throw new Exception("Set CORRECTION_CHECKS_CONNECTION.");
 var destination = new NpgsqlConnectionStringBuilder(connection);
 ChecksDatabaseTarget.Validate(destination);
@@ -306,6 +309,6 @@ try {
         admin.Id, dish.Id, small, bbq, cash.Id, session.Id, Check);
     await LoyaltyProfileChecks.Run(app.Services, client, key, Token(admin.Id), Token(waiter.Id, false), branch.Id, foreign.Id,
         admin.Id, dish.Id, small, bbq, cash.Id, session.Id, Check);
-    await PublicLoyaltyChecks.Run(app.Services, client, whatsapp, branch.Id, Check);
+    await PublicLoyaltyChecks.Run(app.Services, client, whatsapp, branch.Id, Token(admin.Id), Token(waiter.Id, false), Token(admin.Id, branchId: foreign.Id), Check);
     Console.WriteLine($"Order correction, billing and loyalty checks passed: {count}. Real isolated PostgreSQL and HTTP; no production services.");
 } finally { await app.StopAsync(); }

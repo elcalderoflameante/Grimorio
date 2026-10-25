@@ -192,7 +192,7 @@ public class PurchaseInvoiceImportDto
 {
     public int DocumentType { get; set; } = 1;
     public string? DocumentNumber { get; set; }
-    public DateTime? DocumentDate { get; set; }
+    public DateOnly? DocumentDate { get; set; }
     public string? AccessKey { get; set; }
     public string? AuthorizationNumber { get; set; }
     public DateTime? AuthorizationDate { get; set; }

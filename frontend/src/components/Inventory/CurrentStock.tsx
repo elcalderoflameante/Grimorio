@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { App as AntApp, Table, Select, Space, Typography, Tag, Badge, Button } from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { App as AntApp, Table, Select, Space, Typography, Tag, Badge, Button, Input, Checkbox } from 'antd';
 import { ReloadOutlined, WarningOutlined } from '@ant-design/icons';
 import { inventoryApi } from '../../services/api';
 import type { WarehouseStockDto, WarehouseDto, InventoryCategoryDto, ArticleType } from '../../types';
@@ -34,6 +34,8 @@ export default function CurrentStock() {
   const [filterBodega, setFilterBodega] = useState<string | undefined>();
   const [filterCategoria, setFilterCategoria] = useState<string | undefined>();
   const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [filterTipo, setFilterTipo] = useState<ArticleType | undefined>();
+  const [filterNombre, setFilterNombre] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,17 +53,23 @@ export default function CurrentStock() {
     } finally {
       setLoading(false);
     }
-  }, [filterBodega, filterCategoria, lowStockOnly]);
+  }, [filterBodega, filterCategoria, lowStockOnly, message]);
 
   useEffect(() => { load(); }, [load]);
 
-  const bajoStockCount = stock.filter(s => s.lowStock).length;
-  const reservedCount = stock.filter(s => s.reservedQuantity > 0).length;
+  const filteredStock = useMemo(() => {
+    const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const search = normalize(filterNombre.trim());
+    return stock.filter(s => (!filterTipo || s.type === filterTipo)
+      && (!search || normalize(s.articleName).includes(search)));
+  }, [stock, filterTipo, filterNombre]);
+  const bajoStockCount = filteredStock.filter(s => s.lowStock).length;
+  const reservedCount = filteredStock.filter(s => s.reservedQuantity > 0).length;
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Space>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <Space wrap>
           <Title level={5} style={{ margin: 0 }}>Stock Actual</Title>
           {bajoStockCount > 0 && (
             <Tag color="warning" icon={<WarningOutlined />}>
@@ -78,6 +86,23 @@ export default function CurrentStock() {
       </div>
 
       <Space style={{ marginBottom: 16 }} wrap>
+        <Input.Search
+          allowClear
+          aria-label="Buscar por nombre"
+          placeholder="Buscar por nombre"
+          style={{ width: 260, maxWidth: '100%' }}
+          value={filterNombre}
+          onChange={e => setFilterNombre(e.target.value)}
+        />
+        <Select
+          allowClear
+          aria-label="Filtrar por tipo"
+          placeholder="Filtrar por tipo"
+          style={{ width: 200 }}
+          value={filterTipo}
+          options={Object.entries(TIPO_LABEL).map(([value, label]) => ({ value, label }))}
+          onChange={setFilterTipo}
+        />
         <Select
           allowClear
           placeholder="Filtrar por bodega"
@@ -92,18 +117,14 @@ export default function CurrentStock() {
           options={categorias.map(c => ({ label: c.name, value: c.id }))}
           onChange={setFilterCategoria}
         />
-        <Button
-          type={lowStockOnly ? 'primary' : 'default'}
-          danger={lowStockOnly}
-          icon={<WarningOutlined />}
-          onClick={() => setLowStockOnly(v => !v)}
-        >
+        <Checkbox checked={lowStockOnly} onChange={e => setLowStockOnly(e.target.checked)}>
           Solo bajo stock
-        </Button>
+        </Checkbox>
       </Space>
 
       <Table
-        dataSource={stock}
+        dataSource={filteredStock}
+        scroll={{ x: 1100 }}
         rowKey={r => `${r.articleId}-${r.warehouseId}`}
         loading={loading}
         size="small"

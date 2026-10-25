@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Checkbox, Col, Form, Input, InputNumber, Modal, Row, Segmented, Space, Spin, Tag, Typography } from 'antd';
 import { ArrowLeftOutlined, CheckOutlined, ReloadOutlined, WhatsAppOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { publicLoyaltyApi, publicLoyaltyError } from '../services/publicLoyaltyApi';
 import type { LoyaltyChallenge, PublicEnrollmentProfile, PublicLoyaltyInfo } from '../services/publicLoyaltyApi';
 
@@ -112,6 +112,7 @@ export default function PublicLoyaltyEnrollment() {
         <Button block type="text" icon={<ArrowLeftOutlined />} disabled={busy} onClick={() => { setPending(undefined); setError(''); }}>Cambiar datos</Button>
       </Space>}
     </>}
+    <p style={{ marginTop: 24 }}><Link to="/fidelizacion/privacidad">Privacidad</Link>{' | '}<Link to="/fidelizacion/eliminar-datos">Eliminacion de datos</Link></p>
     <Modal title="Condiciones del programa" open={termsOpen} footer={null} onCancel={() => setTermsOpen(false)}>
       <p>Una visita por dia con un consumo pagado minimo de ${info?.minimumSpend.toFixed(2)} {info?.includeTax ? 'incluido IVA' : 'sin IVA'}, despues de descuentos y excluyendo los productos no participantes. Afiliarse no suma visitas.</p>
       {info?.rewards.map(r => <p key={r.visitNumber}>Visita {r.visitNumber}{r.repeatEvery ? ` y cada ${r.repeatEvery} visitas posteriores` : ''}: {r.name}.</p>)}

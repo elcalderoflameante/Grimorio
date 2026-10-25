@@ -78,6 +78,14 @@ public class InventoryArticleDto
     public bool IsActive { get; set; }
 }
 
+public class ArticleMenuUsageDto
+{
+    public Guid MenuItemId { get; set; }
+    public string MenuItemName { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public List<string> Usages { get; set; } = [];
+}
+
 public class CreateInventoryArticleDto
 {
     public string Name { get; set; } = string.Empty;

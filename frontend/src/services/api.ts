@@ -75,6 +75,7 @@ import type {
   InventoryCategoryDto,
   CreateInventoryCategoryDto,
   InventoryArticleDto,
+  ArticleMenuUsageDto,
   CreateInventoryArticleDto,
   UpdateInventoryArticleDto,
   WarehouseDto,
@@ -556,6 +557,8 @@ export const inventoryApi = {
     apiClient.get<InventoryArticleDto[]>('/inventory/articulos', { params }),
   getArticle: (id: string): Promise<AxiosResponse<InventoryArticleDto>> =>
     apiClient.get<InventoryArticleDto>(`/inventory/articulos/${id}`),
+  getArticleMenuUsage: (id: string): Promise<AxiosResponse<ArticleMenuUsageDto[]>> =>
+    apiClient.get<ArticleMenuUsageDto[]>(`/inventory/articulos/${id}/usos-menu`),
   createArticle: (data: CreateInventoryArticleDto): Promise<AxiosResponse<InventoryArticleDto>> =>
     apiClient.post<InventoryArticleDto>('/inventory/articulos', data),
   updateArticle: (id: string, data: UpdateInventoryArticleDto): Promise<AxiosResponse<InventoryArticleDto>> =>

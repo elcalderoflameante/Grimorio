@@ -1,6 +1,6 @@
 # Afiliacion publica por WhatsApp: pruebas
 
-Esta entrega NO conecta, registra ni migra el numero del restaurante. Tampoco publica la app de Meta ni configura facturacion. Solo permite el modo Test; cambiar Mode a Production mantiene el servicio bloqueado. La coexistencia del numero real requiere una revision independiente antes de cualquier alta.
+Esta guia describe el modo Test. El codigo tambien admite Production con validaciones adicionales; ver [preparacion de produccion y enlaces para Meta](whatsapp-afiliacion-produccion.md). Ninguno de los modos registra o migra el numero ni publica la app de Meta automaticamente. La coexistencia del numero real requiere una revision independiente antes de cualquier alta.
 
 ## Alcance
 

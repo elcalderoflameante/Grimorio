@@ -10,6 +10,8 @@ import { PERMISSIONS } from '../../constants/permissions';
 import { formatError } from '../../utils/errorHandler';
 import { formatBranchDateTime } from '../../utils/branchTimeZone';
 import LoyaltyMemberEditor from './LoyaltyMemberEditor';
+import LoyaltyEnrollmentQr from './LoyaltyEnrollmentQr';
+import LoyaltyWhatsAppSetup from './LoyaltyWhatsAppSetup';
 
 const status = { Available: ['green', 'Disponible'], Upcoming: ['gold', 'Proxima visita'], Expired: ['default', 'Vencido'] } as const;
 const money = (n: number) => `$${n.toFixed(2)}`;
@@ -27,6 +29,7 @@ export default function LoyaltyModule({ section }: { section: 'summary' | 'membe
   const [detail, setDetail] = useState<LoyaltyDetail>();
   const [profileEditor, setProfileEditor] = useState<{ member?: LoyaltyMember } | null>(null);
   const [tierIndex, setTierIndex] = useState<number | null>(null);
+  const [enrollmentQrOpen, setEnrollmentQrOpen] = useState(false);
   const [tierForm] = Form.useForm<LoyaltyTier>();
   const canManage = hasPermission(PERMISSIONS.marketing.loyaltyManage);
   const load = useCallback(async () => {
@@ -61,13 +64,15 @@ export default function LoyaltyModule({ section }: { section: 'summary' | 'membe
   return <div>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
       <Typography.Title level={4} style={{ margin: 0 }}>{section === 'summary' ? 'Marketing y fidelizacion' : section === 'members' ? 'Miembros y tarjetas' : 'Programa de fidelizacion'}</Typography.Title>
-      <Space>
+      <Space wrap>
+        <Tooltip title="QR de afiliacion"><Button icon={<QrcodeOutlined />} aria-label="QR de afiliacion" onClick={() => setEnrollmentQrOpen(true)} /></Tooltip>
         <Tooltip title="Actualizar"><Button icon={<ReloadOutlined />} aria-label="Actualizar" loading={loading} onClick={() => void load()} /></Tooltip>
         {section === 'members' && hasPermission(PERMISSIONS.marketing.loyaltyEnroll) && <Button type="primary" icon={<PlusOutlined />}
           onClick={() => setProfileEditor({})}>Inscribir miembro</Button>}
         {section === 'config' && canManage && <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={() => void save()}>Guardar</Button>}
       </Space>
     </div>
+    {section === 'config' && canManage && <LoyaltyWhatsAppSetup />}
     <Spin spinning={loading}>
       {section === 'summary' && summary && <Row gutter={[24, 24]}>
         {([['Miembros', summary.members], ['Miembros activos', summary.activeMembers], ['Visitas registradas', summary.visits], ['Premios disponibles', summary.availableRewards], ['Premios vencidos', summary.expiredRewards]] as const)
@@ -120,6 +125,7 @@ export default function LoyaltyModule({ section }: { section: 'summary' | 'membe
     </Spin>
     {profileEditor && <LoyaltyMemberEditor member={profileEditor.member} onClose={() => setProfileEditor(null)}
       onSaved={saved => { setProfileEditor(null); setDetail(saved); void load(); }} />}
+    {enrollmentQrOpen && <LoyaltyEnrollmentQr onClose={() => setEnrollmentQrOpen(false)} />}
     <Modal title="Hito de recompensas" forceRender open={tierIndex !== null} onCancel={() => setTierIndex(null)} okText="Aplicar" cancelText="Cancelar"
       onOk={() => { void tierForm.validateFields().then(() => {
         if (!program || tierIndex === null) return;

@@ -43,6 +43,22 @@
 
 La web incorpora `/fidelizacion` con afiliacion y recuperacion por codigo de WhatsApp. Esta deshabilitada por defecto y limitada a telefonos autorizados del entorno de pruebas; no conecta el numero real ni sustituye el registro desde caja. Ver [configuracion, limites y requisitos de Meta](whatsapp-afiliacion-pruebas.md).
 
+El modo Production se prepara desde **Programa > Conexion de WhatsApp** con diagnostico de configuracion y enlaces copiables para Meta. Permite una prueba limitada con el numero real antes de abrir al publico, sin migrarlo desde el ERP. Ver [guia de produccion](whatsapp-afiliacion-produccion.md). Los secretos se administran en el servidor y no se devuelven al navegador.
+
+### Tarjeta con calderos
+
+El enlace privado de cada cliente muestra cinco calderos por ciclo: llenos para visitas registradas y contornos para las pendientes. Al llegar a 5, 10, 15, etc., empieza visualmente otro ciclo, sin borrar el total ni el historial. El proximo premio y las visitas restantes se toman de la configuracion vigente recibida del servidor, no se inventan por completar cinco dibujos. Los premios se muestran segun su estado real y su vencimiento; los vencidos quedan en un historial desplegable.
+
+El QR personal sigue conteniendo solo el codigo CF de la tarjeta para identificarla en caja. No es el QR de afiliacion y no contiene su enlace privado.
+
+### QR general de afiliacion
+
+En **Marketing y fidelizacion > Resumen**, **Miembros y tarjetas** o **Programa**, usar el boton con icono QR y tooltip **QR de afiliacion** en la cabecera. Permite ver, copiar o abrir el enlace y descargar un PNG de 1024 x 1024 con fondo blanco y margen libre para lectura.
+
+El destino es `/fidelizacion` del dominio configurado en `VITE_PUBLIC_APP_URL`, la misma variable que usan los QR de las mesas. Si no existe, se usa el origen actual para pruebas locales. Una URL configurada invalida bloquea la generacion; los enlaces locales se marcan como pruebas. No se incluye ningun token de miembro ni de mesa.
+
+El modal consulta la disponibilidad y avisa si la afiliacion esta desactivada, limitada a telefonos autorizados o no se pudo consultar. Descargar el QR no activa WhatsApp, el programa ni los premios. No distribuirlo al publico hasta terminar la habilitacion del registro y comprobar el dominio desde un telefono externo.
+
 ## Limites de esta fase
 
 Incluye configuracion, catalogo privado, inscripcion, actualizacion de datos, cumpleanos opcional, tarjeta web con QR, acumulacion, emision de premios e historial. **No incluye canje ni envio a preparacion de premios**, Google Wallet, Apple Wallet, notificaciones comerciales ni campanas (incluidas las de cumpleanos). No se deben entregar premios usando ventas comunes a cero: el canje necesita su propio flujo transaccional para registrar entrega e inventario sin duplicados.

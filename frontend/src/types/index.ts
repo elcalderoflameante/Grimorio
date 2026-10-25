@@ -936,6 +936,13 @@ export interface InventoryArticleDto {
   isActive: boolean;
 }
 
+export interface ArticleMenuUsageDto {
+  menuItemId: string;
+  menuItemName: string;
+  isActive: boolean;
+  usages: string[];
+}
+
 export interface CreateInventoryArticleDto {
   name: string;
   description?: string;

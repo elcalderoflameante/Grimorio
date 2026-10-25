@@ -1,0 +1,49 @@
+.loyalty-passport-page { min-height: 100vh; background: #f3f5f4; color: #1d302b; padding: 28px 16px 48px; }
+.loyalty-passport { max-width: 520px; margin: 0 auto; }
+.loyalty-passport-brand { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+.loyalty-passport-brand img { width: 86px; height: 64px; object-fit: contain; flex: 0 0 auto; }
+.loyalty-passport-brand h1 { font-size: 20px; line-height: 1.3; margin: 0; font-weight: 750; }
+.loyalty-passport-brand p { margin: 4px 0 0; font-size: 13px; color: #5a6a64; }
+.loyalty-passport-sheet { background: #173e34; color: #fff; padding: 28px 24px 24px; border: 1px solid #234e42; border-radius: 8px; }
+.loyalty-passport-sheet h2 { margin: 6px 0 0; font-size: 25px; line-height: 1.35; overflow-wrap: anywhere; }
+.loyalty-passport-sheet .loyalty-passport-program { margin: 0; color: #ddc37b; font-size: 14px; }
+.loyalty-passport-count { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin: 26px 0 20px; }
+.loyalty-passport-count strong { font-size: 17px; }
+.loyalty-passport-count span { color: #d1ded7; font-size: 12px; overflow-wrap: anywhere; }
+.loyalty-stamps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; padding: 0; margin: 0; list-style: none; }
+.loyalty-stamps li { min-width: 0; text-align: center; }
+.loyalty-stamp-seal { aspect-ratio: 1; border: 1px dashed #8aa89b; border-radius: 50%; display: grid; place-items: center; background: #254b40; }
+.loyalty-stamp-seal.is-filled { border: 1px solid #e6c570; background: #f1d68f; }
+.cauldron-stamp { display: block; width: 76%; height: 76%; color: #bbcec3; }
+.cauldron-stamp .cauldron-body, .cauldron-stamp .cauldron-rim { fill: #254b40; }
+.cauldron-stamp .cauldron-spark { stroke-width: 1.8; }
+.cauldron-stamp.is-filled { color: #173e34; }
+.cauldron-stamp.is-filled .cauldron-body { fill: #173e34; }
+.cauldron-stamp.is-filled .cauldron-rim { fill: #f8e8bb; }
+.cauldron-stamp.is-filled .cauldron-spark { fill: #f1d68f; stroke: #f1d68f; }
+.loyalty-stamp-number { display: block; color: #c8d9d0; font-size: 12px; margin-top: 8px; }
+.loyalty-next-reward { border-top: 1px solid #507266; margin-top: 22px; padding-top: 18px; }
+.loyalty-next-reward p { margin: 0 0 6px; color: #e4ce91; font-size: 13px; }
+.loyalty-next-reward strong { display: block; font-size: 18px; line-height: 1.4; overflow-wrap: anywhere; }
+.loyalty-passport-identity { display: flex; align-items: center; gap: 22px; padding: 24px 0; border-bottom: 1px solid #d8e0dc; }
+.loyalty-passport-identity h2 { font-size: 17px; margin: 0 0 8px; }
+.loyalty-passport-identity p { margin: 4px 0; font-size: 13px; overflow-wrap: anywhere; }
+.loyalty-passport-identity > div:last-child { min-width: 0; }
+.loyalty-passport-identity .ant-tag { max-width: 100%; white-space: normal; }
+.loyalty-passport-identity .ant-qrcode { flex: 0 0 auto; background: #fff !important; }
+.loyalty-passport-rewards { padding-top: 24px; }
+.loyalty-passport-rewards h2 { margin: 0 0 8px; font-size: 20px; }
+.loyalty-passport-reward { padding: 16px 0; border-bottom: 1px solid #d8e0dc; }
+.loyalty-passport-reward strong { display: block; overflow-wrap: anywhere; margin-bottom: 8px; }
+.loyalty-passport-reward time { display: block; color: #596861; font-size: 13px; margin-top: 8px; }
+.loyalty-passport-rewards details { margin-top: 20px; }
+.loyalty-passport-rewards summary { cursor: pointer; color: #596861; font-size: 14px; }
+.loyalty-passport-refresh { margin-top: 24px; }
+@media (max-width: 380px) {
+  .loyalty-passport-sheet { padding: 22px 16px; }
+  .loyalty-stamps { gap: 6px; }
+  .loyalty-passport-identity { gap: 12px; }
+  .loyalty-passport-brand { gap: 10px; }
+  .loyalty-passport-brand img { width: 70px; height: 56px; }
+  .loyalty-passport-brand h1 { font-size: 18px; }
+}

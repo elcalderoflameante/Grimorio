@@ -15,7 +15,7 @@ public class PublicLoyaltyService(GrimorioDbContext db, ILoyaltyCodeSender sende
 
     public async Task<PublicLoyaltyInfoDto> Info(CancellationToken ct) {
         var p = await db.LoyaltyPrograms.AsNoTracking().SingleOrDefaultAsync(p => p.BranchId == Settings.PublicBranchId, ct);
-        return new(Settings.Ready && p?.IsActive == true, true, p?.Name ?? "Pasaporte del aventurero", p?.MinimumSpend ?? 10,
+        return new(Settings.Ready && p?.IsActive == true, Settings.IsRestricted, p?.Name ?? "Pasaporte del aventurero", p?.MinimumSpend ?? 10,
             p?.IncludeTax ?? true, p?.RewardValidityDays ?? 30, TermsVersion,
             p is null ? [] : LoyaltyHandlers.Tiers(p).Where(t => t.IsEnabled)
                 .Select(t => new PublicLoyaltyTierDto(t.VisitNumber, t.RepeatEvery, t.Name)).OrderBy(t => t.VisitNumber).ToList());
@@ -33,7 +33,7 @@ public class PublicLoyaltyService(GrimorioDbContext db, ILoyaltyCodeSender sende
         await RequireAvailable(ct);
         var phone = LoyaltyContact.NormalizePhone(input.Phone) ?? throw new InvalidOperationException("Ingresa un celular valido con codigo de pais.");
         if (input.Purpose is not ("Enroll" or "Recover")) throw new InvalidOperationException("Solicitud no valida.");
-        if (!Settings.AllowedTestPhones.Any(p => LoyaltyContact.NormalizePhone(p) == phone))
+        if (!Settings.CanSendTo(phone))
             throw new InvalidOperationException("La afiliacion esta en pruebas y este telefono no esta habilitado.");
         var now = time.GetUtcNow().UtcDateTime;
         var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6", CultureInfo.InvariantCulture);
@@ -42,6 +42,8 @@ public class PublicLoyaltyService(GrimorioDbContext db, ILoyaltyCodeSender sende
         challenge.CodeHash = LoyaltyCodeSecurity.Hash(challenge.Id, code, Settings.CodeHashKey);
         await using (var tx = await db.Database.BeginTransactionAsync(ct)) {
             await LockBranch(ct);
+            if (await db.LoyaltyPhoneChallenges.CountAsync(c => c.BranchId == Settings.PublicBranchId && c.CreatedAt > now.AddDays(-1), ct) >= Settings.DailySendLimit)
+                throw new InvalidOperationException("El envio de codigos alcanzo su limite temporal. Consulta en caja o intenta mas tarde.");
             var recent = await db.LoyaltyPhoneChallenges.Where(c => c.BranchId == Settings.PublicBranchId && c.Phone == phone
                 && c.CreatedAt > now.AddDays(-1)).ToListAsync(ct);
             if (recent.Count >= 5 || recent.Any(c => c.CreatedAt > now.AddSeconds(-60)))

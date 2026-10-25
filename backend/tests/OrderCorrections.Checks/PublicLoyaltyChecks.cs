@@ -25,7 +25,8 @@ internal class FakeLoyaltyCodeSender : ILoyaltyCodeSender
 
 internal static class PublicLoyaltyChecks
 {
-    internal static async Task Run(IServiceProvider services, HttpClient client, LoyaltyWhatsAppOptions config, Guid branch, Action<bool, string> check) {
+    internal static async Task Run(IServiceProvider services, HttpClient client, LoyaltyWhatsAppOptions config, Guid branch,
+        string adminToken, string deniedToken, string foreignToken, Action<bool, string> check) {
         client.DefaultRequestHeaders.Authorization = null;
         var sender = (FakeLoyaltyCodeSender)services.GetRequiredService<ILoyaltyCodeSender>();
         async Task Read(Func<GrimorioDbContext, Task> action) {
@@ -133,6 +134,39 @@ internal static class PublicLoyaltyChecks
         check(template.GetProperty("components")[0].GetProperty("parameters")[0].GetProperty("text").GetString() == "123456"
             && template.GetProperty("components")[1].GetProperty("sub_type").GetString() == "url", "Authentication template sends body code and copy-code button");
         check(handler.Uri!.Host == "graph.facebook.com" && handler.Bearer == config.AccessToken, "WhatsApp adapter uses official API and Authorization header");
+        await ProductionWhatsAppChecks.Run(check);
+
+        const string setupPath = "/api/marketing/loyalty/whatsapp/setup";
+        check((await client.GetAsync(setupPath)).StatusCode == HttpStatusCode.Unauthorized, "Setup metadata is never public");
+        async Task<HttpResponseMessage> Setup(string token) {
+            using var req = new HttpRequestMessage(HttpMethod.Get, setupPath);
+            req.Headers.Authorization = new("Bearer", token); return await client.SendAsync(req);
+        }
+        check((await Setup(deniedToken)).StatusCode == HttpStatusCode.Forbidden, "Cashier without loyalty-manage cannot read setup");
+        check((await Setup(foreignToken)).StatusCode == HttpStatusCode.Forbidden, "Setup restricted to configured branch");
+        using var setup = await Setup(adminToken); setup.EnsureSuccessStatusCode();
+        var text = await setup.Content.ReadAsStringAsync();
+        check(!text.Contains(config.AccessToken) && !text.Contains(config.CodeHashKey) && !text.Contains(config.AppSecret)
+            && !text.Contains(config.WebhookVerifyToken), "Setup never returns credential values");
+
+        config.Mode = "Production"; config.PhoneNumberId = "456789"; config.BusinessAccountId = "987654";
+        config.BusinessPhone = "+593964135806"; config.PublicAppUrl = "https://www.restaurant.test"; config.ErpAppUrl = "https://erp.restaurant.test";
+        check(!config.Ready, "Production blocked until business app coexistence explicitly confirmed");
+        config.BusinessAppCoexistenceConfirmed = true;
+        check(config.Ready && (await Request(phone: "0999999999")).StatusCode == HttpStatusCode.BadRequest, "Production rollout remains allowlisted by default");
+        config.RestrictRecipients = false;
+        var productionInfo = await client.GetFromJsonAsync<PublicLoyaltyInfoDto>(baseUrl + "/program");
+        check(productionInfo!.Enabled && !productionInfo.TestMode, "Public info correctly reports unrestricted production");
+        var productionCode = await Start(phone: "0999999999");
+        check(productionCode.ChallengeId != Guid.Empty, "Production enrollment accepts valid non-allowlisted phone when explicitly opened");
+        config.DailySendLimit = 1; var calls = sender.Calls;
+        check((await Request(phone: "0999999998")).StatusCode == HttpStatusCode.BadRequest && sender.Calls == calls, "Durable global daily cap blocks cost escalation before send");
+        config.DailySendLimit = 100;
+        using var productionSetup = await Setup(adminToken);
+        using var setupData = JsonDocument.Parse(await productionSetup.Content.ReadAsStringAsync());
+        check(setupData.RootElement.GetProperty("webhookUrl").GetString() == "https://erp.restaurant.test/api/integrations/whatsapp/webhook"
+            && setupData.RootElement.GetProperty("privacyUrl").GetString() == "https://www.restaurant.test/fidelizacion/privacidad",
+            "Setup links use configured public HTTPS domains, without private tokens");
     }
 
     private class CaptureWhatsAppHandler : HttpMessageHandler

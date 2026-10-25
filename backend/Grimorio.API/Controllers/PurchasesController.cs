@@ -225,7 +225,9 @@ public class PurchasesController : ControllerBase
         await using var stream = file.OpenReadStream();
         using var reader = new StreamReader(stream);
         var xml = await reader.ReadToEndAsync(ct);
-        var preview = PurchaseInvoiceXmlParser.Parse(xml);
+        PurchaseInvoiceImportDto preview;
+        try { preview = PurchaseInvoiceXmlParser.Parse(xml); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
         preview.XmlFileUrl = await SavePurchaseDocumentAsync(file.FileName, "xml", xml, ct);
         return Ok(preview);
     }
@@ -322,7 +324,7 @@ internal static class PurchaseInvoiceXmlParser
         {
             DocumentType = 1,
             DocumentNumber = string.Join("-", new[] { establishment, emissionPoint, sequential }.Where(x => !string.IsNullOrWhiteSpace(x))),
-            DocumentDate = ParseDate(Value(infoFactura, "fechaEmision")),
+            DocumentDate = ParseDocumentDate(Value(infoFactura, "fechaEmision")),
             AccessKey = Value(infoTrib, "claveAcceso"),
             AuthorizationNumber = authorizationNumber,
             AuthorizationDate = authorizationDate,
@@ -391,6 +393,15 @@ internal static class PurchaseInvoiceXmlParser
 
     private static decimal ParseDecimal(string? value) =>
         decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var result) ? result : 0m;
+
+    private static DateOnly ParseDocumentDate(string? value)
+    {
+        // fechaEmision is a calendar date, not midnight in the server's time zone.
+        string[] formats = ["dd/MM/yyyy", "yyyy-MM-dd"];
+        return DateOnly.TryParseExact(value?.Trim(), formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+            ? date
+            : throw new InvalidOperationException("El XML no contiene una fechaEmision valida (dd/MM/yyyy).");
+    }
 
     private static DateTime? ParseDate(string? value)
     {

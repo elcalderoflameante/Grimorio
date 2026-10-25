@@ -60,7 +60,7 @@ public class WhatsAppWebhookController(IOptions<LoyaltyWhatsAppOptions> options,
                 foreach (var change in changes.EnumerateArray()) {
                     if (!change.TryGetProperty("value", out var value) || !value.TryGetProperty("metadata", out var metadata)
                         || !metadata.TryGetProperty("phone_number_id", out var phoneId)
-                        || phoneId.GetString() != options.Value.TestPhoneNumberId
+                        || phoneId.GetString() != options.Value.SenderId
                         || !value.TryGetProperty("statuses", out var statuses) || statuses.ValueKind != JsonValueKind.Array) continue;
                     foreach (var status in statuses.EnumerateArray()) {
                         if (!status.TryGetProperty("id", out var id) || !status.TryGetProperty("status", out var state)) continue;

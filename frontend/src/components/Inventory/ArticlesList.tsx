@@ -10,6 +10,7 @@ import type {
 import { formatError } from '../../utils/errorHandler';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
+import ArticleMenuUsage from './ArticleMenuUsage';
 
 const { Title } = Typography;
 
@@ -215,6 +216,7 @@ export default function ArticlesList() {
 
       <Table
         dataSource={filteredArticulos}
+        scroll={{ x: 1000 }}
         rowKey="id"
         loading={loading}
         size="small"
@@ -244,17 +246,20 @@ export default function ArticlesList() {
             title: 'Stock mín.', key: 'stockMin',
             render: (_: unknown, a: InventoryArticleDto) => `${a.minStock} ${a.baseUnitSymbol}`,
           },
-          ...(canManage ? [{
-            title: 'Acciones', key: 'acciones', width: 100,
+          {
+            title: 'Acciones', key: 'acciones', width: canManage ? 140 : 60,
             render: (_: unknown, a: InventoryArticleDto) => (
               <Space>
+                <ArticleMenuUsage articleId={a.id} articleName={a.name} />
+                {canManage && <>
                 <Button size="small" icon={<EditOutlined />} onClick={() => openModal(a)} />
                 <Popconfirm title="¿Eliminar?" onConfirm={() => remove(a.id)}>
                   <Button size="small" danger icon={<DeleteOutlined />} />
                 </Popconfirm>
+                </>}
               </Space>
             ),
-          }] : []),
+          },
         ]}
       />
 

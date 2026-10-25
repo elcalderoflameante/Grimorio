@@ -44,6 +44,28 @@ services:
       GRIMORIO_ADMIN_EMAIL: ${GRIMORIO_ADMIN_EMAIL}
       GRIMORIO_ADMIN_PASSWORD: ${GRIMORIO_ADMIN_PASSWORD}
       Alexa__KitchenCommandKey: ${ALEXA_KITCHEN_COMMAND_KEY}
+      LoyaltyWhatsApp__Enabled: ${LOYALTY_WHATSAPP_ENABLED:-false}
+      LoyaltyWhatsApp__Mode: ${LOYALTY_WHATSAPP_MODE:-Production}
+      LoyaltyWhatsApp__PublicBranchId: ${LOYALTY_WHATSAPP_BRANCH_ID:-00000000-0000-0000-0000-000000000000}
+      LoyaltyWhatsApp__TestPhoneNumberId: ${LOYALTY_WHATSAPP_TEST_PHONE_NUMBER_ID:-}
+      LoyaltyWhatsApp__PhoneNumberId: ${LOYALTY_WHATSAPP_PHONE_NUMBER_ID:-}
+      LoyaltyWhatsApp__BusinessAccountId: ${LOYALTY_WHATSAPP_BUSINESS_ACCOUNT_ID:-}
+      LoyaltyWhatsApp__BusinessPhone: ${LOYALTY_WHATSAPP_BUSINESS_PHONE:-}
+      LoyaltyWhatsApp__MetaAppId: ${LOYALTY_WHATSAPP_META_APP_ID:-}
+      LoyaltyWhatsApp__PublicAppUrl: ${VITE_PUBLIC_APP_URL}
+      LoyaltyWhatsApp__ErpAppUrl: ${VITE_ERP_APP_URL}
+      LoyaltyWhatsApp__AccessToken: ${LOYALTY_WHATSAPP_ACCESS_TOKEN:-}
+      LoyaltyWhatsApp__AuthenticationTemplate: ${LOYALTY_WHATSAPP_AUTHENTICATION_TEMPLATE:-}
+      LoyaltyWhatsApp__TemplateLanguage: ${LOYALTY_WHATSAPP_TEMPLATE_LANGUAGE:-es}
+      LoyaltyWhatsApp__GraphVersion: ${LOYALTY_WHATSAPP_GRAPH_VERSION:-v25.0}
+      LoyaltyWhatsApp__RestrictRecipients: ${LOYALTY_WHATSAPP_RESTRICT_RECIPIENTS:-true}
+      LoyaltyWhatsApp__AllowedTestPhones__0: ${LOYALTY_WHATSAPP_ALLOWED_PHONE_1:-}
+      LoyaltyWhatsApp__AllowedTestPhones__1: ${LOYALTY_WHATSAPP_ALLOWED_PHONE_2:-}
+      LoyaltyWhatsApp__DailySendLimit: ${LOYALTY_WHATSAPP_DAILY_SEND_LIMIT:-100}
+      LoyaltyWhatsApp__BusinessAppCoexistenceConfirmed: ${LOYALTY_WHATSAPP_COEXISTENCE_CONFIRMED:-false}
+      LoyaltyWhatsApp__CodeHashKey: ${LOYALTY_WHATSAPP_CODE_HASH_KEY:-}
+      LoyaltyWhatsApp__WebhookVerifyToken: ${LOYALTY_WHATSAPP_WEBHOOK_VERIFY_TOKEN:-}
+      LoyaltyWhatsApp__AppSecret: ${LOYALTY_WHATSAPP_APP_SECRET:-}
     volumes:
       - ../../backend/secrets:/app/secrets:ro
       - data_protection_keys:/app/keys

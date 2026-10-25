@@ -32,6 +32,12 @@ public class GetInventoryArticleQuery : IRequest<InventoryArticleDto?>
     public Guid BranchId { get; set; }
 }
 
+public class GetArticleMenuUsageQuery : IRequest<List<ArticleMenuUsageDto>?>
+{
+    public Guid BranchId { get; set; }
+    public Guid ArticleId { get; set; }
+}
+
 public class GetWarehousesQuery : IRequest<List<WarehouseDto>>
 {
     public Guid BranchId { get; set; }

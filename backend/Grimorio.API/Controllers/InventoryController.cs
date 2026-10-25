@@ -191,6 +191,15 @@ public class InventoryController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Inventory.Articles.View")]
+    [HttpGet("articulos/{id:guid}/usos-menu")]
+    public async Task<IActionResult> GetArticleMenuUsage(Guid id, CancellationToken ct)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var result = await _mediator.Send(new GetArticleMenuUsageQuery { BranchId = branchId, ArticleId = id }, ct);
+        return result is null ? NotFound() : Ok(result);
+    }
+
     [Authorize(Policy = "Inventory.Articles.Manage")]
     [HttpDelete("articulos/{id:guid}")]
     public async Task<IActionResult> DeleteArticle(Guid id)

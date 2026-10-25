@@ -336,7 +336,7 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
       form.setFieldsValue({
         documentType: imported.documentType || 1,
         documentNumber: imported.documentNumber,
-        documentDate: imported.documentDate ? (toBranchDayjs(imported.documentDate) ?? dayjs(imported.documentDate)) : dayjs(),
+        documentDate: imported.documentDate ? dayjs(imported.documentDate) : undefined,
         accessKey: imported.accessKey,
         authorizationNumber: imported.authorizationNumber,
         authorizationDate: imported.authorizationDate ? (toBranchDayjs(imported.authorizationDate) ?? dayjs(imported.authorizationDate)) : undefined,
