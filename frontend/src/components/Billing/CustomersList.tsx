@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
-import { App as AntApp, Table, Button, Space, Tag, Modal, Form, Input, Select, Popconfirm, Typography, Row, Col } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { App as AntApp, Table, Button, Space, Tag, Modal, Form, Input, Select, Popconfirm, Typography, Row, Col, Tooltip } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, ShoppingOutlined } from '@ant-design/icons';
 import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto } from '../../types';
 import { customersApi } from '../../services/api';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
 import CustomerIdentificationFields from './CustomerIdentificationFields';
 import { formatError } from '../../utils/errorHandler';
+import CustomerSalesModal from './CustomerSalesModal';
 
 const { Title } = Typography;
 
@@ -26,6 +27,15 @@ export default function CustomersList() {
   const [saving, setSaving] = useState(false);
   const savingRequest = useRef(false);
   const canManage = hasPermission(PERMISSIONS.billing.customersManage);
+  const canViewSales = hasPermission(PERMISSIONS.billing.cashView);
+  const [search, setSearch] = useState('');
+  const [customerPage, setCustomerPage] = useState(1);
+  const [salesCustomer, setSalesCustomer] = useState<CustomerDto | null>(null);
+  const filteredCustomers = useMemo(() => {
+    const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const term = normalize(search.trim());
+    return customers.filter(c => !term || [c.name, c.taxId, c.phone, c.email].some(value => value && normalize(value).includes(term)));
+  }, [customers, search]);
 
   const load = async () => {
     setLoading(true);
@@ -96,13 +106,16 @@ export default function CustomersList() {
         {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Nuevo</Button>}
       </div>
 
+      <Input.Search allowClear aria-label="Buscar clientes" placeholder="Nombre, identificacion, telefono o correo"
+        value={search} onChange={e => { setSearch(e.target.value); setCustomerPage(1); }} style={{ width: 420, maxWidth: '100%', marginBottom: 16 }} />
+
       <Table
         size="small"
         scroll={{ x: 950 }}
         loading={loading}
-        dataSource={customers}
+        dataSource={filteredCustomers}
         rowKey="id"
-        pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
+        pagination={{ current: customerPage, onChange: setCustomerPage, defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
         columns={[
           { title: 'Nombre', dataIndex: 'name', sorter: (a, b) => a.name.localeCompare(b.name) },
           { title: 'Tipo ID', dataIndex: 'taxIdType', width: 120, render: t => TAX_LABELS[t] ?? t },
@@ -113,19 +126,24 @@ export default function CustomersList() {
             title: 'Estado', dataIndex: 'isActive', width: 90,
             render: v => <Tag color={v ? 'green' : 'default'}>{v ? 'Activo' : 'Inactivo'}</Tag>,
           },
-          ...(canManage ? [{
-            title: '', width: 80,
+          ...(canManage || canViewSales ? [{
+            title: 'Acciones', width: canManage && canViewSales ? 120 : 85, fixed: 'right' as const,
             render: (_: unknown, r: CustomerDto) => (
               <Space>
-                <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
+                {canViewSales && <Tooltip title="Ver ventas del cliente"><Button size="small" icon={<ShoppingOutlined />}
+                  aria-label={`Ver ventas de ${r.name}`} onClick={() => setSalesCustomer(r)} /></Tooltip>}
+                {canManage && <><Tooltip title="Editar cliente"><Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} /></Tooltip>
                 <Popconfirm title="¿Eliminar cliente?" onConfirm={() => handleDelete(r.id)}>
                   <Button size="small" icon={<DeleteOutlined />} danger />
                 </Popconfirm>
+                </>}
               </Space>
             ),
           }] : []),
         ]}
       />
+
+      {salesCustomer && <CustomerSalesModal key={salesCustomer.id} customer={salesCustomer} onClose={() => setSalesCustomer(null)} />}
 
       <Modal
         title={editing ? 'Editar cliente' : 'Nuevo cliente'}

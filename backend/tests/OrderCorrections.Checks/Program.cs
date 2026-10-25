@@ -32,6 +32,7 @@ using Npgsql;
 if (args.Contains("--purchase-xml-dates-only")) { PurchaseXmlDateChecks.Run(); return; }
 if (args.Contains("--article-menu-usage-only")) { await ArticleMenuUsageChecks.Run(); return; }
 if (args.Contains("--customer-identity-only")) { await CustomerIdentityChecks.Run(); return; }
+if (args.Contains("--customer-sales-only")) { await CustomerSalesChecks.Run(); return; }
 
 var connection = Environment.GetEnvironmentVariable("CORRECTION_CHECKS_CONNECTION") ?? throw new Exception("Set CORRECTION_CHECKS_CONNECTION.");
 var destination = new NpgsqlConnectionStringBuilder(connection);

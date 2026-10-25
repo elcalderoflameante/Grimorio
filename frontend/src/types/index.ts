@@ -1997,6 +1997,12 @@ export interface CustomerDto {
   isActive: boolean;
 }
 
+export interface CustomerSalesDto {
+  totalCount: number;
+  totalAmount: number;
+  items: OrderPaymentDto[];
+}
+
 export interface CreateCustomerDto {
   name: string;
   taxId?: string;

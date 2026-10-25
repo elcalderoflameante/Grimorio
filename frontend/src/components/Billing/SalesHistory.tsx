@@ -40,7 +40,7 @@ const orderTypeLabel = (t?: string) => {
   return t ?? '—';
 };
 
-function PaymentDetail({ payment }: { payment: OrderPaymentDto }) {
+export function PaymentDetail({ payment }: { payment: OrderPaymentDto }) {
   return (
     <div style={{ padding: '8px 16px' }}>
       <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }}>
@@ -86,6 +86,7 @@ function PaymentDetail({ payment }: { payment: OrderPaymentDto }) {
       <Table
         size="small"
         dataSource={payment.items}
+        scroll={{ x: 600 }}
         rowKey="id"
         pagination={false}
         locale={{ emptyText: 'Este cobro no tiene ítems detallados' }}

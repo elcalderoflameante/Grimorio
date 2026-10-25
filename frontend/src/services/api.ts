@@ -75,6 +75,7 @@ import type {
   InventoryCategoryDto,
   CreateInventoryCategoryDto,
   InventoryArticleDto,
+  CustomerSalesDto,
   ArticleMenuUsageDto,
   CreateInventoryArticleDto,
   UpdateInventoryArticleDto,
@@ -827,6 +828,8 @@ export const financeApi = {
 import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto, CashRegisterDto, CreateCashRegisterDto, UpdateCashRegisterDto, CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, OrderPaymentDto, AddOrderPaymentDto, ThermalReceiptDto, SalesProfitabilityReportDto, PaymentMethodConfigDto, CreatePaymentMethodConfigDto, UpdatePaymentMethodConfigDto, CardBankDto, CreateCardBankDto, UpdateCardBankDto, TaxRateDto, UpsertTaxRateDto, BranchTaxConfigDto, SriCertificateStatusDto, ElectronicDocumentDto, SmtpConfigDto, UpsertSmtpConfigDto, InvoiceTemplateDto } from '../types';
 
 export const customersApi = {
+  getSales: (id: string, params?: { from?: string; to?: string; page?: number; pageSize?: number }): Promise<AxiosResponse<CustomerSalesDto>> =>
+    apiClient.get<CustomerSalesDto>(`/customers/${id}/ventas`, { params }),
   getAll: (params?: { activeOnly?: boolean; search?: string }): Promise<AxiosResponse<CustomerDto[]>> =>
     apiClient.get<CustomerDto[]>('/customers', { params }),
   create: (dto: CreateCustomerDto): Promise<AxiosResponse<CustomerDto>> =>

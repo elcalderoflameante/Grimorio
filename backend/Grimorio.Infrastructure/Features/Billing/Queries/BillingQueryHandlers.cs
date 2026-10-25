@@ -413,10 +413,13 @@ public class GetSalesHandler : IRequestHandler<GetSalesQuery, List<OrderPaymentD
 
         if (req.FromUtc.HasValue) query = query.Where(p => p.PaidAt >= req.FromUtc.Value);
         if (req.ToUtc.HasValue) query = query.Where(p => p.PaidAt <= req.ToUtc.Value);
+        if (req.CustomerId.HasValue) query = query.Where(p => p.CustomerId == req.CustomerId.Value);
 
         var payments = await query
             .AsSplitQuery()
             .OrderByDescending(p => p.PaidAt)
+            .ThenByDescending(p => p.Id)
+            .Skip((Math.Max(1, req.Page) - 1) * req.PageSize)
             .Take(req.PageSize)
             .ToListAsync(ct);
 

@@ -197,6 +197,13 @@ public class CustomerDto
     public bool IsActive { get; set; }
 }
 
+public class CustomerSalesDto
+{
+    public int TotalCount { get; set; }
+    public decimal TotalAmount { get; set; }
+    public List<OrderPaymentDto> Items { get; set; } = [];
+}
+
 public class CreateCustomerDto
 {
     public string Name { get; set; } = string.Empty;

@@ -42,6 +42,22 @@ public class CustomersController : ControllerBase
         catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
+    [Authorize(Policy = "Billing.Customers.View")]
+    [Authorize(Policy = "Billing.Cash.View")]
+    [HttpGet("{id:guid}/ventas")]
+    public async Task<IActionResult> GetCustomerSales(Guid id, [FromQuery] DateTime? from, [FromQuery] DateTime? to,
+        CancellationToken ct, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        try
+        {
+            var result = await _mediator.Send(new GetCustomerSalesQuery { BranchId = branchId, CustomerId = id,
+                FromUtc = from, ToUtc = to, Page = page, PageSize = pageSize }, ct);
+            return result == null ? NotFound() : Ok(result);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
     [Authorize(Policy = "Billing.Customers.Manage")]
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> UpdateCustomer(Guid id, [FromBody] UpdateCustomerDto dto)

@@ -74,9 +74,21 @@ public class GetThermalReceiptQuery : IRequest<ThermalReceiptDto?>
 public class GetSalesQuery : IRequest<List<OrderPaymentDto>>
 {
     public Guid BranchId { get; set; }
+    public Guid? CustomerId { get; set; }
+    public int Page { get; set; } = 1;
     public DateTime? FromUtc { get; set; }
     public DateTime? ToUtc { get; set; }
     public int PageSize { get; set; } = 100;
+}
+
+public class GetCustomerSalesQuery : IRequest<CustomerSalesDto?>
+{
+    public Guid BranchId { get; set; }
+    public Guid CustomerId { get; set; }
+    public DateTime? FromUtc { get; set; }
+    public DateTime? ToUtc { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 10;
 }
 
 public class GetSalesProfitabilityQuery : IRequest<SalesProfitabilityReportDto>
