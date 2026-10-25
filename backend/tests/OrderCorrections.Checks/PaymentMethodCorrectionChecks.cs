@@ -33,7 +33,7 @@ internal static class PaymentMethodCorrectionChecks
         var employee = new PaymentMethodConfig { Name = "Correction payroll", Purpose = PaymentMethodPurpose.EmployeePayrollDeduction };
         var bank = new CardBank { BranchId = branch, Name = "Checks bank" };
         var foreignBank = new CardBank { BranchId = foreign, Name = "Other bank" };
-        var user = new User { BranchId = branch, Email = "payment-correction@checks.invalid", FirstName = "Correction", LastName = "Delegate", PasswordHash = "checks" };
+        var user = new User { BranchId = branch, Email = $"payment-correction-{branch:N}@checks.invalid", FirstName = "Correction", LastName = "Delegate", PasswordHash = "checks" };
         var role = new Role { BranchId = branch, Name = "Payment correction delegate" };
         var permission = new Permission { BranchId = branch, Code = AppConstants.Permissions.BillingPaymentsCorrectMethod, Description = "Correction" };
         var grant = new RolePermission { BranchId = branch, RoleId = role.Id, PermissionId = permission.Id };
@@ -157,6 +157,52 @@ internal static class PaymentMethodCorrectionChecks
             "Forced persistence failure rolls back line, original replay snapshot and audit together"));
         check((await Send(new GetCashSessionDetailQuery { BranchId = branch, Id = sessionId }))!.ExpectedCash == beforeFailure!.ExpectedCash,
             "Failed correction leaves cash expectation unchanged");
+        var (splitSale, splitOriginal) = await Sale(true);
+        var splitData = Data(splitSale);
+        var splitNet = splitSale.Lines.Single(l => l.Id == splitData.PaymentLineId).NetAmount;
+        var third = decimal.Round(splitNet / 3, 2);
+        splitData.Lines = [new() { MethodId = cashId, Amount = third }, new() { MethodId = transfer.Id, Amount = third },
+            new() { MethodId = card.Id, Amount = splitNet - third * 2, CardPaymentType = "Debit", CardBankId = bank.Id,
+                CardBrand = "Visa", AuthorizationNumber = "SPLIT-123" }];
+        var splitBefore = (await Send(new GetCashSessionDetailQuery { BranchId = branch, Id = sessionId }))!;
+        var splitInventory = await InventorySnapshot();
+        splitData.Lines[2].Amount += .01m;
+        await Correct(splitSale.Id, splitData, HttpStatusCode.BadRequest);
+        splitData.Lines[2].Amount -= .01m;
+        splitData.Lines[2].CardBankId = foreignBank.Id;
+        await Correct(splitSale.Id, splitData, HttpStatusCode.BadRequest);
+        splitData.Lines[2].CardBankId = bank.Id;
+        check((await Send(new GetPaymentMethodCorrectionsQuery { BranchId = branch, PaymentId = splitSale.Id })).Count == 0,
+            "Invalid split amount or card bank creates no partial correction");
+        await Correct(splitSale.Id, splitData);
+        var splitResult = (await Send(new GetSalesQuery { BranchId = branch, PageSize = 1000 })).Single(p => p.Id == splitSale.Id);
+        var untouched = splitSale.Lines.Single(l => l.Id != splitData.PaymentLineId);
+        check(splitResult.Lines.Count == 4 && splitResult.Lines.Sum(l => l.NetAmount) == splitSale.OrderAmount
+            && splitResult.Lines.Single(l => l.Id == untouched.Id).NetAmount == untouched.NetAmount,
+            "Split creates three destinations while preserving other payment lines and the total");
+        var splitHistory = await Send(new GetPaymentMethodCorrectionsQuery { BranchId = branch, PaymentId = splitSale.Id });
+        check(splitHistory.Count == 1 && splitHistory[0].Before.NetAmount == splitNet
+            && splitHistory[0].AfterLines.Count == 3 && splitHistory[0].AfterLines.Sum(l => l.NetAmount) == splitNet
+            && splitHistory[0].AfterLines.Single(l => l.IsCard).AuthorizationNumber == "SPLIT-123",
+            "Split audit preserves the full distribution and card metadata");
+        check((await Send(new GetCashSessionDetailQuery { BranchId = branch, Id = sessionId }))!.ExpectedCash
+            == splitBefore.ExpectedCash - splitNet + third && await InventorySnapshot() == splitInventory,
+            "Split updates cash by the exact net difference and never changes inventory");
+        await Correct(splitSale.Id, splitData);
+        check((await Send(new GetPaymentMethodCorrectionsQuery { BranchId = branch, PaymentId = splitSale.Id })).Count == 1
+            && (await Send(splitOriginal)).Id == splitSale.Id, "Split retry and original payment replay are idempotent");
+        splitData.RequestId = Guid.NewGuid();
+        await Correct(splitSale.Id, splitData, HttpStatusCode.BadRequest);
+        var (twoCards, _) = await Sale();
+        var twoCardData = Data(twoCards);
+        var half = decimal.Round(twoCards.OrderAmount / 2, 2);
+        twoCardData.Lines = [new() { MethodId = card.Id, Amount = half, CardPaymentType = "Debit", CardBankId = bank.Id,
+            CardBrand = "Visa", AuthorizationNumber = "DEBIT-A" }, new() { MethodId = card.Id, Amount = twoCards.OrderAmount - half,
+            CardPaymentType = "Credit", CardBankId = bank.Id, CardBrand = "Mastercard", AuthorizationNumber = "CREDIT-B" }];
+        await Correct(twoCards.Id, twoCardData);
+        var cardHistory = await Send(new GetPaymentMethodCorrectionsQuery { BranchId = branch, PaymentId = twoCards.Id });
+        check(cardHistory.Single().AfterLines.Select(l => l.AuthorizationNumber).ToHashSet().SetEquals(["DEBIT-A", "CREDIT-B"]),
+            "Two cards retain independent type, brand and authorization details");
         var (racing, _) = await Sale(); var raceData = Data(racing);
         var beforeClose = (await Send(new GetCashSessionDetailQuery { BranchId = branch, Id = sessionId }))!.ExpectedCash;
         using var raceRequest = new HttpRequestMessage(HttpMethod.Post, $"/api/cash/pagos/{racing.Id}/corregir-medio") { Content = JsonContent.Create(raceData) };

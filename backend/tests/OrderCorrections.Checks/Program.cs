@@ -31,6 +31,7 @@ using Npgsql;
 
 if (args.Contains("--purchase-xml-dates-only")) { PurchaseXmlDateChecks.Run(); return; }
 if (args.Contains("--article-menu-usage-only")) { await ArticleMenuUsageChecks.Run(); return; }
+if (args.Contains("--customer-identity-only")) { await CustomerIdentityChecks.Run(); return; }
 
 var connection = Environment.GetEnvironmentVariable("CORRECTION_CHECKS_CONNECTION") ?? throw new Exception("Set CORRECTION_CHECKS_CONNECTION.");
 var destination = new NpgsqlConnectionStringBuilder(connection);
@@ -74,10 +75,12 @@ builder.Services.AddAuthorization(options => {
 await using var app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter(); app.MapControllers();
 async Task Read(Func<GrimorioDbContext, Task> action) { await using var scope = app.Services.CreateAsyncScope(); await action(scope.ServiceProvider.GetRequiredService<GrimorioDbContext>()); }
 async Task<T> Send<T>(IRequest<T> request) { await using var scope = app.Services.CreateAsyncScope(); return await scope.ServiceProvider.GetRequiredService<IMediator>().Send(request); }
-var branch = new Branch { Name = "Correction checks", Code = "COR" };
-var foreign = new Branch { Name = "Other", Code = "OTHER" };
-var admin = new User { BranchId = branch.Id, FirstName = new string('A', 100), LastName = new string('B', 100), Email = "admin@checks.invalid", PasswordHash = "checks" };
-var waiter = new User { BranchId = branch.Id, FirstName = "Waiter", LastName = "Checks", Email = "waiter@checks.invalid", PasswordHash = "checks" };
+var paymentCorrectionsOnly = args.Contains("--payment-method-corrections-only");
+var fixtureSuffix = paymentCorrectionsOnly ? Guid.NewGuid().ToString("N")[..8] : "";
+var branch = new Branch { Name = "Correction checks", Code = "COR" + fixtureSuffix };
+var foreign = new Branch { Name = "Other", Code = "OTHER" + fixtureSuffix };
+var admin = new User { BranchId = branch.Id, FirstName = new string('A', 100), LastName = new string('B', 100), Email = $"admin{fixtureSuffix}@checks.invalid", PasswordHash = "checks" };
+var waiter = new User { BranchId = branch.Id, FirstName = "Waiter", LastName = "Checks", Email = $"waiter{fixtureSuffix}@checks.invalid", PasswordHash = "checks" };
 var role = new Role { BranchId = branch.Id, Name = AppConstants.Roles.Admin };
 var station = new WorkStation { BranchId = branch.Id, Name = "Grill" };
 var category = new MenuCategory { BranchId = branch.Id, Name = "Checks" };
@@ -91,7 +94,7 @@ var articles = new[] { "Base", "BBQ", "Teriyaki", "Unavailable" }.Select(name =>
     BranchId = branch.Id, Name = name, CategoryId = inventoryCategory.Id, BaseUnitId = unit.Id }).ToArray();
 await Read(async db => {
     if (Environment.GetEnvironmentVariable("CORRECTION_CHECKS_ALLOW_RESET") == "true") await db.Database.EnsureDeletedAsync();
-    await LoyaltyProfileMigrationChecks.Run(db, Check);
+    if (!paymentCorrectionsOnly) await LoyaltyProfileMigrationChecks.Run(db, Check);
     await db.Database.MigrateAsync(); Check(!db.Database.HasPendingModelChanges(), "Migration matches model");
     db.AddRange(branch, foreign, admin, waiter, role, station, category, inventoryCategory, unit, warehouse, register, session, cash);
     db.UserRoles.Add(new UserRole { BranchId = branch.Id, UserId = admin.Id, RoleId = role.Id }); db.AddRange(articles);
@@ -143,6 +146,12 @@ string Token(Guid actor, bool adminRole = true, Guid? branchId = null) => new Jw
 await app.StartAsync();
 try {
     using var client = new HttpClient { BaseAddress = new Uri(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single()) };
+    if (paymentCorrectionsOnly) {
+        await PaymentMethodCorrectionChecks.Run(app.Services, client, key, Token(admin.Id), Token(waiter.Id, false),
+            branch.Id, foreign.Id, admin.Id, dish.Id, small, bbq, cash.Id, session.Id, Check);
+        Console.WriteLine($"Payment method correction checks passed: {count}. Isolated PostgreSQL and HTTP, no production services.");
+        return;
+    }
     async Task<OrderDto?> Correct(Guid id, CorrectOrderItemDto data, HttpStatusCode expected = HttpStatusCode.OK, string? token = null) {
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/pos/ordenes/items/{id}/corregir") { Content = JsonContent.Create(data) };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token ?? Token(admin.Id));

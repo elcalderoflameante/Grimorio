@@ -1,19 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { App as AntApp, Table, Button, Space, Tag, Modal, Form, Input, Select, Popconfirm, Typography, Row, Col } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { CustomerDto, CreateCustomerDto, UpdateCustomerDto } from '../../types';
 import { customersApi } from '../../services/api';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
+import CustomerIdentificationFields from './CustomerIdentificationFields';
+import { formatError } from '../../utils/errorHandler';
 
 const { Title } = Typography;
-
-const TAX_ID_TYPES = [
-  { value: 'Cedula', label: 'Cédula' },
-  { value: 'Ruc', label: 'RUC' },
-  { value: 'Passport', label: 'Pasaporte' },
-  { value: 'FinalConsumer', label: 'Consumidor final' },
-];
 
 const TAX_LABELS: Record<string, string> = {
   Cedula: 'Cédula', Ruc: 'RUC', Passport: 'Pasaporte', FinalConsumer: 'Cons. final',
@@ -29,6 +24,7 @@ export default function CustomersList() {
   const [editing, setEditing] = useState<CustomerDto | null>(null);
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
+  const savingRequest = useRef(false);
   const canManage = hasPermission(PERMISSIONS.billing.customersManage);
 
   const load = async () => {
@@ -57,8 +53,11 @@ export default function CustomersList() {
   };
 
   const handleSave = async () => {
-    const values = await form.validateFields();
+    if (savingRequest.current) return;
+    savingRequest.current = true;
     setSaving(true);
+    let values;
+    try { values = await form.validateFields(); } catch { savingRequest.current = false; setSaving(false); return; }
     try {
       if (editing) {
         const dto: UpdateCustomerDto = { ...values };
@@ -72,9 +71,10 @@ export default function CustomersList() {
         message.success('Cliente creado');
       }
       setModalOpen(false);
-    } catch {
-      message.error('Error al guardar');
+    } catch (error) {
+      message.error(formatError(error));
     } finally {
+      savingRequest.current = false;
       setSaving(false);
     }
   };
@@ -98,6 +98,7 @@ export default function CustomersList() {
 
       <Table
         size="small"
+        scroll={{ x: 950 }}
         loading={loading}
         dataSource={customers}
         rowKey="id"
@@ -129,29 +130,22 @@ export default function CustomersList() {
       <Modal
         title={editing ? 'Editar cliente' : 'Nuevo cliente'}
         open={modalOpen}
-        onCancel={() => setModalOpen(false)}
+        onCancel={() => { if (!saving) setModalOpen(false); }}
         onOk={handleSave}
         confirmLoading={saving}
+        closable={!saving}
+        maskClosable={!saving}
         okText="Guardar"
         cancelText="Cancelar"
         width={760}
         style={{ top: 32 }}
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" disabled={saving}>
           <Form.Item name="name" label="Nombre / Razón social" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
           <Row gutter={16}>
-            <Col xs={24} md={12}>
-              <Form.Item name="taxIdType" label="Tipo de identificación">
-                <Select options={TAX_ID_TYPES} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item name="taxId" label="RUC / Cédula">
-                <Input />
-              </Form.Item>
-            </Col>
+            <CustomerIdentificationFields customerId={editing?.id} />
             <Col xs={24} md={12}>
               <Form.Item name="address" label="Dirección">
                 <Input />

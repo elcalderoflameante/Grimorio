@@ -19,9 +19,12 @@ public class CorrectPaymentMethodCommandHandler(GrimorioDbContext db) : IRequest
     {
         var data = request.Data;
         var reason = data.Reason?.Trim() ?? "";
-        if (data.RequestId == Guid.Empty || data.PaymentLineId == Guid.Empty || data.MethodId == Guid.Empty
+        if (data.RequestId == Guid.Empty || data.PaymentLineId == Guid.Empty || (data.Lines == null && data.MethodId == Guid.Empty)
             || data.ExpectedMethodId == Guid.Empty || reason.Length is < 5 or > 500)
             throw new InvalidOperationException("Selecciona el medio de pago e indica un motivo de 5 a 500 caracteres.");
+        if (data.Lines != null && (data.Lines.Count is < 1 or > 10 || data.Lines.Any(l =>
+            l == null || l.MethodId == Guid.Empty || l.Amount <= 0 || decimal.Round(l.Amount, 2) != l.Amount)))
+            throw new InvalidOperationException("Indica de 1 a 10 medios con importes positivos de hasta dos decimales.");
         var actor = await db.UserRoles.Where(r => r.UserId == request.ActorUserId && r.BranchId == request.BranchId
             && r.User != null && r.User.IsActive && r.User.BranchId == request.BranchId
             && r.Role != null && r.Role.IsActive && r.Role.BranchId == request.BranchId
@@ -30,11 +33,13 @@ public class CorrectPaymentMethodCommandHandler(GrimorioDbContext db) : IRequest
                 && p.Permission.Code == AppConstants.Permissions.BillingPaymentsCorrectMethod)))
             .Select(r => new { r.User!.FirstName, r.User.LastName }).FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("No tienes un rol activo con permiso para corregir medios de pago.");
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new {
+        var legacyPayload = JsonSerializer.Serialize(new {
             request.PaymentId, data.PaymentLineId, data.ExpectedMethodId, data.ExpectedUpdatedAt, data.MethodId,
             data.CardPaymentType, data.CardBankId, CardBrand = data.CardBrand?.Trim(),
             AuthorizationNumber = data.AuthorizationNumber?.Trim(), Reason = reason,
-        }))));
+        });
+        var hashPayload = data.Lines == null ? legacyPayload : JsonSerializer.Serialize(new { Legacy = legacyPayload, data.Lines });
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(hashPayload)));
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         var orderId = await db.OrderPayments.Where(p => p.Id == request.PaymentId && p.BranchId == request.BranchId)
             .Select(p => (Guid?)p.OrderId).SingleOrDefaultAsync(ct) ?? throw new KeyNotFoundException("Cobro no encontrado.");
@@ -68,51 +73,74 @@ public class CorrectPaymentMethodCommandHandler(GrimorioDbContext db) : IRequest
             ?? throw new InvalidOperationException("La linea seleccionada no pertenece a este cobro.");
         if (line.PaymentMethodConfigId != data.ExpectedMethodId || line.UpdatedAt != data.ExpectedUpdatedAt)
             throw new InvalidOperationException("Este medio de pago cambio desde que abriste la venta. Actualiza antes de corregirlo.");
-        var method = await db.PaymentMethodConfigs.SingleOrDefaultAsync(m => m.Id == data.MethodId && m.IsActive, ct)
-            ?? throw new InvalidOperationException("El medio de pago no esta disponible.");
-        if (method.Purpose != PaymentMethodPurpose.Standard || (method.IsCash && method.IsCard))
-            throw new InvalidOperationException("Selecciona un medio de pago normal, no consumo de empleados.");
-        CardPaymentType? cardType = null;
-        CardBank? bank = null;
-        if (method.IsCard)
-        {
-            if (!Enum.TryParse<CardPaymentType>(data.CardPaymentType, true, out var parsed) || !Enum.IsDefined(parsed))
-                throw new InvalidOperationException("Selecciona credito o debito.");
-            cardType = parsed;
-            bank = await db.CardBanks.SingleOrDefaultAsync(b => b.Id == data.CardBankId && b.BranchId == request.BranchId && b.IsActive, ct)
-                ?? throw new InvalidOperationException("Selecciona un banco valido para la tarjeta.");
-            if (string.IsNullOrWhiteSpace(data.CardBrand) || data.CardBrand.Trim().Length > 40
-                || string.IsNullOrWhiteSpace(data.AuthorizationNumber) || data.AuthorizationNumber.Trim().Length > 50)
-                throw new InvalidOperationException("Completa la marca y autorizacion de la tarjeta (maximo 40 y 50 caracteres).");
-        }
-        else if (data.CardBankId.HasValue || data.CardPaymentType != null || data.CardBrand != null || data.AuthorizationNumber != null)
-            throw new InvalidOperationException("Los datos de tarjeta solo corresponden a pagos con tarjeta.");
-        var brand = method.IsCard ? data.CardBrand!.Trim() : null;
-        var authorization = method.IsCard ? data.AuthorizationNumber!.Trim() : null;
-        if (line.PaymentMethodConfigId == method.Id && line.CardPaymentType == cardType && line.CardBankId == bank?.Id
-            && line.CardBrand == brand && line.AuthorizationNumber == authorization)
-            throw new InvalidOperationException("No hay cambios en el medio de pago.");
         var net = line.AmountTendered - line.Change;
         if (net <= 0 || line.Change < 0) throw new InvalidOperationException("El importe de la linea no es valido.");
+        var replacements = data.Lines ?? [new PaymentMethodCorrectionLineDto {
+            MethodId = data.MethodId, Amount = net, CardPaymentType = data.CardPaymentType, CardBankId = data.CardBankId,
+            CardBrand = data.CardBrand, AuthorizationNumber = data.AuthorizationNumber,
+        }];
+        if (replacements.Sum(l => l.Amount) != net)
+            throw new InvalidOperationException("La suma de los medios debe coincidir exactamente con el importe a reclasificar.");
+        var replacementLines = new List<PaymentLine>();
+        foreach (var replacement in replacements)
+        {
+            var method = await db.PaymentMethodConfigs.SingleOrDefaultAsync(m => m.Id == replacement.MethodId && m.IsActive, ct)
+                ?? throw new InvalidOperationException("El medio de pago no esta disponible.");
+            if (method.Purpose != PaymentMethodPurpose.Standard || (method.IsCash && method.IsCard))
+                throw new InvalidOperationException("Selecciona un medio de pago normal, no consumo de empleados.");
+            CardPaymentType? cardType = null;
+            CardBank? bank = null;
+            if (method.IsCard)
+            {
+                if (!Enum.TryParse<CardPaymentType>(replacement.CardPaymentType, true, out var parsed) || !Enum.IsDefined(parsed))
+                    throw new InvalidOperationException("Selecciona credito o debito.");
+                cardType = parsed;
+                bank = await db.CardBanks.SingleOrDefaultAsync(b => b.Id == replacement.CardBankId && b.BranchId == request.BranchId && b.IsActive, ct)
+                    ?? throw new InvalidOperationException("Selecciona un banco valido para la tarjeta.");
+                if (string.IsNullOrWhiteSpace(replacement.CardBrand) || replacement.CardBrand.Trim().Length > 40
+                    || string.IsNullOrWhiteSpace(replacement.AuthorizationNumber) || replacement.AuthorizationNumber.Trim().Length > 50)
+                    throw new InvalidOperationException("Completa la marca y autorizacion de la tarjeta (maximo 40 y 50 caracteres).");
+            }
+            else if (replacement.CardBankId.HasValue || replacement.CardPaymentType != null || replacement.CardBrand != null || replacement.AuthorizationNumber != null)
+                throw new InvalidOperationException("Los datos de tarjeta solo corresponden a pagos con tarjeta.");
+            replacementLines.Add(new PaymentLine {
+                BranchId = request.BranchId, OrderPaymentId = payment.Id, Config = method, PaymentMethodConfigId = method.Id,
+                AmountTendered = replacement.Amount, Change = 0, CardPaymentType = cardType, CardBankId = bank?.Id,
+                CardBankName = bank?.Name, CardBrand = method.IsCard ? replacement.CardBrand!.Trim() : null,
+                AuthorizationNumber = method.IsCard ? replacement.AuthorizationNumber!.Trim() : null,
+            });
+        }
+        var first = replacementLines[0];
+        if (replacementLines.Count == 1 && line.PaymentMethodConfigId == first.PaymentMethodConfigId
+            && line.CardPaymentType == first.CardPaymentType && line.CardBankId == first.CardBankId
+            && line.CardBrand == first.CardBrand && line.AuthorizationNumber == first.AuthorizationNumber)
+            throw new InvalidOperationException("No hay cambios en el medio de pago.");
         var before = Snapshot(line);
         payment.OriginalPaymentLinesJson ??= JsonSerializer.Serialize(payment.Lines.Select(l => new PaymentLineCommand {
             MethodId = l.PaymentMethodConfigId, AmountTendered = l.AmountTendered, CardPaymentType = l.CardPaymentType?.ToString(),
             CardBankId = l.CardBankId, CardBrand = l.CardBrand, AuthorizationNumber = l.AuthorizationNumber,
         }).ToList());
-        line.PaymentMethodConfigId = method.Id;
-        line.Config = method;
-        line.AmountTendered = net;
+        line.PaymentMethodConfigId = first.PaymentMethodConfigId;
+        line.Config = first.Config;
+        line.AmountTendered = first.AmountTendered;
         line.Change = 0;
-        line.CardPaymentType = cardType;
-        line.CardBankId = bank?.Id;
-        line.CardBankName = bank?.Name;
-        line.CardBrand = brand;
-        line.AuthorizationNumber = authorization;
+        line.CardPaymentType = first.CardPaymentType;
+        line.CardBankId = first.CardBankId;
+        line.CardBankName = first.CardBankName;
+        line.CardBrand = first.CardBrand;
+        line.AuthorizationNumber = first.AuthorizationNumber;
+        replacementLines[0] = line;
+        foreach (var added in replacementLines.Skip(1))
+        {
+            payment.Lines.Add(added);
+            db.PaymentLines.Add(added);
+        }
         db.PaymentMethodCorrections.Add(new PaymentMethodCorrection {
             BranchId = request.BranchId, OrderPaymentId = payment.Id, PaymentLineId = line.Id, CashSessionId = session.Id,
             RequestId = data.RequestId, RequestHash = hash, ActorUserId = request.ActorUserId,
             ActorName = $"{actor.FirstName} {actor.LastName}".Trim(), Reason = reason,
-            BeforeJson = JsonSerializer.Serialize(before), AfterJson = JsonSerializer.Serialize(Snapshot(line)),
+            BeforeJson = JsonSerializer.Serialize(before), AfterJson = replacementLines.Count == 1
+                ? JsonSerializer.Serialize(Snapshot(line)) : JsonSerializer.Serialize(replacementLines.Select(Snapshot)),
         });
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);

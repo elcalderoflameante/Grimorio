@@ -5,12 +5,22 @@ export interface CorrectPaymentMethodDto {
   paymentLineId: string;
   expectedMethodId: string;
   expectedUpdatedAt: string | null;
-  methodId: string;
+  methodId?: string;
   cardPaymentType?: string;
   cardBankId?: string;
   cardBrand?: string;
   authorizationNumber?: string;
   reason: string;
+  lines?: PaymentMethodCorrectionLineDto[];
+}
+
+export interface PaymentMethodCorrectionLineDto {
+  methodId: string;
+  amount: number;
+  cardPaymentType?: string;
+  cardBankId?: string;
+  cardBrand?: string;
+  authorizationNumber?: string;
 }
 
 export interface PaymentMethodCorrectionDto {
@@ -21,4 +31,5 @@ export interface PaymentMethodCorrectionDto {
   reason: string;
   before: PaymentLineDto;
   after: PaymentLineDto;
+  afterLines?: PaymentLineDto[];
 }

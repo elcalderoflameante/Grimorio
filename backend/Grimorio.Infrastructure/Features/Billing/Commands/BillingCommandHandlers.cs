@@ -8,6 +8,7 @@ using Grimorio.Domain.Entities.POS;
 using Grimorio.Domain.Entities.Payroll;
 using Grimorio.Domain.Enums;
 using Grimorio.Infrastructure.Features.Billing.Queries;
+using Grimorio.Infrastructure.Features.Billing;
 using Grimorio.Infrastructure.Features.Menu;
 using Grimorio.Infrastructure.Features.POS;
 using Grimorio.Infrastructure.Features.POS.Commands;
@@ -510,18 +511,24 @@ public class CreateCustomerHandler : IRequestHandler<CreateCustomerCommand, Cust
 
     public async Task<CustomerDto> Handle(CreateCustomerCommand req, CancellationToken ct)
     {
-        if (!Enum.TryParse<TaxIdType>(req.TaxIdType, out var taxIdType))
-            throw new InvalidOperationException($"Tipo de identificación inválido: {req.TaxIdType}");
+        var identity = CustomerIdentity.Validate(req.TaxId, req.TaxIdType);
+        if (string.IsNullOrWhiteSpace(req.Name) || req.Name.Trim().Length > 200)
+            throw new InvalidOperationException("Ingresa el nombre o razon social (maximo 200 caracteres).");
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        // Serialize customer writes per branch, including simultaneous registrations from different tills.
+        await _db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtext({req.BranchId.ToString()}), 7305)", ct);
+        await CustomerIdentity.EnsureUnique(_db, req.BranchId, identity.Number, identity.Type, null, ct);
 
         var entity = new Customer
         {
             Id = Guid.NewGuid(), BranchId = req.BranchId,
-            Name = req.Name.Trim(), TaxId = req.TaxId?.Trim(),
-            TaxIdType = taxIdType, Address = req.Address?.Trim(),
+            Name = req.Name.Trim(), TaxId = identity.Number,
+            TaxIdType = identity.Type, Address = req.Address?.Trim(),
             Phone = req.Phone?.Trim(), Email = req.Email?.Trim(),
         };
         _db.Customers.Add(entity);
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return BillingMapper.MapCustomer(entity);
     }
 }
@@ -533,20 +540,24 @@ public class UpdateCustomerHandler : IRequestHandler<UpdateCustomerCommand, Cust
 
     public async Task<CustomerDto> Handle(UpdateCustomerCommand req, CancellationToken ct)
     {
+        var identity = CustomerIdentity.Validate(req.TaxId, req.TaxIdType);
+        if (string.IsNullOrWhiteSpace(req.Name) || req.Name.Trim().Length > 200)
+            throw new InvalidOperationException("Ingresa el nombre o razon social (maximo 200 caracteres).");
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        await _db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtext({req.BranchId.ToString()}), 7305)", ct);
         var entity = await _db.Customers.FirstOrDefaultAsync(x => x.Id == req.Id && x.BranchId == req.BranchId && !x.IsDeleted, ct)
             ?? throw new KeyNotFoundException("Cliente no encontrado.");
-
-        if (!Enum.TryParse<TaxIdType>(req.TaxIdType, out var taxIdType))
-            throw new InvalidOperationException($"Tipo de identificación inválido: {req.TaxIdType}");
+        await CustomerIdentity.EnsureUnique(_db, req.BranchId, identity.Number, identity.Type, req.Id, ct);
 
         entity.Name = req.Name.Trim();
-        entity.TaxId = req.TaxId?.Trim();
-        entity.TaxIdType = taxIdType;
+        entity.TaxId = identity.Number;
+        entity.TaxIdType = identity.Type;
         entity.Address = req.Address?.Trim();
         entity.Phone = req.Phone?.Trim();
         entity.Email = req.Email?.Trim();
         entity.IsActive = req.IsActive;
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return BillingMapper.MapCustomer(entity);
     }
 }

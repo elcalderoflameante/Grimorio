@@ -12,6 +12,17 @@ public class CorrectPaymentMethodDto
     public string? CardBrand { get; set; }
     public string? AuthorizationNumber { get; set; }
     public string Reason { get; set; } = string.Empty;
+    public List<PaymentMethodCorrectionLineDto>? Lines { get; set; }
+}
+
+public class PaymentMethodCorrectionLineDto
+{
+    public Guid MethodId { get; set; }
+    public decimal Amount { get; set; }
+    public string? CardPaymentType { get; set; }
+    public Guid? CardBankId { get; set; }
+    public string? CardBrand { get; set; }
+    public string? AuthorizationNumber { get; set; }
 }
 
 public class PaymentMethodCorrectionDto
@@ -23,4 +34,5 @@ public class PaymentMethodCorrectionDto
     public string Reason { get; set; } = string.Empty;
     public PaymentLineDto Before { get; set; } = new();
     public PaymentLineDto After { get; set; } = new();
+    public List<PaymentLineDto> AfterLines { get; set; } = [];
 }

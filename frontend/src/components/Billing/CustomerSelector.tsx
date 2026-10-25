@@ -1,17 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { App as AntApp, Select, Button, Modal, Form, Input, Space, Row, Col } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import type { CustomerDto, CreateCustomerDto } from '../../types';
 import { customersApi } from '../../services/api';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
-
-const TAX_ID_TYPES = [
-  { value: 'Cedula', label: 'Cédula' },
-  { value: 'Ruc', label: 'RUC' },
-  { value: 'Passport', label: 'Pasaporte' },
-  { value: 'FinalConsumer', label: 'Consumidor final' },
-];
+import CustomerIdentificationFields from './CustomerIdentificationFields';
+import { formatError } from '../../utils/errorHandler';
 
 interface Props {
   branchId: string;
@@ -31,6 +26,7 @@ export default function CustomerSelector({ value, onChange, allowCreate = true, 
   const [showCreate, setShowCreate] = useState(false);
   const [createForm] = Form.useForm();
   const [saving, setSaving] = useState(false);
+  const savingRequest = useRef(false);
   const canManageCustomers = allowCreate && hasPermission(PERMISSIONS.billing.customersManage);
   const selectableCustomers = [...(value && !customers.some(c => c.id === value.id) ? [value] : []), ...customers]
     .filter(c => !excludeFinalConsumer || c.taxIdType !== 'FinalConsumer');
@@ -42,8 +38,11 @@ export default function CustomerSelector({ value, onChange, allowCreate = true, 
   }, [search]);
 
   const handleCreate = async () => {
-    const values = await createForm.validateFields();
+    if (savingRequest.current) return;
+    savingRequest.current = true;
     setSaving(true);
+    let values;
+    try { values = await createForm.validateFields(); } catch { savingRequest.current = false; setSaving(false); return; }
     try {
       const dto: CreateCustomerDto = { ...values };
       const r = await customersApi.create(dto);
@@ -52,9 +51,10 @@ export default function CustomerSelector({ value, onChange, allowCreate = true, 
       setShowCreate(false);
       createForm.resetFields();
       message.success('Cliente creado');
-    } catch {
-      message.error('Error al crear el cliente');
+    } catch (error) {
+      message.error(formatError(error));
     } finally {
+      savingRequest.current = false;
       setSaving(false);
     }
   };
@@ -88,26 +88,19 @@ export default function CustomerSelector({ value, onChange, allowCreate = true, 
       <Modal
         title="Nuevo cliente"
         open={showCreate}
-        onCancel={() => setShowCreate(false)}
+        onCancel={() => { if (!saving) setShowCreate(false); }}
         onOk={handleCreate}
         confirmLoading={saving}
+        closable={!saving}
+        maskClosable={!saving}
         okText="Guardar"
         cancelText="Cancelar"
         width={720}
         style={{ top: 24 }}
       >
-        <Form form={createForm} layout="vertical" initialValues={{ taxIdType: 'FinalConsumer' }}>
+        <Form form={createForm} layout="vertical" disabled={saving} initialValues={{ taxIdType: 'FinalConsumer' }}>
           <Row gutter={16}>
-            <Col xs={24} sm={12}>
-              <Form.Item name="taxIdType" label="Tipo de identificación">
-                <Select options={TAX_ID_TYPES} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
-              <Form.Item name="taxId" label="Número de identificación">
-                <Input placeholder="0000000000" />
-              </Form.Item>
-            </Col>
+            <CustomerIdentificationFields />
             <Col xs={24} sm={12}>
               <Form.Item name="name" label="Nombre / Razón social" rules={[{ required: true }]}>
                 <Input />

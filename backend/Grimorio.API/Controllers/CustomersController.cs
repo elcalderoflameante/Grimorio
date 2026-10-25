@@ -29,13 +29,17 @@ public class CustomersController : ControllerBase
     public async Task<IActionResult> CreateCustomer([FromBody] CreateCustomerDto dto)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
-        var result = await _mediator.Send(new CreateCustomerCommand
+        try
         {
-            BranchId = branchId, Name = dto.Name, TaxId = dto.TaxId,
-            TaxIdType = dto.TaxIdType, Address = dto.Address,
-            Phone = dto.Phone, Email = dto.Email,
-        });
-        return Ok(result);
+            var result = await _mediator.Send(new CreateCustomerCommand
+            {
+                BranchId = branchId, Name = dto.Name, TaxId = dto.TaxId,
+                TaxIdType = dto.TaxIdType, Address = dto.Address,
+                Phone = dto.Phone, Email = dto.Email,
+            });
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
 
     [Authorize(Policy = "Billing.Customers.Manage")]
@@ -43,13 +47,18 @@ public class CustomersController : ControllerBase
     public async Task<IActionResult> UpdateCustomer(Guid id, [FromBody] UpdateCustomerDto dto)
     {
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
-        var result = await _mediator.Send(new UpdateCustomerCommand
+        try
         {
-            Id = id, BranchId = branchId, Name = dto.Name, TaxId = dto.TaxId,
-            TaxIdType = dto.TaxIdType, Address = dto.Address,
-            Phone = dto.Phone, Email = dto.Email, IsActive = dto.IsActive,
-        });
-        return Ok(result);
+            var result = await _mediator.Send(new UpdateCustomerCommand
+            {
+                Id = id, BranchId = branchId, Name = dto.Name, TaxId = dto.TaxId,
+                TaxIdType = dto.TaxIdType, Address = dto.Address,
+                Phone = dto.Phone, Email = dto.Email, IsActive = dto.IsActive,
+            });
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
     }
 
     [Authorize(Policy = "Billing.Customers.Manage")]
