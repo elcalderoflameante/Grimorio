@@ -1684,6 +1684,8 @@ public class RetryElectronicInvoiceHandler : IRequestHandler<RetryElectronicInvo
                     doc.ErrorMessage = null;
                     await _db.SaveChangesAsync(ct);
                     var reception = await _soap.ValidarComprobanteAsync(doc.XmlSigned!, doc.Environment, ct);
+                    _log.LogInformation("Recepcion SRI para documento {DocumentId}: {Result}. {Messages}",
+                        doc.Id, reception.Result, string.Join("; ", reception.Messages));
                     doc.XmlResponseSri = reception.RawXml;
                     return reception;
                 },
@@ -1692,7 +1694,7 @@ public class RetryElectronicInvoiceHandler : IRequestHandler<RetryElectronicInvo
                     doc.Status = ElectronicDocumentStatus.Sent;
                     await _db.SaveChangesAsync(ct);
                 },
-                received, wasRejected, ct, () => doc.XmlSigned);
+                received, wasRejected, ct, () => doc.XmlSigned, req.RetryCorrectedXml);
 
             doc.XmlResponseSri = result.RawXml;
             doc.ErrorMessage = result.Error;

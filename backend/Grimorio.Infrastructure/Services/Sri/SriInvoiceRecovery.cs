@@ -15,11 +15,17 @@ public static class SriInvoiceRecovery
         bool alreadyReceived,
         bool allowRejectedResubmission,
         CancellationToken ct,
-        Func<string?>? getSubmittedXml = null)
+        Func<string?>? getSubmittedXml = null,
+        bool retryCorrectedXml = false)
     {
         var authorization = await query();
         if (authorization.IsAuthorized) return FromAuthorization(authorization);
-        if (authorization.Status == SriAuthorizationStatus.Rejected && !allowRejectedResubmission)
+        var previousRejection = IsPreviousRejection(authorization, getSubmittedXml?.Invoke());
+        // A manual retry can send a corrected pending XML, but receipt confirmation remains query-only.
+        var retryCorrection = retryCorrectedXml && !alreadyReceived && previousRejection;
+        if (authorization.Status == SriAuthorizationStatus.Rejected && previousRejection && alreadyReceived)
+            return FromAuthorization(authorization, true, getSubmittedXml?.Invoke());
+        if (authorization.Status == SriAuthorizationStatus.Rejected && !allowRejectedResubmission && !retryCorrection)
             return FromAuthorization(authorization, alreadyReceived, getSubmittedXml?.Invoke());
         if (authorization.Status is not (SriAuthorizationStatus.NotFound or SriAuthorizationStatus.Rejected))
             return FromAuthorization(authorization, alreadyReceived);

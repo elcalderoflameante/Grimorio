@@ -183,7 +183,8 @@ public class SriController : ControllerBase
         if (!TryGetBranchId(out var branchId)) return Unauthorized();
         try
         {
-            var result = await _mediator.Send(new RetryElectronicInvoiceCommand { DocumentId = id, BranchId = branchId });
+            var result = await _mediator.Send(new RetryElectronicInvoiceCommand {
+                DocumentId = id, BranchId = branchId, RetryCorrectedXml = true });
             return Ok(result);
         }
         catch (InvalidOperationException ex) { return BadRequest(ex.Message); }

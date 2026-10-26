@@ -85,7 +85,8 @@ var correctedXml = Invoice("04", "new");
 var oldRejection = Response(SriAuthorizationStatus.Rejected) with { XmlAuthorizado = Invoice("05"), Messages = ["[69] Old buyer error"] };
 var currentRejection = oldRejection with { XmlAuthorizado = Invoice("04", "another-signature"), Messages = ["Current rejection"] };
 async Task CorrectionScenario(SriAuthorizationResponse[] responses, SriSubmitResult reception, bool received, bool manual,
-    SriRecoveryStatus expected, int expectedSubmissions, int expectedReceipts, string? submittedXml = null)
+    SriRecoveryStatus expected, int expectedSubmissions, int expectedReceipts, string? submittedXml = null,
+    bool retryCorrectedXml = false)
 {
     var queue = new Queue<SriAuthorizationResponse>(responses);
     var submissions = 0;
@@ -95,7 +96,7 @@ async Task CorrectionScenario(SriAuthorizationResponse[] responses, SriSubmitRes
         () => Task.FromResult(queue.Dequeue()),
         () => { submissions++; currentXml = submittedXml ?? correctedXml;
             return Task.FromResult(new SriValidateResponse(reception, ["Current reception error"], "<current-reception/>")); },
-        () => { receipts++; return Task.CompletedTask; }, received, manual, CancellationToken.None, () => currentXml);
+        () => { receipts++; return Task.CompletedTask; }, received, manual, CancellationToken.None, () => currentXml, retryCorrectedXml);
     Check(result.Status == expected, $"Corrected XML expected {expected}, got {result.Status}");
     Check(submissions == expectedSubmissions && receipts == expectedReceipts, "Stale rejection must not cause additional submissions");
     if (result.Status is SriRecoveryStatus.Sent or SriRecoveryStatus.Pending && result.Authorization == oldRejection)
@@ -121,6 +122,18 @@ await CorrectionScenario([Response(SriAuthorizationStatus.Authorized)],
     SriSubmitResult.Received, false, true, SriRecoveryStatus.Authorized, 0, 0);
 await CorrectionScenario([oldRejection with { XmlAuthorizado = "\n  <?xml version='1.0'?>\n" + Invoice("05") + "\n  " }],
     SriSubmitResult.Received, true, false, SriRecoveryStatus.Sent, 0, 0);
+await CorrectionScenario([oldRejection, Response(SriAuthorizationStatus.Authorized)],
+    SriSubmitResult.Received, false, false, SriRecoveryStatus.Authorized, 1, 1, retryCorrectedXml: true);
+await CorrectionScenario([oldRejection], SriSubmitResult.Received, true, true,
+    SriRecoveryStatus.Sent, 0, 0, retryCorrectedXml: true);
+await CorrectionScenario([currentRejection], SriSubmitResult.Received, false, false,
+    SriRecoveryStatus.Rejected, 0, 0, retryCorrectedXml: true);
+await CorrectionScenario([Response(SriAuthorizationStatus.Unknown)], SriSubmitResult.Received, false, false,
+    SriRecoveryStatus.Pending, 0, 0, retryCorrectedXml: true);
+await CorrectionScenario([oldRejection, oldRejection], SriSubmitResult.Rejected, false, false,
+    SriRecoveryStatus.Rejected, 1, 0, retryCorrectedXml: true);
+await CorrectionScenario([oldRejection, oldRejection, oldRejection, oldRejection], SriSubmitResult.AlreadyReceived, false, false,
+    SriRecoveryStatus.Sent, 1, 1, retryCorrectedXml: true);
 if (args.Length == 2)
 {
     var actualXml = await File.ReadAllTextAsync(args[0]);
@@ -128,6 +141,9 @@ if (args.Length == 2)
     var actualResponse = await Client(await File.ReadAllTextAsync(args[1])).AutorizarComprobanteAsync(actualKey, "2");
     Check(actualResponse.Status == SriAuthorizationStatus.Rejected, "Provided SOAP fixture contains a rejection");
     await CorrectionScenario([actualResponse], SriSubmitResult.Received, true, false, SriRecoveryStatus.Sent, 0, 0, actualXml);
+    await CorrectionScenario([actualResponse], SriSubmitResult.Received, false, false, SriRecoveryStatus.Pending, 0, 0, actualXml);
+    await CorrectionScenario([actualResponse, Response(SriAuthorizationStatus.Authorized)], SriSubmitResult.Received,
+        false, false, SriRecoveryStatus.Authorized, 1, 1, actualXml, retryCorrectedXml: true);
 }
 Console.WriteLine($"SRI recovery checks passed: {checks}. No network or database used.");
 

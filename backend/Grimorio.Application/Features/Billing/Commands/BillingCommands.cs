@@ -67,6 +67,7 @@ public class RetryElectronicInvoiceCommand : IRequest<ElectronicDocumentDto>
 {
     public Guid DocumentId { get; set; }
     public Guid BranchId { get; set; }
+    public bool RetryCorrectedXml { get; set; }
 }
 
 public class ResendElectronicInvoiceEmailCommand : IRequest<ElectronicDocumentDto>
