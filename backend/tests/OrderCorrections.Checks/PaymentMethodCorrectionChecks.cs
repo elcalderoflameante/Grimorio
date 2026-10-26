@@ -226,6 +226,8 @@ internal static class PaymentMethodCorrectionChecks
             var beforeStock = await InventorySnapshot();
             var beforeCash = (await Send(new GetCashSessionDetailQuery { BranchId = branch, Id = sessionId }))!;
             var correction = Data(invoiceSale);
+            correction.ExpectedLines = invoiceSale.Lines.Select(l => new ExpectedPaymentMethodLineDto {
+                Id = l.Id, MethodId = l.MethodId, UpdatedAt = l.UpdatedAt, NetAmount = l.NetAmount }).ToList();
             correction.Lines = [new() { MethodId = cashId, Amount = 1 },
                 new() { MethodId = transfer.Id, Amount = 1 },
                 new() { MethodId = card.Id, Amount = invoiceSale.OrderAmount - 2, CardPaymentType = "Credit", CardBankId = bank.Id,
@@ -244,6 +246,58 @@ internal static class PaymentMethodCorrectionChecks
             check((await Send(new GetPaymentMethodCorrectionsQuery { BranchId = branch, PaymentId = invoiceSale.Id })).Count == 1,
                 $"Invoice {documentStatus}: audit and idempotency remain enforced");
         }
+        CorrectPaymentMethodDto Whole(OrderPaymentDto payment) => new() {
+            RequestId = Guid.NewGuid(), Reason = "Reemplazo completo de los medios registrados",
+            ExpectedLines = payment.Lines.Select(l => new ExpectedPaymentMethodLineDto {
+                Id = l.Id, MethodId = l.MethodId, UpdatedAt = l.UpdatedAt, NetAmount = l.NetAmount }).ToList(),
+            Lines = [new() { MethodId = card.Id, Amount = payment.OrderAmount, CardPaymentType = "Debit", CardBankId = bank.Id,
+                CardBrand = "Visa", AuthorizationNumber = "WHOLE-123" }],
+        };
+        var (wholeSale, wholeOriginal) = await Sale(true);
+        var wholeData = Whole(wholeSale);
+        var wholeBefore = (await Send(new GetCashSessionDetailQuery { BranchId = branch, Id = sessionId }))!;
+        var wholeStock = await InventorySnapshot();
+        wholeData.Lines![0].Amount -= .01m;
+        await Correct(wholeSale.Id, wholeData, HttpStatusCode.BadRequest);
+        wholeData.Lines[0].Amount += .01m;
+        await Correct(wholeSale.Id, wholeData);
+        var wholeResult = (await Send(new GetSalesQuery { BranchId = branch, PageSize = 1000 })).Single(p => p.Id == wholeSale.Id);
+        var wholeHistory = await Send(new GetPaymentMethodCorrectionsQuery { BranchId = branch, PaymentId = wholeSale.Id });
+        check(wholeResult.Lines.Count == 1 && wholeResult.Lines.Single().MethodId == card.Id
+            && wholeResult.Lines.Single().NetAmount == wholeSale.OrderAmount && wholeResult.OrderAmount == wholeSale.OrderAmount,
+            "Whole correction replaces two original methods by one payment for the complete sale total");
+        check(wholeHistory.Single().BeforeLines.Count == 2 && wholeHistory.Single().BeforeLines.Sum(l => l.NetAmount) == wholeSale.OrderAmount
+            && wholeHistory.Single().AfterLines.Count == 1 && wholeHistory.Single().BeforeLines.Any(l => l.Change == 5),
+            "Whole audit retains every original line, tendered cash and change");
+        check((await Send(new GetCashSessionDetailQuery { BranchId = branch, Id = sessionId }))!.ExpectedCash
+            == wholeBefore.ExpectedCash - wholeSale.Lines.Where(l => l.IsCash).Sum(l => l.NetAmount)
+            && await InventorySnapshot() == wholeStock, "Whole replacement updates cash only, never inventory");
+        await Correct(wholeSale.Id, wholeData);
+        check((await Send(wholeOriginal)).Id == wholeSale.Id
+            && (await Send(new GetPaymentMethodCorrectionsQuery { BranchId = branch, PaymentId = wholeSale.Id })).Count == 1,
+            "Whole correction and original checkout retries remain idempotent");
+        await Read(async db => check(await db.PaymentLines.IgnoreQueryFilters().CountAsync(l => l.OrderPaymentId == wholeSale.Id) == 2
+            && await db.PaymentLines.IgnoreQueryFilters().CountAsync(l => l.OrderPaymentId == wholeSale.Id && l.IsDeleted) == 1,
+            "Removed payment lines remain archived rather than physically deleted"));
+        wholeData.RequestId = Guid.NewGuid();
+        await Correct(wholeSale.Id, wholeData, HttpStatusCode.BadRequest);
+        var redistribute = Whole(wholeResult);
+        redistribute.Lines = [new() { MethodId = cashId, Amount = 1 }, new() { MethodId = transfer.Id, Amount = 1 },
+            new() { MethodId = card.Id, Amount = wholeResult.OrderAmount - 2, CardPaymentType = "Credit", CardBankId = bank.Id,
+                CardBrand = "Mastercard", AuthorizationNumber = "WHOLE-SECOND" }];
+        await Correct(wholeSale.Id, redistribute);
+        var redistributed = (await Send(new GetSalesQuery { BranchId = branch, PageSize = 1000 })).Single(p => p.Id == wholeSale.Id);
+        check(redistributed.Lines.Count == 3 && redistributed.Lines.Sum(l => l.NetAmount) == wholeSale.OrderAmount,
+            "Whole correction can completely rebuild one payment into three independent methods");
+        var unchanged = Whole(redistributed);
+        unchanged.Lines = redistributed.Lines.Select(l => new PaymentMethodCorrectionLineDto { MethodId = l.MethodId,
+            Amount = l.NetAmount, CardPaymentType = l.CardPaymentType, CardBankId = l.CardBankId, CardBrand = l.CardBrand,
+            AuthorizationNumber = l.AuthorizationNumber }).Reverse().ToList();
+        await Correct(wholeSale.Id, unchanged, HttpStatusCode.BadRequest);
+        var (staleSale, _) = await Sale(true);
+        var staleWhole = Whole(staleSale);
+        await Correct(staleSale.Id, Data(staleSale));
+        await Correct(staleSale.Id, staleWhole, HttpStatusCode.BadRequest);
         var (racing, _) = await Sale(); var raceData = Data(racing);
         var beforeClose = (await Send(new GetCashSessionDetailQuery { BranchId = branch, Id = sessionId }))!.ExpectedCash;
         using var raceRequest = new HttpRequestMessage(HttpMethod.Post, $"/api/cash/pagos/{racing.Id}/corregir-medio") { Content = JsonContent.Create(raceData) };

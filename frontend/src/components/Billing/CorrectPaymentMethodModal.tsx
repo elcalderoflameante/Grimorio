@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { App, Alert, Form, Input, Modal, Select, Spin, Typography } from 'antd';
+import { App, Alert, Form, Input, Modal, Spin, Typography } from 'antd';
 import type { CardBankDto, OrderPaymentDto, PaymentMethodConfigDto } from '../../types';
 import type { PaymentMethodCorrectionDto, PaymentMethodCorrectionLineDto } from '../../types/paymentMethodCorrection';
 import CorrectionPaymentLines from './CorrectionPaymentLines';
@@ -9,7 +9,6 @@ import { formatError } from '../../utils/errorHandler';
 import { formatBranchDateTime } from '../../utils/branchTimeZone';
 
 interface Values {
-  lineId: string;
   lines: PaymentMethodCorrectionLineDto[];
   reason: string;
 }
@@ -30,10 +29,8 @@ export default function CorrectPaymentMethodModal({ payment, onClose, onSuccess 
   const inFlight = useRef(false);
   const requestId = useRef('');
   const lines = Form.useWatch('lines', form);
-  const lineId = Form.useWatch('lineId', form);
-  const selectedLine = payment?.lines.find(l => l.id === lineId);
   const assignedCents = (lines ?? []).reduce((sum, line) => sum + Math.round((line.amount ?? 0) * 100), 0);
-  const remainingCents = Math.round((selectedLine?.netAmount ?? 0) * 100) - assignedCents;
+  const remainingCents = Math.round((payment?.orderAmount ?? 0) * 100) - assignedCents;
   const editable = payment?.cashSessionStatus === 'Open'
     && payment.lines.every(line => !line.employeeId);
 
@@ -42,16 +39,15 @@ export default function CorrectPaymentMethodModal({ payment, onClose, onSuccess 
     let cancelled = false;
     requestId.current = createIdempotencyKey();
     form.resetFields(); setHistory([]); setMethods([]); setBanks([]);
-    const first = payment.lines[0];
     setLoading(true); setLoadFailed(false);
     Promise.all([paymentMethodsApi.getAll(), paymentMethodsApi.getCardBanks(), cashApi.getPaymentMethodCorrections(payment.id)])
       .then(([methodsRes, banksRes, historyRes]) => {
         if (cancelled) return;
         setMethods(methodsRes.data.filter(m => m.isActive && m.purpose !== 'EmployeePayrollDeduction'));
         setBanks(banksRes.data); setHistory(historyRes.data);
-        form.setFieldsValue({ lineId: first?.id, lines: [{ amount: first?.netAmount, methodId: first?.methodId,
-          cardPaymentType: first?.cardPaymentType, cardBankId: first?.cardBankId,
-          cardBrand: first?.cardBrand, authorizationNumber: first?.authorizationNumber }] });
+        form.setFieldsValue({ lines: payment.lines.map(line => ({ amount: line.netAmount, methodId: line.methodId,
+          cardPaymentType: line.cardPaymentType, cardBankId: line.cardBankId,
+          cardBrand: line.cardBrand, authorizationNumber: line.authorizationNumber })) });
       }).catch(error => { if (!cancelled) { setLoadFailed(true); message.error(formatError(error)); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -63,15 +59,14 @@ export default function CorrectPaymentMethodModal({ payment, onClose, onSuccess 
     try {
       let values;
       try { values = await form.validateFields(); } catch { return; }
-      const line = payment.lines.find(l => l.id === values.lineId);
-      if (!line) return;
       const total = values.lines.reduce((sum, part) => sum + Math.round(part.amount * 100), 0);
-      if (total !== Math.round(line.netAmount * 100)) {
-        message.error('La suma de los medios debe coincidir con el importe a reclasificar.'); return;
+      if (total !== Math.round(payment.orderAmount * 100)) {
+        message.error('La suma de los medios debe coincidir con el total de la venta.'); return;
       }
       await cashApi.correctPaymentMethod(payment.id, {
-        requestId: requestId.current, paymentLineId: line.id, expectedMethodId: line.methodId,
-        expectedUpdatedAt: line.updatedAt ?? null, reason: values.reason.trim(),
+        requestId: requestId.current, reason: values.reason.trim(),
+        expectedLines: payment.lines.map(line => ({ id: line.id, methodId: line.methodId,
+          updatedAt: line.updatedAt ?? null, netAmount: line.netAmount })),
         lines: values.lines.map(part => ({ methodId: part.methodId, amount: part.amount,
           ...(methods.find(m => m.id === part.methodId)?.isCard ? {
             cardPaymentType: part.cardPaymentType, cardBankId: part.cardBankId,
@@ -99,20 +94,11 @@ export default function CorrectPaymentMethodModal({ payment, onClose, onSuccess 
         style={{ marginBottom: 12 }} />}
       {!editable && <Alert type="info" showIcon title="Solo se pueden corregir cobros con caja abierta y sin consumos de empleados." style={{ marginBottom: 12 }} />}
       <Form form={form} layout="vertical" disabled={saving || loading || loadFailed || !editable}>
-        <Form.Item name="lineId" label="Pago registrado" rules={[{ required: true, message: 'Selecciona el pago' }]}>
-          <Select options={payment?.lines.map(l => ({ value: l.id, label: `${l.methodName} - $${l.netAmount.toFixed(2)}` }))}
-            onChange={id => {
-              const source = payment?.lines.find(l => l.id === id);
-              form.setFieldValue('lines', [{ methodId: source?.methodId, amount: source?.netAmount,
-                cardPaymentType: source?.cardPaymentType, cardBankId: source?.cardBankId,
-                cardBrand: source?.cardBrand, authorizationNumber: source?.authorizationNumber }]);
-            }} />
-        </Form.Item>
-        {selectedLine && <Typography.Paragraph>Importe a reclasificar: <strong>${selectedLine.netAmount.toFixed(2)}</strong></Typography.Paragraph>}
+        <Typography.Paragraph>Total de la venta: <strong>${payment?.orderAmount.toFixed(2)}</strong></Typography.Paragraph>
         <CorrectionPaymentLines methods={methods} banks={banks} disabled={saving || loading || loadFailed || !editable} />
-        {selectedLine && <Typography.Paragraph type={remainingCents === 0 ? 'success' : 'danger'}>
+        <Typography.Paragraph type={remainingCents === 0 ? 'success' : 'danger'}>
           Asignado: ${(assignedCents / 100).toFixed(2)} · Diferencia: ${(remainingCents / 100).toFixed(2)}
-        </Typography.Paragraph>}
+        </Typography.Paragraph>
         <Form.Item name="reason" label="Motivo de la correccion" rules={[{ required: true, whitespace: true, message: 'Indica el motivo' },
           { min: 5, max: 500, message: 'Usa entre 5 y 500 caracteres' }]}>
           <Input.TextArea rows={2} maxLength={500} />
@@ -122,9 +108,11 @@ export default function CorrectPaymentMethodModal({ payment, onClose, onSuccess 
         <Typography.Title level={5}>Historial de correcciones</Typography.Title>
         {history.map(c => <div key={c.id} style={{ borderTop: '1px solid #e5e7eb', padding: '10px 0', overflowWrap: 'anywhere' }}>
           <div>{formatBranchDateTime(c.correctedAt)} · {c.actorName}</div>
-          <div>Antes: {c.before.methodName} · ${c.before.netAmount.toFixed(2)}</div>
-          {c.before.change > 0 && <div>Antes: recibido ${c.before.amountTendered.toFixed(2)}, cambio ${c.before.change.toFixed(2)}</div>}
-          {c.before.isCard && <div>Antes: {c.before.cardPaymentType === 'Credit' ? 'Credito' : 'Debito'} · {c.before.cardBankName} · {c.before.cardBrand} · {c.before.authorizationNumber}</div>}
+          {(c.beforeLines?.length ? c.beforeLines : [c.before]).map((part, index) => <div key={`${part.id}-${index}`}>
+            Antes: {part.methodName} · ${part.netAmount.toFixed(2)}
+            {part.change > 0 && <div>Recibido ${part.amountTendered.toFixed(2)}, cambio ${part.change.toFixed(2)}</div>}
+            {part.isCard && <div>{part.cardPaymentType === 'Credit' ? 'Credito' : 'Debito'} · {part.cardBankName} · {part.cardBrand} · {part.authorizationNumber}</div>}
+          </div>)}
           {(c.afterLines?.length ? c.afterLines : [c.after]).map((part, index) => <div key={`${part.id}-${index}`}>
             Ahora: {part.methodName} · ${part.netAmount.toFixed(2)}
             {part.isCard && <div>{part.cardPaymentType === 'Credit' ? 'Credito' : 'Debito'} · {part.cardBankName} · {part.cardBrand} · {part.authorizationNumber}</div>}

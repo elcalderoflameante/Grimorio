@@ -19,8 +19,13 @@ public class CorrectPaymentMethodCommandHandler(GrimorioDbContext db) : IRequest
     {
         var data = request.Data;
         var reason = data.Reason?.Trim() ?? "";
-        if (data.RequestId == Guid.Empty || data.PaymentLineId == Guid.Empty || (data.Lines == null && data.MethodId == Guid.Empty)
-            || data.ExpectedMethodId == Guid.Empty || reason.Length is < 5 or > 500)
+        var replaceAll = data.ExpectedLines != null;
+        if (data.RequestId == Guid.Empty || reason.Length is < 5 or > 500
+            || (!replaceAll && (data.PaymentLineId == Guid.Empty || data.ExpectedMethodId == Guid.Empty
+                || (data.Lines == null && data.MethodId == Guid.Empty)))
+            || (replaceAll && (data.Lines == null || data.ExpectedLines!.Count is < 1 or > 100
+                || data.ExpectedLines.Any(l => l == null || l.Id == Guid.Empty || l.MethodId == Guid.Empty)
+                || data.ExpectedLines.Select(l => l.Id).Distinct().Count() != data.ExpectedLines.Count)))
             throw new InvalidOperationException("Selecciona el medio de pago e indica un motivo de 5 a 500 caracteres.");
         if (data.Lines != null && (data.Lines.Count is < 1 or > 10 || data.Lines.Any(l =>
             l == null || l.MethodId == Guid.Empty || l.Amount <= 0 || decimal.Round(l.Amount, 2) != l.Amount)))
@@ -39,6 +44,7 @@ public class CorrectPaymentMethodCommandHandler(GrimorioDbContext db) : IRequest
             AuthorizationNumber = data.AuthorizationNumber?.Trim(), Reason = reason,
         });
         var hashPayload = data.Lines == null ? legacyPayload : JsonSerializer.Serialize(new { Legacy = legacyPayload, data.Lines });
+        if (replaceAll) hashPayload = JsonSerializer.Serialize(new { Payload = hashPayload, data.ExpectedLines });
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(hashPayload)));
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         var orderId = await db.OrderPayments.Where(p => p.Id == request.PaymentId && p.BranchId == request.BranchId)
@@ -66,12 +72,18 @@ public class CorrectPaymentMethodCommandHandler(GrimorioDbContext db) : IRequest
             throw new InvalidOperationException("Los cobros con consumos de empleados requieren una revision separada.");
         if (payment.Lines.Sum(l => l.AmountTendered - l.Change) != payment.OrderAmount)
             throw new InvalidOperationException("El detalle de medios no coincide con el importe del cobro. Requiere revision manual.");
-        var line = payment.Lines.SingleOrDefault(l => l.Id == data.PaymentLineId)
+        if (replaceAll && (data.ExpectedLines!.Count != payment.Lines.Count || data.ExpectedLines.Any(expected =>
+            !payment.Lines.Any(l => l.Id == expected.Id && l.PaymentMethodConfigId == expected.MethodId
+                && l.UpdatedAt == expected.UpdatedAt && l.AmountTendered - l.Change == expected.NetAmount))))
+            throw new InvalidOperationException("Los pagos de esta venta cambiaron. Actualiza la venta antes de corregirlos.");
+        var line = replaceAll ? payment.Lines.OrderBy(l => l.Id).First() : payment.Lines.SingleOrDefault(l => l.Id == data.PaymentLineId)
             ?? throw new InvalidOperationException("La linea seleccionada no pertenece a este cobro.");
-        if (line.PaymentMethodConfigId != data.ExpectedMethodId || line.UpdatedAt != data.ExpectedUpdatedAt)
+        if (!replaceAll && (line.PaymentMethodConfigId != data.ExpectedMethodId || line.UpdatedAt != data.ExpectedUpdatedAt))
             throw new InvalidOperationException("Este medio de pago cambio desde que abriste la venta. Actualiza antes de corregirlo.");
-        var net = line.AmountTendered - line.Change;
-        if (net <= 0 || line.Change < 0) throw new InvalidOperationException("El importe de la linea no es valido.");
+        var sourceLines = replaceAll ? payment.Lines.ToList() : [line];
+        var net = sourceLines.Sum(l => l.AmountTendered - l.Change);
+        if (net <= 0 || sourceLines.Any(l => l.Change < 0 || l.AmountTendered - l.Change <= 0))
+            throw new InvalidOperationException("El importe de las lineas no es valido.");
         var replacements = data.Lines ?? [new PaymentMethodCorrectionLineDto {
             MethodId = data.MethodId, Amount = net, CardPaymentType = data.CardPaymentType, CardBankId = data.CardBankId,
             CardBrand = data.CardBrand, AuthorizationNumber = data.AuthorizationNumber,
@@ -108,15 +120,27 @@ public class CorrectPaymentMethodCommandHandler(GrimorioDbContext db) : IRequest
             });
         }
         var first = replacementLines[0];
-        if (replacementLines.Count == 1 && line.PaymentMethodConfigId == first.PaymentMethodConfigId
-            && line.CardPaymentType == first.CardPaymentType && line.CardBankId == first.CardBankId
-            && line.CardBrand == first.CardBrand && line.AuthorizationNumber == first.AuthorizationNumber)
+        var unmatched = replacementLines.ToList();
+        foreach (var source in sourceLines)
+        {
+            var match = unmatched.FindIndex(target => source.PaymentMethodConfigId == target.PaymentMethodConfigId
+                && source.AmountTendered - source.Change == target.AmountTendered - target.Change
+                && source.CardPaymentType == target.CardPaymentType && source.CardBankId == target.CardBankId
+                && source.CardBrand == target.CardBrand && source.AuthorizationNumber == target.AuthorizationNumber);
+            if (match >= 0) unmatched.RemoveAt(match);
+        }
+        if (sourceLines.Count == replacementLines.Count && unmatched.Count == 0)
             throw new InvalidOperationException("No hay cambios en el medio de pago.");
-        var before = Snapshot(line);
+        var before = sourceLines.Select(Snapshot).ToList();
         payment.OriginalPaymentLinesJson ??= JsonSerializer.Serialize(payment.Lines.Select(l => new PaymentLineCommand {
             MethodId = l.PaymentMethodConfigId, AmountTendered = l.AmountTendered, CardPaymentType = l.CardPaymentType?.ToString(),
             CardBankId = l.CardBankId, CardBrand = l.CardBrand, AuthorizationNumber = l.AuthorizationNumber,
         }).ToList());
+        foreach (var removed in sourceLines.Where(l => l.Id != line.Id))
+        {
+            removed.IsDeleted = true;
+            removed.DeletedAt = DateTime.UtcNow;
+        }
         line.PaymentMethodConfigId = first.PaymentMethodConfigId;
         line.Config = first.Config;
         line.AmountTendered = first.AmountTendered;
@@ -136,7 +160,7 @@ public class CorrectPaymentMethodCommandHandler(GrimorioDbContext db) : IRequest
             BranchId = request.BranchId, OrderPaymentId = payment.Id, PaymentLineId = line.Id, CashSessionId = session.Id,
             RequestId = data.RequestId, RequestHash = hash, ActorUserId = request.ActorUserId,
             ActorName = $"{actor.FirstName} {actor.LastName}".Trim(), Reason = reason,
-            BeforeJson = JsonSerializer.Serialize(before), AfterJson = replacementLines.Count == 1
+            BeforeJson = replaceAll ? JsonSerializer.Serialize(before) : JsonSerializer.Serialize(before[0]), AfterJson = replacementLines.Count == 1
                 ? JsonSerializer.Serialize(Snapshot(line)) : JsonSerializer.Serialize(replacementLines.Select(Snapshot)),
         });
         await db.SaveChangesAsync(ct);

@@ -13,6 +13,15 @@ public class CorrectPaymentMethodDto
     public string? AuthorizationNumber { get; set; }
     public string Reason { get; set; } = string.Empty;
     public List<PaymentMethodCorrectionLineDto>? Lines { get; set; }
+    public List<ExpectedPaymentMethodLineDto>? ExpectedLines { get; set; }
+}
+
+public class ExpectedPaymentMethodLineDto
+{
+    public Guid Id { get; set; }
+    public Guid MethodId { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public decimal NetAmount { get; set; }
 }
 
 public class PaymentMethodCorrectionLineDto
@@ -35,4 +44,5 @@ public class PaymentMethodCorrectionDto
     public PaymentLineDto Before { get; set; } = new();
     public PaymentLineDto After { get; set; } = new();
     public List<PaymentLineDto> AfterLines { get; set; } = [];
+    public List<PaymentLineDto> BeforeLines { get; set; } = [];
 }

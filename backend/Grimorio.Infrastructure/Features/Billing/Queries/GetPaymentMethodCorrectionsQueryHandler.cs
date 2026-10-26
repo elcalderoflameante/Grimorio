@@ -20,9 +20,13 @@ public class GetPaymentMethodCorrectionsQueryHandler(GrimorioDbContext db)
             var afterLines = json.RootElement.ValueKind == JsonValueKind.Array
                 ? JsonSerializer.Deserialize<List<PaymentLineDto>>(c.AfterJson)!
                 : [JsonSerializer.Deserialize<PaymentLineDto>(c.AfterJson)!];
+            using var beforeJson = JsonDocument.Parse(c.BeforeJson);
+            var beforeLines = beforeJson.RootElement.ValueKind == JsonValueKind.Array
+                ? JsonSerializer.Deserialize<List<PaymentLineDto>>(c.BeforeJson)!
+                : [JsonSerializer.Deserialize<PaymentLineDto>(c.BeforeJson)!];
             return new PaymentMethodCorrectionDto {
             Id = c.Id, PaymentLineId = c.PaymentLineId, CorrectedAt = c.CreatedAt, ActorName = c.ActorName, Reason = c.Reason,
-            Before = JsonSerializer.Deserialize<PaymentLineDto>(c.BeforeJson)!, After = afterLines[0], AfterLines = afterLines,
+            Before = beforeLines[0], BeforeLines = beforeLines, After = afterLines[0], AfterLines = afterLines,
         }; }).ToList();
     }
 }

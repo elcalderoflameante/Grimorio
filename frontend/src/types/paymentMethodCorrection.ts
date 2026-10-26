@@ -2,9 +2,10 @@ import type { PaymentLineDto } from './index';
 
 export interface CorrectPaymentMethodDto {
   requestId: string;
-  paymentLineId: string;
-  expectedMethodId: string;
-  expectedUpdatedAt: string | null;
+  paymentLineId?: string;
+  expectedMethodId?: string;
+  expectedUpdatedAt?: string | null;
+  expectedLines?: { id: string; methodId: string; updatedAt: string | null; netAmount: number }[];
   methodId?: string;
   cardPaymentType?: string;
   cardBankId?: string;
@@ -32,4 +33,5 @@ export interface PaymentMethodCorrectionDto {
   before: PaymentLineDto;
   after: PaymentLineDto;
   afterLines?: PaymentLineDto[];
+  beforeLines?: PaymentLineDto[];
 }

@@ -60,7 +60,7 @@ export default function CorrectionPaymentLines({ methods, banks, disabled }: {
   } }]}>
     {(fields, { add, remove }, { errors }) => <>
       {fields.map(field => <CorrectionLine key={field.key} name={field.name} methods={methods} banks={banks}
-        disabled={disabled} removable={fields.length > 1} remove={() => remove(field.name)} />)}
+        disabled={disabled} removable remove={() => remove(field.name)} />)}
       <Button icon={<PlusOutlined />} aria-label="Agregar medio" disabled={disabled || fields.length >= 10}
         onClick={() => add({})} style={{ marginBottom: 12 }}>Agregar medio</Button>
       <Form.ErrorList errors={errors} />
