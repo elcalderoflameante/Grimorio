@@ -54,9 +54,6 @@ public class CorrectPaymentMethodCommandHandler(GrimorioDbContext db) : IRequest
         var payment = await db.OrderPayments.Include(p => p.Lines).ThenInclude(l => l.Config)
             .Include(p => p.Lines).ThenInclude(l => l.EmployeeConsumption)
             .SingleAsync(p => p.Id == request.PaymentId && p.BranchId == request.BranchId, ct);
-        if (payment.DocumentType != DocumentType.NotaDeVenta
-            || await db.ElectronicDocuments.AnyAsync(d => d.OrderPaymentId == payment.Id, ct))
-            throw new InvalidOperationException("Solo se pueden corregir notas de venta sin comprobante electronico.");
         if (!payment.CashSessionId.HasValue) throw new InvalidOperationException("El cobro no tiene una caja asociada.");
         // Match payment/close lock order: order first, then its cash session.
         var session = await db.CashSessions.FromSqlInterpolated($"""

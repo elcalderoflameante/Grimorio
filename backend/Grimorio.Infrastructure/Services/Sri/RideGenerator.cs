@@ -147,7 +147,7 @@ public static class RideGenerator
                 row.RelativeItem(1.0f).Element(c => TotalsTable(c, doc, items));
             });
 
-            col.Item().Width(310).Element(c => PaymentTable(c, payment));
+            col.Item().Width(310).Element(c => PaymentTable(c, payment, doc));
         });
     }
 
@@ -352,9 +352,10 @@ public static class RideGenerator
         });
     }
 
-    private static void PaymentTable(IContainer container, OrderPayment payment)
+    private static void PaymentTable(IContainer container, OrderPayment payment, ElectronicDocument doc)
     {
-        var paymentGroups = payment.Lines?
+        var paymentGroups = SriInvoicePaymentSnapshot.Read(doc, payment)?
+            .Select(p => new { Label = p.Label, Amount = p.Amount }).ToList() ?? payment.Lines?
             .GroupBy(GetPaymentMethodLabel)
             .Select(group => new
             {

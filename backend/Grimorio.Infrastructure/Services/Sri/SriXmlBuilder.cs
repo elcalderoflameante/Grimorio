@@ -139,7 +139,8 @@ public static class SriXmlBuilder
 
         // Forma de pago (SRI requiere al menos una)
         w.WriteStartElement("pagos");
-        var paymentGroups = payment.Lines
+        var paymentGroups = SriInvoicePaymentSnapshot.Read(d.Document, payment)?
+            .Select(p => new { SriCode = p.Code, Total = p.Amount }).ToList() ?? payment.Lines
             .Where(l => !l.IsDeleted)
             .GroupBy(MapPaymentMethod)
             .Select(g => new

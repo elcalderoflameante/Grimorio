@@ -162,4 +162,33 @@ Check(BuyerXml(null).Root!.Element("infoFactura")!.Element("tipoIdentificacionCo
     "Anonymous final consumer unchanged");
 Check(BuyerXml(new Customer { TaxIdType = TaxIdType.FinalConsumer }).Root!.Element("infoFactura")!
     .Element("tipoIdentificacionComprador")!.Value == "07", "Explicit final consumer unchanged");
-Console.WriteLine($"Invoice savings, payment code and buyer identity checks passed: {count}. No database, SRI or email requests.");
+var fiscalPayment = new OrderPayment { OrderAmount = 29.30m, Lines = [Pay(debit, CardPaymentType.Debit, 29.30m)] };
+var fiscalLine = new SriInvoiceLine("CHECK", "Internal payment correction", 1, 29.30m, "0", 0);
+var fiscalDocument = new ElectronicDocument { TotalSinImpuestos = 29.30m, ImporteTotal = 29.30m,
+    NumeroFactura = "001-003-000000099", ClaveAcceso = new string('1', 49), Environment = "1" };
+var fiscalData = new SriInvoiceData(config, fiscalPayment, order, [fiscalLine], fiscalDocument.ClaveAcceso, 99, null,
+    Document: fiscalDocument);
+fiscalDocument.XmlSigned = SriXmlBuilder.Build(fiscalData);
+var originalFiscalXml = fiscalDocument.XmlSigned;
+fiscalPayment.OriginalPaymentLinesJson = "[]";
+fiscalPayment.Lines = [Pay(cash, null, 10), Pay(transfer, null, 19.30m)];
+var frozenPayments = SriInvoicePaymentSnapshot.Read(fiscalDocument, fiscalPayment)!;
+Check(frozenPayments.Count == 1 && frozenPayments[0].Code == "16" && frozenPayments[0].Amount == 29.30m,
+    "Internal correction retains fiscal payment codes and amounts from the existing XML");
+var regeneratedPayments = XDocument.Parse(SriXmlBuilder.Build(fiscalData)).Root!.Element("infoFactura")!.Element("pagos")!;
+Check(regeneratedPayments.Elements("pago").Count() == 1 && regeneratedPayments.Element("pago")!.Element("formaPago")!.Value == "16",
+    "Invoice re-signing does not propagate cash reclassification into fiscal XML");
+Check(RideGenerator.Generate(config, fiscalDocument, fiscalPayment, order, [fiscalLine], null).Length > 100
+    && frozenPayments[0].Label == "TARJETA DE DEBITO" && fiscalDocument.XmlSigned == originalFiscalXml,
+    "RIDE generation retains fiscal payment labels without modifying stored XML");
+fiscalDocument.XmlAuthorized = originalFiscalXml.Replace("<formaPago>16</formaPago>", "<formaPago>19</formaPago>");
+Check(SriInvoicePaymentSnapshot.Read(fiscalDocument, fiscalPayment)!.Single().Code == "19", "Authorized XML takes precedence over signed XML");
+fiscalDocument.XmlAuthorized = "<invalid>";
+InvalidSnapshot(() => SriInvoicePaymentSnapshot.Read(fiscalDocument, fiscalPayment), "Invalid fiscal snapshot must not silently use internal payment methods");
+fiscalDocument.XmlAuthorized = originalFiscalXml.Replace("<total>29.30</total>", "<total>1.00</total>");
+InvalidSnapshot(() => SriInvoicePaymentSnapshot.Read(fiscalDocument, fiscalPayment), "Fiscal payment total mismatch must fail");
+fiscalDocument.XmlAuthorized = null; fiscalDocument.XmlSigned = null;
+Check(SriInvoicePaymentSnapshot.Read(fiscalDocument, fiscalPayment) == null
+    && XDocument.Parse(SriXmlBuilder.Build(fiscalData)).Root!.Element("infoFactura")!.Element("pagos")!.Elements("pago").Count() == 2,
+    "First invoice after an earlier note correction uses current internal methods");
+Console.WriteLine($"Invoice savings, payment code, buyer identity and fiscal payment snapshot checks passed: {count}. No database, SRI or email requests.");

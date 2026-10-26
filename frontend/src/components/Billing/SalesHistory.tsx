@@ -355,7 +355,7 @@ export default function SalesHistory() {
                   <Button size="small" icon={<GiftOutlined />} aria-label={`Propina de orden ${r.orderNumber}`}
                     onClick={() => setTipSale({ id: r.id, orderNumber: r.orderNumber })} />
                 </Tooltip>}
-                {r.documentType === 'NotaDeVenta' && !r.electronicDocumentId && hasPermission(PERMISSIONS.billing.paymentsCorrectMethod) && (
+                {hasPermission(PERMISSIONS.billing.paymentsCorrectMethod) && (
                   <Tooltip title="Corregir medio de pago / consultar historial">
                     <Button size="small" icon={<SwapOutlined />} aria-label={`Corregir medio de pago de orden ${r.orderNumber}`}
                       onClick={() => setPaymentToCorrect(r)} />

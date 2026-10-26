@@ -133,9 +133,7 @@ internal static class PaymentMethodCorrectionChecks
         await Correct(invalid.Id, Data(invalid), HttpStatusCode.BadRequest);
         await Correct(sale.Id, payload);
         await Read(async db => { (await db.CashSessions.SingleAsync(s => s.Id == sessionId)).Status = CashSessionStatus.Open;
-            (await db.OrderPayments.SingleAsync(p => p.Id == invalid.Id)).DocumentType = DocumentType.Factura; await db.SaveChangesAsync(); });
-        await Correct(invalid.Id, Data(invalid), HttpStatusCode.BadRequest);
-        await Read(async db => { (await db.OrderPayments.SingleAsync(p => p.Id == invalid.Id)).DocumentType = DocumentType.NotaDeVenta; await db.SaveChangesAsync(); });
+            await db.SaveChangesAsync(); });
         var delegatedToken = new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(claims: [
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()), new Claim("BranchId", branch.ToString()),
             new Claim(AppConstants.Claims.Permissions, AppConstants.Permissions.BillingPaymentsCorrectMethod)],
@@ -203,6 +201,49 @@ internal static class PaymentMethodCorrectionChecks
         var cardHistory = await Send(new GetPaymentMethodCorrectionsQuery { BranchId = branch, PaymentId = twoCards.Id });
         check(cardHistory.Single().AfterLines.Select(l => l.AuthorizationNumber).ToHashSet().SetEquals(["DEBIT-A", "CREDIT-B"]),
             "Two cards retain independent type, brand and authorization details");
+        foreach (var documentStatus in new[] { ElectronicDocumentStatus.Authorized, ElectronicDocumentStatus.Pending,
+            ElectronicDocumentStatus.Sent, ElectronicDocumentStatus.Rejected })
+        {
+            var (invoiceSale, _) = await Sale();
+            var document = new ElectronicDocument { BranchId = branch, OrderPaymentId = invoiceSale.Id,
+                ClaveAcceso = "CORRECTION-" + Guid.NewGuid().ToString("N"), NumeroFactura = "001-003-000000999",
+                Status = documentStatus, Environment = "2", ImporteTotal = invoiceSale.OrderAmount,
+                XmlSigned = "<factura>original signed payment</factura>", XmlAuthorized = "<autorizacion>original payment</autorizacion>",
+                XmlResponseSri = "<response>original status</response>", RidePdf = [1, 2, 3, 4],
+                NumeroAutorizacion = "original-authorization", FechaAutorizacion = DateTime.UtcNow,
+                EmailStatus = ElectronicDocumentEmailStatus.Sent, EmailRecipient = "invoice@checks.invalid", EmailRetryCount = 1 };
+            await Read(async db => {
+                (await db.OrderPayments.SingleAsync(p => p.Id == invoiceSale.Id)).DocumentType = DocumentType.Factura;
+                db.ElectronicDocuments.Add(document); await db.SaveChangesAsync();
+            });
+            async Task<string> FiscalSnapshot() {
+                var snapshot = "";
+                await Read(async db => snapshot = JsonSerializer.Serialize(await db.ElectronicDocuments.AsNoTracking()
+                    .SingleAsync(d => d.Id == document.Id)));
+                return snapshot;
+            }
+            var beforeFiscal = await FiscalSnapshot();
+            var beforeStock = await InventorySnapshot();
+            var beforeCash = (await Send(new GetCashSessionDetailQuery { BranchId = branch, Id = sessionId }))!;
+            var correction = Data(invoiceSale);
+            correction.Lines = [new() { MethodId = cashId, Amount = 1 },
+                new() { MethodId = transfer.Id, Amount = 1 },
+                new() { MethodId = card.Id, Amount = invoiceSale.OrderAmount - 2, CardPaymentType = "Credit", CardBankId = bank.Id,
+                    CardBrand = "Visa", AuthorizationNumber = "FISCAL-UNCHANGED" }];
+            await Correct(invoiceSale.Id, correction, HttpStatusCode.Forbidden, deniedToken);
+            await Correct(invoiceSale.Id, correction);
+            var afterCash = (await Send(new GetCashSessionDetailQuery { BranchId = branch, Id = sessionId }))!;
+            var correctedInvoice = (await Send(new GetSalesQuery { BranchId = branch, PageSize = 1000 })).Single(p => p.Id == invoiceSale.Id);
+            check(correctedInvoice.DocumentType == "Factura" && correctedInvoice.Lines.Count == 3
+                && correctedInvoice.Lines.Sum(l => l.NetAmount) == invoiceSale.OrderAmount
+                && afterCash.TotalSales == beforeCash.TotalSales && afterCash.ExpectedCash == beforeCash.ExpectedCash - invoiceSale.OrderAmount + 1,
+                $"Invoice {documentStatus}: internal split correction changes cash classification, not sale totals");
+            check(await FiscalSnapshot() == beforeFiscal && await InventorySnapshot() == beforeStock,
+                $"Invoice {documentStatus}: all fiscal document fields, XMLs, PDF, authorization, email and inventory remain unchanged");
+            await Correct(invoiceSale.Id, correction);
+            check((await Send(new GetPaymentMethodCorrectionsQuery { BranchId = branch, PaymentId = invoiceSale.Id })).Count == 1,
+                $"Invoice {documentStatus}: audit and idempotency remain enforced");
+        }
         var (racing, _) = await Sale(); var raceData = Data(racing);
         var beforeClose = (await Send(new GetCashSessionDetailQuery { BranchId = branch, Id = sessionId }))!.ExpectedCash;
         using var raceRequest = new HttpRequestMessage(HttpMethod.Post, $"/api/cash/pagos/{racing.Id}/corregir-medio") { Content = JsonContent.Create(raceData) };

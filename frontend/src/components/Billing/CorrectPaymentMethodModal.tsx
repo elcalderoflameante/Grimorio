@@ -34,7 +34,7 @@ export default function CorrectPaymentMethodModal({ payment, onClose, onSuccess 
   const selectedLine = payment?.lines.find(l => l.id === lineId);
   const assignedCents = (lines ?? []).reduce((sum, line) => sum + Math.round((line.amount ?? 0) * 100), 0);
   const remainingCents = Math.round((selectedLine?.netAmount ?? 0) * 100) - assignedCents;
-  const editable = payment?.cashSessionStatus === 'Open' && payment.documentType === 'NotaDeVenta' && !payment.electronicDocumentId
+  const editable = payment?.cashSessionStatus === 'Open'
     && payment.lines.every(line => !line.employeeId);
 
   useEffect(() => {
@@ -91,9 +91,13 @@ export default function CorrectPaymentMethodModal({ payment, onClose, onSuccess 
     cancelButtonProps={{ disabled: saving }} closable={!saving} maskClosable={!saving} keyboard={!saving}>
     <Spin spinning={loading}>
       <Typography.Paragraph style={{ marginTop: 12 }}>
-        Orden #{payment?.orderNumber} · Nota de venta · ${payment?.orderAmount.toFixed(2)}
+        Orden #{payment?.orderNumber} · {payment?.documentType === 'Factura' ? 'Factura' : 'Nota de venta'} · ${payment?.orderAmount.toFixed(2)}
       </Typography.Paragraph>
-      {!editable && <Alert type="info" showIcon title="Solo se pueden corregir notas de venta con caja abierta y sin consumos de empleados." style={{ marginBottom: 12 }} />}
+      {payment?.electronicDocumentId && <Alert type="warning" showIcon
+        title="Correccion interna de caja"
+        description="El XML y el RIDE existentes conservan los medios de pago registrados originalmente."
+        style={{ marginBottom: 12 }} />}
+      {!editable && <Alert type="info" showIcon title="Solo se pueden corregir cobros con caja abierta y sin consumos de empleados." style={{ marginBottom: 12 }} />}
       <Form form={form} layout="vertical" disabled={saving || loading || loadFailed || !editable}>
         <Form.Item name="lineId" label="Pago registrado" rules={[{ required: true, message: 'Selecciona el pago' }]}>
           <Select options={payment?.lines.map(l => ({ value: l.id, label: `${l.methodName} - $${l.netAmount.toFixed(2)}` }))}
