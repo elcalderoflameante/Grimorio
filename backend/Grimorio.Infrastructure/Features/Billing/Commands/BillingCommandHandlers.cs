@@ -1692,7 +1692,7 @@ public class RetryElectronicInvoiceHandler : IRequestHandler<RetryElectronicInvo
                     doc.Status = ElectronicDocumentStatus.Sent;
                     await _db.SaveChangesAsync(ct);
                 },
-                received, wasRejected, ct);
+                received, wasRejected, ct, () => doc.XmlSigned);
 
             doc.XmlResponseSri = result.RawXml;
             doc.ErrorMessage = result.Error;

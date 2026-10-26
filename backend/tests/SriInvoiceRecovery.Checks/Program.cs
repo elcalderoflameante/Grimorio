@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Xml.Linq;
 using Grimorio.Infrastructure.Services.Sri;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -74,6 +75,60 @@ try
     throw new Exception("Expected network failure");
 }
 catch (HttpRequestException) { Check(!sentAfterQueryFailure, "Do not submit when query failed"); }
+
+string Invoice(string buyerType, string signatureTime = "old", string? invoiceKey = null) =>
+    $"<factura id='comprobante'><infoTributaria><claveAcceso>{invoiceKey ?? key}</claveAcceso></infoTributaria>"
+    + $"<infoFactura><tipoIdentificacionComprador>{buyerType}</tipoIdentificacionComprador>"
+    + "<identificacionComprador>1725637795001</identificacionComprador></infoFactura>"
+    + $"<ds:Signature xmlns:ds='http://www.w3.org/2000/09/xmldsig#'><ds:SignatureValue>{signatureTime}</ds:SignatureValue></ds:Signature></factura>";
+var correctedXml = Invoice("04", "new");
+var oldRejection = Response(SriAuthorizationStatus.Rejected) with { XmlAuthorizado = Invoice("05"), Messages = ["[69] Old buyer error"] };
+var currentRejection = oldRejection with { XmlAuthorizado = Invoice("04", "another-signature"), Messages = ["Current rejection"] };
+async Task CorrectionScenario(SriAuthorizationResponse[] responses, SriSubmitResult reception, bool received, bool manual,
+    SriRecoveryStatus expected, int expectedSubmissions, int expectedReceipts, string? submittedXml = null)
+{
+    var queue = new Queue<SriAuthorizationResponse>(responses);
+    var submissions = 0;
+    var receipts = 0;
+    var currentXml = submittedXml ?? correctedXml;
+    var result = await SriInvoiceRecovery.ProcessAsync(
+        () => Task.FromResult(queue.Dequeue()),
+        () => { submissions++; currentXml = submittedXml ?? correctedXml;
+            return Task.FromResult(new SriValidateResponse(reception, ["Current reception error"], "<current-reception/>")); },
+        () => { receipts++; return Task.CompletedTask; }, received, manual, CancellationToken.None, () => currentXml);
+    Check(result.Status == expected, $"Corrected XML expected {expected}, got {result.Status}");
+    Check(submissions == expectedSubmissions && receipts == expectedReceipts, "Stale rejection must not cause additional submissions");
+    if (result.Status is SriRecoveryStatus.Sent or SriRecoveryStatus.Pending && result.Authorization == oldRejection)
+        Check(result.Error?.Contains("version anterior") == true && !result.Error.Contains("[69]"), "Old rejection is not presented as current rejection");
+    if (reception == SriSubmitResult.Rejected && submissions > 0 && result.Status == SriRecoveryStatus.Rejected)
+        Check(result.Error == "Current reception error" && result.RawXml == "<current-reception/>", "Fresh reception rejection is not hidden by older authorization");
+}
+await CorrectionScenario([oldRejection, oldRejection, Response(SriAuthorizationStatus.Authorized)],
+    SriSubmitResult.Received, false, true, SriRecoveryStatus.Authorized, 1, 1);
+await CorrectionScenario([oldRejection, oldRejection, oldRejection, oldRejection],
+    SriSubmitResult.Received, false, true, SriRecoveryStatus.Sent, 1, 1);
+await CorrectionScenario([oldRejection], SriSubmitResult.Received, true, false, SriRecoveryStatus.Sent, 0, 0);
+await CorrectionScenario([oldRejection], SriSubmitResult.Received, false, false, SriRecoveryStatus.Pending, 0, 0);
+await CorrectionScenario([currentRejection], SriSubmitResult.Received, true, false, SriRecoveryStatus.Rejected, 0, 0);
+await CorrectionScenario([oldRejection, currentRejection], SriSubmitResult.Received, false, true, SriRecoveryStatus.Rejected, 1, 1);
+await CorrectionScenario([oldRejection, oldRejection], SriSubmitResult.Rejected, false, true, SriRecoveryStatus.Rejected, 1, 0);
+await CorrectionScenario([oldRejection], SriSubmitResult.Received, true, false, SriRecoveryStatus.Rejected, 0, 0, "invalid XML");
+await CorrectionScenario([oldRejection with { XmlAuthorizado = "invalid XML" }],
+    SriSubmitResult.Received, true, false, SriRecoveryStatus.Rejected, 0, 0);
+await CorrectionScenario([oldRejection with { XmlAuthorizado = Invoice("05", invoiceKey: "another-key") }],
+    SriSubmitResult.Received, true, false, SriRecoveryStatus.Rejected, 0, 0);
+await CorrectionScenario([Response(SriAuthorizationStatus.Authorized)],
+    SriSubmitResult.Received, false, true, SriRecoveryStatus.Authorized, 0, 0);
+await CorrectionScenario([oldRejection with { XmlAuthorizado = "\n  <?xml version='1.0'?>\n" + Invoice("05") + "\n  " }],
+    SriSubmitResult.Received, true, false, SriRecoveryStatus.Sent, 0, 0);
+if (args.Length == 2)
+{
+    var actualXml = await File.ReadAllTextAsync(args[0]);
+    var actualKey = XDocument.Parse(actualXml).Root!.Element("infoTributaria")!.Element("claveAcceso")!.Value;
+    var actualResponse = await Client(await File.ReadAllTextAsync(args[1])).AutorizarComprobanteAsync(actualKey, "2");
+    Check(actualResponse.Status == SriAuthorizationStatus.Rejected, "Provided SOAP fixture contains a rejection");
+    await CorrectionScenario([actualResponse], SriSubmitResult.Received, true, false, SriRecoveryStatus.Sent, 0, 0, actualXml);
+}
 Console.WriteLine($"SRI recovery checks passed: {checks}. No network or database used.");
 
 sealed class FakeFactory(string xml) : IHttpClientFactory
