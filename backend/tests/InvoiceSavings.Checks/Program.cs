@@ -134,4 +134,32 @@ var byCode = mixedPayments.Elements("pago").ToDictionary(p => p.Element("formaPa
 Check(byCode.Count == 3 && byCode["16"] == 15 && byCode["19"] == 9.30m && byCode["01"] == 5,
     "Mixed payments group debit separately, ignoring deleted lines");
 Check(!byCode.ContainsKey("08") && byCode.Values.Sum() == 29.30m, "No obsolete debit code or changed totals");
-Console.WriteLine($"Invoice savings and payment code checks passed: {count}. No database, SRI or email requests.");
+XDocument BuyerXml(Customer? buyer) => XDocument.Parse(SriXmlBuilder.Build(new SriInvoiceData(config,
+    new OrderPayment { OrderAmount = 1 }, order, [new SriInvoiceLine("CHECK", "Identity check", 1, 1, "0", 0)],
+    new string('1', 49), 63, buyer, new DateTime(2026, 10, 25, 12, 0, 0, DateTimeKind.Utc))));
+foreach (var (number, storedType, expectedType, expectedNumber) in new[] {
+    ("1725637795001", TaxIdType.Cedula, "04", "1725637795001"),
+    ("1725637795", TaxIdType.Ruc, "05", "1725637795"),
+    (" 1725637795-001 ", TaxIdType.Cedula, "04", "1725637795001"),
+    ("ab-123", TaxIdType.Passport, "06", "AB123"),
+    ("9999999999999", TaxIdType.Cedula, "07", "9999999999999"),
+})
+{
+    var buyer = new Customer { Name = "Identity checks", TaxId = number, TaxIdType = storedType };
+    var rebuilt = BuyerXml(buyer);
+    var header = rebuilt.Root!.Element("infoFactura")!;
+    Check(header.Element("tipoIdentificacionComprador")!.Value == expectedType
+        && header.Element("identificacionComprador")!.Value == expectedNumber, "Legacy buyer type detected from validated identification");
+    Check(buyer.TaxIdType == storedType && buyer.TaxId == number, "XML generation does not modify customer records");
+    Check(rebuilt.Root.Element("infoTributaria")!.Element("secuencial")!.Value == "000000063"
+        && rebuilt.Root.Element("infoTributaria")!.Element("claveAcceso")!.Value == new string('1', 49)
+        && header.Element("fechaEmision")!.Value == "25/10/2026" && Number(header, "importeTotal") == 1,
+        "Buyer correction preserves access key, sequence, date and amount");
+}
+InvalidSnapshot(() => BuyerXml(new Customer { TaxId = "1725637794", TaxIdType = TaxIdType.Cedula }),
+    "Invalid buyer identification must fail before sending to SRI");
+Check(BuyerXml(null).Root!.Element("infoFactura")!.Element("tipoIdentificacionComprador")!.Value == "07",
+    "Anonymous final consumer unchanged");
+Check(BuyerXml(new Customer { TaxIdType = TaxIdType.FinalConsumer }).Root!.Element("infoFactura")!
+    .Element("tipoIdentificacionComprador")!.Value == "07", "Explicit final consumer unchanged");
+Console.WriteLine($"Invoice savings, payment code and buyer identity checks passed: {count}. No database, SRI or email requests.");

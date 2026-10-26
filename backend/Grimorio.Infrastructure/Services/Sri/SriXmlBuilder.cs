@@ -3,6 +3,7 @@ using System.Xml;
 using Grimorio.Application.DTOs;
 using Grimorio.Domain.Entities.Billing;
 using Grimorio.Domain.Entities.POS;
+using Grimorio.Infrastructure.Features.Billing;
 
 namespace Grimorio.Infrastructure.Services.Sri;
 
@@ -101,15 +102,16 @@ public static class SriXmlBuilder
         }
         else
         {
-            tipoId = customer.TaxIdType switch
+            var identity = CustomerIdentity.Validate(customer.TaxId, customer.TaxIdType.ToString());
+            tipoId = identity.Type switch
             {
                 Domain.Entities.Billing.TaxIdType.Ruc => "04",
                 Domain.Entities.Billing.TaxIdType.Cedula => "05",
                 Domain.Entities.Billing.TaxIdType.Passport => "06",
                 _ => "07",
             };
-            idComprador = customer.TaxId ?? "9999999999999";
-            razonComprador = customer.Name;
+            idComprador = identity.Number ?? "9999999999999";
+            razonComprador = identity.Type == TaxIdType.FinalConsumer ? "CONSUMIDOR FINAL" : customer.Name;
         }
 
         w.WriteStartElement("infoFactura");

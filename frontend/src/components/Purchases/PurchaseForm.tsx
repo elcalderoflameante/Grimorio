@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { App as AntApp, Modal, Form, Select, DatePicker, Input, Button, Table, InputNumber,
-  Space, Divider, Descriptions, Tag, Typography, Switch, Upload, Tabs, Alert } from 'antd';
+  Space, Divider, Descriptions, Tag, Typography, Switch, Upload, Tabs, Alert, Grid } from 'antd';
 import { ArrowLeftOutlined, PlusOutlined, DeleteOutlined, UploadOutlined, PaperClipOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type {
@@ -118,6 +118,7 @@ function computeFiscal(items: ItemRow[], taxMap: Map<string, TaxRateDto>): Fisca
 
 export default function PurchaseForm({ open, compra, proveedores, readOnly = false, onClose, onSaved }: Props) {
   const { message } = AntApp.useApp();
+  const screens = Grid.useBreakpoint();
 
   const [form] = Form.useForm();
   const [articulos, setArticulos] = useState<InventoryArticleDto[]>([]);
@@ -285,8 +286,10 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
       if (field === 'articleId') {
         const art = articulos.find(a => a.id === value);
         if (art) {
-          updated.unitId = art.baseUnitId;
-          updated.unitSymbol = art.baseUnitSymbol;
+          if (!updated.unitId) {
+            updated.unitId = art.baseUnitId;
+            updated.unitSymbol = art.baseUnitSymbol;
+          }
           updated.inventoryUnitId = art.baseUnitId;
           updated.inventoryUnitSymbol = art.baseUnitSymbol;
           updated.inventoryQuantity = updated.inventoryQuantity || updated.quantity || 1;
@@ -694,7 +697,7 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
       columns={[
         {
           title: 'Destino', key: 'costTreatment', width: 145,
-          fixed: 'left' as const,
+          fixed: screens.md ? 'left' as const : undefined,
           render: (_: unknown, row: ItemRow) => (
             <Select
               style={{ width: '100%' }}
@@ -706,7 +709,7 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
         },
         {
           title: 'Articulo', key: 'articleId', width: 200,
-          fixed: 'left' as const,
+          fixed: screens.md ? 'left' as const : undefined,
           render: (_: unknown, row: ItemRow) => row.costTreatment === 1 ? (
               <Select
                 style={{ width: '100%' }}
@@ -729,15 +732,18 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
           title: 'Unidad fact.', key: 'unitId', width: 95,
           render: (_: unknown, row: ItemRow) => {
             if (row.costTreatment !== 1) return <Text type="secondary">-</Text>;
-            const unitOptions = getArticleUnitOptions(row.articleId);
-            return unitOptions.length > 0 ? (
+            return (
               <Select
+                aria-label="Unidad de compra"
                 style={{ width: '100%' }}
+                popupMatchSelectWidth={240}
+                showSearch
+                optionFilterProp="label"
                 value={row.unitId || undefined}
                 onChange={v => updateItem(row.key, 'unitId', v)}
-                options={unitOptions}
+                options={units.map(unit => ({ value: unit.id, label: `${unit.symbol} - ${unit.name}` }))}
               />
-            ) : <Text type="secondary">-</Text>;
+            );
           },
         },
         {
@@ -759,6 +765,7 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
             const unitOptions = getArticleUnitOptions(row.articleId);
             return unitOptions.length > 0 ? (
               <Select
+                aria-label="Unidad de inventario"
                 style={{ width: '100%' }}
                 value={row.inventoryUnitId || undefined}
                 onChange={v => updateItem(row.key, 'inventoryUnitId', v)}
@@ -793,7 +800,7 @@ export default function PurchaseForm({ open, compra, proveedores, readOnly = fal
         },
         {
           title: '', key: 'del', width: 48,
-          fixed: 'right' as const,
+          fixed: screens.md ? 'right' as const : undefined,
           render: (_: unknown, row: ItemRow) => (
             <Button size="small" danger icon={<DeleteOutlined />} onClick={() => removeItem(row.key)} />
           ),

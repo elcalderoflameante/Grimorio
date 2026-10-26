@@ -304,7 +304,7 @@ export default function CashRegister() {
           <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
 
             {/* Total ventas */}
-            <Col xs={24} sm={12} lg={isReviewing ? 14 : 7}>
+            <Col xs={24} sm={12} lg={7}>
               <Card
                 style={{
                   background: 'linear-gradient(135deg, #52c41a 0%, #237804 100%)',
@@ -366,8 +366,9 @@ export default function CashRegister() {
             </Col>
 
             {/* Pedidos activos */}
-            {!isReviewing && <Col xs={24} sm={12} lg={7}>
-              <Card style={{ borderRadius: 12, borderColor: '#ffd591', height: '100%' }} styles={{ body: { padding: 16 } }}>
+            <Col xs={24} sm={12} lg={7}>
+              <Card style={{ borderRadius: 8, borderColor: '#ffd591', height: '100%' }} styles={{ body: { padding: 16 } }}>
+                <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Pedidos de la sucursal</div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <Space size={6}>
                     <ShoppingCartOutlined style={{ fontSize: 18, color: '#fa8c16' }} />
@@ -398,35 +399,33 @@ export default function CashRegister() {
                 )}
                 {/* Lista breve de pedidos activos */}
                 {confirmedOrders.length > 0 && (
-                  <div style={{ marginTop: 8, maxHeight: 80, overflowY: 'auto' }}>
-                    {confirmedOrders.slice(0, 6).map(o => (
+                  <div style={{ marginTop: 8, maxHeight: 160, overflowY: 'auto' }}>
+                    {confirmedOrders.map(o => (
                       <div
                         key={o.id}
                         style={{
                           display: 'flex', justifyContent: 'space-between',
                           fontSize: 11, color: '#595959', borderBottom: '1px solid #f0f0f0',
-                          padding: '2px 0',
+                          padding: '4px 0', gap: 8, flexWrap: 'wrap',
                         }}
                       >
-                        <span>
+                        <span style={{ overflowWrap: 'anywhere', minWidth: 0, flex: '1 1 120px' }}>
                           #{o.number} · {ORDER_TYPE_LABEL[o.type] ?? o.type}
                           {o.tableCode ? ` · Mesa ${o.tableCode}` : ''}
                           {o.customerName ? ` · ${o.customerName}` : ''}
                         </span>
-                        <Tag color={ORDER_STATUS_COLOR[o.status]} style={{ margin: 0, fontSize: 10 }}>
-                          {ORDER_STATUS_LABEL[o.status] ?? o.status}
-                        </Tag>
+                        <Space size={4} wrap>
+                          <Text strong style={{ fontSize: 11 }}>{fmt(o.pendingPaymentTotal)}</Text>
+                          <Tag color={ORDER_STATUS_COLOR[o.status]} style={{ margin: 0, fontSize: 10 }}>
+                            {ORDER_STATUS_LABEL[o.status] ?? o.status}
+                          </Tag>
+                        </Space>
                       </div>
                     ))}
-                    {confirmedOrders.length > 6 && (
-                      <Text type="secondary" style={{ fontSize: 10 }}>
-                        +{confirmedOrders.length - 6} más...
-                      </Text>
-                    )}
                   </div>
                 )}
               </Card>
-            </Col>}
+            </Col>
           </Row>
 
           {/* ── Medios de pago ───────────────────────────────────────────── */}
