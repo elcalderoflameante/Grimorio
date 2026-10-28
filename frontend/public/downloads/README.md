@@ -1,5 +1,7 @@
 # Descargas publicas
 
+Inventario del personal: `grimorio-inventario.apk` y `inventory-version.json`, preparados con `mobile/inventory_app/publish-apk.ps1`. Descarga desde **Inventario > Conteos del personal > Descargar app**. Manifiesto con versión y SHA-256; publicar ambos en el mismo despliegue.
+
 Colocar aqui los instaladores que el frontend debe servir directamente.
 
 La app de meseros debe publicarse con este nombre:

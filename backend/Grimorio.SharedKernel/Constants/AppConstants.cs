@@ -30,6 +30,7 @@ public static class AppConstants
 
     public static class ClientTypes
     {
+        public const string Inventory = "inventory";
         public const string Kds = "kds";
         public const string Waitstaff = "waitstaff";
     }
@@ -95,6 +96,10 @@ public static class AppConstants
         public const string MenuItemsManage = "Menu.Items.Manage";
 
         public const string InventoryConfigView = "Inventory.Config.View";
+        public const string InventoryCountsExecute = "Inventory.Counts.Execute";
+        public const string InventoryCountsView = "Inventory.Counts.View";
+        public const string InventoryCountsManage = "Inventory.Counts.Manage";
+        public const string InventoryCountsReview = "Inventory.Counts.Review";
         public const string InventoryConfigManage = "Inventory.Config.Manage";
         public const string InventoryArticlesView = "Inventory.Articles.View";
         public const string InventoryArticlesManage = "Inventory.Articles.Manage";
@@ -202,6 +207,10 @@ public static class AppConstants
             new(MenuItemsManage, "Administrar items y recetas", "Menu"),
 
             new(InventoryConfigView, "Ver configuracion de inventario", "Inventory"),
+            new(InventoryCountsExecute, "Realizar conteos del personal con PIN", "Inventory"),
+            new(InventoryCountsView, "Consultar conteos del personal", "Inventory"),
+            new(InventoryCountsManage, "Configurar areas y frecuencias de conteo", "Inventory"),
+            new(InventoryCountsReview, "Revisar diferencias de conteos del personal", "Inventory"),
             new(InventoryConfigManage, "Administrar configuracion de inventario", "Inventory"),
             new(InventoryArticlesView, "Ver articulos", "Inventory"),
             new(InventoryArticlesManage, "Administrar articulos", "Inventory"),

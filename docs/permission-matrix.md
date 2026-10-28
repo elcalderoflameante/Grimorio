@@ -28,6 +28,19 @@ Convencion de nombres:
 
 ## Operaciones
 
+### Conteos del personal (Inventario)
+
+| Permiso | Alcance | Endpoints |
+| --- | --- | --- |
+| `Inventory.Counts.Execute` | App PIN: solo áreas activas asignadas, sin saldos esperados | `GET /api/inventory/conteos/mis-pendientes`, `GET /api/inventory/conteos/mis-conteos/{id}`, `POST /api/inventory/conteos/areas/{id}/iniciar`, `PUT /api/inventory/conteos/{id}/lineas/{lineId}`, `POST /api/inventory/conteos/{id}/enviar` |
+| `Inventory.Counts.View` | Consulta de conteos y diferencias de sucursal | `GET /api/inventory/conteos`, `GET /api/inventory/conteos/{id}` |
+| `Inventory.Counts.Manage` | Configurar áreas, usuarios, artículos/bodegas y frecuencias | `GET /api/inventory/conteos/configuracion`, `POST /api/inventory/conteos/areas`, `PUT /api/inventory/conteos/areas/{id}` |
+| `Inventory.Counts.Review` | Revisar, descartar o solicitar reconteo con motivo; nunca ajustar | `POST /api/inventory/conteos/{id}/revisar` |
+
+Login público: `GET /api/auth/inventory/branches`, `GET /api/auth/inventory/users?branchId=...`, `POST /api/auth/inventory/login`. Usuarios y login limitados por IP; ingresar exige PIN operativo y `Inventory.Counts.Execute`. APK pública: `/downloads/grimorio-inventario.apk`.
+
+Ejecución por defecto para Mesero, Cocina y Bodega; Bodega también consulta. Administrador y Supervisor siguen las reglas del seed. Los roles personalizados de bar requieren asignar permiso. Se respetan las revocaciones existentes.
+
 | Permiso | Descripcion | Menu / pantalla | Endpoints principales |
 | --- | --- | --- | --- |
 | `Operations.Responsibilities.View` | Consultar configuracion, cumplimiento y evidencia privada de la sucursal | Operaciones > Responsabilidades | `GET /api/operations/responsibilities/catalog`, `GET /api/operations/responsibilities/day`, `GET /api/operations/responsibilities/evidence/{id}` |

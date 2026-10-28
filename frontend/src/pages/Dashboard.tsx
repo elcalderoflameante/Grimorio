@@ -72,6 +72,7 @@ import ArticlesList from '../components/Inventory/ArticlesList';
 import CurrentStock from '../components/Inventory/CurrentStock';
 import StockMovements from '../components/Inventory/StockMovements';
 import InventoryReconciliation from '../components/Inventory/InventoryReconciliation';
+import StaffInventoryCounts from '../components/Inventory/StaffInventoryCounts';
 import Production from '../components/Inventory/Production';
 import SuppliersList from '../components/Purchases/SuppliersList';
 import PurchasesList from '../components/Purchases/PurchaseOrdersList';
@@ -337,6 +338,7 @@ export default function Dashboard() {
           { key: 'inv-stock', label: 'Stock actual', icon: <WarningOutlined />, permission: PERMISSIONS.inventory.stockView },
           { key: 'inv-movimientos', label: 'Movimientos', icon: <SwapOutlined />, permission: PERMISSIONS.inventory.movementsView },
           { key: 'inv-conciliacion', label: 'Conciliación', icon: <SearchOutlined />, permission: PERMISSIONS.inventory.movementsView },
+          { key: 'inv-conteos', label: 'Conteos del personal', icon: <UnorderedListOutlined />, permission: hasPermission(PERMISSIONS.inventory.countsView) ? PERMISSIONS.inventory.countsView : PERMISSIONS.inventory.countsManage },
           { key: 'inv-produccion', label: 'Producción', icon: <ToolOutlined />, permission: hasPermission(PERMISSIONS.inventory.productionCreate) ? PERMISSIONS.inventory.productionCreate : PERMISSIONS.inventory.movementsCreate },
         ],
       },
@@ -508,6 +510,8 @@ case 'pos-estaciones':
         return <StockMovements />;
       case 'inv-conciliacion':
         return <InventoryReconciliation />;
+      case 'inv-conteos':
+        return <StaffInventoryCounts />;
       case 'inv-produccion':
         return <Production />;
       case 'inv-articulos':

@@ -2223,6 +2223,189 @@ namespace Grimorio.Infrastructure.Migrations
                     b.ToTable("InventoryCategories", "inv");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.InventoryCountArea", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("BranchId", "Name")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("InventoryCountAreas", "inv");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.InventoryCountMember", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("AreaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("AreaId", "UserId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.ToTable("InventoryCountMembers", "inv");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.InventoryCountRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("AreaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ArticleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Frequency")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("WeekDay")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AreaId");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("BranchId", "ArticleId", "WarehouseId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("InventoryCountRules", "inv");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.MeasurementUnit", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2751,6 +2934,201 @@ namespace Grimorio.Infrastructure.Migrations
                         .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("ProductionRecipePreparationSteps", "inv");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.StaffInventoryCount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("AreaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AreaName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("CounterName")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<Guid>("CounterUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid?>("RecountOfId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReviewNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReviewerName")
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("BranchId", "AreaId")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false AND \"Status\" = 'Draft'");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("BranchId", "AreaId", "BusinessDate");
+
+                    b.ToTable("StaffInventoryCounts", "inv");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.StaffInventoryCountLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("ArticleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ArticleName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CountedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CountedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("ExpectedQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<string>("Frequency")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<decimal?>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<Guid>("UnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UnitSymbol")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("WarehouseName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("CountId", "ArticleId", "WarehouseId")
+                        .IsUnique();
+
+                    b.ToTable("StaffInventoryCountLines", "inv");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.StockMovement", b =>
@@ -8513,6 +8891,24 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("Category");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.InventoryCountMember", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Inventory.InventoryCountArea", null)
+                        .WithMany("Members")
+                        .HasForeignKey("AreaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.InventoryCountRule", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Inventory.InventoryCountArea", null)
+                        .WithMany("Rules")
+                        .HasForeignKey("AreaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.ProductionOrder", b =>
                 {
                     b.HasOne("Grimorio.Domain.Entities.Inventory.Warehouse", "DestinationWarehouse")
@@ -8657,6 +9053,15 @@ namespace Grimorio.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("ProductionRecipe");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.StaffInventoryCountLine", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Inventory.StaffInventoryCount", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("CountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.StockMovement", b =>
@@ -9678,6 +10083,13 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("Articles");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.InventoryCountArea", b =>
+                {
+                    b.Navigation("Members");
+
+                    b.Navigation("Rules");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.MeasurementUnit", b =>
                 {
                     b.Navigation("BaseArticles");
@@ -9703,6 +10115,11 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Navigation("PreparationSteps");
 
                     b.Navigation("ProductionOrders");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.StaffInventoryCount", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Inventory.Warehouse", b =>

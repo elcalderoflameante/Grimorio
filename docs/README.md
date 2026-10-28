@@ -4,6 +4,8 @@ Indice de documentacion activa del proyecto.
 
 ## Documentos activos
 
+- `staff-inventory-counts.md`: configuración y operación de conteos del personal sin ajustes automáticos.
+
 - `../README.md`: vision general y arranque rapido.
 - `../CHANGELOG.md`: historial de cambios.
 - `../backend/docs/API_STANDARDS.md`: estandares de API backend.

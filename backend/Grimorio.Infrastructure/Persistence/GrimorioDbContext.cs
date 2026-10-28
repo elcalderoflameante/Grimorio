@@ -126,6 +126,11 @@ public class GrimorioDbContext : DbContext
     public DbSet<PurchaseItem> PurchaseItems { get; set; } = null!;
 
     // === Inventario ===
+    public DbSet<InventoryCountArea> InventoryCountAreas { get; set; } = null!;
+    public DbSet<InventoryCountMember> InventoryCountMembers { get; set; } = null!;
+    public DbSet<InventoryCountRule> InventoryCountRules { get; set; } = null!;
+    public DbSet<StaffInventoryCount> StaffInventoryCounts { get; set; } = null!;
+    public DbSet<StaffInventoryCountLine> StaffInventoryCountLines { get; set; } = null!;
     public DbSet<MeasurementUnit> MeasurementUnits { get; set; } = null!;
     public DbSet<UnitConversion> UnitConversions { get; set; } = null!;
     public DbSet<InventoryCategory> InventoryCategories { get; set; } = null!;

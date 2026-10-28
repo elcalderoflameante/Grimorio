@@ -186,6 +186,7 @@ public static class AuthSeeder
             ],
             [AppConstants.Roles.Waiter] =
             [
+                AppConstants.Permissions.InventoryCountsExecute,
                 AppConstants.Permissions.OperationsResponsibilitiesExecute,
                 AppConstants.Permissions.AdminBranchView,
                 AppConstants.Permissions.MenuCategoriesView,
@@ -200,6 +201,7 @@ public static class AuthSeeder
             ],
             [AppConstants.Roles.Kitchen] =
             [
+                AppConstants.Permissions.InventoryCountsExecute,
                 AppConstants.Permissions.AdminBranchView,
                 AppConstants.Permissions.PosKitchenView,
                 AppConstants.Permissions.PosKitchenUpdate,
@@ -208,6 +210,8 @@ public static class AuthSeeder
             ],
             [AppConstants.Roles.Warehouse] =
             [
+                AppConstants.Permissions.InventoryCountsExecute,
+                AppConstants.Permissions.InventoryCountsView,
                 AppConstants.Permissions.AdminBranchView,
                 AppConstants.Permissions.InventoryConfigView,
                 AppConstants.Permissions.InventoryConfigManage,

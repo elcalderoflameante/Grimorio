@@ -111,9 +111,30 @@ public class AuthController : ControllerBase
     }
 
     [HttpGet("waitstaff/branches")]
+    [HttpGet("inventory/branches")]
     public async Task<IActionResult> GetWaitstaffBranches()
     {
         return Ok(await _mediator.Send(new GetKdsBranchesQuery()));
+    }
+
+    /// <summary>Users authorized for staff inventory counts in the selected branch.</summary>
+    [HttpGet("inventory/users")]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("inventory-pin")]
+    public async Task<IActionResult> GetInventoryUsers([FromQuery] Guid branchId)
+    {
+        if (branchId == Guid.Empty) return BadRequest(new { message = "Sucursal requerida." });
+        return Ok(await _mediator.Send(new GetInventoryUsersQuery(branchId)));
+    }
+
+    /// <summary>Uses the user's existing operational PIN, with inventory count permission.</summary>
+    [HttpPost("inventory/login")]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("inventory-pin")]
+    public async Task<IActionResult> InventoryLogin(KdsLoginRequest request)
+    {
+        if (request.BranchId == Guid.Empty || request.UserId == Guid.Empty || request.Pin == null || request.Pin.Length != 4 || !request.Pin.All(c => c is >= '0' and <= '9'))
+            return BadRequest(new { message = "Sucursal, usuario y PIN de cuatro digitos son requeridos." });
+        try { return Ok(await _mediator.Send(new KdsLoginCommand { BranchId = request.BranchId, UserId = request.UserId, Pin = request.Pin, RequireInventoryPermission = true })); }
+        catch (UnauthorizedAccessException ex) { return Unauthorized(new { message = ex.Message }); }
     }
 
     [HttpGet("waitstaff/users")]

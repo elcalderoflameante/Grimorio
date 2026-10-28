@@ -9,4 +9,5 @@ public class KdsLoginCommand : IRequest<AuthResponse>
     public Guid UserId { get; set; }
     public string Pin { get; set; } = string.Empty;
     public bool RequireWaitstaffRole { get; set; }
+    public bool RequireInventoryPermission { get; set; }
 }

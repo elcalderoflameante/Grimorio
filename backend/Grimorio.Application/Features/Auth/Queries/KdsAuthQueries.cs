@@ -4,6 +4,7 @@ using Grimorio.Application.DTOs;
 namespace Grimorio.Application.Features.Auth.Queries;
 
 public class GetKdsBranchesQuery : IRequest<List<KdsBranchDto>> { }
+public record GetInventoryUsersQuery(Guid BranchId) : IRequest<List<KdsUserDto>>;
 
 public class GetKdsUsersQuery : IRequest<List<KdsUserDto>>
 {

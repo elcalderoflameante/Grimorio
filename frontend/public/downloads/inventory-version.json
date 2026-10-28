@@ -1,0 +1,8 @@
+{
+    "versionCode":  2,
+    "versionName":  "1.0.1",
+    "required":  false,
+    "apkUrl":  "/downloads/grimorio-inventario.apk",
+    "sha256":  "7b3d778010c3d98dd59fe7170603a5fc66a7d76b807e54a6ba714fcb03b1de14",
+    "message":  "Mejoras de inventario y actualizaciones desde la app."
+}

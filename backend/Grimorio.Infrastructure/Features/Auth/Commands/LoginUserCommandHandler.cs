@@ -194,7 +194,12 @@ public class KdsLoginCommandHandler : IRequestHandler<KdsLoginCommand, AuthRespo
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        if (request.RequireWaitstaffRole)
+        if (request.RequireInventoryPermission)
+        {
+            if (!permissions.Contains(AppConstants.Permissions.InventoryCountsExecute))
+                throw new UnauthorizedAccessException("Usuario no tiene permiso para realizar conteos.");
+        }
+        else if (request.RequireWaitstaffRole)
         {
             if (!activeRoleNames.Contains(AppConstants.Roles.Waiter))
                 throw new UnauthorizedAccessException("Usuario no tiene rol de mesero.");
@@ -211,7 +216,7 @@ public class KdsLoginCommandHandler : IRequestHandler<KdsLoginCommand, AuthRespo
             FirstName = user.FirstName,
             LastName = user.LastName,
             Email = user.Email,
-            ClientType = request.RequireWaitstaffRole
+            ClientType = request.RequireInventoryPermission ? AppConstants.ClientTypes.Inventory : request.RequireWaitstaffRole
                 ? AppConstants.ClientTypes.Waitstaff
                 : AppConstants.ClientTypes.Kds,
             Roles = activeRoleNames,

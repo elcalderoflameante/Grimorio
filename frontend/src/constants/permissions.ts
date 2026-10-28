@@ -59,6 +59,10 @@ export const PERMISSIONS = {
     itemsManage: 'Menu.Items.Manage',
   },
   inventory: {
+    countsView: 'Inventory.Counts.View',
+    countsManage: 'Inventory.Counts.Manage',
+    countsReview: 'Inventory.Counts.Review',
+    countsExecute: 'Inventory.Counts.Execute',
     configView: 'Inventory.Config.View',
     configManage: 'Inventory.Config.Manage',
     articlesView: 'Inventory.Articles.View',

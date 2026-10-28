@@ -4,6 +4,8 @@ Espacio reservado para aplicaciones moviles de Grimorio.
 
 ## Objetivo
 
+Apps actuales: `waitstaff_app` (meseros), `station_app` (estaciones), `attendance_app` (asistencia) e `inventory_app` (conteos con PIN y revisión en ERP). Cada carpeta tiene su README.
+
 Permitir crecimiento por apps moviles sin mezclar codigo con backend o frontend web.
 
 ## Estructura sugerida

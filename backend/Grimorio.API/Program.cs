@@ -180,6 +180,10 @@ builder.Services.AddSingleton<IAuthorizationHandler, Grimorio.API.Authorization.
 
 // === Authorization policies ===
 builder.Services.AddRateLimiter(options => {
+    options.AddPolicy("inventory-pin", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions {
+            PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0,
+        }));
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy("loyalty-enrollment", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions {
@@ -237,6 +241,7 @@ builder.Services.AddHttpClient<Grimorio.Infrastructure.Features.Marketing.ILoyal
     Grimorio.Infrastructure.Features.Marketing.WhatsAppLoyaltyCodeSender>(client => client.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddScoped<Grimorio.Infrastructure.Features.Marketing.PublicLoyaltyService>();
 builder.Services.AddScoped<Grimorio.Infrastructure.Features.Operations.ResponsibilityService>();
+builder.Services.AddScoped<Grimorio.Infrastructure.Features.Inventory.StaffInventoryCountService>();
 builder.Services.AddScoped<Grimorio.Infrastructure.Services.Sri.SriSoapClient>();
 builder.Services.AddScoped<Grimorio.Infrastructure.Services.Email.IEmailService,
                            Grimorio.Infrastructure.Services.Email.SmtpEmailService>();

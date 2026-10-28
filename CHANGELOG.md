@@ -8,6 +8,10 @@ El formato se basa en Keep a Changelog y Versionado Semantico.
 
 ### Agregado
 
+- Actualizador dentro de Grimorio Inventario `1.0.1+2`, siguiendo el flujo de Meseros: consulta periódica, descarga con SHA-256, instalador Android y aviso aplazado durante conteos para conservar cantidades sin confirmar.
+
+- App Grimorio Inventario con PIN, áreas compartidas y conteos diarios/semanales sin modificar existencias. Submenú Inventario > Conteos del personal con diferencias históricas, revisión, reconteos, configuración y descarga de APK.
+
 - Control opcional del walkie Android con volumen arriba y tonos locales de inicio, fin y ocupado; accesibilidad para eventos fuera de la app. Pantalla apagada pendiente de validación en los teléfonos.
 - Walkie-talkie por sucursal en meseros, estaciones y panel web, con control de turnos, reconexión y coordinación de avisos TTS; servidor LiveKit propio mediante overlay Docker.
 - Portada pública del restaurante en `/`, con identidad visual, fotos, filtros de platos, contacto y redes; acceso interno conservado en `/login` y `/dashboard`.

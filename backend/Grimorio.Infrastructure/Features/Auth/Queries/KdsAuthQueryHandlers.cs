@@ -8,6 +8,17 @@ using Grimorio.SharedKernel.Constants;
 
 namespace Grimorio.Infrastructure.Features.Auth.Queries;
 
+public class GetInventoryUsersHandler(GrimorioDbContext db) : IRequestHandler<GetInventoryUsersQuery, List<KdsUserDto>>
+{
+    public Task<List<KdsUserDto>> Handle(GetInventoryUsersQuery r, CancellationToken ct) => db.Users.AsNoTracking()
+        .Where(UserAccessPolicy.ActiveAccount)
+        .Where(u => u.BranchId == r.BranchId && db.UserRoles.Any(ur => ur.BranchId == r.BranchId && ur.UserId == u.Id
+            && ur.Role != null && ur.Role.IsActive && ur.Role.RolePermissions.Any(rp => rp.Permission != null && rp.Permission.IsActive
+                && rp.Permission.Code == AppConstants.Permissions.InventoryCountsExecute)))
+        .OrderBy(u => u.FirstName).ThenBy(u => u.LastName)
+        .Select(u => new KdsUserDto { Id = u.Id, FirstName = u.FirstName, LastName = u.LastName, HasKdsPin = u.KdsPinHash != null && u.KdsPinHash != "" }).ToListAsync(ct);
+}
+
 public class GetKdsBranchesQueryHandler : IRequestHandler<GetKdsBranchesQuery, List<KdsBranchDto>>
 {
     private readonly GrimorioDbContext _context;
