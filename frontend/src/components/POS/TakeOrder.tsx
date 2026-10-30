@@ -11,6 +11,7 @@ import type {
 } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 import { menuItemName } from '../../utils/menuItemName';
+import { getPromotionDiscount } from '../../utils/orderPaymentPricing';
 import ChangeOrderTableButton from './ChangeOrderTableButton';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
@@ -175,19 +176,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
       : undefined;
     if (!promotion) return 0;
 
-    const gross = line.price * line.quantity;
-    let discount = 0;
-    if (promotion.type === 'Percentage') discount = gross * ((promotion.discountPercent ?? 0) / 100);
-    else if (promotion.type === 'FixedAmount') discount = promotion.discountAmount ?? 0;
-    else if (promotion.type === 'FixedPrice') discount = gross - ((promotion.fixedPrice ?? line.price) * line.quantity);
-    else {
-      const buyQuantity = promotion.buyQuantity ?? 0;
-      const payQuantity = promotion.payQuantity ?? 0;
-      const groups = buyQuantity > 0 ? Math.floor(line.quantity / buyQuantity) : 0;
-      discount = groups * Math.max(0, buyQuantity - payQuantity) * line.price;
-    }
-
-    return Math.min(Math.max(Math.round(discount * 100) / 100, 0), gross);
+    return getPromotionDiscount(line.price, line.quantity, promotion);
   };
 
   const getLineCapacity = (line: OrderLine): number | null => {
@@ -243,6 +232,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
   const selectedPromotion = selectedPromotionId ? promotions.find(promotion => promotion.id === selectedPromotionId) : undefined;
 
   const promotionValueLabel = (promotion: PromotionDto) => {
+    if (promotion.type === 'SecondUnitPercentage') return `2da unidad: ${promotion.discountPercent ?? 0}% desc.`;
     if (promotion.type === 'Percentage') return `${promotion.discountPercent ?? 0}%`;
     if (promotion.type === 'FixedAmount') return `$${(promotion.discountAmount ?? 0).toFixed(2)} desc.`;
     if (promotion.type === 'FixedPrice') return `$${(promotion.fixedPrice ?? 0).toFixed(2)}`;

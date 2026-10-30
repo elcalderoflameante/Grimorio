@@ -72,6 +72,7 @@ internal static class PromotionEngine
             PromotionType.FixedAmount => promotion.DiscountAmount ?? 0m,
             PromotionType.FixedPrice => gross - ((promotion.FixedPrice ?? unitPrice) * quantity),
             PromotionType.BuyXPayY => CalculateBuyXPayY(promotion, unitPrice, quantity),
+            PromotionType.SecondUnitPercentage => (quantity / 2) * unitPrice * ((promotion.DiscountPercent ?? 0m) / 100m),
             _ => 0m,
         };
 
@@ -118,6 +119,8 @@ internal static class PromotionEngine
     {
         if (string.IsNullOrWhiteSpace(promotion.Name))
             throw new InvalidOperationException("El nombre de la promocion es obligatorio.");
+        if (!Enum.IsDefined(promotion.Type) || !Enum.IsDefined(promotion.PaymentPolicy))
+            throw new InvalidOperationException("El tipo o la politica de pago de la promocion no es valido.");
 
         if (promotion.StartsOn.HasValue && promotion.EndsOn.HasValue && promotion.StartsOn > promotion.EndsOn)
             throw new InvalidOperationException("La fecha de inicio no puede ser mayor a la fecha fin.");
@@ -137,6 +140,7 @@ internal static class PromotionEngine
         switch (promotion.Type)
         {
             case PromotionType.Percentage:
+            case PromotionType.SecondUnitPercentage:
                 if (!promotion.DiscountPercent.HasValue || promotion.DiscountPercent <= 0 || promotion.DiscountPercent > 100)
                     throw new InvalidOperationException("El porcentaje de descuento debe ser mayor a 0 y menor o igual a 100.");
                 break;

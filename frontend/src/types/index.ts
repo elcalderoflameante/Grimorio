@@ -1603,7 +1603,7 @@ export interface CreateOrderDto {
   items: CreateOrderItemDto[];
 }
 
-export type PromotionType = 'Percentage' | 'FixedAmount' | 'FixedPrice' | 'BuyXPayY';
+export type PromotionType = 'Percentage' | 'FixedAmount' | 'FixedPrice' | 'BuyXPayY' | 'SecondUnitPercentage';
 export type PromotionPaymentPolicy = 'AnyPayment' | 'CashTransferOnly' | 'CardAlternativePrice';
 
 export interface PromotionDto {

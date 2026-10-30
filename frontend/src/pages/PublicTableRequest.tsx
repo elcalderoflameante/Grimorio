@@ -14,6 +14,7 @@ import servilletasImg from '../assets/servilletas.png';
 import RusticButton from '../components/Public/RusticButton';
 import PublicLoyaltyLink from '../components/Marketing/PublicLoyaltyLink';
 import { resolveMediaUrl, tableServiceApi } from '../services/api';
+import { getPromotionDiscount } from '../utils/orderPaymentPricing';
 import type {
   CreateModifierSelectionDto,
   OrderDto,
@@ -400,6 +401,7 @@ export default function PublicTableRequest() {
     : undefined;
 
   const promotionValueLabel = (promotion: PromotionDto) => {
+    if (promotion.type === 'SecondUnitPercentage') return `2da unidad: ${promotion.discountPercent ?? 0}% desc.`;
     if (promotion.type === 'Percentage') return `${promotion.discountPercent ?? 0}%`;
     if (promotion.type === 'FixedAmount') return `${money(promotion.discountAmount ?? 0)} desc.`;
     if (promotion.type === 'FixedPrice') return money(promotion.fixedPrice ?? 0);
@@ -433,19 +435,7 @@ export default function PublicTableRequest() {
       : undefined;
     if (!promotion) return 0;
 
-    const gross = line.unitPrice * line.quantity;
-    let discount = 0;
-    if (promotion.type === 'Percentage') discount = gross * ((promotion.discountPercent ?? 0) / 100);
-    else if (promotion.type === 'FixedAmount') discount = promotion.discountAmount ?? 0;
-    else if (promotion.type === 'FixedPrice') discount = gross - ((promotion.fixedPrice ?? line.unitPrice) * line.quantity);
-    else {
-      const buyQuantity = promotion.buyQuantity ?? 0;
-      const payQuantity = promotion.payQuantity ?? 0;
-      const groups = buyQuantity > 0 ? Math.floor(line.quantity / buyQuantity) : 0;
-      discount = groups * Math.max(0, buyQuantity - payQuantity) * line.unitPrice;
-    }
-
-    return Math.min(Math.max(Math.round(discount * 100) / 100, 0), gross);
+    return getPromotionDiscount(line.unitPrice, line.quantity, promotion);
   }, [promotions]);
 
   const cartDiscount = useMemo(

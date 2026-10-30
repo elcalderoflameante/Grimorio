@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { allocatePaymentTotal, getPaymentLineTotal } from '../src/utils/orderPaymentPricing.ts';
+import { allocatePaymentTotal, getPaymentLineTotal, getPromotionDiscount } from '../src/utils/orderPaymentPricing.ts';
 
 const promotion = { type: 'FixedPrice', fixedPrice: 7.99, cardPrice: 8.99, paymentPolicy: 'CardAlternativePrice' };
 const item = { unitPrice: 11, quantity: 2, totalPrice: 15.98 };
@@ -45,4 +45,29 @@ test('percentage rounding matches the backend midpoint rule', () => {
 
 test('rejects quantities beyond the remaining balance', () => {
   assert.throws(() => allocatePaymentTotal(20, 3, 2, 2));
+});
+
+const secondUnit = { type: 'SecondUnitPercentage', discountPercent: 50, paymentPolicy: 'AnyPayment' };
+test('second unit 50% applies once per complete pair, never to the first or an unpaired unit', () => {
+  for (const [quantity, expected] of [[1, 20], [2, 30], [3, 50], [4, 60], [5, 80], [6, 90]]) {
+    const line = { unitPrice: 20, quantity, totalPrice: 20 * quantity };
+    assert.equal(getPaymentLineTotal(line, secondUnit, false), expected);
+    assert.equal(getPaymentLineTotal(line, secondUnit, true), expected);
+    assert.equal(getPromotionDiscount(20, quantity, secondUnit), 20 * quantity - expected);
+    assert.equal(Array.from({length:quantity}, (_,paid)=>allocatePaymentTotal(expected,quantity,paid,1))
+      .reduce((sum,value)=>sum+Math.round(value*100),0),expected*100);
+  }
+});
+test('second unit policy restrictions and card prices match server behavior', () => {
+  const line = { unitPrice: 20, quantity: 2, totalPrice: 30 };
+  assert.equal(getPaymentLineTotal(line, {...secondUnit,paymentPolicy:'CashTransferOnly'},true),40);
+  assert.equal(getPaymentLineTotal(line, {...secondUnit,paymentPolicy:'CashTransferOnly'},false),30);
+  assert.equal(getPaymentLineTotal(line, {...secondUnit,paymentPolicy:'CardAlternativePrice',cardPrice:18},true),36);
+  assert.equal(getPaymentLineTotal(line, {...secondUnit,paymentPolicy:'CardAlternativePrice',cardPrice:18},false),30);
+});
+test('second unit rounding, full discount and partial payments preserve the full promotion total', () => {
+  assert.equal(getPaymentLineTotal({unitPrice:.05,quantity:2,totalPrice:.1},secondUnit,false),.08);
+  assert.equal(getPaymentLineTotal({unitPrice:20,quantity:3,totalPrice:60},{...secondUnit,discountPercent:100},false),40);
+  const total = getPaymentLineTotal({unitPrice:20,quantity:2,totalPrice:40},secondUnit,false);
+  assert.deepEqual([0,1].map(paid=>allocatePaymentTotal(total,2,paid,1)),[15,15]);
 });

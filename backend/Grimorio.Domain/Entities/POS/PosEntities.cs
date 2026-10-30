@@ -82,6 +82,7 @@ public enum PromotionType
     FixedAmount = 2,
     FixedPrice = 3,
     BuyXPayY = 4,
+    SecondUnitPercentage = 5,
 }
 
 public enum PromotionPaymentPolicy

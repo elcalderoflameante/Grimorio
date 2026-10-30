@@ -49,6 +49,38 @@ Equal(6.67m, OrderPaymentPricing.AllocateTotal(total, 3, 2, 1));
 Equal(total, Enumerable.Range(0, 3).Sum(paid => OrderPaymentPricing.AllocateTotal(total, 3, paid, 1)));
 Console.WriteLine("Payment promotion pricing checks passed.");
 
+promotion.Type = PromotionType.SecondUnitPercentage;
+promotion.DiscountPercent = 50;
+promotion.PaymentPolicy = PromotionPaymentPolicy.AnyPayment;
+item.UnitPrice = 20;
+foreach (var (quantity, expected) in new[] { (1, 20m), (2, 30m), (3, 50m), (4, 60m), (5, 80m), (6, 90m) })
+{
+    item.Quantity = quantity;
+    Equal(expected, OrderPaymentPricing.GetLineTotal(item, false));
+    Equal(expected, OrderPaymentPricing.GetLineTotal(item, true));
+    Equal(expected, Enumerable.Range(0, quantity).Sum(paid =>
+        OrderPaymentPricing.AllocateTotal(expected, quantity, paid, 1)));
+}
+item.Quantity = 2;
+Equal(15m, OrderPaymentPricing.AllocateTotal(OrderPaymentPricing.GetLineTotal(item, false), 2, 0, 1));
+Equal(15m, OrderPaymentPricing.AllocateTotal(OrderPaymentPricing.GetLineTotal(item, false), 2, 1, 1));
+promotion.PaymentPolicy = PromotionPaymentPolicy.CashTransferOnly;
+Equal(40m, OrderPaymentPricing.GetLineTotal(item, true));
+Equal(30m, OrderPaymentPricing.GetLineTotal(item, false));
+promotion.PaymentPolicy = PromotionPaymentPolicy.CardAlternativePrice;
+promotion.CardPrice = 18;
+Equal(36m, OrderPaymentPricing.GetLineTotal(item, true));
+Equal(30m, OrderPaymentPricing.GetLineTotal(item, false));
+promotion.PaymentPolicy = PromotionPaymentPolicy.AnyPayment;
+promotion.DiscountPercent = 100;
+item.Quantity = 3;
+Equal(40m, OrderPaymentPricing.GetLineTotal(item, false));
+promotion.DiscountPercent = 50;
+item.Quantity = 2;
+item.UnitPrice = .05m;
+Equal(.08m, OrderPaymentPricing.GetLineTotal(item, false));
+Console.WriteLine("Second-unit promotion pricing and partial payment checks passed.");
+
 var menuItemId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
 var invoiceItem = new OrderItem
 {

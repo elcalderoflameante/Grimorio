@@ -21,6 +21,8 @@ export function getPaymentLineTotal(
   else if (useCardPrice && promotion.paymentPolicy === 'CardAlternativePrice' && promotion.cardPrice != null)
     discount = gross - promotion.cardPrice * item.quantity;
   else if (promotion.type === 'Percentage') discount = gross * (promotion.discountPercent ?? 0) / 100;
+  else if (promotion.type === 'SecondUnitPercentage')
+    discount = Math.floor(item.quantity / 2) * item.unitPrice * (promotion.discountPercent ?? 0) / 100;
   else if (promotion.type === 'FixedAmount') discount = promotion.discountAmount ?? 0;
   else if (promotion.type === 'FixedPrice') discount = gross - (promotion.fixedPrice ?? item.unitPrice) * item.quantity;
   else if (promotion.type === 'BuyXPayY') {
@@ -38,4 +40,9 @@ export function allocatePaymentTotal(total: number, quantity: number, paidQuanti
   const cents = (value: number) => Math.round(value * 100 + 1e-8);
   return (cents(total * (paidQuantity + selectedQuantity) / quantity)
     - cents(total * paidQuantity / quantity)) / 100;
+}
+
+export function getPromotionDiscount(unitPrice: number, quantity: number, promotion: PromotionDto) {
+  const gross = unitPrice * quantity;
+  return roundDiscount(gross - getPaymentLineTotal({ unitPrice, quantity, totalPrice: gross }, promotion, false));
 }

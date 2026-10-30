@@ -24,7 +24,7 @@ import CustomerSelector from '../Billing/CustomerSelector';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
 import { clearPendingPayment, pendingPaymentStorageKey, readPendingPayment } from '../../utils/pendingPayment';
-import { allocatePaymentTotal, getPaymentLineTotal as calculatePaymentLineTotal } from '../../utils/orderPaymentPricing';
+import { allocatePaymentTotal, getPaymentLineTotal as calculatePaymentLineTotal, getPromotionDiscount } from '../../utils/orderPaymentPricing';
 import { clientAvailableQuantity, createClientPaymentAccount, paidItemQuantities, reconcileClientPayments } from '../../utils/clientPaymentAccounts';
 import type { ClientPaymentAccount, SplitRow } from '../../utils/clientPaymentAccounts';
 
@@ -306,19 +306,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       : undefined;
     if (!promotion) return 0;
 
-    const gross = line.price * line.quantity;
-    let discount = 0;
-    if (promotion.type === 'Percentage') discount = gross * ((promotion.discountPercent ?? 0) / 100);
-    else if (promotion.type === 'FixedAmount') discount = promotion.discountAmount ?? 0;
-    else if (promotion.type === 'FixedPrice') discount = gross - ((promotion.fixedPrice ?? line.price) * line.quantity);
-    else {
-      const buyQuantity = promotion.buyQuantity ?? 0;
-      const payQuantity = promotion.payQuantity ?? 0;
-      const groups = buyQuantity > 0 ? Math.floor(line.quantity / buyQuantity) : 0;
-      discount = groups * Math.max(0, buyQuantity - payQuantity) * line.price;
-    }
-
-    return Math.min(Math.max(Math.round(discount * 100) / 100, 0), gross);
+    return getPromotionDiscount(line.price, line.quantity, promotion);
   };
   const cartDiscount = cart.reduce((s, l) => s + calculateCartDiscount(l), 0);
   const cartTotal = Math.max(0, cartSubtotal - cartDiscount);
@@ -753,6 +741,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
   const activePromotions = promotions.filter(promotion => promotion.isActive);
   const selectedPromotion = selectedPromotionId ? promotions.find(promotion => promotion.id === selectedPromotionId) : undefined;
   const promotionValueLabel = (promotion: PromotionDto) => {
+    if (promotion.type === 'SecondUnitPercentage') return `2da unidad: ${promotion.discountPercent ?? 0}% desc.`;
     if (promotion.type === 'Percentage') return `${promotion.discountPercent ?? 0}%`;
     if (promotion.type === 'FixedAmount') return `$${(promotion.discountAmount ?? 0).toFixed(2)} desc.`;
     if (promotion.type === 'FixedPrice') return `$${(promotion.fixedPrice ?? 0).toFixed(2)}`;

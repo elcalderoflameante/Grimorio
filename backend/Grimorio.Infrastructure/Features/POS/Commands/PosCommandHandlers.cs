@@ -1332,9 +1332,9 @@ internal static class PosPromotionCommandHelper
         Guid branchId,
         CancellationToken ct)
     {
-        if (!Enum.TryParse<PromotionType>(dto.Type, out var type))
+        if (!Enum.TryParse<PromotionType>(dto.Type, out var type) || !Enum.IsDefined(type))
             throw new InvalidOperationException($"Tipo de promocion no valido: {dto.Type}");
-        if (!Enum.TryParse<PromotionPaymentPolicy>(dto.PaymentPolicy, out var paymentPolicy))
+        if (!Enum.TryParse<PromotionPaymentPolicy>(dto.PaymentPolicy, out var paymentPolicy) || !Enum.IsDefined(paymentPolicy))
             throw new InvalidOperationException($"Politica de pago de promocion no valida: {dto.PaymentPolicy}");
 
         var menuItemIds = dto.MenuItemIds.Distinct().ToList();

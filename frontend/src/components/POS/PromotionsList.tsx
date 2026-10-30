@@ -28,6 +28,7 @@ const typeLabels: Record<PromotionType, string> = {
   FixedAmount: 'Descuento fijo',
   FixedPrice: 'Precio fijo',
   BuyXPayY: 'Paga X de Y',
+  SecondUnitPercentage: 'Descuento en segunda unidad',
 };
 
 const paymentPolicyLabels: Record<PromotionPaymentPolicy, string> = {
@@ -40,6 +41,7 @@ const money = (value?: number | null) => `$${Number(value ?? 0).toFixed(2)}`;
 
 const formatPromotionValue = (promo: PromotionDto) => {
   if (promo.type === 'Percentage') return `${promo.discountPercent ?? 0}%`;
+  if (promo.type === 'SecondUnitPercentage') return `2da unidad: ${promo.discountPercent ?? 0}% desc.`;
   if (promo.type === 'FixedAmount') return money(promo.discountAmount);
   if (promo.type === 'FixedPrice') return money(promo.fixedPrice);
   return `${promo.buyQuantity ?? 0}x${promo.payQuantity ?? 0}`;
@@ -197,6 +199,7 @@ export default function PromotionsList() {
         rowKey="id"
         loading={loading}
         dataSource={promotions}
+        scroll={{ x: 1100 }}
         pagination={{ pageSize: 10 }}
         columns={[
           { title: 'Nombre', dataIndex: 'name' },
@@ -254,11 +257,15 @@ export default function PromotionsList() {
             <Col xs={24} md={6}>
               <Form.Item name="type" label="Tipo" rules={[{ required: true }]}>
                 <Select
+                  onChange={value => {
+                    if (value === 'SecondUnitPercentage') form.setFieldValue('discountPercent', 50);
+                  }}
                   options={[
                     { value: 'Percentage', label: 'Porcentaje' },
                     { value: 'FixedAmount', label: 'Descuento fijo' },
                     { value: 'FixedPrice', label: 'Precio fijo' },
                     { value: 'BuyXPayY', label: 'Paga X de Y' },
+                    { value: 'SecondUnitPercentage', label: 'Descuento en segunda unidad' },
                   ]}
                 />
               </Form.Item>
@@ -302,8 +309,8 @@ export default function PromotionsList() {
               return (
                 <Row gutter={12}>
                   <Col xs={24} md={hasCardPrice ? 12 : 24}>
-                    {type === 'Percentage' && (
-                      <Form.Item name="discountPercent" label="Porcentaje" rules={[{ required: true }]}>
+                    {(type === 'Percentage' || type === 'SecondUnitPercentage') && (
+                      <Form.Item name="discountPercent" label={type === 'SecondUnitPercentage' ? 'Descuento en la segunda unidad' : 'Porcentaje'} rules={[{ required: true }]}>
                         <InputNumber min={0.01} max={100} precision={2} suffix="%" style={{ width: '100%' }} />
                       </Form.Item>
                     )}

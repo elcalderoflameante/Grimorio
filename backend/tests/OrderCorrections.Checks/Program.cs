@@ -77,7 +77,9 @@ await using var app = builder.Build(); app.UseAuthentication(); app.UseAuthoriza
 async Task Read(Func<GrimorioDbContext, Task> action) { await using var scope = app.Services.CreateAsyncScope(); await action(scope.ServiceProvider.GetRequiredService<GrimorioDbContext>()); }
 async Task<T> Send<T>(IRequest<T> request) { await using var scope = app.Services.CreateAsyncScope(); return await scope.ServiceProvider.GetRequiredService<IMediator>().Send(request); }
 var paymentCorrectionsOnly = args.Contains("--payment-method-corrections-only");
-var fixtureSuffix = paymentCorrectionsOnly ? Guid.NewGuid().ToString("N")[..8] : "";
+var secondUnitPromotionOnly = args.Contains("--second-unit-promotion-only");
+var focusedChecks = paymentCorrectionsOnly || secondUnitPromotionOnly;
+var fixtureSuffix = focusedChecks ? Guid.NewGuid().ToString("N")[..8] : "";
 var branch = new Branch { Name = "Correction checks", Code = "COR" + fixtureSuffix };
 var foreign = new Branch { Name = "Other", Code = "OTHER" + fixtureSuffix };
 var admin = new User { BranchId = branch.Id, FirstName = new string('A', 100), LastName = new string('B', 100), Email = $"admin{fixtureSuffix}@checks.invalid", PasswordHash = "checks" };
@@ -95,7 +97,7 @@ var articles = new[] { "Base", "BBQ", "Teriyaki", "Unavailable" }.Select(name =>
     BranchId = branch.Id, Name = name, CategoryId = inventoryCategory.Id, BaseUnitId = unit.Id }).ToArray();
 await Read(async db => {
     if (Environment.GetEnvironmentVariable("CORRECTION_CHECKS_ALLOW_RESET") == "true") await db.Database.EnsureDeletedAsync();
-    if (!paymentCorrectionsOnly) await LoyaltyProfileMigrationChecks.Run(db, Check);
+    if (!focusedChecks) await LoyaltyProfileMigrationChecks.Run(db, Check);
     await db.Database.MigrateAsync(); Check(!db.Database.HasPendingModelChanges(), "Migration matches model");
     db.AddRange(branch, foreign, admin, waiter, role, station, category, inventoryCategory, unit, warehouse, register, session, cash);
     db.UserRoles.Add(new UserRole { BranchId = branch.Id, UserId = admin.Id, RoleId = role.Id }); db.AddRange(articles);
@@ -147,6 +149,11 @@ string Token(Guid actor, bool adminRole = true, Guid? branchId = null) => new Jw
 await app.StartAsync();
 try {
     using var client = new HttpClient { BaseAddress = new Uri(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single()) };
+    if (secondUnitPromotionOnly) {
+        await SecondUnitPromotionChecks.Run(app.Services, branch.Id, foreign.Id, admin.Id, dish.Id, small, bbq, cash.Id, session.Id, Check);
+        Console.WriteLine($"Second-unit promotion checks passed: {count}. Isolated PostgreSQL, no production services.");
+        return;
+    }
     if (paymentCorrectionsOnly) {
         await PaymentMethodCorrectionChecks.Run(app.Services, client, key, Token(admin.Id), Token(waiter.Id, false),
             branch.Id, foreign.Id, admin.Id, dish.Id, small, bbq, cash.Id, session.Id, Check);
