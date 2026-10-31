@@ -6549,6 +6549,15 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal?>("PromotionCardDiscountAmount")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("PromotionCashDiscountAmount")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid?>("PromotionGroupId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("PromotionId")
                         .HasColumnType("uuid");
 

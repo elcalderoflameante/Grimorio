@@ -14,7 +14,7 @@ import servilletasImg from '../assets/servilletas.png';
 import RusticButton from '../components/Public/RusticButton';
 import PublicLoyaltyLink from '../components/Marketing/PublicLoyaltyLink';
 import { resolveMediaUrl, tableServiceApi } from '../services/api';
-import { getPromotionDiscount } from '../utils/orderPaymentPricing';
+import { getGroupedPromotionDiscounts } from '../utils/orderPaymentPricing';
 import type {
   CreateModifierSelectionDto,
   OrderDto,
@@ -431,14 +431,8 @@ export default function PublicTableRequest() {
     return 'Aplica con cualquier medio de pago';
   };
 
-  const calculateLineDiscount = useCallback((line: CartLine) => {
-    const promotion = line.promotionId
-      ? promotions.find(p => p.id === line.promotionId && p.isCurrentlyActive)
-      : undefined;
-    if (!promotion) return 0;
-
-    return getPromotionDiscount(line.unitPrice, line.quantity, promotion);
-  }, [promotions]);
+  const lineDiscounts = useMemo(() => getGroupedPromotionDiscounts(cart, promotions.filter(p => p.isCurrentlyActive)), [cart, promotions]);
+  const calculateLineDiscount = useCallback((line: CartLine) => lineDiscounts[cart.indexOf(line)] ?? 0, [cart, lineDiscounts]);
 
   const cartDiscount = useMemo(
     () => cart.reduce((sum, line) => sum + calculateLineDiscount(line), 0),

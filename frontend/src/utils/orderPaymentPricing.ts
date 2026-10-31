@@ -10,10 +10,13 @@ function roundDiscount(value: number) {
 }
 
 export function getPaymentLineTotal(
-  item: Pick<OrderDto['items'][number], 'unitPrice' | 'quantity' | 'totalPrice'>,
+  item: Pick<OrderDto['items'][number], 'unitPrice' | 'quantity' | 'totalPrice'> &
+    Partial<Pick<OrderDto['items'][number], 'promotionCashDiscountAmount' | 'promotionCardDiscountAmount'>>,
   promotion: PromotionDto | undefined,
   useCardPrice: boolean,
 ) {
+  const snapshot = useCardPrice ? item.promotionCardDiscountAmount : item.promotionCashDiscountAmount;
+  if (snapshot != null) return item.unitPrice * item.quantity - snapshot;
   if (!promotion) return item.totalPrice;
   const gross = item.unitPrice * item.quantity;
   const percentage = useCardPrice && promotion.paymentPolicy === 'CardAlternativePercentage'
@@ -48,4 +51,44 @@ export function allocatePaymentTotal(total: number, quantity: number, paidQuanti
 export function getPromotionDiscount(unitPrice: number, quantity: number, promotion: PromotionDto) {
   const gross = unitPrice * quantity;
   return roundDiscount(gross - getPaymentLineTotal({ unitPrice, quantity, totalPrice: gross }, promotion, false));
+}
+
+export function getGroupedPromotionDiscounts(
+  lines: { menuItemId: string; promotionId?: string; unitPrice: number; quantity: number }[],
+  promotions: PromotionDto[],
+  useCardPrice = false,
+) {
+  const discounts = lines.map(line => {
+    const promotion = promotions.find(p => p.id === line.promotionId);
+    return promotion ? roundDiscount(line.unitPrice * line.quantity - getPaymentLineTotal(
+      {...line,totalPrice:line.unitPrice*line.quantity},promotion,useCardPrice)) : 0;
+  });
+  const groups = new Map<string, number[]>();
+  lines.forEach((line,index) => {
+    const p = promotions.find(p => p.id === line.promotionId);
+    if (p?.type !== 'SecondUnitPercentage' || (useCardPrice && p.paymentPolicy === 'CardAlternativePrice')) return;
+    const key = JSON.stringify([line.menuItemId,line.promotionId]);
+    groups.set(key,[...(groups.get(key) ?? []),index]);
+  });
+  for (const indexes of groups.values()) {
+    const sorted = [...indexes].sort((a,b) => lines[b].unitPrice-lines[a].unitPrice || a-b);
+    const p = promotions.find(p => p.id === lines[sorted[0]].promotionId)!;
+    let position=0, base=0;
+    for (const index of sorted) {
+      const line=lines[index];
+      base += (Math.floor((position+line.quantity)/2)-Math.floor(position/2))*line.unitPrice;
+      position += line.quantity;
+    }
+    const percentage = useCardPrice && p.paymentPolicy === 'CashTransferOnly' ? 0
+      : useCardPrice && p.paymentPolicy === 'CardAlternativePercentage' ? p.cardDiscountPercent ?? 0 : p.discountPercent ?? 0;
+    const total = roundDiscount(base*percentage/100);
+    const gross = sorted.reduce((sum,index)=>sum+lines[index].unitPrice*lines[index].quantity,0);
+    let cumulative=0, previous=0;
+    for (const index of sorted) {
+      cumulative += lines[index].unitPrice*lines[index].quantity;
+      const next = gross === 0 ? 0 : roundDiscount(total*cumulative/gross);
+      discounts[index] = roundDiscount(next-previous); previous=next;
+    }
+  }
+  return discounts;
 }

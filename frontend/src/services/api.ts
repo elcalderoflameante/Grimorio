@@ -686,6 +686,7 @@ export const menuApi = {
 // ======================== POS API ========================
 
 export const posApi = {
+  recalculatePromotions: (id: string) => apiClient.post<OrderDto>(`/pos/ordenes/${id}/promociones/recalcular`),
   transferOrderTable: (orderId: string, dto: { requestId: string; fromTableId: string; toTableId: string }): Promise<AxiosResponse<OrderDto>> =>
     apiClient.post(`/pos/ordenes/${orderId}/trasladar-mesa`, dto),
   correctOrderItem: (id: string, data: { requestId: string; replace: boolean; disposition: string; reason: string; modifierSelections: { modifierOptionId: string; quantity: number }[] }) =>

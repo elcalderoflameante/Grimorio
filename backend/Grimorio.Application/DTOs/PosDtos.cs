@@ -91,6 +91,9 @@ public class CreateModifierSelectionDto
 
 public class OrderItemDto
 {
+    public Guid? PromotionGroupId { get; set; }
+    public decimal? PromotionCashDiscountAmount { get; set; }
+    public decimal? PromotionCardDiscountAmount { get; set; }
     public string? CorrectionReason { get; set; }
     public string? CorrectionDisposition { get; set; }
     public Guid? ReplacementItemId { get; set; }

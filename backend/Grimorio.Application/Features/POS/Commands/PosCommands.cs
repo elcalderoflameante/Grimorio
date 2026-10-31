@@ -3,6 +3,8 @@ using MediatR;
 
 namespace Grimorio.Application.Features.POS.Commands;
 
+public record RecalculateOrderPromotionsCommand(Guid BranchId, Guid OrderId) : IRequest<OrderDto>;
+
 // ── Estaciones ────────────────────────────────────────────────────────────
 
 public class CreateWorkStationCommand : IRequest<WorkStationDto>

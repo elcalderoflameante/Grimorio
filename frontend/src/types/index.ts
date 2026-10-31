@@ -1532,6 +1532,9 @@ export interface OrderItemDto {
   discountAmount: number;
   promotionId?: string;
   promotionName?: string;
+  promotionGroupId?: string;
+  promotionCashDiscountAmount?: number;
+  promotionCardDiscountAmount?: number;
   taxRateId?: string;
   taxRateName?: string;
   taxRatePercentage?: number;

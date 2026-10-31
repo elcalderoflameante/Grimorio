@@ -134,6 +134,7 @@ public class CorrectOrderItemCommandHandler(GrimorioDbContext db) : IRequestHand
             if (data.Disposition == "PreparedWaste") reservation.ConsumedAt = DateTime.UtcNow;
             else reservation.ReleasedAt = DateTime.UtcNow;
         }
+        await SecondUnitPromotionGroups.RecalculateAsync(db, order, ct);
         PosMapper.RecalculateOrderTotals(order);
         var paidAmount = payments.Sum(p => p.OrderAmount);
         if (paidAmount > order.Total + 0.01m)

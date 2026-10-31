@@ -135,6 +135,9 @@ public class Order : BaseEntity
 
 public class OrderItem : BaseEntity
 {
+    public Guid? PromotionGroupId { get; set; }
+    public decimal? PromotionCashDiscountAmount { get; set; }
+    public decimal? PromotionCardDiscountAmount { get; set; }
     public Guid OrderId { get; set; }
     public Guid? UpdateIdempotencyKey { get; set; }
     public Guid MenuItemId { get; set; }

@@ -11,7 +11,7 @@ import type {
 } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 import { menuItemName } from '../../utils/menuItemName';
-import { getPromotionDiscount } from '../../utils/orderPaymentPricing';
+import { getGroupedPromotionDiscounts } from '../../utils/orderPaymentPricing';
 import ChangeOrderTableButton from './ChangeOrderTableButton';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
@@ -170,14 +170,9 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
     return map;
   }, [items, promotions]);
 
-  const calculateLineDiscount = (line: OrderLine) => {
-    const promotion = line.promotionId
-      ? promotionsByItemId.get(line.menuItemId)?.find(p => p.id === line.promotionId)
-      : undefined;
-    if (!promotion) return 0;
-
-    return getPromotionDiscount(line.price, line.quantity, promotion);
-  };
+  const lineDiscounts = useMemo(() => getGroupedPromotionDiscounts(
+    lines.map(l => ({ ...l, unitPrice: l.price })), promotions.filter(p => p.isCurrentlyActive)), [lines, promotions]);
+  const calculateLineDiscount = (line: OrderLine) => lineDiscounts[lines.indexOf(line)] ?? 0;
 
   const getLineCapacity = (line: OrderLine): number | null => {
     const itemAvailability = availabilityByItemId.get(line.menuItemId);

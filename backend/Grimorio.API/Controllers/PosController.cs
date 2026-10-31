@@ -188,6 +188,15 @@ public class PosController : ControllerBase
     }
 
     [Authorize(Policy = "POS.Orders.Update")]
+    [HttpPost("ordenes/{id:guid}/promociones/recalcular")]
+    public async Task<IActionResult> RecalculatePromotions(Guid id)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        try { return Ok(await _mediator.Send(new RecalculateOrderPromotionsCommand(branchId, id))); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    [Authorize(Policy = "POS.Orders.Update")]
     [HttpPost("ordenes/{id:guid}/trasladar-mesa")]
     public async Task<IActionResult> TransferOrderTable(Guid id, [FromBody] TransferOrderTableDto dto)
     {

@@ -7,6 +7,8 @@ public static class OrderPaymentPricing
 {
     public static decimal GetLineTotal(OrderItem item, bool useCardPrice)
     {
+        var snapshotDiscount = useCardPrice ? item.PromotionCardDiscountAmount : item.PromotionCashDiscountAmount;
+        if (snapshotDiscount.HasValue) return item.UnitPrice * item.Quantity - snapshotDiscount.Value;
         if (item.Promotion == null) return item.TotalPrice;
         return PosMapper.CalcItemWithPromotion(item.UnitPrice, item.Quantity,
             item.DiscountPct, item.TaxRate?.Percentage, item.Promotion, useCardPrice).TotalPrice;

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { allocatePaymentTotal, getPaymentLineTotal, getPromotionDiscount } from '../src/utils/orderPaymentPricing.ts';
+import { allocatePaymentTotal, getPaymentLineTotal, getPromotionDiscount, getGroupedPromotionDiscounts } from '../src/utils/orderPaymentPricing.ts';
 
 const promotion = { type: 'FixedPrice', fixedPrice: 7.99, cardPrice: 8.99, paymentPolicy: 'CardAlternativePrice' };
 const item = { unitPrice: 11, quantity: 2, totalPrice: 15.98 };
@@ -49,6 +49,22 @@ test('rejects quantities beyond the remaining balance', () => {
 
 const secondUnit = { type: 'SecondUnitPercentage', discountPercent: 50, paymentPolicy: 'AnyPayment' };
 const differentCard = { ...secondUnit, paymentPolicy: 'CardAlternativePercentage', cardDiscountPercent: 30 };
+test('separate modifier lines form pairs and distribute cash/card savings without losing cents', () => {
+  const promo={...differentCard,id:'p'};
+  for(const [count,totalCash,totalCard] of [[1,0,0],[2,5.75,3.45],[3,5.75,3.45],[4,11.5,6.9]]) {
+    const lines=Array.from({length:count},()=>({menuItemId:'ribeye',promotionId:'p',unitPrice:11.5,quantity:1}));
+    assert.equal(getGroupedPromotionDiscounts(lines,[promo]).reduce((s,d)=>s+Math.round(d*100),0),Math.round(totalCash*100));
+    assert.equal(getGroupedPromotionDiscounts(lines,[promo],true).reduce((s,d)=>s+Math.round(d*100),0),Math.round(totalCard*100));
+  }
+});
+test('different products/promotions never form a pair, cheaper unit is discounted and snapshots remain authoritative', () => {
+  const promo={...differentCard,id:'p'};
+  const lines=[{menuItemId:'ribeye',promotionId:'p',unitPrice:25,quantity:1},{menuItemId:'ribeye',promotionId:'p',unitPrice:20,quantity:1}];
+  assert.deepEqual(getGroupedPromotionDiscounts(lines,[promo]),[5.56,4.44]);
+  assert.deepEqual(getGroupedPromotionDiscounts([lines[0],{...lines[1],menuItemId:'other'}],[promo]),[0,0]);
+  assert.deepEqual(getGroupedPromotionDiscounts([lines[0],{...lines[1],promotionId:undefined}],[promo]),[0,0]);
+  assert.equal(getPaymentLineTotal({unitPrice:11.5,quantity:1,totalPrice:8.62,promotionCashDiscountAmount:2.88,promotionCardDiscountAmount:1.72},promo,true),9.78);
+});
 test('different card percentage applies to the same second units as cash and transfer', () => {
   for (const [quantity, cash, card] of [[1,20,20],[2,30,34],[3,50,54],[4,60,68],[5,80,88],[6,90,102]]) {
     const line = {unitPrice:20,quantity,totalPrice:cash};

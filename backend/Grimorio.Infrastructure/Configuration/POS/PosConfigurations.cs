@@ -90,6 +90,8 @@ public class OrdenItemConfiguration : IEntityTypeConfiguration<OrderItem>
 
         builder.Property(x => x.Notes).HasMaxLength(300);
         builder.Property(x => x.PromotionName).HasMaxLength(160);
+        builder.Property(x => x.PromotionCashDiscountAmount).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.PromotionCardDiscountAmount).HasColumnType("numeric(18,2)");
         builder.Property(x => x.IsTakeout).HasDefaultValue(false);
         builder.Property(x => x.UnitPrice).HasColumnType("numeric(18,2)");
         builder.Property(x => x.DiscountPct).HasColumnType("numeric(5,2)");

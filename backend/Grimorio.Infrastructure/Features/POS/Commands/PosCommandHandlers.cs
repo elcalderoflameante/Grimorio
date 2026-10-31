@@ -333,6 +333,7 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
         order.Total = subtotal - discountTotal;
 
         _db.Orders.Add(order);
+        await SecondUnitPromotionGroups.RecalculateAsync(_db, order, ct);
         await ComboPreparation.InitializeAsync(_db, req.BranchId, order.Items.ToList(), ct);
         await _db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
@@ -449,6 +450,7 @@ public class CreateDirectSaleCommandHandler : IRequestHandler<CreateDirectSaleCo
         order.Total = subtotal - discountTotal;
 
         _db.Orders.Add(order);
+        await SecondUnitPromotionGroups.RecalculateAsync(_db, order, ct);
         await ComboPreparation.InitializeAsync(_db, req.BranchId, order.Items.ToList(), ct);
         await StockReservationService.ReserveOrderItemsAsync(_db, req.BranchId, order.Id, order.Items.ToList(), ct);
         await _db.SaveChangesAsync(ct);
@@ -609,6 +611,8 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
             }
         }
 
+        await _db.SaveChangesAsync(ct);
+        await SecondUnitPromotionGroups.RecalculateAsync(_db, order, ct);
         await _db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
@@ -804,6 +808,7 @@ public class CancelOrderItemCommandHandler : IRequestHandler<CancelOrderItemComm
         foreach (var task in item.PreparationTasks) task.Status = OrderItemStatus.Cancelled;
         await StockReservationService.ReleaseOrderItemReservationsAsync(_db, req.BranchId, item.Id, ct);
 
+        await SecondUnitPromotionGroups.RecalculateAsync(_db, order, ct);
         PosMapper.RecalculateOrderTotals(order);
 
         var activeItems = order.Items.Where(i => !i.IsDeleted && i.Status != OrderItemStatus.Cancelled).ToList();
@@ -1772,6 +1777,9 @@ internal static class PosMapper
         UnitPrice = i.UnitPrice,
         DiscountPct = i.DiscountPct,
         DiscountAmount = i.DiscountAmount,
+        PromotionGroupId = i.PromotionGroupId,
+        PromotionCashDiscountAmount = i.PromotionCashDiscountAmount,
+        PromotionCardDiscountAmount = i.PromotionCardDiscountAmount,
         PromotionId = i.PromotionId,
         PromotionName = i.PromotionName,
         TaxRateId = i.TaxRateId,

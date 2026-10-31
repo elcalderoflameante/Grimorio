@@ -3,7 +3,7 @@ import type { SetStateAction } from 'react';
 import { App as AntApp, Alert, Badge, Button, Card, Checkbox, Col, Divider, Empty, Input, InputNumber, Popconfirm,
   Grid, Modal, Row, Select, Space, Spin, Tabs, Tag, Tooltip, Typography } from 'antd';
 import { ArrowLeftOutlined, CheckCircleOutlined, DeleteOutlined, DollarOutlined, EditOutlined,
-  MinusOutlined, PlusOutlined, PrinterOutlined, QuestionCircleOutlined, ReloadOutlined, SettingOutlined, SplitCellsOutlined } from '@ant-design/icons';
+  MinusOutlined, PlusOutlined, PrinterOutlined, QuestionCircleOutlined, ReloadOutlined, SettingOutlined, SplitCellsOutlined, PercentageOutlined } from '@ant-design/icons';
 import AdminOrderItemCorrectionModal from './AdminOrderItemCorrectionModal';
 import ChangeOrderTableButton from './ChangeOrderTableButton';
 import PrintOrderPrebillButton from './PrintOrderPrebillButton';
@@ -24,7 +24,7 @@ import CustomerSelector from '../Billing/CustomerSelector';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
 import { clearPendingPayment, pendingPaymentStorageKey, readPendingPayment } from '../../utils/pendingPayment';
-import { allocatePaymentTotal, getPaymentLineTotal as calculatePaymentLineTotal, getPromotionDiscount } from '../../utils/orderPaymentPricing';
+import { allocatePaymentTotal, getPaymentLineTotal as calculatePaymentLineTotal, getGroupedPromotionDiscounts } from '../../utils/orderPaymentPricing';
 import { clientAvailableQuantity, createClientPaymentAccount, paidItemQuantities, reconcileClientPayments } from '../../utils/clientPaymentAccounts';
 import type { ClientPaymentAccount, SplitRow } from '../../utils/clientPaymentAccounts';
 
@@ -300,15 +300,16 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
     }
     return map;
   }, [menuItems, promotions]);
-  const calculateCartDiscount = (line: CartLine) => {
-    const promotion = line.promotionId
-      ? promotionsByItemId.get(line.menuItemId)?.find(p => p.id === line.promotionId)
-      : undefined;
-    if (!promotion) return 0;
-
-    return getPromotionDiscount(line.price, line.quantity, promotion);
-  };
-  const cartDiscount = cart.reduce((s, l) => s + calculateCartDiscount(l), 0);
+  const cartPricing = useMemo(() => {
+    const paidIds = new Set(payments.flatMap(p => p.items.map(i => i.orderItemId)));
+    const frozenGroups = new Set((order?.items ?? []).filter(i => paidIds.has(i.id) && i.promotionGroupId).map(i => i.promotionGroupId));
+    const existing = (order?.items ?? []).filter(i => i.status !== 'Cancelled' && i.promotionGroupId && !frozenGroups.has(i.promotionGroupId));
+    const discounts = getGroupedPromotionDiscounts([...existing, ...cart.map(l => ({...l,unitPrice:l.price}))], promotions);
+    const delta = discounts.reduce((sum,d) => sum+d,0) - existing.reduce((sum,i) => sum+i.discountAmount,0);
+    return { discounts: discounts.slice(existing.length), delta };
+  }, [cart, order, payments, promotions]);
+  const calculateCartDiscount = (line: CartLine) => cartPricing.discounts[cart.indexOf(line)] ?? 0;
+  const cartDiscount = Math.round(cartPricing.delta*100)/100;
   const cartTotal = Math.max(0, cartSubtotal - cartDiscount);
 
   const getMethod = (id: string) => methods.find(m => m.id === id);
@@ -1165,6 +1166,16 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
           <Card
             size="small"
             title={<Text strong>Pedido #{order.number}</Text>}
+            extra={canUpdateOrders && payments.length === 0 && !order.paidAt && cart.length === 0
+              && order.items.some(i => i.promotionId && i.status !== 'Cancelled') && (
+              <Tooltip title="Recalcular promociones">
+                <Button size="small" type="text" icon={<PercentageOutlined />} aria-label="Recalcular promociones"
+                  onClick={async () => {
+                    try { const res = await posApi.recalculatePromotions(order.id); setOrder(res.data); onTableUpdated(); message.success('Promociones recalculadas.'); }
+                    catch (e) { message.error(formatError(e)); }
+                  }} />
+              </Tooltip>
+            )}
             style={{ flex: 1, minHeight: 0, marginBottom: 8, display: 'flex', flexDirection: 'column' }}
             styles={{ body: { flex: 1, minHeight: 0, overflowY: 'auto' } }}
           >
@@ -1204,6 +1215,10 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                             </div>
                           )}
                           {item.notes && <Text type="secondary" style={{ fontSize: 11 }}>{item.notes}</Text>}
+                          {item.promotionName && <Tag color="magenta" style={{ fontSize: 11, whiteSpace: 'normal' }}>{item.promotionName}</Tag>}
+                          {item.discountAmount > 0 && <Text style={{ display: 'block', color: '#c41d7f', fontSize: 11 }}>
+                            Desc. ${item.discountAmount.toFixed(2)}
+                          </Text>}
                           {item.correctionReason && <Text type="secondary" style={{ display: 'block', fontSize: 11, overflowWrap: 'anywhere' }}>
                             {item.correctionDisposition === 'PreparedWaste' ? 'Merma' : 'Error de registro'}: {item.correctionReason}
                           </Text>}

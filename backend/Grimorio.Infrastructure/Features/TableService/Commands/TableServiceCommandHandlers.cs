@@ -436,6 +436,7 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
         };
 
         _context.Orders.Add(order);
+        await Grimorio.Infrastructure.Features.POS.SecondUnitPromotionGroups.RecalculateAsync(_context, order, cancellationToken);
         await ComboPreparation.InitializeAsync(_context, table.BranchId, order.Items.ToList(), cancellationToken);
         _context.TableServiceRequests.Add(notification);
         await _context.SaveChangesAsync(cancellationToken);
