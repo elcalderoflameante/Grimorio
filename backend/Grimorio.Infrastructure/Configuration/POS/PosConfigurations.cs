@@ -147,6 +147,7 @@ public class PromotionConfiguration : IEntityTypeConfiguration<Promotion>
             .HasMaxLength(40)
             .IsRequired();
         builder.Property(x => x.CardPrice).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.CardDiscountPercent).HasColumnType("numeric(5,2)");
         builder.Property(x => x.Priority).HasDefaultValue(0);
 
         builder.HasIndex(x => new { x.BranchId, x.IsActive, x.Priority })

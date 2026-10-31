@@ -48,6 +48,32 @@ test('rejects quantities beyond the remaining balance', () => {
 });
 
 const secondUnit = { type: 'SecondUnitPercentage', discountPercent: 50, paymentPolicy: 'AnyPayment' };
+const differentCard = { ...secondUnit, paymentPolicy: 'CardAlternativePercentage', cardDiscountPercent: 30 };
+test('different card percentage applies to the same second units as cash and transfer', () => {
+  for (const [quantity, cash, card] of [[1,20,20],[2,30,34],[3,50,54],[4,60,68],[5,80,88],[6,90,102]]) {
+    const line = {unitPrice:20,quantity,totalPrice:cash};
+    assert.equal(getPaymentLineTotal(line,differentCard,false),cash);
+    assert.equal(getPaymentLineTotal(line,differentCard,true),card);
+  }
+});
+test('different card percentage works for ordinary percentages, zero, full discount and rounding', () => {
+  const line = {unitPrice:20,quantity:2,totalPrice:30};
+  assert.equal(getPaymentLineTotal(line,{...differentCard,type:'Percentage'},false),20);
+  assert.equal(getPaymentLineTotal(line,{...differentCard,type:'Percentage'},true),28);
+  assert.equal(getPaymentLineTotal(line,{...differentCard,cardDiscountPercent:0},true),40);
+  assert.equal(getPaymentLineTotal(line,{...differentCard,cardDiscountPercent:100},true),20);
+  assert.equal(getPaymentLineTotal({unitPrice:.05,quantity:2,totalPrice:.1},{...differentCard,cardDiscountPercent:50},true),.08);
+});
+test('cash and card partial payments keep their own percentage in either order', () => {
+  const line = {unitPrice:20,quantity:2,totalPrice:30};
+  for (const cardFirst of [false,true]) {
+    const first=allocatePaymentTotal(getPaymentLineTotal(line,differentCard,cardFirst),2,0,1);
+    const second=allocatePaymentTotal(getPaymentLineTotal(line,differentCard,!cardFirst),2,1,1);
+    assert.equal(first,cardFirst?17:15);
+    assert.equal(second,cardFirst?15:17);
+    assert.equal(first+second,32);
+  }
+});
 test('second unit 50% applies once per complete pair, never to the first or an unpaired unit', () => {
   for (const [quantity, expected] of [[1, 20], [2, 30], [3, 50], [4, 60], [5, 80], [6, 90]]) {
     const line = { unitPrice: 20, quantity, totalPrice: 20 * quantity };

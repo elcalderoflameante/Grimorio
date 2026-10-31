@@ -1604,7 +1604,7 @@ export interface CreateOrderDto {
 }
 
 export type PromotionType = 'Percentage' | 'FixedAmount' | 'FixedPrice' | 'BuyXPayY' | 'SecondUnitPercentage';
-export type PromotionPaymentPolicy = 'AnyPayment' | 'CashTransferOnly' | 'CardAlternativePrice';
+export type PromotionPaymentPolicy = 'AnyPayment' | 'CashTransferOnly' | 'CardAlternativePrice' | 'CardAlternativePercentage';
 
 export interface PromotionDto {
   id: string;
@@ -1622,6 +1622,7 @@ export interface PromotionDto {
   fixedPrice?: number;
   paymentPolicy: PromotionPaymentPolicy;
   cardPrice?: number;
+  cardDiscountPercent?: number;
   buyQuantity?: number;
   payQuantity?: number;
   priority: number;
@@ -1645,6 +1646,7 @@ export interface UpsertPromotionDto {
   fixedPrice?: number;
   paymentPolicy: PromotionPaymentPolicy;
   cardPrice?: number;
+  cardDiscountPercent?: number;
   buyQuantity?: number;
   payQuantity?: number;
   priority: number;

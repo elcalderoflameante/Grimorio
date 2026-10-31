@@ -16,13 +16,16 @@ export function getPaymentLineTotal(
 ) {
   if (!promotion) return item.totalPrice;
   const gross = item.unitPrice * item.quantity;
+  const percentage = useCardPrice && promotion.paymentPolicy === 'CardAlternativePercentage'
+    ? promotion.cardDiscountPercent ?? 0
+    : promotion.discountPercent ?? 0;
   let discount = 0;
   if (useCardPrice && promotion.paymentPolicy === 'CashTransferOnly') discount = 0;
   else if (useCardPrice && promotion.paymentPolicy === 'CardAlternativePrice' && promotion.cardPrice != null)
     discount = gross - promotion.cardPrice * item.quantity;
-  else if (promotion.type === 'Percentage') discount = gross * (promotion.discountPercent ?? 0) / 100;
+  else if (promotion.type === 'Percentage') discount = gross * percentage / 100;
   else if (promotion.type === 'SecondUnitPercentage')
-    discount = Math.floor(item.quantity / 2) * item.unitPrice * (promotion.discountPercent ?? 0) / 100;
+    discount = Math.floor(item.quantity / 2) * item.unitPrice * percentage / 100;
   else if (promotion.type === 'FixedAmount') discount = promotion.discountAmount ?? 0;
   else if (promotion.type === 'FixedPrice') discount = gross - (promotion.fixedPrice ?? item.unitPrice) * item.quantity;
   else if (promotion.type === 'BuyXPayY') {

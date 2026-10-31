@@ -90,6 +90,7 @@ public enum PromotionPaymentPolicy
     AnyPayment = 1,
     CashTransferOnly = 2,
     CardAlternativePrice = 3,
+    CardAlternativePercentage = 4,
 }
 
 public class WorkStation : BaseEntity
@@ -193,6 +194,7 @@ public class Promotion : BaseEntity
     public decimal? FixedPrice { get; set; }
     public PromotionPaymentPolicy PaymentPolicy { get; set; } = PromotionPaymentPolicy.AnyPayment;
     public decimal? CardPrice { get; set; }
+    public decimal? CardDiscountPercent { get; set; }
     public int? BuyQuantity { get; set; }
     public int? PayQuantity { get; set; }
     public int Priority { get; set; }

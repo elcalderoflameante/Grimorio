@@ -62,17 +62,20 @@ internal static class PromotionEngine
             throw new InvalidOperationException("La cantidad debe ser mayor a cero.");
 
         var gross = unitPrice * quantity;
+        var percentage = useCardPrice && promotion.PaymentPolicy == PromotionPaymentPolicy.CardAlternativePercentage
+            ? promotion.CardDiscountPercent ?? 0m
+            : promotion.DiscountPercent ?? 0m;
         var discount = useCardPrice && promotion.PaymentPolicy == PromotionPaymentPolicy.CashTransferOnly
             ? 0m
             : useCardPrice && promotion.PaymentPolicy == PromotionPaymentPolicy.CardAlternativePrice && promotion.CardPrice.HasValue
                 ? gross - (promotion.CardPrice.Value * quantity)
                 : promotion.Type switch
         {
-            PromotionType.Percentage => gross * ((promotion.DiscountPercent ?? 0m) / 100m),
+            PromotionType.Percentage => gross * (percentage / 100m),
             PromotionType.FixedAmount => promotion.DiscountAmount ?? 0m,
             PromotionType.FixedPrice => gross - ((promotion.FixedPrice ?? unitPrice) * quantity),
             PromotionType.BuyXPayY => CalculateBuyXPayY(promotion, unitPrice, quantity),
-            PromotionType.SecondUnitPercentage => (quantity / 2) * unitPrice * ((promotion.DiscountPercent ?? 0m) / 100m),
+            PromotionType.SecondUnitPercentage => (quantity / 2) * unitPrice * (percentage / 100m),
             _ => 0m,
         };
 
@@ -101,6 +104,7 @@ internal static class PromotionEngine
         FixedPrice = promotion.FixedPrice,
         PaymentPolicy = promotion.PaymentPolicy.ToString(),
         CardPrice = promotion.CardPrice,
+        CardDiscountPercent = promotion.CardDiscountPercent,
         BuyQuantity = promotion.BuyQuantity,
         PayQuantity = promotion.PayQuantity,
         Priority = promotion.Priority,
@@ -132,6 +136,14 @@ internal static class PromotionEngine
             (!promotion.CardPrice.HasValue || promotion.CardPrice < 0))
         {
             throw new InvalidOperationException("El precio para tarjeta debe ser mayor o igual a cero.");
+        }
+
+        if (promotion.PaymentPolicy == PromotionPaymentPolicy.CardAlternativePercentage)
+        {
+            if (promotion.Type is not (PromotionType.Percentage or PromotionType.SecondUnitPercentage))
+                throw new InvalidOperationException("El descuento distinto con tarjeta requiere una promocion por porcentaje o segunda unidad.");
+            if (!promotion.CardDiscountPercent.HasValue || promotion.CardDiscountPercent < 0 || promotion.CardDiscountPercent > 100)
+                throw new InvalidOperationException("El descuento con tarjeta debe estar entre 0 y 100 por ciento.");
         }
 
         if (!promotion.MenuItems.Any(x => !x.IsDeleted) && !promotion.MenuCategories.Any(x => !x.IsDeleted))

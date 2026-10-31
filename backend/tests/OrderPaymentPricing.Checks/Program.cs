@@ -81,6 +81,35 @@ item.UnitPrice = .05m;
 Equal(.08m, OrderPaymentPricing.GetLineTotal(item, false));
 Console.WriteLine("Second-unit promotion pricing and partial payment checks passed.");
 
+promotion.PaymentPolicy = PromotionPaymentPolicy.CardAlternativePercentage;
+promotion.CardDiscountPercent = 30;
+item.UnitPrice = 20;
+foreach (var (quantity, cashTotal, cardTotal) in new[] { (1,20m,20m), (2,30m,34m), (3,50m,54m), (4,60m,68m), (5,80m,88m), (6,90m,102m) })
+{
+    item.Quantity = quantity;
+    Equal(cashTotal, OrderPaymentPricing.GetLineTotal(item, false));
+    Equal(cardTotal, OrderPaymentPricing.GetLineTotal(item, true));
+}
+item.Quantity = 2;
+foreach (var cardFirst in new[] { false, true })
+{
+    var first = OrderPaymentPricing.AllocateTotal(OrderPaymentPricing.GetLineTotal(item, cardFirst), 2, 0, 1);
+    var second = OrderPaymentPricing.AllocateTotal(OrderPaymentPricing.GetLineTotal(item, !cardFirst), 2, 1, 1);
+    Equal(32m, first + second);
+}
+promotion.Type = PromotionType.Percentage;
+Equal(20m, OrderPaymentPricing.GetLineTotal(item, false));
+Equal(28m, OrderPaymentPricing.GetLineTotal(item, true));
+promotion.Type = PromotionType.SecondUnitPercentage;
+promotion.CardDiscountPercent = 0;
+Equal(40m, OrderPaymentPricing.GetLineTotal(item, true));
+promotion.CardDiscountPercent = 100;
+Equal(20m, OrderPaymentPricing.GetLineTotal(item, true));
+promotion.CardDiscountPercent = 50;
+item.UnitPrice = .05m;
+Equal(.08m, OrderPaymentPricing.GetLineTotal(item, true));
+Console.WriteLine("Alternative card percentage pricing checks passed.");
+
 var menuItemId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
 var invoiceItem = new OrderItem
 {

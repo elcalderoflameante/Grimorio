@@ -35,6 +35,7 @@ const paymentPolicyLabels: Record<PromotionPaymentPolicy, string> = {
   AnyPayment: 'Cualquier medio',
   CashTransferOnly: 'Solo efectivo/transferencia',
   CardAlternativePrice: 'Precio distinto con tarjeta',
+  CardAlternativePercentage: 'Descuento distinto con tarjeta',
 };
 
 const money = (value?: number | null) => `$${Number(value ?? 0).toFixed(2)}`;
@@ -49,6 +50,7 @@ const formatPromotionValue = (promo: PromotionDto) => {
 
 const formatPaymentPolicy = (promo: PromotionDto) => {
   if (promo.paymentPolicy === 'CardAlternativePrice') return `Tarjeta: ${money(promo.cardPrice)}`;
+  if (promo.paymentPolicy === 'CardAlternativePercentage') return `Tarjeta: ${promo.cardDiscountPercent ?? 0}% desc.`;
   return paymentPolicyLabels[promo.paymentPolicy] ?? paymentPolicyLabels.AnyPayment;
 };
 
@@ -102,6 +104,7 @@ export default function PromotionsList() {
 
   const openModal = (promotion?: PromotionDto) => {
     setEditing(promotion ?? null);
+    form.resetFields();
     form.setFieldsValue(promotion ? {
       name: promotion.name,
       description: promotion.description,
@@ -113,6 +116,7 @@ export default function PromotionsList() {
       fixedPrice: promotion.fixedPrice,
       paymentPolicy: promotion.paymentPolicy,
       cardPrice: promotion.cardPrice,
+      cardDiscountPercent: promotion.cardDiscountPercent,
       buyQuantity: promotion.buyQuantity,
       payQuantity: promotion.payQuantity,
       priority: promotion.priority,
@@ -147,6 +151,7 @@ export default function PromotionsList() {
     fixedPrice: values.fixedPrice,
     paymentPolicy: values.paymentPolicy ?? 'AnyPayment',
     cardPrice: values.cardPrice,
+    cardDiscountPercent: values.cardDiscountPercent,
     buyQuantity: values.buyQuantity,
     payQuantity: values.payQuantity,
     priority: values.priority ?? 0,
@@ -259,6 +264,10 @@ export default function PromotionsList() {
                 <Select
                   onChange={value => {
                     if (value === 'SecondUnitPercentage') form.setFieldValue('discountPercent', 50);
+                    if (value !== 'Percentage' && value !== 'SecondUnitPercentage'
+                      && form.getFieldValue('paymentPolicy') === 'CardAlternativePercentage') {
+                      form.setFieldValue('paymentPolicy', 'AnyPayment');
+                    }
                   }}
                   options={[
                     { value: 'Percentage', label: 'Porcentaje' },
@@ -289,14 +298,20 @@ export default function PromotionsList() {
               </Form.Item>
             </Col>
             <Col xs={24} md={10}>
-              <Form.Item name="paymentPolicy" label="Política de pago" rules={[{ required: true }]}>
-                <Select
-                  options={[
-                    { value: 'AnyPayment', label: paymentPolicyLabels.AnyPayment },
-                    { value: 'CashTransferOnly', label: paymentPolicyLabels.CashTransferOnly },
-                    { value: 'CardAlternativePrice', label: paymentPolicyLabels.CardAlternativePrice },
-                  ]}
-                />
+              <Form.Item noStyle shouldUpdate={(prev, next) => prev.type !== next.type}>
+                {() => (
+                  <Form.Item name="paymentPolicy" label="Política de pago" rules={[{ required: true }]}>
+                    <Select
+                      options={[
+                        { value: 'AnyPayment', label: paymentPolicyLabels.AnyPayment },
+                        { value: 'CashTransferOnly', label: paymentPolicyLabels.CashTransferOnly },
+                        { value: 'CardAlternativePrice', label: paymentPolicyLabels.CardAlternativePrice },
+                        ...(['Percentage', 'SecondUnitPercentage'].includes(form.getFieldValue('type'))
+                          ? [{ value: 'CardAlternativePercentage', label: paymentPolicyLabels.CardAlternativePercentage }] : []),
+                      ]}
+                    />
+                  </Form.Item>
+                )}
               </Form.Item>
             </Col>
           </Row>
@@ -306,11 +321,14 @@ export default function PromotionsList() {
             {() => {
               const type = form.getFieldValue('type') as PromotionType;
               const hasCardPrice = form.getFieldValue('paymentPolicy') === 'CardAlternativePrice';
+              const hasCardPercentage = form.getFieldValue('paymentPolicy') === 'CardAlternativePercentage';
               return (
                 <Row gutter={12}>
-                  <Col xs={24} md={hasCardPrice ? 12 : 24}>
+                  <Col xs={24} md={hasCardPrice || hasCardPercentage ? 12 : 24}>
                     {(type === 'Percentage' || type === 'SecondUnitPercentage') && (
-                      <Form.Item name="discountPercent" label={type === 'SecondUnitPercentage' ? 'Descuento en la segunda unidad' : 'Porcentaje'} rules={[{ required: true }]}>
+                      <Form.Item name="discountPercent" label={hasCardPercentage
+                        ? (type === 'SecondUnitPercentage' ? 'Segunda unidad: efectivo / transferencia' : 'Descuento: efectivo / transferencia')
+                        : (type === 'SecondUnitPercentage' ? 'Descuento en la segunda unidad' : 'Porcentaje')} rules={[{ required: true }]}>
                         <InputNumber min={0.01} max={100} precision={2} suffix="%" style={{ width: '100%' }} />
                       </Form.Item>
                     )}
@@ -343,6 +361,13 @@ export default function PromotionsList() {
                     <Col xs={24} md={12}>
                       <Form.Item name="cardPrice" label="Precio promocional con tarjeta" rules={[{ required: true }]}>
                         <InputNumber min={0} precision={2} prefix="$" style={{ width: '100%' }} />
+                      </Form.Item>
+                    </Col>
+                  )}
+                  {hasCardPercentage && (
+                    <Col xs={24} md={12}>
+                      <Form.Item name="cardDiscountPercent" label={type === 'SecondUnitPercentage' ? 'Segunda unidad: tarjeta' : 'Descuento: tarjeta'} rules={[{ required: true }]}>
+                        <InputNumber min={0} max={100} precision={2} suffix="%" style={{ width: '100%' }} />
                       </Form.Item>
                     </Col>
                   )}

@@ -6965,6 +6965,9 @@ namespace Grimorio.Infrastructure.Migrations
                     b.Property<int?>("BuyQuantity")
                         .HasColumnType("integer");
 
+                    b.Property<decimal?>("CardDiscountPercent")
+                        .HasColumnType("numeric(5,2)");
+
                     b.Property<decimal?>("CardPrice")
                         .HasColumnType("numeric(18,2)");
 

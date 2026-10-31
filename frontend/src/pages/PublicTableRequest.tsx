@@ -423,6 +423,8 @@ export default function PublicTableRequest() {
   };
 
   const promotionPaymentLabel = (promotion: PromotionDto) => {
+    if (promotion.paymentPolicy === 'CardAlternativePercentage')
+      return `Con tarjeta: ${promotion.cardDiscountPercent ?? 0}% de descuento${promotion.type === 'SecondUnitPercentage' ? ' en la segunda unidad' : ''}`;
     if (promotion.paymentPolicy === 'CashTransferOnly') return 'Aplica solo con efectivo o transferencia';
     if (promotion.paymentPolicy === 'CardAlternativePrice')
       return `Con tarjeta: ${money(promotion.cardPrice ?? 0)}`;

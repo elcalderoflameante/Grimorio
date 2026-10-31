@@ -1368,6 +1368,7 @@ internal static class PosPromotionCommandHelper
         entity.FixedPrice = dto.FixedPrice;
         entity.PaymentPolicy = paymentPolicy;
         entity.CardPrice = dto.CardPrice;
+        entity.CardDiscountPercent = dto.CardDiscountPercent;
         entity.BuyQuantity = dto.BuyQuantity;
         entity.PayQuantity = dto.PayQuantity;
         entity.Priority = dto.Priority;

@@ -170,6 +170,7 @@ public class PromotionDto
     public decimal? FixedPrice { get; set; }
     public string PaymentPolicy { get; set; } = string.Empty;
     public decimal? CardPrice { get; set; }
+    public decimal? CardDiscountPercent { get; set; }
     public int? BuyQuantity { get; set; }
     public int? PayQuantity { get; set; }
     public int Priority { get; set; }
@@ -194,6 +195,7 @@ public class UpsertPromotionDto
     public decimal? FixedPrice { get; set; }
     public string PaymentPolicy { get; set; } = "AnyPayment";
     public decimal? CardPrice { get; set; }
+    public decimal? CardDiscountPercent { get; set; }
     public int? BuyQuantity { get; set; }
     public int? PayQuantity { get; set; }
     public int Priority { get; set; }

@@ -2,6 +2,7 @@ using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Billing.Commands;
 using Grimorio.Application.Features.POS.Commands;
 using Grimorio.Domain.Entities.Inventory;
+using Grimorio.Domain.Entities.Billing;
 using Grimorio.Infrastructure.Persistence;
 using Grimorio.Infrastructure.Services.Sri;
 using MediatR;
@@ -29,6 +30,14 @@ internal static class SecondUnitPromotionChecks
         var invalidDates = Data(); invalidDates.StartsOn = new DateOnly(2026, 10, 31); invalidDates.EndsOn = new DateOnly(2026, 10, 30);
         await Reject(invalidDates);
         await Reject(Data(), foreign);
+        foreach (var percentage in new decimal?[] { null, -1, 100.01m }) {
+            var invalid = Data(); invalid.PaymentPolicy = "CardAlternativePercentage"; invalid.CardDiscountPercent = percentage;
+            await Reject(invalid);
+        }
+        foreach (var type in new[] { "FixedPrice", "FixedAmount", "BuyXPayY" }) {
+            var invalid = Data(); invalid.Type = type; invalid.PaymentPolicy = "CardAlternativePercentage"; invalid.CardDiscountPercent = 30;
+            await Reject(invalid);
+        }
         var promotion = await Send(new CreatePromotionCommand { BranchId = branch, Data = Data() });
         check(promotion.Type == "SecondUnitPercentage" && promotion.DiscountPercent == 50 && promotion.IsCurrentlyActive,
             "Second-unit promotion is persisted and mapped as active");
@@ -71,6 +80,42 @@ internal static class SecondUnitPromotionChecks
         }
         check(after < before, "Promotion still consumes inventory for the actual portions sold");
         check((await Pay(0)).Id == first.Id && await Consumed() == after, "Checkout retry never repeats payment or inventory consumption");
+        var alternative = Data(); alternative.PaymentPolicy = "CardAlternativePercentage"; alternative.CardDiscountPercent = 30;
+        var withCard = await Send(new UpdatePromotionCommand { Id = promotion.Id, BranchId = branch, Data = alternative });
+        check(withCard.CardDiscountPercent == 30 && withCard.DiscountPercent == 50 && withCard.PaymentPolicy == "CardAlternativePercentage",
+            "Both percentages survive persistence and mapping");
+        var card = new PaymentMethodConfig { Name = "Test card " + Guid.NewGuid(), IsCard = true };
+        var transfer = new PaymentMethodConfig { Name = "Test transfer " + Guid.NewGuid() };
+        var bank = new CardBank { BranchId = branch, Name = "Test bank " + Guid.NewGuid() };
+        await using (var scope = services.CreateAsyncScope()) {
+            var db = scope.ServiceProvider.GetRequiredService<GrimorioDbContext>();
+            db.AddRange(card, transfer, bank); await db.SaveChangesAsync();
+        }
+        foreach (var methods in new[] { new[] { card.Id, card.Id }, new[] { cash, card.Id }, new[] { card.Id, cash }, new[] { transfer.Id, transfer.Id } }) {
+            var mixed = await Order(2);
+            await Send(new ConfirmOrderCommand { BranchId = branch, OrderId = mixed.Id });
+            var paid = new List<OrderPaymentDto>();
+            foreach (var method in methods) {
+                var isCard = method == card.Id;
+                var amount = isCard ? 8.50m : 7.50m;
+                paid.Add(await Send(new PayOrderCommand {
+                    BranchId = branch, UserId = actor, OrderId = mixed.Id, CashSessionId = session, IdempotencyKey = Guid.NewGuid(),
+                    OrderAmount = amount, Items = [new() { OrderItemId = mixed.Items.Single().Id, Quantity = 1 }],
+                    Lines = [new() { MethodId = method, AmountTendered = amount, CardPaymentType = isCard ? "Credit" : null,
+                        CardBankId = isCard ? bank.Id : null, CardBrand = isCard ? "Visa" : null, AuthorizationNumber = isCard ? "TEST123" : null }],
+                }));
+            }
+            var expected = methods.Sum(method => method == card.Id ? 8.50m : 7.50m);
+            check(paid.Sum(p => p.OrderAmount) == expected, "Card, cash and transfer payments keep their own discount");
+            await using var readScope = services.CreateAsyncScope();
+            var stored = await readScope.ServiceProvider.GetRequiredService<GrimorioDbContext>().Orders
+                .Include(o => o.Items).SingleAsync(o => o.Id == mixed.Id);
+            check(stored.Total == expected && stored.Items.Single().DiscountAmount == 20m - expected,
+                "Paid order total and savings match its actual payment methods");
+        }
+        var zero = Data(); zero.PaymentPolicy = "CardAlternativePercentage"; zero.CardDiscountPercent = 0;
+        check((await Send(new UpdatePromotionCommand { Id = promotion.Id, BranchId = branch, Data = zero })).CardDiscountPercent == 0,
+            "Zero card discount is accepted without removing the cash discount");
         var updated = Data(25);
         var edited = await Send(new UpdatePromotionCommand { Id = promotion.Id, BranchId = branch, Data = updated });
         check(edited.DiscountPercent == 25 && edited.Type == "SecondUnitPercentage", "Second-unit promotion percentage can be edited");
