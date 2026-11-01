@@ -504,7 +504,7 @@ public class GetItemsByStationQueryHandler : IRequestHandler<GetItemsByStationQu
 
         var result = entities.Select(i => MapStationItem(i)).ToList();
         result.AddRange(await LoadComboTasksAsync(_db, req.BranchId, req.StationId, null, null, ct));
-        return result.OrderBy(x => x.ConfirmedAt).ToList();
+        return result.OrderBy(x => x.QueuedAt).ToList();
     }
 
     internal static async Task<List<StationItemDto>> LoadComboTasksAsync(GrimorioDbContext db, Guid branchId,
@@ -530,7 +530,9 @@ public class GetItemsByStationQueryHandler : IRequestHandler<GetItemsByStationQu
             ItemName = ComboPreparation.DisplayTaskName(t), Quantity = checked(t.QuantityPerCombo * t.OrderItem.Quantity),
             Notes = string.Join(" | ", new[] { t.OptionsSummary, t.OrderItem.Notes }.Where(x => !string.IsNullOrWhiteSpace(x))),
             IsTakeout = t.OrderItem.IsTakeout, Status = t.Status.ToString(),
-            ConfirmedAt = t.OrderItem.Order.ConfirmedAt ?? t.OrderItem.Order.CreatedAt, UpdatedAt = t.UpdatedAt,
+            ConfirmedAt = t.OrderItem.Order.ConfirmedAt ?? t.OrderItem.Order.CreatedAt,
+            QueuedAt = Latest(t.OrderItem.Order.ConfirmedAt ?? t.OrderItem.Order.CreatedAt,
+                Latest(t.OrderItem.CreatedAt, t.CreatedAt)), UpdatedAt = t.UpdatedAt,
         }).ToList();
     }
 
@@ -549,6 +551,7 @@ public class GetItemsByStationQueryHandler : IRequestHandler<GetItemsByStationQu
         IsTakeout = i.IsTakeout,
         Status = i.Status.ToString(),
         ConfirmedAt = i.Order.ConfirmedAt ?? i.Order.CreatedAt,
+        QueuedAt = Latest(i.Order.ConfirmedAt ?? i.Order.CreatedAt, i.CreatedAt),
         UpdatedAt = i.UpdatedAt,
         ModifierSelections = i.ModifierSelections
             .Where(s => !s.IsDeleted)
@@ -563,6 +566,9 @@ public class GetItemsByStationQueryHandler : IRequestHandler<GetItemsByStationQu
                 TotalPriceDelta = s.UnitPriceDelta * s.Quantity,
             }).ToList(),
     };
+
+    private static DateTime Latest(DateTime first, DateTime second) =>
+        first >= second ? first : second;
 }
 
 public class GetCompletedStationItemsQueryHandler

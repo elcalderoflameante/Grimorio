@@ -37,6 +37,7 @@ class StationItem {
   final bool isTakeout;
   String status;
   final DateTime confirmedAt;
+  final DateTime queuedAt;
   final DateTime? updatedAt;
   final String changeKind;
   final List<ModifierSelection> modifierSelections;
@@ -55,10 +56,11 @@ class StationItem {
     this.isTakeout = false,
     required this.status,
     required this.confirmedAt,
+    DateTime? queuedAt,
     this.updatedAt,
     this.changeKind = '',
     this.modifierSelections = const [],
-  });
+  }) : queuedAt = queuedAt ?? confirmedAt;
 
   factory StationItem.fromJson(Map<String, dynamic> json) => StationItem(
     orderItemId: json['orderItemId'] as String,
@@ -74,6 +76,10 @@ class StationItem {
     isTakeout: json['isTakeout'] as bool? ?? false,
     status: json['status'] as String? ?? 'Pending',
     confirmedAt:
+        DateTime.tryParse(json['confirmedAt'] as String? ?? '') ??
+        DateTime.now(),
+    queuedAt:
+        DateTime.tryParse(json['queuedAt'] as String? ?? '') ??
         DateTime.tryParse(json['confirmedAt'] as String? ?? '') ??
         DateTime.now(),
     updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? ''),

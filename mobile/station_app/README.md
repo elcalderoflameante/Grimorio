@@ -43,6 +43,8 @@ Antes de distribuir una APK, comprobar en una tablet real:
    cambios de mesa y cambios de observaciones.
 6. Deteccion de una version superior, descarga, validacion SHA-256 y apertura
    del instalador de Android.
+7. Al agregar platos a un pedido activo, el reloj superior conserva la espera
+   del plato activo mas antiguo y avanza al siguiente cuando aquel queda listo.
 
 La voz de la app reproduce avisos; los comandos de voz se gestionan con Alexa.
 El canal general funciona en modo de solo recepción: se conecta automáticamente

@@ -91,6 +91,7 @@ public class CreateModifierSelectionDto
 
 public class OrderItemDto
 {
+    public DateTime CreatedAt { get; set; }
     public Guid? PromotionGroupId { get; set; }
     public decimal? PromotionCashDiscountAmount { get; set; }
     public decimal? PromotionCardDiscountAmount { get; set; }
@@ -266,6 +267,7 @@ public class StationItemDto
     public bool IsTakeout { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime ConfirmedAt { get; set; }
+    public DateTime QueuedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public List<ModifierSelectionDto> ModifierSelections { get; set; } = [];
 }

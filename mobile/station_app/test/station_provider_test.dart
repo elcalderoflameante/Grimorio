@@ -88,6 +88,7 @@ StationItem item(
   String status = 'Pending',
   String name = 'Salchipapa',
   String changeKind = '',
+  DateTime? queuedAt,
 }) => StationItem(
   orderItemId: id,
   orderId: 'order',
@@ -98,6 +99,7 @@ StationItem item(
   quantity: 2,
   status: status,
   confirmedAt: DateTime.utc(2026, 9, 23),
+  queuedAt: queuedAt,
   changeKind: changeKind,
   orderNotes: 'Sin cubiertos',
   modifierSelections: [const ModifierSelection(optionName: 'BBQ', quantity: 2)],
@@ -152,6 +154,29 @@ void main() {
         'ready-second',
       ],
     );
+  });
+
+  testWidgets('header timer follows the oldest active dish', (tester) async {
+    final now = DateTime.now();
+    hub.onNewItems!([
+      item('old-a', queuedAt: now.subtract(const Duration(minutes: 12))),
+      item('old-b', queuedAt: now.subtract(const Duration(minutes: 12))),
+      item('recent', queuedAt: now.subtract(const Duration(minutes: 2))),
+    ]);
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: provider,
+        child: const MaterialApp(home: KdsScreen()),
+      ),
+    );
+    expect(find.text('12 min'), findsOneWidget);
+
+    hub.onItemUpdated!('old-a', 'order', 'Ready', null);
+    hub.onItemUpdated!('old-b', 'order', 'Ready', null);
+    await tester.pump();
+
+    expect(find.text('2 min'), findsOneWidget);
+    expect(find.text('12 min'), findsNothing);
   });
 
   test(

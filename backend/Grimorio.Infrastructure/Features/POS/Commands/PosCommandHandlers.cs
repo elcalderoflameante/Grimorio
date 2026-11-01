@@ -1763,6 +1763,7 @@ internal static class PosMapper
     {
         var dto = new OrderItemDto
     {
+        CreatedAt = i.CreatedAt,
         Id = i.Id,
         OrderId = i.OrderId,
         MenuItemId = i.MenuItemId,

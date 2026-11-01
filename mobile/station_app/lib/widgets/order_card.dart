@@ -45,14 +45,30 @@ class OrderCard extends StatelessWidget {
     return Colors.grey;
   }
 
+  DateTime _oldestActiveTime() {
+    final active = items.where((item) => item.status != 'Ready').toList();
+    final source = active.isNotEmpty ? active : items;
+    return source
+        .map((item) => item.queuedAt)
+        .reduce(
+          (oldest, current) => current.isBefore(oldest) ? current : oldest,
+        );
+  }
+
+  int _elapsedMinutes() => DateTime.now()
+      .difference(_oldestActiveTime())
+      .inMinutes
+      .clamp(0, 1 << 31)
+      .toInt();
+
   String _elapsed() {
-    final mins = DateTime.now().difference(items.first.confirmedAt).inMinutes;
+    final mins = _elapsedMinutes();
     if (mins < 1) return '< 1 min';
     return '$mins min';
   }
 
   Color _elapsedColor() {
-    final mins = DateTime.now().difference(items.first.confirmedAt).inMinutes;
+    final mins = _elapsedMinutes();
     if (mins < 10) return Colors.white38;
     if (mins < 20) return Colors.orange;
     return Colors.redAccent;
@@ -60,7 +76,7 @@ class OrderCard extends StatelessWidget {
 
   // Indicador de urgencia en el borde de la tarjeta
   Color _cardBorderColor() {
-    final mins = DateTime.now().difference(items.first.confirmedAt).inMinutes;
+    final mins = _elapsedMinutes();
     final hasPending = items.any((i) => i.status == 'Pending');
     if (hasPending && mins >= 20) return Colors.redAccent;
     if (hasPending && mins >= 10) return Colors.orange;

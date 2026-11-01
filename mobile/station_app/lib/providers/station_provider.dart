@@ -111,7 +111,7 @@ class StationProvider extends ChangeNotifier {
     final entries = map.entries.toList()
       ..sort(
         (a, b) =>
-            a.value.first.confirmedAt.compareTo(b.value.first.confirmedAt),
+            _oldestActiveTime(a.value).compareTo(_oldestActiveTime(b.value)),
       );
     return entries
         .map(
@@ -121,6 +121,16 @@ class StationProvider extends ChangeNotifier {
           ]),
         )
         .toList();
+  }
+
+  DateTime _oldestActiveTime(List<StationItem> orderItems) {
+    final active = orderItems.where((item) => item.status != 'Ready').toList();
+    final source = active.isNotEmpty ? active : orderItems;
+    return source
+        .map((item) => item.queuedAt)
+        .reduce(
+          (oldest, current) => current.isBefore(oldest) ? current : oldest,
+        );
   }
 
   Future<void> init() async {
@@ -529,7 +539,7 @@ class StationProvider extends ChangeNotifier {
       byId[item.orderItemId] = item;
     }
     return byId.values.toList()
-      ..sort((a, b) => a.confirmedAt.compareTo(b.confirmedAt));
+      ..sort((a, b) => a.queuedAt.compareTo(b.queuedAt));
   }
 
   Future<void> advanceItemStatus(StationItem item) async {

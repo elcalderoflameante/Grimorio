@@ -2,7 +2,7 @@ name: station_app
 description: "KDS — Kitchen Display System para estaciones Grimorio"
 publish_to: 'none'
 
-version: 1.0.15+16
+version: 1.0.16+17
 
 environment:
   sdk: ^3.11.5

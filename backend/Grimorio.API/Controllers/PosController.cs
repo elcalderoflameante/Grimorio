@@ -306,6 +306,7 @@ public class PosController : ControllerBase
                 isTakeout = i.IsTakeout,
                 status = i.Status,
                 confirmedAt,
+                queuedAt = Latest(confirmedAt, i.CreatedAt),
                 modifierSelections = i.ModifierSelections.Select(s => new
                 {
                     groupName = s.GroupName,
@@ -377,6 +378,7 @@ public class PosController : ControllerBase
                     isTakeout = i.IsTakeout,
                     status = i.Status,
                     confirmedAt,
+                    queuedAt = Latest(confirmedAt, i.CreatedAt),
                     changeKind = isCorrection ? "Correction" : "Addition",
                     modifierSelections = i.ModifierSelections.Select(s => new
                     {
@@ -432,6 +434,7 @@ public class PosController : ControllerBase
                 isTakeout = i.IsTakeout,
                 status = i.Status,
                 confirmedAt,
+                queuedAt = Latest(confirmedAt, i.CreatedAt),
                 modifierSelections = i.ModifierSelections.Select(s => new
                 {
                     groupName = s.GroupName,
@@ -605,6 +608,9 @@ public class PosController : ControllerBase
         });
         return Ok(result);
     }
+
+    private static DateTime Latest(DateTime first, DateTime second) =>
+        first >= second ? first : second;
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 

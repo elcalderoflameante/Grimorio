@@ -58,6 +58,7 @@ internal static class ComboPreparation
 
     public static OrderItemDto MapTask(OrderItemPreparationTask task, OrderItemDto parent) => new()
     {
+        CreatedAt = task.CreatedAt > parent.CreatedAt ? task.CreatedAt : parent.CreatedAt,
         Id = task.Id, OrderId = parent.OrderId, MenuItemId = task.ComponentItemId,
         ItemName = DisplayTaskName(task), StationId = task.StationId,
         Quantity = checked(parent.Quantity * task.QuantityPerCombo),
