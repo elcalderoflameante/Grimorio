@@ -8,6 +8,8 @@ import '../../../biometrics/data/face_detection_service.dart';
 import '../../../biometrics/domain/active_liveness_challenge.dart';
 import '../../../biometrics/domain/face_detection_result.dart';
 import '../../data/attendance_api.dart';
+import '../widgets/ecuador_clock.dart';
+import '../widgets/kiosk_camera_layout.dart';
 
 class KioskCameraPage extends StatefulWidget {
   const KioskCameraPage({
@@ -44,6 +46,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
   bool _unconfirmedMark = false;
   bool _fileScanning = false;
   DateTime? _lastFrameAt;
+  DeviceOrientation? _scanOrientation;
   Future<void>? _cameraDisposal;
   String _message = 'Acércate a la cámara';
   Color _statusColor = const Color(0xFF1890FF);
@@ -148,6 +151,14 @@ class _KioskCameraPageState extends State<KioskCameraPage>
         camera.value.isTakingPicture) {
       return;
     }
+    final orientation = camera.value.deviceOrientation;
+    if (_scanOrientation != orientation) {
+      // Never combine blink frames captured in different orientations.
+      _scanOrientation = orientation;
+      _liveness.reset();
+      _absentSince = null;
+      _lastFrameAt = null;
+    }
     _processing = true;
     if (frame != null &&
         _lastFrameAt != null &&
@@ -174,7 +185,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
           DeviceOrientation.portraitDown: 180,
           DeviceOrientation.landscapeRight: 270,
         };
-        final deviceRotation = rotations[camera.value.deviceOrientation]!;
+        final deviceRotation = rotations[orientation]!;
         final sensorRotation = camera.description.sensorOrientation;
         final rotation =
             camera.description.lensDirection == CameraLensDirection.front
@@ -191,6 +202,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
         result = await _faceDetection.inspectFile(capture.path);
       }
       if (!mounted || !_active || camera != _camera) return;
+      if (camera.value.deviceOrientation != orientation) return;
       if (_awaitingDeparture) {
         if (result.issues.contains(FaceQualityIssue.noFace)) {
           _absentSince ??= DateTime.now();
@@ -493,10 +505,14 @@ class _KioskCameraPageState extends State<KioskCameraPage>
     final camera = _camera;
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.kioskName),
+        title: Text(
+          widget.kioskName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         automaticallyImplyLeading: false,
         actions: [
-          const _EcuadorClock(),
+          const EcuadorClock(),
           IconButton(
             tooltip: 'Desvincular kiosco',
             icon: const Icon(Icons.link_off),
@@ -540,173 +556,36 @@ class _KioskCameraPageState extends State<KioskCameraPage>
                 ],
               ),
             )
-          : Stack(
-              fit: StackFit.expand,
-              children: [
-                CameraPreview(camera),
-                Center(
-                  child: Container(
-                    width: 260,
-                    height: 340,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: _statusColor, width: 4),
-                      borderRadius: const BorderRadius.all(
-                        Radius.elliptical(260, 340),
-                      ),
-                    ),
+          : ValueListenableBuilder<CameraValue>(
+              valueListenable: camera,
+              builder: (context, value, child) {
+                final landscape =
+                    value.deviceOrientation ==
+                        DeviceOrientation.landscapeLeft ||
+                    value.deviceOrientation == DeviceOrientation.landscapeRight;
+                return KioskCameraLayout(
+                  preview: child!,
+                  previewAspectRatio: landscape
+                      ? value.aspectRatio
+                      : 1 / value.aspectRatio,
+                  message: _message,
+                  statusColor: _statusColor,
+                  showMarkActions: _pendingEmployee != null,
+                  marking: _marking,
+                  canStartBreak: _canStartBreak,
+                  unconfirmedMark: _unconfirmedMark,
+                  recoveringMark: _recoveringMark,
+                  onStartBreak: () => _chooseMark(
+                    'break/start',
+                    'Inicio de descanso registrado',
                   ),
-                ),
-                Positioned(
-                  left: 24,
-                  right: 24,
-                  bottom: 32,
-                  child: Card(
-                    color: Colors.black87,
-                    child: Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _message,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 20, color: _statusColor),
-                          ),
-                          if (_unconfirmedMark || _recoveringMark) ...[
-                            const SizedBox(height: 12),
-                            FilledButton.icon(
-                              onPressed: _recoveringMark
-                                  ? null
-                                  : _recoverPendingMark,
-                              icon: const Icon(Icons.sync),
-                              label: Text(
-                                _recoveringMark
-                                    ? 'Verificando marcación...'
-                                    : 'Reintentar conexión',
-                              ),
-                            ),
-                          ],
-                          if (_pendingEmployee != null) ...[
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: FilledButton.tonal(
-                                    onPressed: _marking || !_canStartBreak
-                                        ? null
-                                        : () => _chooseMark(
-                                            'break/start',
-                                            'Inicio de descanso registrado',
-                                          ),
-                                    child: const Text('Iniciar descanso'),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: FilledButton(
-                                    onPressed: _marking
-                                        ? null
-                                        : () => _chooseMark(
-                                            'clock-out',
-                                            'Salida registrada',
-                                          ),
-                                    child: const Text('Registrar salida'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+                  onClockOut: () =>
+                      _chooseMark('clock-out', 'Salida registrada'),
+                  onRetry: _recoverPendingMark,
+                );
+              },
+              child: CameraPreview(camera),
             ),
     );
   }
-}
-
-class _EcuadorClock extends StatefulWidget {
-  const _EcuadorClock();
-
-  @override
-  State<_EcuadorClock> createState() => _EcuadorClockState();
-}
-
-class _EcuadorClockState extends State<_EcuadorClock> {
-  late DateTime _time;
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _time = _nowInEcuador();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _time = _nowInEcuador());
-    });
-  }
-
-  static DateTime _nowInEcuador() =>
-      DateTime.now().toUtc().subtract(const Duration(hours: 5));
-
-  String get _formattedTime =>
-      '${_time.hour.toString().padLeft(2, '0')}:'
-      '${_time.minute.toString().padLeft(2, '0')}:'
-      '${_time.second.toString().padLeft(2, '0')}';
-
-  String get _formattedDate {
-    const weekdays = [
-      'lunes',
-      'martes',
-      'miércoles',
-      'jueves',
-      'viernes',
-      'sábado',
-      'domingo',
-    ];
-    const months = [
-      'enero',
-      'febrero',
-      'marzo',
-      'abril',
-      'mayo',
-      'junio',
-      'julio',
-      'agosto',
-      'septiembre',
-      'octubre',
-      'noviembre',
-      'diciembre',
-    ];
-    return '${weekdays[_time.weekday - 1]}, '
-        '${_time.day} de ${months[_time.month - 1]}';
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(
-          _formattedTime,
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.2,
-            fontFeatures: [FontFeature.tabularFigures()],
-          ),
-        ),
-        Text(_formattedDate, style: const TextStyle(fontSize: 11)),
-      ],
-    ),
-  );
 }

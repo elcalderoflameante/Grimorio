@@ -117,27 +117,29 @@ class _SetupPageState extends State<SetupPage> {
     if (_linkedName != null) {
       return KioskCameraPage(kioskName: _linkedName!, onUnlink: _unlink);
     }
+    final compact = MediaQuery.sizeOf(context).height < 500;
     return Scaffold(
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(32),
+            padding: EdgeInsets.all(compact ? 16 : 32),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
               child: Form(
                 key: _formKey,
                 child: Column(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.shield_outlined,
-                      size: 88,
-                      color: Color(0xFF1890FF),
+                      size: compact ? 48 : 88,
+                      color: const Color(0xFF1890FF),
                     ),
-                    const SizedBox(height: 20),
-                    const Text(
+                    SizedBox(height: compact ? 12 : 20),
+                    Text(
                       'Grimorio Asistencia',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 32,
+                        fontSize: compact ? 24 : 32,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -176,6 +178,9 @@ class _SetupPageState extends State<SetupPage> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _kioskIdController,
+                        textInputAction: TextInputAction.next,
+                        autocorrect: false,
+                        enableSuggestions: false,
                         decoration: const InputDecoration(
                           labelText: 'Kiosk ID',
                           border: OutlineInputBorder(),
@@ -189,6 +194,10 @@ class _SetupPageState extends State<SetupPage> {
                       TextFormField(
                         controller: _apiKeyController,
                         obscureText: true,
+                        textInputAction: TextInputAction.done,
+                        onFieldSubmitted: (_) {
+                          if (!_saving) _validateAndSave();
+                        },
                         decoration: const InputDecoration(
                           labelText: 'Clave del kiosco',
                           border: OutlineInputBorder(),

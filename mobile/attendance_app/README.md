@@ -2,6 +2,22 @@
 
 Kiosco Android para marcaciones del personal mediante deteccion facial, prueba de vida y reconocimiento SFace en el backend.
 
+## Actualizacion 1.0.5: telefono en horizontal
+
+- Activar la rotacion automatica de Android. La app admite horizontal hacia
+  ambos lados y mantiene compatibilidad con vertical, sin bloquear la orientacion.
+- En horizontal, la camara queda a la izquierda y las instrucciones y marcaciones
+  a la derecha. El panel permite desplazarse si se amplia el texto del sistema.
+- La imagen conserva su proporcion completa (puede mostrar bandas negras), sin
+  recortar ni estirar el rostro. El ovalo se ajusta al area real de la imagen.
+- Al girar durante el parpadeo se reinicia esa comprobacion; no se combinan
+  cuadros capturados con orientaciones diferentes.
+
+Antes de publicar otra APK, probar en el telefono real ambos sentidos de giro,
+vinculacion con teclado abierto, parpadeo, entrada, descanso, regreso, salida,
+recuperacion de conexion y suspension/reanudacion. Las pruebas de interfaz no
+sustituyen la validacion de la camara y ML Kit en el equipo fisico.
+
 ## Distribucion
 
 La APK no se publica en Play Store. Se genera firmada y se sirve desde el frontend del ERP en:
