@@ -7,9 +7,11 @@ Sistema de gestion empresarial con backend en .NET y frontend en React para admi
 - `README.md`: vision general del proyecto y arranque rapido.
 - `CHANGELOG.md`: historial de cambios funcionales/tecnicos.
 - `docs/README.md`: indice de documentacion global.
+- `docs/manual/`: fuente unica del centro de ayuda autenticado, piloto de inventarios en `/ayuda/inicio`.
+- `docs/technical/`: referencia privada, fuera de la ayuda web.
 - `backend/docs/API_STANDARDS.md`: estandares y convenciones de endpoints backend.
 - `frontend/README.md`: guia del modulo frontend.
-- `mobile/README.md`: guia para futuras apps moviles.
+- `mobile/README.md`: entrada de las aplicaciones moviles.
 - `docs/archive/`: documentos historicos que ya no son referencia principal.
 
 ## Estructura del repositorio

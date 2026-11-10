@@ -1,5 +1,9 @@
 # Vinculacion de empleados y usuarios
 
+> Referencia técnica y de evolución, fuera del centro de ayuda. El procedimiento
+> operativo vigente se mantiene en [el manual central](manual/articles/admin-accesos.md).
+> No usar esta referencia como un segundo manual ni como confirmación de despliegue.
+
 Los empleados conservan sus datos laborales y los usuarios sus credenciales,
 roles y permisos. La cuenta puede vincularse opcionalmente a un empleado de la
 misma sucursal. Cada empleado admite una sola cuenta que no haya sido eliminada,

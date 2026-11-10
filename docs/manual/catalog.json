@@ -1,0 +1,994 @@
+{
+  "edition": "Manual operativo del ERP",
+  "articles": [
+    {
+      "id": "inicio",
+      "title": "Ayuda y manuales",
+      "summary": "Procedimientos operativos por módulo para el personal y administración.",
+      "section": "Primeros pasos",
+      "audience": "Todos",
+      "kind": "Introducción",
+      "order": 0,
+      "verifiedOn": "2026-11-10",
+      "verification": "Guías contrastadas con el repositorio. Navegación probada con usuarios en desarrollo; aceptación operativa por módulo y publicación pendientes.",
+      "file": "articles/inicio.md",
+      "tags": [
+        "inicio",
+        "inventario",
+        "manual"
+      ],
+      "permissionSets": []
+    },
+    {
+      "id": "inventario-instalar",
+      "title": "Instalar y actualizar la app",
+      "summary": "Descargar Grimorio Inventario en Android y entrar con sucursal, nombre y PIN.",
+      "section": "Personal",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 10,
+      "verifiedOn": "2026-11-09",
+      "verification": "Revisado contra la app 1.0.1+2 y el código del ERP. Instalación en teléfono pendiente.",
+      "file": "articles/inventario-instalar.md",
+      "tags": [
+        "apk",
+        "android",
+        "descargar",
+        "actualizar",
+        "pin",
+        "instalación"
+      ],
+      "permissionSets": [
+        [
+          "Inventory.Counts.Execute"
+        ],
+        [
+          "Inventory.Counts.View"
+        ],
+        [
+          "Inventory.Counts.Manage"
+        ]
+      ]
+    },
+    {
+      "id": "inventario-contar",
+      "title": "Realizar y enviar un conteo",
+      "summary": "Registrar cantidades, continuar un borrador compartido y enviar para revisión sin ajustar existencias.",
+      "section": "Personal",
+      "audience": "Personal que cuenta",
+      "kind": "Procedimiento",
+      "order": 20,
+      "verifiedOn": "2026-11-09",
+      "verification": "Revisado contra la app Android y el servicio de conteos. Flujo en teléfono pendiente.",
+      "file": "articles/inventario-contar.md",
+      "tags": [
+        "conteo",
+        "cantidad",
+        "unidad",
+        "cero",
+        "borrador",
+        "enviar",
+        "lechuga"
+      ],
+      "permissionSets": [
+        [
+          "Inventory.Counts.Execute"
+        ]
+      ]
+    },
+    {
+      "id": "inventario-configurar",
+      "title": "Configurar áreas y frecuencias",
+      "summary": "Asignar personas, artículos, bodegas y frecuencias diarias o semanales.",
+      "section": "Administración",
+      "audience": "Administración",
+      "kind": "Procedimiento",
+      "order": 30,
+      "verifiedOn": "2026-11-09",
+      "verification": "Revisado contra el formulario y las validaciones del servidor. Captura con datos ficticios.",
+      "file": "articles/inventario-configurar.md",
+      "tags": [
+        "áreas",
+        "responsables",
+        "bodega",
+        "cocina",
+        "bar",
+        "diaria",
+        "semanal"
+      ],
+      "permissionSets": [
+        [
+          "Inventory.Counts.Manage"
+        ]
+      ]
+    },
+    {
+      "id": "inventario-revisar",
+      "title": "Revisar diferencias y pedir reconteo",
+      "summary": "Comparar el conteo con el saldo guardado y registrar una revisión con motivo.",
+      "section": "Administración",
+      "audience": "Supervisión",
+      "kind": "Procedimiento",
+      "order": 40,
+      "verifiedOn": "2026-11-09",
+      "verification": "Revisado contra el ERP y el servicio de conteos. Captura con datos ficticios.",
+      "file": "articles/inventario-revisar.md",
+      "tags": [
+        "diferencias",
+        "faltantes",
+        "sobrantes",
+        "revisión",
+        "reconteo",
+        "movimientos"
+      ],
+      "permissionSets": [
+        [
+          "Inventory.Counts.View"
+        ]
+      ]
+    },
+    {
+      "id": "inventario-permisos",
+      "title": "Permisos y responsabilidades",
+      "summary": "Separar los permisos de contar, consultar, configurar, revisar y ajustar inventario.",
+      "section": "Administración",
+      "audience": "Administración",
+      "kind": "Referencia",
+      "order": 50,
+      "verifiedOn": "2026-11-09",
+      "verification": "Revisado contra los permisos, controladores y formulario actuales.",
+      "file": "articles/inventario-permisos.md",
+      "tags": [
+        "rol",
+        "permisos",
+        "usuario",
+        "pin",
+        "autorización"
+      ],
+      "permissionSets": [
+        [
+          "Inventory.Counts.Manage"
+        ]
+      ]
+    },
+    {
+      "id": "inventario-problemas",
+      "title": "Resolver problemas frecuentes",
+      "summary": "Qué revisar si no aparece el usuario, falta un área, falla la conexión o no se puede enviar.",
+      "section": "Soporte",
+      "audience": "Personal y administración",
+      "kind": "Solución de problemas",
+      "order": 60,
+      "verifiedOn": "2026-11-09",
+      "verification": "Mensajes contrastados con la app y el servicio. Casos de red y dispositivo por validar en campo.",
+      "file": "articles/inventario-problemas.md",
+      "tags": [
+        "error",
+        "red",
+        "internet",
+        "sesión",
+        "pendiente",
+        "conflicto",
+        "actualización"
+      ],
+      "permissionSets": [
+        [
+          "Inventory.Counts.Execute"
+        ],
+        [
+          "Inventory.Counts.View"
+        ],
+        [
+          "Inventory.Counts.Manage"
+        ]
+      ]
+    },
+    {
+      "id": "caja-turno",
+      "title": "Abrir y cerrar tu caja",
+      "summary": "Registrar el fondo, contar efectivo y revisar diferencias al cierre.",
+      "section": "Caja y ventas",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 70,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con formularios y servicios actuales. Operación real de caja pendiente de aceptación.",
+      "file": "articles/caja-turno.md",
+      "tags": [
+        "apertura",
+        "cierre",
+        "fondo",
+        "efectivo",
+        "faltante",
+        "sobrante"
+      ],
+      "permissionSets": [
+        [
+          "Billing.Cash.View"
+        ]
+      ]
+    },
+    {
+      "id": "caja-consultar",
+      "title": "Consultar caja y pendientes",
+      "summary": "Distinguir recaudación del turno y pedidos pendientes de la sucursal.",
+      "section": "Caja y ventas",
+      "audience": "Personal y administración",
+      "kind": "Referencia",
+      "order": 80,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con consulta de sesiones, resumen de pedidos y permisos del ERP; validación operativa pendiente.",
+      "file": "articles/caja-consultar.md",
+      "tags": [
+        "consulta",
+        "pendientes",
+        "pedidos",
+        "recaudación",
+        "sesiones"
+      ],
+      "permissionSets": [
+        [
+          "Billing.Cash.View"
+        ]
+      ]
+    },
+    {
+      "id": "ventas-cobrar",
+      "title": "Cobrar y dividir una cuenta",
+      "summary": "Registrar varios medios, datos de tarjeta y cobros por cliente sin duplicar pagos.",
+      "section": "Caja y ventas",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 90,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con el formulario POS y contrato del cobro. Sin realizar cobros reales ni envíos al SRI.",
+      "file": "articles/ventas-cobrar.md",
+      "tags": [
+        "cobrar",
+        "tarjeta",
+        "transferencia",
+        "dividida",
+        "vuelto",
+        "promoción",
+        "reintentar"
+      ],
+      "permissionSets": [
+        [
+          "Billing.Cash.Charge"
+        ]
+      ]
+    },
+    {
+      "id": "ventas-consultar",
+      "title": "Consultar ventas realizadas",
+      "summary": "Buscar cobros por fecha, caja, cajero y documento y revisar sus detalles.",
+      "section": "Caja y ventas",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 100,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con la pantalla, límite de consulta y controles de permisos. Validación operativa pendiente.",
+      "file": "articles/ventas-consultar.md",
+      "tags": [
+        "ventas",
+        "fecha",
+        "comprobante",
+        "transacciones",
+        "historial",
+        "filtros"
+      ],
+      "permissionSets": [
+        [
+          "Billing.Cash.View"
+        ]
+      ]
+    },
+    {
+      "id": "ventas-corregir-pagos",
+      "title": "Corregir medios de pago",
+      "summary": "Reemplazar líneas de un cobro manteniendo el total y los documentos fiscales existentes.",
+      "section": "Caja y ventas",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 110,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con formulario y validaciones del servidor. No modifica cobros ni comprobantes reales en esta revisión.",
+      "file": "articles/ventas-corregir-pagos.md",
+      "tags": [
+        "corrección",
+        "medios",
+        "pagos",
+        "xml",
+        "ride",
+        "autorizada",
+        "cuadrar"
+      ],
+      "permissionSets": [
+        [
+          "Billing.Cash.View",
+          "Billing.Payments.CorrectMethod",
+          "Billing.PaymentMethods.View"
+        ]
+      ]
+    },
+    {
+      "id": "pedidos-operar",
+      "title": "Tomar y seguir pedidos",
+      "summary": "Mesas, adicionales, opciones, confirmación y seguimiento del pedido.",
+      "section": "Pedidos y atención",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 120,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/pedidos-operar.md",
+      "tags": [
+        "pedidos",
+        "mesa",
+        "adicionales",
+        "borrador",
+        "cancelación"
+      ],
+      "permissionSets": [
+        [
+          "POS.Orders.View"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/POS/PosOrderModule.tsx"
+      ]
+    },
+    {
+      "id": "pedidos-qr",
+      "title": "Atender mesas por QR",
+      "summary": "Configurar mesas, probar el QR y atender solicitudes sin confundirlas con cobros.",
+      "section": "Pedidos y atención",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 130,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/pedidos-qr.md",
+      "tags": [
+        "qr",
+        "mesas",
+        "solicitudes",
+        "brasa",
+        "micrófono"
+      ],
+      "permissionSets": [
+        [
+          "POS.TableRequests.View"
+        ],
+        [
+          "POS.Tables.View"
+        ],
+        [
+          "POS.Tables.Manage"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/POS/TableServiceModule.tsx"
+      ]
+    },
+    {
+      "id": "menu-recetas",
+      "title": "Platos, recetas y combos",
+      "summary": "Preparar el catálogo, opciones, consumos y componentes sin duplicar ingredientes.",
+      "section": "Menú y promociones",
+      "audience": "Administración",
+      "kind": "Procedimiento",
+      "order": 140,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/menu-recetas.md",
+      "tags": [
+        "receta",
+        "combo",
+        "tamaño",
+        "salsa",
+        "modificadores"
+      ],
+      "permissionSets": [
+        [
+          "Menu.Items.View"
+        ],
+        [
+          "Menu.Categories.View"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/Menu/MenuItemsList.tsx"
+      ]
+    },
+    {
+      "id": "menu-promociones",
+      "title": "Configurar promociones",
+      "summary": "Vigencia, segunda unidad y descuentos distintos por medio de pago.",
+      "section": "Menú y promociones",
+      "audience": "Administración",
+      "kind": "Procedimiento",
+      "order": 150,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/menu-promociones.md",
+      "tags": [
+        "promoción",
+        "ribeye",
+        "mitad",
+        "segunda",
+        "tarjeta"
+      ],
+      "permissionSets": [
+        [
+          "POS.Orders.Update"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/POS/PromotionsList.tsx"
+      ]
+    },
+    {
+      "id": "inventario-catalogos",
+      "title": "Artículos, unidades y stock",
+      "summary": "Mantener artículos y buscar saldos y usos en el menú.",
+      "section": "Inventario",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 160,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/inventario-catalogos.md",
+      "tags": [
+        "artículos",
+        "unidades",
+        "stock",
+        "bodega",
+        "existencias"
+      ],
+      "permissionSets": [
+        [
+          "Inventory.Articles.View"
+        ],
+        [
+          "Inventory.Config.View"
+        ],
+        [
+          "Inventory.Stock.View"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/Inventory/ArticlesList.tsx"
+      ]
+    },
+    {
+      "id": "inventario-movimientos",
+      "title": "Movimientos y conciliación",
+      "summary": "Investigar diferencias y registrar ajustes autorizados con trazabilidad.",
+      "section": "Inventario",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 170,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/inventario-movimientos.md",
+      "tags": [
+        "ajuste",
+        "conciliación",
+        "movimientos",
+        "trazabilidad",
+        "costo"
+      ],
+      "permissionSets": [
+        [
+          "Inventory.Movements.View"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/Inventory/StockMovements.tsx"
+      ]
+    },
+    {
+      "id": "inventario-produccion",
+      "title": "Registrar producción",
+      "summary": "Consumir insumos e ingresar elaborados según una receta y su rendimiento.",
+      "section": "Inventario",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 180,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/inventario-produccion.md",
+      "tags": [
+        "producción",
+        "lote",
+        "rendimiento",
+        "elaborado"
+      ],
+      "permissionSets": [
+        [
+          "Inventory.Production.Create"
+        ],
+        [
+          "Inventory.Movements.Create"
+        ],
+        [
+          "Inventory.ProductionRecipes.View"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/Inventory/Production.tsx"
+      ]
+    },
+    {
+      "id": "compras-registrar",
+      "title": "Registrar compras e importar XML",
+      "summary": "Vincular líneas y separar cantidades facturadas de cantidades de inventario.",
+      "section": "Compras",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 190,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/compras-registrar.md",
+      "tags": [
+        "compras",
+        "proveedor",
+        "xml",
+        "lechuga",
+        "gramos",
+        "precio",
+        "fecha"
+      ],
+      "permissionSets": [
+        [
+          "Purchases.Orders.View"
+        ],
+        [
+          "Purchases.Orders.Create"
+        ],
+        [
+          "Purchases.Suppliers.View"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/Purchases/PurchaseForm.tsx"
+      ]
+    },
+    {
+      "id": "clientes-gestionar",
+      "title": "Buscar y mantener clientes",
+      "summary": "Evitar duplicados, validar identificación y consultar ventas del cliente.",
+      "section": "Facturación",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 200,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/clientes-gestionar.md",
+      "tags": [
+        "cliente",
+        "duplicado",
+        "cédula",
+        "ruc",
+        "identificación"
+      ],
+      "permissionSets": [
+        [
+          "Billing.Customers.View"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/Billing/CustomerIdentificationFields.tsx"
+      ]
+    },
+    {
+      "id": "facturacion-documentos",
+      "title": "Revisar documentos electrónicos",
+      "summary": "Distinguir cobro, autorización, rechazo y envío por correo.",
+      "section": "Facturación",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 210,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/facturacion-documentos.md",
+      "tags": [
+        "sri",
+        "xml",
+        "ride",
+        "rechazo",
+        "correo",
+        "factura",
+        "reintentos"
+      ],
+      "permissionSets": [
+        [
+          "Billing.Sri.View"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/Billing/ElectronicInvoices.tsx"
+      ]
+    },
+    {
+      "id": "facturacion-configurar",
+      "title": "Configuración fiscal y medios",
+      "summary": "Revisar ambiente, firma, correo, tarifas y límites de configuración.",
+      "section": "Facturación",
+      "audience": "Administración",
+      "kind": "Procedimiento",
+      "order": 220,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/facturacion-configurar.md",
+      "tags": [
+        "iva",
+        "certificado",
+        "smtp",
+        "impuestos",
+        "plantilla",
+        "medios"
+      ],
+      "permissionSets": [
+        [
+          "Billing.Tax.View"
+        ],
+        [
+          "Billing.PaymentMethods.View"
+        ],
+        [
+          "Billing.Sri.View"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/Billing/TaxConfig.tsx"
+      ]
+    },
+    {
+      "id": "finanzas-gastos",
+      "title": "Gastos y resultados",
+      "summary": "Clasificar egresos y distinguir informes de resultados y efectivo de caja.",
+      "section": "Finanzas",
+      "audience": "Administración",
+      "kind": "Procedimiento",
+      "order": 230,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/finanzas-gastos.md",
+      "tags": [
+        "gastos",
+        "centros",
+        "costos",
+        "rentabilidad",
+        "resultados"
+      ],
+      "permissionSets": [
+        [
+          "Finance.Expenses.View"
+        ],
+        [
+          "Finance.Config.View"
+        ],
+        [
+          "Billing.Cash.View"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/Finance/ExpensesList.tsx"
+      ]
+    },
+    {
+      "id": "personal-horarios",
+      "title": "Empleados y horarios",
+      "summary": "Preparar fichas, disponibilidades y turnos sin confundirlos con asistencia.",
+      "section": "Personal y nómina",
+      "audience": "Administración",
+      "kind": "Procedimiento",
+      "order": 240,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/personal-horarios.md",
+      "tags": [
+        "empleado",
+        "turnos",
+        "horario",
+        "plantillas",
+        "disponibilidad"
+      ],
+      "permissionSets": [
+        [
+          "RRHH.Employees.View"
+        ],
+        [
+          "RRHH.Scheduling.View"
+        ],
+        [
+          "RRHH.Positions.View"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/Scheduling/MonthlySchedule.tsx"
+      ]
+    },
+    {
+      "id": "personal-asistencia",
+      "title": "Asistencia y marcaciones",
+      "summary": "Preparar kioscos, enrolar y revisar correcciones auditadas.",
+      "section": "Personal y nómina",
+      "audience": "Administración",
+      "kind": "Procedimiento",
+      "order": 250,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/personal-asistencia.md",
+      "tags": [
+        "asistencia",
+        "kiosco",
+        "rostro",
+        "entrada",
+        "marcación"
+      ],
+      "permissionSets": [
+        [
+          "RRHH.Attendance.View"
+        ],
+        [
+          "RRHH.Attendance.Enroll"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/Attendance/AttendanceDashboard.tsx"
+      ]
+    },
+    {
+      "id": "personal-nomina",
+      "title": "Revisar el rol de pagos",
+      "summary": "Comprobar consumos, adelantos, generación, autorización y comprobantes.",
+      "section": "Personal y nómina",
+      "audience": "Administración",
+      "kind": "Procedimiento",
+      "order": 260,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/personal-nomina.md",
+      "tags": [
+        "nómina",
+        "salario",
+        "adelanto",
+        "consumo",
+        "rol",
+        "pagado"
+      ],
+      "permissionSets": [
+        [
+          "RRHH.Payroll.View"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/Payroll/PayrollSummary.tsx"
+      ]
+    },
+    {
+      "id": "admin-accesos",
+      "title": "Usuarios, permisos y sucursal",
+      "summary": "Separar ficha de empleado, cuenta, rol y configuración de sucursal.",
+      "section": "Administración",
+      "audience": "Administración",
+      "kind": "Procedimiento",
+      "order": 270,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/admin-accesos.md",
+      "tags": [
+        "usuario",
+        "rol",
+        "permiso",
+        "pin",
+        "contraseña",
+        "sucursal"
+      ],
+      "permissionSets": [
+        [
+          "Admin.Users.View"
+        ],
+        [
+          "Admin.Roles.View"
+        ],
+        [
+          "Admin.Permissions.View"
+        ],
+        [
+          "Admin.Branch.Update"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/Users/UserList.tsx"
+      ]
+    },
+    {
+      "id": "operaciones-responsabilidades",
+      "title": "Responsabilidades operativas",
+      "summary": "Configurar tareas y rotaciones, revisar novedades y cubrir ausencias.",
+      "section": "Operaciones",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 280,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/operaciones-responsabilidades.md",
+      "tags": [
+        "responsabilidad",
+        "checklist",
+        "actividad",
+        "reemplazo",
+        "evidencia"
+      ],
+      "permissionSets": [
+        [
+          "Operations.Responsibilities.View"
+        ],
+        [
+          "Operations.Responsibilities.Execute"
+        ],
+        [
+          "Operations.Responsibilities.Manage"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/Operations/ResponsibilitiesModule.tsx"
+      ]
+    },
+    {
+      "id": "fidelizacion-programa",
+      "title": "Miembros y tarjetas de fidelización",
+      "summary": "Inscribir, asociar tarjetas a cobros y distinguir los QR y límites del programa.",
+      "section": "Fidelización",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 290,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/fidelizacion-programa.md",
+      "tags": [
+        "fidelización",
+        "calderos",
+        "tarjeta",
+        "recompensas",
+        "afiliación",
+        "whatsapp"
+      ],
+      "permissionSets": [
+        [
+          "Marketing.Loyalty.View"
+        ],
+        [
+          "Marketing.Loyalty.Enroll"
+        ],
+        [
+          "Marketing.Loyalty.Use"
+        ],
+        [
+          "Marketing.Loyalty.Manage"
+        ],
+        [
+          "Menu.Items.View"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/Marketing/LoyaltyModule.tsx"
+      ]
+    },
+    {
+      "id": "apps-meseros",
+      "title": "Instalar y usar Meseros",
+      "summary": "Descargar la APK, ingresar y atender solicitudes y pedidos.",
+      "section": "Aplicaciones y comunicación",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 300,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/apps-meseros.md",
+      "tags": [
+        "android",
+        "meseros",
+        "apk",
+        "descarga",
+        "actualización",
+        "pin"
+      ],
+      "permissionSets": [
+        [
+          "POS.TableRequests.View"
+        ],
+        [
+          "POS.Orders.View"
+        ]
+      ],
+      "sources": [
+        "mobile/waitstaff_app/README.md"
+      ]
+    },
+    {
+      "id": "apps-estaciones",
+      "title": "Cocina y barra en Estaciones",
+      "summary": "Instalar la app, revisar comandas y recuperar la conexión.",
+      "section": "Aplicaciones y comunicación",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 310,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/apps-estaciones.md",
+      "tags": [
+        "cocina",
+        "barra",
+        "kds",
+        "estaciones",
+        "apk",
+        "preparación"
+      ],
+      "permissionSets": [
+        [
+          "POS.Kitchen.View"
+        ],
+        [
+          "POS.Stations.Manage"
+        ]
+      ],
+      "sources": [
+        "mobile/station_app/README.md"
+      ]
+    },
+    {
+      "id": "comunicacion-walkie",
+      "title": "Usar el walkie de la sucursal",
+      "summary": "Transmitir por turnos y comprobar recepción y conectividad.",
+      "section": "Aplicaciones y comunicación",
+      "audience": "Personal y administración",
+      "kind": "Procedimiento",
+      "order": 320,
+      "verifiedOn": "2026-11-10",
+      "verification": "Contrastado con pantallas y referencias del repositorio. Aceptación operativa y disponibilidad de la versión desplegada por comprobar.",
+      "file": "articles/comunicacion-walkie.md",
+      "tags": [
+        "walkie",
+        "audio",
+        "voz",
+        "micrófono",
+        "canal"
+      ],
+      "permissionSets": [
+        [
+          "POS.Orders.View"
+        ],
+        [
+          "POS.Kitchen.View"
+        ],
+        [
+          "Billing.Cash.View"
+        ]
+      ],
+      "sources": [
+        "frontend/src/components/Voice/WalkieTalkie.tsx"
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "id": "inventario-configuracion",
+      "file": "assets/inventario-configuracion.png",
+      "articleIds": [
+        "inventario-configurar"
+      ]
+    },
+    {
+      "id": "inventario-revision",
+      "file": "assets/inventario-revision.png",
+      "articleIds": [
+        "inventario-revisar"
+      ]
+    }
+  ]
+}

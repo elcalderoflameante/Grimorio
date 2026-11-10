@@ -1,5 +1,9 @@
 # Walkie-talkie por sucursal
 
+> Referencia técnica y de evolución, fuera del centro de ayuda. El procedimiento
+> operativo vigente se mantiene en [el manual central](manual/articles/comunicacion-walkie.md).
+> No usar esta referencia como un segundo manual ni como confirmación de despliegue.
+
 Estado: implementación local inicial; pendiente de despliegue y prueba de audio
 con dispositivos reales. Consultar `deploy-walkie-talkie.md` para activación.
 

@@ -14,6 +14,7 @@ import type { ReactNode } from 'react';
 import RequiredPasswordChange from './components/Profile/RequiredPasswordChange';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const HelpCenter = lazy(() => import('./pages/HelpCenter'));
 
 const configuredErpHost = (() => {
   const value = import.meta.env.VITE_ERP_APP_URL as string | undefined;
@@ -91,6 +92,7 @@ export default function App() {
           <Route path="/fidelizacion" element={<PublicLoyaltyEnrollment />} />
           <Route path="/fidelizacion/privacidad" element={<PublicLoyaltyPrivacy />} />
           <Route path="/fidelizacion/eliminar-datos" element={<PublicLoyaltyPrivacy deletion />} />
+          <Route path="/ayuda/:articleId?" element={<ProtectedRoute><Suspense fallback={<FullPageSpinner />}><HelpCenter /></Suspense></ProtectedRoute>} />
           
           <Route
             path="/dashboard"

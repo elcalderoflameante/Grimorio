@@ -1,5 +1,9 @@
 # Opciones, Tamanos Y Combos
 
+> Referencia técnica y de evolución, fuera del centro de ayuda. El procedimiento
+> operativo vigente se mantiene en [el manual central](manual/articles/menu-recetas.md).
+> No usar esta referencia como un segundo manual ni como confirmación de despliegue.
+
 En Items y recetas, configurar primero las opciones del plato individual.
 En cada opcion se conserva el consumo principal existente y se pueden agregar
 hasta 20 consumos adicionales con articulo, cantidad y unidad compatible.

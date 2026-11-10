@@ -8,6 +8,12 @@ El formato se basa en Keep a Changelog y Versionado Semantico.
 
 ### Agregado
 
+- Primera base operativa de los grupos restantes del ERP: 21 guías adicionales (33 en total), portada central, ayuda contextual por pantalla, navegación con desplazamiento y controles de cobertura y permisos. Aceptación por responsables y dispositivos pendiente; producción sigue deshabilitada.
+
+- Ayuda de Caja y ventas: apertura y cierre, pendientes de sucursal, cobros divididos, consulta y corrección interna de pagos. Cinco guías por permisos y enlaces contextuales en Caja y Ventas; sin modificar reglas, datos ni documentos fiscales.
+
+- Piloto de Ayuda y manuales en `/ayuda/inicio`: Markdown centralizado, búsqueda y capturas autenticadas por permisos, y guías de inventarios. Documentación técnica excluida; producción deshabilitada por defecto. Requiere reconstruir API y frontend, sin cambiar reglas de inventario ni datos.
+
 - Actualizador dentro de Grimorio Inventario `1.0.1+2`, siguiendo el flujo de Meseros: consulta periódica, descarga con SHA-256, instalador Android y aviso aplazado durante conteos para conservar cantidades sin confirmar.
 
 - App Grimorio Inventario con PIN, áreas compartidas y conteos diarios/semanales sin modificar existencias. Submenú Inventario > Conteos del personal con diferencias históricas, revisión, reconteos, configuración y descarga de APK.
@@ -29,6 +35,8 @@ El formato se basa en Keep a Changelog y Versionado Semantico.
 - Actualizacion de documentacion principal (README raiz y README frontend).
 
 ### Corregido
+
+- Carga de áreas de conteo: el formulario está montado antes de asignar valores y se reinicia al abrir, conservando las líneas existentes y evitando arrastrarlas a un área nueva.
 
 - Limpieza de archivos no usados en frontend.
 - Consolidacion de tipos `SpecialDate` y actualizacion de imports.

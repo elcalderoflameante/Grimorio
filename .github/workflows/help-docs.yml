@@ -1,0 +1,53 @@
+name: Help Documentation
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'tools/check-help-docs.mjs'
+      - 'backend/Grimorio.API/Services/Help/**'
+      - 'backend/Grimorio.API/Controllers/HelpController.cs'
+      - 'backend/tests/Help.Checks/**'
+      - 'frontend/src/pages/HelpCenter*'
+      - 'frontend/src/utils/helpLinks.ts'
+      - 'frontend/src/utils/helpTopics.ts'
+      - 'frontend/src/services/help.ts'
+      - 'frontend/tests/helpLinks.test.mjs'
+      - 'frontend/tests/helpTopics.test.mjs'
+      - 'frontend/src/App.tsx'
+      - 'frontend/src/pages/Dashboard.tsx'
+      - 'frontend/src/components/Inventory/StaffInventoryCounts.tsx'
+      - 'backend/Grimorio.API/Grimorio.API.csproj'
+      - 'backend/Grimorio.API/Dockerfile'
+      - 'mobile/inventory_app/README.md'
+      - 'frontend/package*.json'
+      - '.github/workflows/help-docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: npm ci --ignore-scripts
+        working-directory: frontend
+      - run: node tools/check-help-docs.mjs
+      - run: node --experimental-strip-types --test frontend/tests/helpLinks.test.mjs frontend/tests/helpTopics.test.mjs
+      - run: dotnet run --project backend/tests/Help.Checks
+      - run: dotnet build backend/Grimorio.API/Grimorio.API.csproj
+      - run: dotnet run --project backend/tests/Help.Checks -- --published-api backend/Grimorio.API/bin/Debug/net10.0/Grimorio.API.dll
+      - run: npm run build
+        working-directory: frontend
+        env:
+          VITE_HELP_ENABLED: 'true'

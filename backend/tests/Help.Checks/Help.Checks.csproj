@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../Grimorio.SharedKernel/Grimorio.SharedKernel.csproj" />
+    <Compile Include="../../Grimorio.API/Services/Help/HelpCatalog.cs" Link="HelpCatalog.cs" />
+    <Compile Include="../../Grimorio.API/Controllers/HelpController.cs" Link="HelpController.cs" />
+    <EmbeddedResource Include="../../../docs/manual/catalog.json" LogicalName="Grimorio.Help.catalog.json" />
+    <EmbeddedResource Include="../../../docs/manual/articles/*.md" LogicalName="Grimorio.Help.articles/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../../../docs/manual/assets/*.png" LogicalName="Grimorio.Help.assets/%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

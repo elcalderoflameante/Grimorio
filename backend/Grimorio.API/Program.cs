@@ -247,6 +247,7 @@ builder.Services.AddScoped<Grimorio.Infrastructure.Services.Email.IEmailService,
                            Grimorio.Infrastructure.Services.Email.SmtpEmailService>();
 
 builder.Services.AddControllers();
+builder.Services.AddSingleton<Grimorio.API.Services.Help.HelpCatalog>();
 builder.Services.AddSingleton<UserSessionRegistry>();
 builder.Services.AddSignalR(options => options.AddFilter<UserSessionHubFilter>());
 builder.Services.Configure<VoiceOptions>(builder.Configuration.GetSection("Voice"));

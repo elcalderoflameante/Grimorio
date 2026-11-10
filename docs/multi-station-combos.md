@@ -1,5 +1,9 @@
 # Combos con varias estaciones
 
+> Referencia técnica y de evolución, fuera del centro de ayuda. El procedimiento
+> operativo vigente se mantiene en [el manual central](manual/articles/menu-recetas.md).
+> No usar esta referencia como un segundo manual ni como confirmación de despliegue.
+
 En Menu > Items y recetas, crea un item con Tipo de item = Combo y agrega los
 platos y cantidades que lo componen. El precio, codigo fiscal, IVA y visibilidad
 pertenecen al combo. Cada componente conserva su estacion y receta.

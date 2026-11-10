@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
-import { App as AntApp, Layout, Menu, Dropdown, Avatar, Space, Drawer, Button, Breadcrumb, Grid, Badge, Alert } from 'antd';
+import { App as AntApp, Layout, Menu, Dropdown, Avatar, Space, Drawer, Button, Breadcrumb, Grid, Badge, Alert, Tooltip } from 'antd';
 import WalkieTalkie from '../components/Voice/WalkieTalkie';
 import { UserOutlined,
   LogoutOutlined,
@@ -34,6 +34,7 @@ import { UserOutlined,
   BarChartOutlined,
   CalculatorOutlined,
   ReadOutlined,
+  QuestionCircleOutlined,
   TabletOutlined,
   CameraOutlined,
   ClockCircleOutlined } from '@ant-design/icons';
@@ -41,6 +42,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { PERMISSIONS } from '../constants/permissions';
 import { branchApi } from '../services/api';
+import { helpEnabled } from '../services/help';
+import { helpTopics } from '../utils/helpTopics';
 import { formatError } from '../utils/errorHandler';
 import { setBranchTimeZone } from '../utils/branchTimeZone';
 import type { BranchDto, PurchaseDto, SupplierDto } from '../types';
@@ -174,6 +177,7 @@ export default function Dashboard() {
   const { message } = AntApp.useApp();
 
   const [selectedMenu, setSelectedMenu] = useState('welcome');
+  const helpTopic = helpTopics[selectedMenu];
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [branch, setBranch] = useState<BranchDto | null>(null);
@@ -427,6 +431,8 @@ export default function Dashboard() {
   }, [allowedMenuKeys, menuItems, selectedMenu]);
 
   const userMenu: MenuProps['items'] = [
+    ...(helpEnabled && helpTopic ? [{ key: 'help-topic', label: <a href={`/ayuda/${helpTopic}`} target="_blank" rel="noopener noreferrer">Ayuda de esta pantalla</a>, icon: <QuestionCircleOutlined /> }] : []),
+    ...(helpEnabled ? [{ key: 'help', label: 'Ayuda y manuales', icon: <QuestionCircleOutlined />, onClick: () => navigate('/ayuda/inicio') }] : []),
     {
       key: 'profile',
       label: 'Mi Perfil',
@@ -680,6 +686,7 @@ case 'pos-estaciones':
             </Space>
             )}
             <WalkieTalkie />
+            {helpEnabled && !isMobile && <Tooltip title={helpTopic ? 'Ayuda de esta pantalla' : 'Ayuda y manuales'}><Button type="text" icon={<QuestionCircleOutlined />} aria-label={helpTopic ? 'Ayuda de esta pantalla' : 'Ayuda y manuales'} href={`/ayuda/${helpTopic ?? 'inicio'}`} target="_blank" rel="noopener noreferrer" /></Tooltip>}
             <Dropdown menu={{ items: userMenu }} placement="bottomRight">
               <Space style={{ cursor: 'pointer' }}>
                 <Avatar icon={<UserOutlined />} />

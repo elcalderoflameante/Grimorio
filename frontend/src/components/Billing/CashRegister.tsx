@@ -4,7 +4,8 @@ import { App as AntApp, Card, Button, InputNumber, Form, Modal, Table, Tag, Spac
   Popconfirm, Switch } from 'antd';
 import { UnlockOutlined, LockOutlined, ReloadOutlined,
   ShoppingCartOutlined, CheckCircleOutlined, DollarOutlined,
-  BankOutlined, ClockCircleOutlined, SyncOutlined, FireOutlined } from '@ant-design/icons';
+  BankOutlined, ClockCircleOutlined, SyncOutlined, FireOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { helpEnabled } from '../../services/help';
 import type { CashRegisterDto, CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, ActiveOrderSummaryDto } from '../../types';
 import { cashApi, posApi } from '../../services/api';
 import dayjs from 'dayjs';
@@ -217,6 +218,7 @@ export default function CashRegister() {
           </Tooltip>
         </Space>
         <Space wrap>
+          {helpEnabled && <Button icon={<QuestionCircleOutlined />} href="/ayuda/caja-turno" target="_blank" rel="noopener noreferrer">Ayuda del módulo</Button>}
           <Button icon={<ReloadOutlined />} onClick={() => load(false)} loading={loading}>
             Actualizar
           </Button>

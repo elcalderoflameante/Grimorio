@@ -1,16 +1,17 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-COPY Grimorio.API/Grimorio.API.csproj Grimorio.API/
-COPY Grimorio.Application/Grimorio.Application.csproj Grimorio.Application/
-COPY Grimorio.Domain/Grimorio.Domain.csproj Grimorio.Domain/
-COPY Grimorio.Infrastructure/Grimorio.Infrastructure.csproj Grimorio.Infrastructure/
-COPY Grimorio.SharedKernel/Grimorio.SharedKernel.csproj Grimorio.SharedKernel/
+COPY backend/Grimorio.API/Grimorio.API.csproj backend/Grimorio.API/
+COPY backend/Grimorio.Application/Grimorio.Application.csproj backend/Grimorio.Application/
+COPY backend/Grimorio.Domain/Grimorio.Domain.csproj backend/Grimorio.Domain/
+COPY backend/Grimorio.Infrastructure/Grimorio.Infrastructure.csproj backend/Grimorio.Infrastructure/
+COPY backend/Grimorio.SharedKernel/Grimorio.SharedKernel.csproj backend/Grimorio.SharedKernel/
 
-RUN dotnet restore Grimorio.API/Grimorio.API.csproj
+RUN dotnet restore backend/Grimorio.API/Grimorio.API.csproj
 
-COPY . .
-WORKDIR /src/Grimorio.API
+COPY backend/ backend/
+COPY docs/manual/ docs/manual/
+WORKDIR /src/backend/Grimorio.API
 RUN dotnet publish Grimorio.API.csproj -c Release -o /app/publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final

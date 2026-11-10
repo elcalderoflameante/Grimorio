@@ -30,4 +30,10 @@
     <ProjectReference Include="..\Grimorio.SharedKernel\Grimorio.SharedKernel.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="../../docs/manual/catalog.json" LogicalName="Grimorio.Help.catalog.json" />
+    <EmbeddedResource Include="../../docs/manual/articles/*.md" LogicalName="Grimorio.Help.articles/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../../docs/manual/assets/*.png" LogicalName="Grimorio.Help.assets/%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

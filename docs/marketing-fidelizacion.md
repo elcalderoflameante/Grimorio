@@ -1,5 +1,9 @@
 # Marketing y fidelizacion: fase 1
 
+> Referencia técnica y de evolución, fuera del centro de ayuda. El procedimiento
+> operativo vigente se mantiene en [el manual central](manual/articles/fidelizacion-programa.md).
+> No usar esta referencia como un segundo manual ni como confirmación de despliegue.
+
 ## Configuracion inicial
 
 1. Aplicar la migracion de fidelizacion y reiniciar el backend para registrar los nuevos permisos.

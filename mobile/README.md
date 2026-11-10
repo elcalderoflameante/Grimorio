@@ -1,6 +1,8 @@
 ﻿# Modulo Mobile
 
-Espacio reservado para aplicaciones moviles de Grimorio.
+Aplicaciones Android internas de Grimorio. Los procedimientos de uso se
+mantienen en el manual central; los README de cada app conservan compilación,
+firma, publicación y verificaciones técnicas.
 
 ## Objetivo
 
@@ -8,14 +10,13 @@ Apps actuales: `waitstaff_app` (meseros), `station_app` (estaciones), `attendanc
 
 Permitir crecimiento por apps moviles sin mezclar codigo con backend o frontend web.
 
-## Estructura sugerida
+## Manuales operativos
 
-```text
-mobile/
-|-- android-waitstaff/
-|-- android-customer/
-`-- ios/
-```
+- [Meseros](../docs/manual/articles/apps-meseros.md).
+- [Estaciones](../docs/manual/articles/apps-estaciones.md).
+- [Asistencia](../docs/manual/articles/personal-asistencia.md).
+- [Inventario](../docs/manual/articles/inventario-instalar.md).
+- [Comunicación por walkie](../docs/manual/articles/comunicacion-walkie.md).
 
 ## Regla de documentacion
 

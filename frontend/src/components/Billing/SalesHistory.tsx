@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { App as AntApp, Table, Tag, Space, Typography, Button, DatePicker, Row, Col, Statistic, Descriptions, Select, Tooltip } from 'antd';
-import { BankOutlined, FileProtectOutlined, GiftOutlined, PrinterOutlined, ReloadOutlined, UserOutlined, SwapOutlined } from '@ant-design/icons';
+import { BankOutlined, FileProtectOutlined, GiftOutlined, PrinterOutlined, ReloadOutlined, UserOutlined, SwapOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { helpEnabled } from '../../services/help';
 import CorrectPaymentMethodModal from './CorrectPaymentMethodModal';
 import ConvertSaleNoteModal from './ConvertSaleNoteModal';
 import SaleTipModal from './SaleTipModal';
@@ -197,6 +198,7 @@ export default function SalesHistory() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
         <Title level={5} style={{ margin: 0, flexShrink: 0 }}>Ventas del restaurante</Title>
         <Space wrap style={{ maxWidth: '100%' }}>
+          {helpEnabled && <Button icon={<QuestionCircleOutlined />} href="/ayuda/ventas-consultar" target="_blank" rel="noopener noreferrer">Ayuda del módulo</Button>}
           <RangePicker
             value={dateRange}
             onChange={(v) => setDateRange(v ? [v[0], v[1]] : [null, null])}

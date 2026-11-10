@@ -1,5 +1,9 @@
 # Responsabilidades operativas
 
+> Referencia técnica y de evolución, fuera del centro de ayuda. El procedimiento
+> operativo vigente se mantiene en [el manual central](manual/articles/operaciones-responsabilidades.md).
+> No usar esta referencia como un segundo manual ni como confirmación de despliegue.
+
 ## Ubicacion y alcance
 
 - Web: **Operaciones > Responsabilidades**, separado de RRHH y POS para poder extenderlo a cocina, caja y otras areas.

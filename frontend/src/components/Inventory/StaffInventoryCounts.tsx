@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, App, Button, Card, DatePicker, Drawer, Form, Input, Modal, Select, Space, Switch, Table, Tabs, Tag, Typography } from 'antd';
-import { DownloadOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { DownloadOutlined, PlusOutlined, ReloadOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { helpEnabled } from '../../services/help';
 import dayjs from 'dayjs';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
@@ -52,7 +53,9 @@ export default function StaffInventoryCounts() {
   }, []);
   const edit = (area?: CountArea) => {
     const value = area ?? { id: '', name: '', isActive: true, userIds: [], rules: [] };
-    setEditing(value); form.setFieldsValue(value);
+    form.resetFields();
+    form.setFieldsValue(value);
+    setEditing(value);
   };
   const save = async () => {
     let value: CountArea;
@@ -102,7 +105,10 @@ export default function StaffInventoryCounts() {
   return <div>
     <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }}>
       <Typography.Title level={4} style={{ margin: 0 }}>Conteos del personal</Typography.Title>
-      <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void load()}>Actualizar</Button>
+      <Space wrap>
+        {helpEnabled && <Button icon={<QuestionCircleOutlined />} href={`/ayuda/${tab === 'config' ? 'inventario-configurar' : tab === 'download' ? 'inventario-instalar' : 'inventario-revisar'}`} target="_blank" rel="noopener noreferrer">Ayuda del módulo</Button>}
+        <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void load()}>Actualizar</Button>
+      </Space>
     </Space>
     <Alert type="info" showIcon title="Los conteos no modifican el inventario" description="El personal cuenta antes del cierre y administración revisa por la mañana. Cada saldo de comparación queda guardado al registrar la cantidad. Si se necesita un ajuste, se registra por separado en Movimientos con la autorización correspondiente." style={{ marginBottom: 16 }} />
     {error && <Alert type="error" showIcon title={error} style={{ marginBottom: 16 }} />}
@@ -136,8 +142,8 @@ export default function StaffInventoryCounts() {
         </Space>}
       </>}
     </Drawer>
-    <Modal open={!!editing} title={editing?.id ? 'Editar área de conteo' : 'Nueva área de conteo'} width={1000} onCancel={() => setEditing(undefined)} onOk={() => void save()} confirmLoading={saving} destroyOnHidden>
-      <Form form={form} layout="vertical" preserve={false}>
+    <Modal forceRender open={!!editing} title={editing?.id ? 'Editar área de conteo' : 'Nueva área de conteo'} width={1000} onCancel={() => setEditing(undefined)} onOk={() => void save()} confirmLoading={saving}>
+      <Form form={form} layout="vertical">
         <Form.Item name="name" label="Nombre" rules={[{ required: true, whitespace: true, max: 120 }]}><Input placeholder="Cocina, bar, mesas…" /></Form.Item>
         <Form.Item name="isActive" label="Área activa" valuePropName="checked"><Switch /></Form.Item>
         <Form.Item name="userIds" label="Personas autorizadas" rules={[{ required: true, type: 'array', min: 1 }]}><Select mode="multiple" showSearch optionFilterProp="label" options={catalog?.users.map(u => ({ value: u.id, label: u.name }))} /></Form.Item>
