@@ -2,6 +2,30 @@
 
 Kiosco Android para marcaciones del personal mediante deteccion facial, prueba de vida y reconocimiento SFace en el backend.
 
+## Actualizaciones y sonidos
+
+La app no consulta ni instala actualizaciones automaticamente. La distribucion
+actual es manual: actualizar el frontend del VPS, descargar la APK desde el ERP
+e instalar encima de la version anterior, sin desinstalar ni perder vinculacion.
+
+Los cambios de sonidos requieren generar e instalar una nueva APK:
+
+- Confirmacion breve solo despues de que la API confirme una marcacion, tambien
+  al recuperar una operacion pendiente. Reconocer el rostro o completar el
+  parpadeo no produce un sonido de registro exitoso.
+- Un tono diferente indica rechazo, error o una marcacion aun sin confirmar.
+  No se repite por cada cuadro sin rostro o fuera del ovalo.
+- El boton de altavoz permite probar el audio sin registrar asistencia. Usa el
+  volumen multimedia de Android; no modifica el volumen ni evita el silencio.
+- Un fallo del audio no impide registrar ni recuperar una marcacion. Los tonos
+  usan Android nativo, sin archivos descargados ni dependencias adicionales.
+
+La revision automatizada utiliza rostros simulados para comprobar las reglas de
+calidad; no mide la precision del reconocimiento en personas reales. Antes de
+publicar, probar cada empleado y una persona no enrolada, con buena y poca luz,
+entrada/descanso/regreso/salida, desconexion y reintento. Un video reproducido
+puede superar una prueba de parpadeo basica; no equivale a anti-suplantacion fuerte.
+
 ## Actualizacion 1.0.5: telefono en horizontal
 
 - Activar la rotacion automatica de Android. La app admite horizontal hacia

@@ -53,6 +53,10 @@ void main() {
             ),
             actions: [
               const EcuadorClock(),
+              IconButton(
+                onPressed: () {},
+                icon: const Icon(Icons.volume_up_outlined),
+              ),
               IconButton(onPressed: () {}, icon: const Icon(Icons.link_off)),
             ],
           ),

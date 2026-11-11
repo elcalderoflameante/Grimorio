@@ -15,6 +15,18 @@ async Task Reject(Func<Task> action, string label)
     try { await action(); } catch (InvalidOperationException) { count++; return; }
     throw new Exception("Expected rejection: " + label);
 }
+Check(Math.Abs(SFaceBiometricService.CosineSimilarity([1, 0], [1, 0]) - 1) < 1e-6,
+    "Same embedding has similarity one");
+Check(SFaceBiometricService.CosineSimilarity([1, 0], [0, 1]) == 0,
+    "Orthogonal embeddings do not match");
+Check(SFaceBiometricService.CosineSimilarity([1, 0], [-1, 0]) == -1,
+    "Opposite embeddings do not match");
+foreach (var invalid in new float[][] { [], [1], [0, 0], [float.NaN, 0], [float.PositiveInfinity, 0] })
+{
+    try { SFaceBiometricService.CosineSimilarity(invalid, [1, 0]); }
+    catch (ArgumentException) { count++; continue; }
+    throw new Exception("Invalid biometric embedding must fail closed");
+}
 await using var db = ChecksDbContextFactory.Create();
 await db.Database.MigrateAsync();
 var branch = new Branch { Name = "Attendance checks", Code = Guid.NewGuid().ToString("N")[..8] };
@@ -91,12 +103,12 @@ var journeyEmployee = new Employee { BranchId = branch.Id, PositionId = position
 var device = new AttendanceKioskDevice { BranchId = branch.Id, Name = "Test kiosk", DeviceIdentifier = Guid.NewGuid().ToString(),
     Status = KioskDeviceStatus.Active, ApiKeyHash = "test-only" };
 db.AddRange(journeyEmployee, device); await db.SaveChangesAsync();
-async Task<AttendanceStatusDto> Mark(KioskAttendanceCommand command) {
+async Task<AttendanceStatusDto> Mark(KioskAttendanceCommand command, Guid? employeeId = null) {
     await using var context = ChecksDbContextFactory.Create();
-    command.EmployeeId = journeyEmployee.Id; command.KioskDeviceId = device.Id;
-    var ticket = tickets.Issue(device.Id, journeyEmployee.Id);
+    command.EmployeeId = employeeId ?? journeyEmployee.Id; command.KioskDeviceId = device.Id;
+    var ticket = tickets.Issue(device.Id, command.EmployeeId);
     return await new AttendanceOperationExecutor(context, tickets).ExecuteAsync(Guid.NewGuid(), branch.Id,
-        device.Id, journeyEmployee.Id, command.GetType().Name, ticket, null, ct => command switch {
+        device.Id, command.EmployeeId, command.GetType().Name, ticket, null, ct => command switch {
             ClockInCommand c => Handler(context).Handle(c, ct),
             StartBreakCommand c => Handler(context).Handle(c, ct),
             EndBreakCommand c => Handler(context).Handle(c, ct),
@@ -110,4 +122,16 @@ var closed = await Mark(new ClockOutCommand());
 Check(closed.Status == AttendanceStatus.Completed && closed.BreakEndedAtUtc == closed.ClockOutTimeUtc,
     "Exit closes active break in same transaction");
 await Reject(() => Mark(new ClockInCommand()), "One shift per day also applies to biometric entry");
+var returningEmployee = new Employee { BranchId = branch.Id, PositionId = position.Id, FirstName = "Return", LastName = "Checks",
+    Email = Guid.NewGuid() + "@example.invalid", IdentificationNumber = Guid.NewGuid().ToString("N")[..10] };
+db.Add(returningEmployee); await db.SaveChangesAsync();
+await Mark(new ClockInCommand(), returningEmployee.Id);
+await Mark(new StartBreakCommand(), returningEmployee.Id);
+var returned = await Mark(new EndBreakCommand(), returningEmployee.Id);
+Check(returned.Status == AttendanceStatus.Working && returned.BreakEndedAtUtc is not null,
+    "Return from break restores working status");
+await Reject(() => Mark(new EndBreakCommand(), returningEmployee.Id), "Duplicate return is rejected");
+await Reject(() => Mark(new StartBreakCommand(), returningEmployee.Id), "Used break cannot be restarted after return");
+Check((await Mark(new ClockOutCommand(), returningEmployee.Id)).Status == AttendanceStatus.Completed,
+    "Exit after returning from break completes the shift");
 Console.WriteLine($"{count} isolated PostgreSQL attendance checks passed.");

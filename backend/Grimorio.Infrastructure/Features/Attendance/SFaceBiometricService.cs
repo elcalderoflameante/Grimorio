@@ -106,12 +106,16 @@ public sealed class SFaceBiometricService : IDisposable
         double normSecond = 0;
         for (var index = 0; index < first.Length; index++)
         {
-            dot += first[index] * second[index];
-            normFirst += first[index] * first[index];
-            normSecond += second[index] * second[index];
+            if (!float.IsFinite(first[index]) || !float.IsFinite(second[index]))
+                throw new ArgumentException("Los vectores biométricos deben contener valores finitos.");
+            dot += (double)first[index] * second[index];
+            normFirst += (double)first[index] * first[index];
+            normSecond += (double)second[index] * second[index];
         }
 
-        return dot / (Math.Sqrt(normFirst) * Math.Sqrt(normSecond));
+        if (normFirst <= double.Epsilon || normSecond <= double.Epsilon)
+            throw new ArgumentException("Los vectores biométricos no pueden estar vacíos.");
+        return Math.Clamp(dot / (Math.Sqrt(normFirst) * Math.Sqrt(normSecond)), -1, 1);
     }
 
     private void EnsureModelsLoaded()

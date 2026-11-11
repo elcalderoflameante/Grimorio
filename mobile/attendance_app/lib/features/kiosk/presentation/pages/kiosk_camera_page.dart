@@ -4,6 +4,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
+import '../../../../core/feedback/attendance_feedback.dart';
 import '../../../biometrics/data/face_detection_service.dart';
 import '../../../biometrics/domain/active_liveness_challenge.dart';
 import '../../../biometrics/domain/face_detection_result.dart';
@@ -28,6 +29,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
     with WidgetsBindingObserver {
   final _faceDetection = FaceDetectionService();
   final _attendanceApi = AttendanceApi();
+  final _feedback = AttendanceFeedback();
   ActiveLivenessChallenge _liveness = ActiveLivenessChallenge();
   CameraController? _camera;
   Timer? _scanTimer;
@@ -169,6 +171,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
     }
     _lastFrameAt = DateTime.now();
     XFile? capture;
+    var resumeAfterCaptureFailure = false;
     try {
       final FaceDetectionResult result;
       if (frame != null) {
@@ -242,7 +245,13 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       }
     } catch (error, stackTrace) {
       debugPrint('Error durante detección facial: $error\n$stackTrace');
-      if (mounted) {
+      if (mounted && _active && camera == _camera) {
+        _liveness.reset();
+        // A failed still capture after the blink must not leave scanning
+        // permanently stopped while the UI says it is retrying.
+        resumeAfterCaptureFailure =
+            !camera.value.isStreamingImages && !(_scanTimer?.isActive ?? false);
+        if (resumeAfterCaptureFailure) unawaited(_feedback.error());
         setState(() {
           _statusColor = Colors.redAccent;
           _message = 'No se pudo analizar la imagen. Reintentando...';
@@ -255,6 +264,9 @@ class _KioskCameraPageState extends State<KioskCameraPage>
         } catch (_) {}
       }
       _processing = false;
+      if (resumeAfterCaptureFailure && camera == _camera) {
+        await _startCooldown();
+      }
     }
   }
 
@@ -291,9 +303,11 @@ class _KioskCameraPageState extends State<KioskCameraPage>
           _statusColor = Colors.orange;
           _message = '${employee.name}, tu jornada ya fue finalizada';
         });
+        unawaited(_feedback.error());
       }
     } on DioException catch (error) {
-      if (!mounted) return;
+      if (!mounted || !_active || session != _session) return;
+      unawaited(_feedback.error());
       if (error.response?.statusCode == 401) {
         await widget.onUnlink();
         return;
@@ -308,7 +322,8 @@ class _KioskCameraPageState extends State<KioskCameraPage>
             : serverMessage ?? 'No se pudo identificar el rostro';
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || !_active || session != _session) return;
+      unawaited(_feedback.error());
       setState(() {
         _statusColor = Colors.redAccent;
         _unconfirmedMark = _attendanceApi.hasUnconfirmedMark;
@@ -327,15 +342,17 @@ class _KioskCameraPageState extends State<KioskCameraPage>
     String action,
     String successMessage,
   ) async {
+    final session = _session;
     setState(() => _marking = true);
     try {
       await _attendanceApi.mark(employee.id, action, employee.recognitionToken);
-      if (!mounted) return;
+      if (!mounted || !_active || session != _session) return;
       setState(() {
         _pendingEmployee = null;
         _statusColor = const Color(0xFF52C41A);
         _message = '${employee.name}: $successMessage';
       });
+      unawaited(_feedback.confirmed());
     } finally {
       if (mounted) setState(() => _marking = false);
     }
@@ -355,6 +372,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       final current = await _attendanceApi.identify(confirmation.path);
       if (!mounted || !_active || session != _session) return;
       if (current.id != employee.id) {
+        unawaited(_feedback.error());
         setState(() {
           _statusColor = Colors.orange;
           _message = 'La persona cambió. Identifícate nuevamente.';
@@ -363,7 +381,8 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       }
       await _performMark(current, action, successMessage);
     } on DioException catch (error) {
-      if (!mounted) return;
+      if (!mounted || !_active || session != _session) return;
+      unawaited(_feedback.error());
       if (error.response?.statusCode == 401) {
         await widget.onUnlink();
         return;
@@ -379,8 +398,10 @@ class _KioskCameraPageState extends State<KioskCameraPage>
             : 'No se pudo registrar la marcación';
       });
     } catch (_) {
-      if (mounted) {
+      if (mounted && _active && session == _session) {
+        unawaited(_feedback.error());
         setState(() {
+          _statusColor = Colors.redAccent;
           _unconfirmedMark = _attendanceApi.hasUnconfirmedMark;
           _message = _unconfirmedMark
               ? 'Marcación pendiente de confirmación. Pulsa Reintentar conexión.'
@@ -396,7 +417,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       if (mounted) {
         setState(() {
           _marking = false;
-          _pendingEmployee = null;
+          if (session == _session) _pendingEmployee = null;
         });
       }
       if (session == _session) await _startCooldown();
@@ -429,10 +450,11 @@ class _KioskCameraPageState extends State<KioskCameraPage>
 
   Future<void> _recoverPendingMark() async {
     if (_recoveringMark) return;
+    final session = _session;
     setState(() => _recoveringMark = true);
     try {
       final result = await _attendanceApi.recoverPendingMark();
-      if (!mounted) return;
+      if (!mounted || !_active || session != _session) return;
       setState(() {
         _unconfirmedMark = false;
         if (result != null) {
@@ -440,9 +462,13 @@ class _KioskCameraPageState extends State<KioskCameraPage>
           _message = '${result.employeeName}: marcación confirmada';
         }
       });
-      if (result != null) await _startCooldown();
+      if (result != null) {
+        unawaited(_feedback.confirmed());
+        await _startCooldown();
+      }
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || !_active || session != _session) return;
+      unawaited(_feedback.error());
       setState(() {
         _unconfirmedMark = _attendanceApi.hasUnconfirmedMark;
         _statusColor = Colors.orange;
@@ -513,6 +539,20 @@ class _KioskCameraPageState extends State<KioskCameraPage>
         automaticallyImplyLeading: false,
         actions: [
           const EcuadorClock(),
+          IconButton(
+            tooltip: 'Probar sonido (volumen multimedia)',
+            icon: const Icon(Icons.volume_up_outlined),
+            onPressed: () async {
+              await _feedback.testSound();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Si no se oye, sube el volumen multimedia.'),
+                  ),
+                );
+              }
+            },
+          ),
           IconButton(
             tooltip: 'Desvincular kiosco',
             icon: const Icon(Icons.link_off),

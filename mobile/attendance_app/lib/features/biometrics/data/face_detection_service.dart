@@ -106,13 +106,20 @@ class FaceDetectionService {
 
   Future<({double width, double height})> _readImageSize(String path) async {
     // Camera pictures are JPEGs: read the header, not every decoded pixel.
-    final decoded = img.JpegDecoder().startDecode(
-      await File(path).readAsBytes(),
-    );
+    final bytes = await File(path).readAsBytes();
+    final decoded = img.JpegDecoder().startDecode(bytes);
     if (decoded == null) {
       throw StateError('No se pudo decodificar la fotografía.');
     }
-    return (width: decoded.width.toDouble(), height: decoded.height.toDouble());
+    // ML Kit applies JPEG EXIF orientation. Match its upright coordinates,
+    // including the file-scanning fallback on devices without NV21 streaming.
+    final orientation = img.decodeJpgExif(bytes)?.imageIfd.orientation;
+    final sideways =
+        orientation != null && orientation >= 5 && orientation <= 8;
+    return (
+      width: (sideways ? decoded.height : decoded.width).toDouble(),
+      height: (sideways ? decoded.width : decoded.height).toDouble(),
+    );
   }
 
   Future<void> close() => _detector.close();
