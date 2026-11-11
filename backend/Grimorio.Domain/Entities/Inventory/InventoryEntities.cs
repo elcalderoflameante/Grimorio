@@ -76,6 +76,7 @@ public class InventoryArticle : BaseEntity
     public Guid BaseUnitId { get; set; }
     public decimal MinStock { get; set; } = 0;
     public bool StockAlertActive { get; set; } = true;
+    public bool AllowNegativeStock { get; set; }
     public bool IsActive { get; set; } = true;
 
     public virtual InventoryCategory? Category { get; set; }

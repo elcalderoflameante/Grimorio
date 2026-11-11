@@ -102,11 +102,12 @@ export default function ArticlesList() {
         baseUnitId: a.baseUnitId,
         minStock: a.minStock,
         stockAlertActive: a.stockAlertActive,
+        allowNegativeStock: a.allowNegativeStock ?? false,
         isActive: a.isActive,
       });
     } else {
       form.resetFields();
-      form.setFieldsValue({ stockAlertActive: true, isActive: true, type: 'Ingredient', minStock: 0 });
+      form.setFieldsValue({ stockAlertActive: true, allowNegativeStock: false, isActive: true, type: 'Ingredient', minStock: 0 });
     }
     // Siempre recarga catálogos al abrir el modal para evitar datos stale
     try { await loadCatalogos(); } catch { /* silencioso */ }
@@ -229,6 +230,7 @@ export default function ArticlesList() {
                 {a.lowStock && <WarningOutlined style={{ color: '#faad14' }} />}
                 {a.name}
                 {!a.isActive && <Tag>Inactivo</Tag>}
+                {a.allowNegativeStock && <Tag color="gold">Negativos permitidos</Tag>}
               </Space>
             ),
           },
@@ -328,6 +330,10 @@ export default function ArticlesList() {
               </Col>
             )}
           </Row>
+          <Form.Item name="allowNegativeStock" label="Permitir stock negativo" valuePropName="checked"
+            tooltip="Permite reservar y descontar este articulo aunque el saldo sea insuficiente. El consumo sigue registrado y las alertas permanecen activas. No habilita platos ni articulos desactivados.">
+            <Switch />
+          </Form.Item>
         </Form>
       </Modal>
     </div>

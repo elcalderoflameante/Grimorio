@@ -170,6 +170,7 @@ public class InventoryController : ControllerBase
             BranchId = branchId, Name = dto.Name, Description = dto.Description,
             InternalCode = dto.InternalCode, Type = articleType, CategoryId = dto.CategoryId,
             BaseUnitId = dto.BaseUnitId, MinStock = dto.MinStock, StockAlertActive = dto.StockAlertActive,
+            AllowNegativeStock = dto.AllowNegativeStock,
         });
         return Ok(result);
     }
@@ -187,6 +188,7 @@ public class InventoryController : ControllerBase
             InternalCode = dto.InternalCode, Type = articleType, CategoryId = dto.CategoryId,
             BaseUnitId = dto.BaseUnitId, MinStock = dto.MinStock,
             StockAlertActive = dto.StockAlertActive, IsActive = dto.IsActive,
+            AllowNegativeStock = dto.AllowNegativeStock,
         });
         return Ok(result);
     }

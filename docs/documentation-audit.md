@@ -10,6 +10,7 @@ pendientes ni se publican por figurar en este índice.
 | `technical/manual-coverage.md` | Técnico | Fuentes revisadas, controles de cobertura y aceptación por módulo, privados. |
 | `staff-inventory-counts.md` | Transición | Enlaces al manual y referencia técnica; sin copia del procedimiento. |
 | `technical/inventory-counts.md` | Técnico | Contratos, publicación Android y pruebas, privados. |
+| `technical/inventory-negative-stock.md` | Técnico | Política por artículo, migración y pruebas de consumos aproximados; procedimiento en `inventario-catalogos`. Privado. |
 | `technical/help-center.md` | Técnico | Arquitectura, seguridad y entrega del piloto, privados. |
 | `permission-matrix.md` | Técnico | Matriz transversal. Pendiente de revisión completa; no publicar. |
 | `production-access.md` | Técnico | Accesos y seguridad de producción. Privado. |

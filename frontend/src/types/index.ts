@@ -932,6 +932,7 @@ export interface InventoryArticleDto {
   minStock: number;
   totalStock: number;
   stockAlertActive: boolean;
+  allowNegativeStock?: boolean;
   lowStock: boolean;
   isActive: boolean;
 }
@@ -952,6 +953,7 @@ export interface CreateInventoryArticleDto {
   baseUnitId: string;
   minStock: number;
   stockAlertActive: boolean;
+  allowNegativeStock?: boolean;
 }
 
 export interface UpdateInventoryArticleDto extends CreateInventoryArticleDto {
@@ -1214,6 +1216,7 @@ export interface MenuItemAvailabilityComponentDto {
   stockQuantity: number;
   stockUnitSymbol: string;
   availableServings: number;
+  allowNegativeStock?: boolean;
 }
 
 export interface MenuItemAvailabilityDto {

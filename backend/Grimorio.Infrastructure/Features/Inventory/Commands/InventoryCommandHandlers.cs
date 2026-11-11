@@ -184,6 +184,7 @@ public class CreateInventoryArticleHandler : IRequestHandler<CreateInventoryArti
             InternalCode = string.IsNullOrWhiteSpace(req.InternalCode) ? null : req.InternalCode.Trim(),
             Type = req.Type, CategoryId = req.CategoryId, BaseUnitId = req.BaseUnitId,
             MinStock = req.MinStock, StockAlertActive = req.StockAlertActive, IsActive = true,
+            AllowNegativeStock = req.AllowNegativeStock,
         };
         _db.InventoryArticles.Add(entity);
         await _db.SaveChangesAsync(ct);
@@ -219,6 +220,7 @@ public class UpdateInventoryArticleHandler : IRequestHandler<UpdateInventoryArti
         entity.BaseUnitId = req.BaseUnitId;
         entity.MinStock = req.MinStock;
         entity.StockAlertActive = req.StockAlertActive;
+        if (req.AllowNegativeStock.HasValue) entity.AllowNegativeStock = req.AllowNegativeStock.Value;
         entity.IsActive = req.IsActive;
         await _db.SaveChangesAsync(ct);
 

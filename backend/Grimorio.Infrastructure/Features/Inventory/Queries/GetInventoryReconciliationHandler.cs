@@ -20,7 +20,7 @@ public class GetInventoryReconciliationHandler(GrimorioDbContext db)
         var result = new InventoryReconciliationDto { CheckedAt = DateTime.UtcNow };
         var articles = await db.InventoryArticles.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.BranchId == req.BranchId)
-            .Select(x => new { x.Id, x.Name, x.BaseUnitId }).ToDictionaryAsync(x => x.Id, ct);
+            .Select(x => new { x.Id, x.Name, x.BaseUnitId, x.AllowNegativeStock }).ToDictionaryAsync(x => x.Id, ct);
         var warehouses = await db.Warehouses.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.BranchId == req.BranchId).ToDictionaryAsync(x => x.Id, x => x.Name, ct);
         var units = await db.MeasurementUnits.IgnoreQueryFilters().AsNoTracking()
@@ -73,7 +73,7 @@ public class GetInventoryReconciliationHandler(GrimorioDbContext db)
                 Add("BalanceMismatch", "Confirmed", "El saldo interno difiere de la suma de movimientos.", key.ArticleId, key.WarehouseId, balance, stored);
             if (balance < 0)
                 Add("NegativeStock", "Review", "Saldo negativo; revisar salidas y entradas pendientes.", key.ArticleId, key.WarehouseId, 0, balance);
-            if (reserved > Math.Max(0, balance))
+            if (reserved > Math.Max(0, balance) && articles.GetValueOrDefault(key.ArticleId)?.AllowNegativeStock != true)
                 Add("OverReserved", "Review", "Las reservas activas superan el stock disponible en movimientos.", key.ArticleId, key.WarehouseId, Math.Max(0, balance), reserved);
         }
 

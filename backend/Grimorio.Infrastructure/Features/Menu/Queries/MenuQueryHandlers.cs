@@ -4,6 +4,7 @@ using Grimorio.Domain.Entities.Inventory;
 using Grimorio.Domain.Entities.Menu;
 using Grimorio.Domain.Entities.Purchases;
 using Grimorio.Infrastructure.Features.Menu.Commands;
+using Grimorio.Infrastructure.Features.Inventory;
 using Grimorio.Infrastructure.Features.Purchases;
 using Grimorio.Infrastructure.Persistence;
 using Grimorio.Infrastructure.Services;
@@ -241,27 +242,8 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
         var articles = await _db.InventoryArticles.AsNoTracking()
             .Where(a => a.BranchId == branchId && !a.IsDeleted && a.IsActive && articleIds.Contains(a.Id))
             .ToDictionaryAsync(a => a.Id, ct);
-        var stockByArticle = await _db.WarehouseStock
-            .AsNoTracking()
-            .Where(x => x.BranchId == branchId && !x.IsDeleted && articleIds.Contains(x.ArticleId))
-            .GroupBy(x => x.ArticleId)
-            .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.Quantity) })
-            .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, ct);
-
-        var reservedByArticle = await _db.StockReservations
-            .AsNoTracking()
-            .Where(x => x.BranchId == branchId
-                && !x.IsDeleted
-                && articleIds.Contains(x.ArticleId)
-                && x.Status == Grimorio.Domain.Entities.Inventory.StockReservationStatus.Active)
-            .GroupBy(x => x.ArticleId)
-            .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.BaseQuantity) })
-            .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, ct);
-
-        foreach (var (articleId, reservedQuantity) in reservedByArticle)
-        {
-            stockByArticle[articleId] = Math.Max(0, stockByArticle.GetValueOrDefault(articleId) - reservedQuantity);
-        }
+        var stock = await InventoryAvailability.LoadAsync(_db, branchId, articleIds, ct);
+        var stockByArticle = stock.Quantities;
 
         var conversions = await _db.UnitConversions
             .AsNoTracking()
@@ -277,10 +259,13 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
                 if (!articles.TryGetValue(group.Key, out var article)) return 0m;
                 var quantities = group.Select(i => ConvertQuantity(i.Quantity, i.UnitId, article.BaseUnitId, conversions)).ToList();
                 var requiredBase = quantities.Sum();
-                return quantities.Any(q => q <= 0) ? 0m : Math.Floor(Math.Max(0, stockByArticle.GetValueOrDefault(group.Key)) / requiredBase);
+                if (quantities.Any(q => q <= 0)) return (decimal?)0m;
+                if (stock.NegativeStockAllowed.Contains(group.Key)) return null;
+                return Math.Floor(Math.Max(0, stockByArticle.GetValueOrDefault(group.Key)) / requiredBase);
             });
-            var availableQuantity = capacities.Min();
-            result[option.Id] = new ModifierOptionAvailabilityInfo(true, availableQuantity > 0, availableQuantity);
+            var limits = capacities.Where(c => c.HasValue).Select(c => c!.Value).ToList();
+            decimal? availableQuantity = limits.Count == 0 ? null : limits.Min();
+            result[option.Id] = new ModifierOptionAvailabilityInfo(availableQuantity.HasValue, availableQuantity is null or > 0, availableQuantity);
         }
 
         return result;
@@ -309,7 +294,7 @@ public class GetItemMenuDetalleHandler : IRequestHandler<GetMenuItemDetailQuery,
     private sealed record ModifierOptionAvailabilityInfo(
         bool IsTracked,
         bool IsAvailable,
-        decimal AvailableQuantity);
+        decimal? AvailableQuantity);
 
     private static decimal ConvertQuantity(
         decimal quantity,
@@ -487,40 +472,19 @@ public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQue
             .Distinct()
             .ToList();
 
-        var stockByArticle = articleIds.Count == 0
-            ? new Dictionary<Guid, decimal>()
-            : await _db.WarehouseStock
-                .AsNoTracking()
-                .Where(x => x.BranchId == req.BranchId && !x.IsDeleted && articleIds.Contains(x.ArticleId))
-                .GroupBy(x => x.ArticleId)
-                .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.Quantity) })
-                .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, ct);
+        var stock = await InventoryAvailability.LoadAsync(_db, req.BranchId, articleIds, ct);
 
-        var reservedByArticle = articleIds.Count == 0
-            ? new Dictionary<Guid, decimal>()
-            : await _db.StockReservations
-                .AsNoTracking()
-                .Where(x => x.BranchId == req.BranchId
-                    && !x.IsDeleted
-                    && articleIds.Contains(x.ArticleId)
-                    && x.Status == Grimorio.Domain.Entities.Inventory.StockReservationStatus.Active)
-                .GroupBy(x => x.ArticleId)
-                .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.BaseQuantity) })
-                .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, ct);
-
-        foreach (var (articleId, reservedQuantity) in reservedByArticle)
-        {
-            stockByArticle[articleId] = Math.Max(0, stockByArticle.GetValueOrDefault(articleId) - reservedQuantity);
-        }
-
-        return items.Select(item => BuildAvailability(item, stockByArticle, conversions)).ToList();
+        return items.Select(item => BuildAvailability(item, stock, conversions)).ToList();
     }
 
     private static MenuItemAvailabilityDto BuildAvailability(
         MenuItem item,
-        IReadOnlyDictionary<Guid, decimal> stockByArticle,
+        InventoryAvailabilitySnapshot availability,
         IReadOnlyCollection<global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo> conversions)
     {
+        if (!item.IsActive || !item.AvailableForSale || item.IsDeleted)
+            return new MenuItemAvailabilityDto { MenuItemId = item.Id, IsTracked = true, IsAvailable = false,
+                AvailableQuantity = 0, LimitingArticleName = "Plato no disponible" };
         if (item.IsCombo && (item.ComboComponents.Count == 0 || item.ComboComponents.Any(c => c.ComponentItem is null
             || !c.ComponentItem.IsActive || !c.ComponentItem.AvailableForSale || c.ComponentItem.Station is null || !c.ComponentItem.Station.IsActive
             )))
@@ -552,8 +516,10 @@ public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQue
         foreach (var ingredient in requirements)
         {
             var requiredBase = ingredient.BaseQuantity;
-            var stock = stockByArticle.TryGetValue(ingredient.ArticleId, out var quantity) ? quantity : 0m;
-            var servings = requiredBase > 0 ? stock / requiredBase : 0m;
+            var stock = availability.Quantities.GetValueOrDefault(ingredient.ArticleId);
+            var valid = requiredBase > 0 && !availability.UnavailableArticles.Contains(ingredient.ArticleId);
+            var allowNegative = valid && availability.NegativeStockAllowed.Contains(ingredient.ArticleId);
+            var servings = valid ? Math.Max(0, stock) / requiredBase : 0m;
 
             dto.Components.Add(new MenuItemAvailabilityComponentDto
             {
@@ -565,11 +531,20 @@ public class GetMenuAvailabilityHandler : IRequestHandler<GetMenuAvailabilityQue
                 StockQuantity = Math.Round(stock, 4),
                 StockUnitSymbol = ingredient.BaseUnitSymbol,
                 AvailableServings = Math.Floor(servings),
+                AllowNegativeStock = allowNegative,
             });
-            capacities.Add((servings, ingredient.ArticleName));
+            if (!allowNegative) capacities.Add((servings, ingredient.ArticleName));
         }
 
-        var limiting = capacities.OrderBy(x => x.Quantity).FirstOrDefault();
+        if (capacities.Count == 0)
+        {
+            // No finite stock limit; recipe consumption and reservations still apply.
+            dto.IsTracked = false;
+            dto.IsAvailable = true;
+            dto.AvailableQuantity = null;
+            return dto;
+        }
+        var limiting = capacities.OrderBy(x => x.Quantity).First();
         dto.AvailableQuantity = Math.Floor(limiting.Quantity);
         dto.IsAvailable = dto.AvailableQuantity > 0;
         dto.LimitingArticleName = dto.IsAvailable ? null : limiting.LimitingArticleName;

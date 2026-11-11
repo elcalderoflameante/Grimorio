@@ -44,7 +44,7 @@ const PROMOTIONS_CATEGORY_ID = '__promotions__';
 
 const getMissingIngredientNames = (availability?: MenuItemAvailabilityDto) => {
   const names = availability?.components
-    .filter(component => component.availableServings < 1)
+    .filter(component => !component.allowNegativeStock && component.availableServings < 1)
     .map(component => component.articleName) ?? [];
 
   if (names.length > 0) return [...new Set(names)];
@@ -52,7 +52,7 @@ const getMissingIngredientNames = (availability?: MenuItemAvailabilityDto) => {
 };
 
 const formatStock = (quantity?: number | null) => {
-  if (quantity === null || quantity === undefined) return 'Stock sin control';
+  if (quantity === null || quantity === undefined) return 'Sin limite por stock';
   return `Disponible: ${Math.max(0, Math.floor(quantity))}`;
 };
 

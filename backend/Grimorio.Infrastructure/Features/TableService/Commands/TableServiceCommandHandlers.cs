@@ -301,7 +301,8 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
                 .ToList(),
             cancellationToken);
 
-        var remainingStock = new Dictionary<Guid, decimal>(stockByArticle);
+        var remainingStock = new Dictionary<Guid, decimal>(stockByArticle.Quantities);
+        var remainingAvailability = stockByArticle with { Quantities = remainingStock };
         var number = await _context.Orders
             .Where(o => o.BranchId == table.BranchId)
             .MaxAsync(o => (int?)o.Number, cancellationToken) ?? 0;
@@ -331,14 +332,14 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
             if (menuItem.Category is null || !menuItem.Category.IsActive || menuItem.Category.IsDeleted)
                 throw new InvalidOperationException($"{menuItem.Name} ya no está disponible.");
 
-            if (!PublicMenuAvailability.IsMenuItemAvailable(menuItem, remainingStock, conversions, itemDto.Quantity))
+            if (!PublicMenuAvailability.IsMenuItemAvailable(menuItem, remainingAvailability, conversions, itemDto.Quantity))
                 throw new InvalidOperationException($"{menuItem.Name} ya no está disponible en este momento.");
 
             foreach (var ingredient in MenuRecipeExpansion.ExpandSelected(menuItem, itemDto, itemDto.Quantity, conversions))
             {
-                if (ingredient.BaseQuantity <= 0 || remainingStock.GetValueOrDefault(ingredient.ArticleId) < ingredient.BaseQuantity)
+                if (!remainingAvailability.CanFulfill(ingredient.ArticleId, ingredient.BaseQuantity))
                     throw new InvalidOperationException($"{menuItem.Name} ya no está disponible en este momento.");
-                remainingStock[ingredient.ArticleId] -= ingredient.BaseQuantity;
+                remainingStock[ingredient.ArticleId] = remainingStock.GetValueOrDefault(ingredient.ArticleId) - ingredient.BaseQuantity;
             }
 
             var modifierSelections = PosMapper.BuildModifierSelections(table.BranchId, itemDto, menuItem);
@@ -357,7 +358,7 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
                 };
                 if (effectiveOption is null || !PublicMenuAvailability.IsModifierOptionAvailable(
                     effectiveOption,
-                    remainingStock,
+                    remainingAvailability,
                     conversions,
                     selection.Quantity * itemDto.Quantity))
                 {
@@ -372,7 +373,7 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
                         ingredient.UnitId,
                         article.BaseUnitId,
                         conversions);
-                    remainingStock[ingredient.ArticleId] -= required;
+                    remainingStock[ingredient.ArticleId] = remainingStock.GetValueOrDefault(ingredient.ArticleId) - required;
                 }
             }
 

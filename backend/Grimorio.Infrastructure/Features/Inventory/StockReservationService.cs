@@ -29,6 +29,8 @@ internal static class StockReservationService
 
         var menuItemIds = items.Select(i => i.MenuItemId).Distinct().ToList();
         var menuItems = await MenuRecipeExpansion.LoadMenuItemsWithRecipeAsync(db, branchId, menuItemIds, ct);
+        if (menuItems.Count != menuItemIds.Count || menuItems.Any(m => !m.IsActive || !m.AvailableForSale))
+            throw new InvalidOperationException("Uno de los platos ya no esta disponible. Revisa el pedido antes de enviarlo a preparar.");
         var menuItemsById = menuItems.ToDictionary(x => x.Id);
 
         var conversions = await db.UnitConversions
@@ -49,10 +51,15 @@ internal static class StockReservationService
             .Concat(modifierArticleIds)
             .Distinct()
             .ToList();
-        var articlesById = await db.InventoryArticles
-            .AsNoTracking()
-            .Where(a => a.BranchId == branchId && articleIdsForRequirements.Contains(a.Id) && !a.IsDeleted)
-            .ToDictionaryAsync(a => a.Id, ct);
+        if (db.Database.CurrentTransaction is null)
+            throw new InvalidOperationException("La reserva de inventario debe ejecutarse dentro de una transaccion.");
+        // Serialize even when an article has no warehouse row yet, and read its current policy.
+        var requirementIds = articleIdsForRequirements.Order().ToArray();
+        var articlesById = await db.InventoryArticles.FromSqlInterpolated($"""
+            SELECT * FROM inv."InventoryArticles"
+            WHERE "BranchId" = {branchId} AND "Id" = ANY({requirementIds}) AND NOT "IsDeleted"
+            ORDER BY "Id" FOR NO KEY UPDATE
+            """).AsNoTracking().ToDictionaryAsync(a => a.Id, ct);
 
         var requirements = BuildRequirements(items, menuItemsById, articlesById, conversions)
             .GroupBy(r => new { r.OrderItemId, r.ArticleId, r.BaseUnitId, r.ArticleName })
@@ -100,28 +107,56 @@ internal static class StockReservationService
             x => (x.ArticleId, x.WarehouseId),
             x => x.Quantity);
 
+        var activeWarehouses = articlesById.Values.Any(a => a.AllowNegativeStock)
+            ? await db.Warehouses.AsNoTracking().Where(w => w.BranchId == branchId && w.IsActive)
+                .OrderBy(w => w.CreatedAt).ThenBy(w => w.Id).Select(w => w.Id).ToListAsync(ct)
+            : [];
+
         foreach (var requirement in requirements)
         {
+            if (requirement.BaseQuantity <= 0)
+                throw new InvalidOperationException($"Revisa la cantidad y unidad de {requirement.ArticleName} en la receta.");
+            var allowNegative = articlesById[requirement.ArticleId].AllowNegativeStock;
             var availableStocks = stockRows
                 .Where(s => s.ArticleId == requirement.ArticleId)
+                .Where(s => !allowNegative || activeWarehouses.Contains(s.WarehouseId))
                 .Select(s => new AvailableStock(
                     s.ArticleId,
                     s.WarehouseId,
                     s.Quantity - reservedByArticleWarehouse.GetValueOrDefault((s.ArticleId, s.WarehouseId))))
                 .Where(s => s.Quantity > 0)
                 .OrderByDescending(s => s.Quantity)
+                .ThenBy(s => s.WarehouseId)
                 .ToList();
 
             var totalAvailable = availableStocks.Sum(s => s.Quantity);
-            if (totalAvailable + 0.0001m < requirement.BaseQuantity)
+            if (!allowNegative && totalAvailable + 0.0001m < requirement.BaseQuantity)
                 throw new InvalidOperationException($"Stock insuficiente para {requirement.ArticleName}. Disponible: {Math.Floor(totalAvailable)}, requerido: {Math.Ceiling(requirement.BaseQuantity)}.");
 
             var remaining = requirement.BaseQuantity;
+            var allocations = new List<(Guid WarehouseId, decimal Quantity)>();
             foreach (var stock in availableStocks)
             {
                 if (remaining <= 0) break;
 
                 var reservedQuantity = Math.Min(remaining, stock.Quantity);
+                allocations.Add((stock.WarehouseId, reservedQuantity));
+                remaining -= reservedQuantity;
+            }
+            if (allowNegative && remaining > 0)
+            {
+                var warehouseId = stockRows
+                    .Where(s => s.ArticleId == requirement.ArticleId && activeWarehouses.Contains(s.WarehouseId))
+                    .OrderByDescending(s => s.Quantity - reservedByArticleWarehouse.GetValueOrDefault((s.ArticleId, s.WarehouseId)))
+                    .ThenBy(s => s.WarehouseId).Select(s => s.WarehouseId).FirstOrDefault();
+                if (warehouseId == Guid.Empty) warehouseId = activeWarehouses.FirstOrDefault();
+                if (warehouseId == Guid.Empty)
+                    throw new InvalidOperationException($"No existe una bodega activa para reservar {requirement.ArticleName}.");
+                allocations.Add((warehouseId, remaining));
+            }
+            foreach (var allocation in allocations.GroupBy(a => a.WarehouseId))
+            {
+                var reservedQuantity = allocation.Sum(a => a.Quantity);
                 db.StockReservations.Add(new StockReservation
                 {
                     Id = Guid.NewGuid(),
@@ -129,7 +164,7 @@ internal static class StockReservationService
                     OrderId = orderId,
                     OrderItemId = requirement.OrderItemId,
                     ArticleId = requirement.ArticleId,
-                    WarehouseId = stock.WarehouseId,
+                    WarehouseId = allocation.Key,
                     Quantity = reservedQuantity,
                     UnitId = requirement.BaseUnitId,
                     BaseQuantity = reservedQuantity,
@@ -137,9 +172,8 @@ internal static class StockReservationService
                     ReservedAt = DateTime.UtcNow,
                 });
 
-                reservedByArticleWarehouse[(stock.ArticleId, stock.WarehouseId)] =
-                    reservedByArticleWarehouse.GetValueOrDefault((stock.ArticleId, stock.WarehouseId)) + reservedQuantity;
-                remaining -= reservedQuantity;
+                var key = (requirement.ArticleId, allocation.Key);
+                reservedByArticleWarehouse[key] = reservedByArticleWarehouse.GetValueOrDefault(key) + reservedQuantity;
             }
         }
     }
@@ -201,7 +235,8 @@ internal static class StockReservationService
 
                 articlesById.TryGetValue(articleId, out var article);
                 var baseUnitId = article?.BaseUnitId ?? Guid.Empty;
-                if (baseUnitId == Guid.Empty) continue;
+                if (baseUnitId == Guid.Empty || article?.IsActive != true)
+                    throw new InvalidOperationException($"Articulo de inventario no disponible: {ingredient.ArticleName}.");
 
 
                 result.Add(new StockRequirement(

@@ -74,6 +74,7 @@ public class InventoryArticleDto
     public decimal MinStock { get; set; }
     public decimal TotalStock { get; set; }
     public bool StockAlertActive { get; set; }
+    public bool AllowNegativeStock { get; set; }
     public bool LowStock { get; set; }
     public bool IsActive { get; set; }
 }
@@ -96,6 +97,7 @@ public class CreateInventoryArticleDto
     public Guid BaseUnitId { get; set; }
     public decimal MinStock { get; set; }
     public bool StockAlertActive { get; set; } = true;
+    public bool AllowNegativeStock { get; set; }
 }
 
 public class UpdateInventoryArticleDto
@@ -108,6 +110,7 @@ public class UpdateInventoryArticleDto
     public Guid BaseUnitId { get; set; }
     public decimal MinStock { get; set; }
     public bool StockAlertActive { get; set; }
+    public bool? AllowNegativeStock { get; set; }
     public bool IsActive { get; set; }
 }
 

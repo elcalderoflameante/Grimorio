@@ -151,7 +151,10 @@ public class CorrectOrderItemCommandHandler(GrimorioDbContext db) : IRequestHand
                     && m.WarehouseId == reservation.WarehouseId && !m.IsDeleted).SumAsync(m => m.BaseQuantity, ct);
                 var otherReserved = await db.StockReservations.Where(r => r.BranchId == req.BranchId && r.ArticleId == reservation.ArticleId
                     && r.WarehouseId == reservation.WarehouseId && r.Status == StockReservationStatus.Active).SumAsync(r => r.BaseQuantity, ct);
-                if (balance - reservation.BaseQuantity < otherReserved - 0.0001m)
+                var allowNegative = await db.InventoryArticles.AsNoTracking()
+                    .Where(a => a.Id == reservation.ArticleId && a.BranchId == req.BranchId)
+                    .Select(a => a.AllowNegativeStock).SingleAsync(ct);
+                if (!allowNegative && balance - reservation.BaseQuantity < otherReserved - 0.0001m)
                     throw new InvalidOperationException("Stock insuficiente para registrar la merma sin afectar otras reservas.");
                 await movements.Handle(new RegisterMovementCommand { BranchId = req.BranchId, ArticleId = reservation.ArticleId,
                     WarehouseId = reservation.WarehouseId, UnitId = reservation.UnitId, Quantity = -reservation.BaseQuantity,

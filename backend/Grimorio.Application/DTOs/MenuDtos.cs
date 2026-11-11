@@ -85,6 +85,7 @@ public class MenuItemAvailabilityComponentDto
     public decimal StockQuantity { get; set; }
     public string StockUnitSymbol { get; set; } = string.Empty;
     public decimal AvailableServings { get; set; }
+    public bool AllowNegativeStock { get; set; }
 }
 
 public class CreateMenuItemDto

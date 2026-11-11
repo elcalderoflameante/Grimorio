@@ -81,6 +81,7 @@ public class CreateInventoryArticleCommand : IRequest<InventoryArticleDto>
     public Guid BaseUnitId { get; set; }
     public decimal MinStock { get; set; }
     public bool StockAlertActive { get; set; } = true;
+    public bool AllowNegativeStock { get; set; }
 }
 
 public class UpdateInventoryArticleCommand : IRequest<InventoryArticleDto>
@@ -95,6 +96,7 @@ public class UpdateInventoryArticleCommand : IRequest<InventoryArticleDto>
     public Guid BaseUnitId { get; set; }
     public decimal MinStock { get; set; }
     public bool StockAlertActive { get; set; }
+    public bool? AllowNegativeStock { get; set; }
     public bool IsActive { get; set; }
 }
 

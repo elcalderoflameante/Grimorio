@@ -71,6 +71,7 @@ public class ArticuloInventarioConfiguration : BaseEntityConfiguration<Inventory
         builder.Property(x => x.InternalCode).HasMaxLength(80);
         builder.Property(x => x.Type).HasConversion<string>().HasMaxLength(40).IsRequired();
         builder.Property(x => x.MinStock).HasColumnType("numeric(18,4)").IsRequired();
+        builder.Property(x => x.AllowNegativeStock).HasDefaultValue(false).IsRequired();
 
         builder.HasOne(x => x.Category)
             .WithMany(x => x.Articles)

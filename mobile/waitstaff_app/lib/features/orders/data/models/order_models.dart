@@ -483,7 +483,10 @@ class MenuItemAvailabilityDto {
 
   List<String> get missingIngredientNames {
     final names = components
-        .where((component) => component.availableServings < 1)
+        .where(
+          (component) =>
+              !component.allowNegativeStock && component.availableServings < 1,
+        )
         .map((component) => component.articleName)
         .where((name) => name.isNotEmpty)
         .toSet()
@@ -514,10 +517,12 @@ class MenuItemAvailabilityDto {
 class MenuItemAvailabilityComponentDto {
   final String articleName;
   final double availableServings;
+  final bool allowNegativeStock;
 
   const MenuItemAvailabilityComponentDto({
     required this.articleName,
     required this.availableServings,
+    this.allowNegativeStock = false,
   });
 
   factory MenuItemAvailabilityComponentDto.fromJson(
@@ -525,6 +530,7 @@ class MenuItemAvailabilityComponentDto {
   ) => MenuItemAvailabilityComponentDto(
     articleName: json['articleName'] as String? ?? '',
     availableServings: (json['availableServings'] as num?)?.toDouble() ?? 0,
+    allowNegativeStock: json['allowNegativeStock'] as bool? ?? false,
   );
 }
 

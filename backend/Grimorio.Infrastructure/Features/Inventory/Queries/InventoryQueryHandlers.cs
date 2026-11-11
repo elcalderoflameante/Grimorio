@@ -117,6 +117,7 @@ public class GetInventoryArticlesHandler : IRequestHandler<GetInventoryArticlesQ
             MinStock = x.MinStock,
             TotalStock = stockTotal,
             StockAlertActive = x.StockAlertActive,
+            AllowNegativeStock = x.AllowNegativeStock,
             LowStock = x.StockAlertActive && stockTotal <= x.MinStock,
             IsActive = x.IsActive,
         };

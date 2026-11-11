@@ -1,3 +1,4 @@
+using Grimorio.Infrastructure.Features.Inventory;
 using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.TableService.Queries;
 using Grimorio.Domain.Entities.Inventory;
@@ -437,30 +438,7 @@ internal static class PublicMenuAvailability
             .Distinct()
             .ToList();
 
-        var stockByArticle = articleIds.Count == 0
-            ? new Dictionary<Guid, decimal>()
-            : await context.WarehouseStock
-                .AsNoTracking()
-                .Where(x => x.BranchId == branchId && !x.IsDeleted && articleIds.Contains(x.ArticleId))
-                .GroupBy(x => x.ArticleId)
-                .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.Quantity) })
-                .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, cancellationToken);
-
-        var reservedByArticle = articleIds.Count == 0
-            ? new Dictionary<Guid, decimal>()
-            : await context.StockReservations
-                .AsNoTracking()
-                .Where(x =>
-                    x.BranchId == branchId &&
-                    !x.IsDeleted &&
-                    articleIds.Contains(x.ArticleId) &&
-                    x.Status == StockReservationStatus.Active)
-                .GroupBy(x => x.ArticleId)
-                .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.BaseQuantity) })
-                .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, cancellationToken);
-
-        foreach (var (articleId, reservedQuantity) in reservedByArticle)
-            stockByArticle[articleId] = Math.Max(0, stockByArticle.GetValueOrDefault(articleId) - reservedQuantity);
+        var stockByArticle = await InventoryAvailability.LoadAsync(context, branchId, articleIds, cancellationToken);
 
         var result = new PublicMenuAvailabilityResult();
         foreach (var item in menuItems)
@@ -480,7 +458,7 @@ internal static class PublicMenuAvailability
 
     public static bool IsMenuItemAvailable(
         MenuItem item,
-        IReadOnlyDictionary<Guid, decimal> stockByArticle,
+        InventoryAvailabilitySnapshot stockByArticle,
         IReadOnlyCollection<global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo> conversions,
         int quantity = 1)
     {
@@ -495,8 +473,7 @@ internal static class PublicMenuAvailability
             var requiredBase = ingredient.BaseQuantity;
             if (requiredBase <= 0) return false;
 
-            var stock = stockByArticle.GetValueOrDefault(ingredient.ArticleId);
-            if (stock < requiredBase) return false;
+            if (!stockByArticle.CanFulfill(ingredient.ArticleId, requiredBase)) return false;
         }
 
         return true;
@@ -504,7 +481,7 @@ internal static class PublicMenuAvailability
 
     public static bool IsModifierOptionAvailable(
         MenuItemModifierOption option,
-        IReadOnlyDictionary<Guid, decimal> stockByArticle,
+        InventoryAvailabilitySnapshot stockByArticle,
         IReadOnlyCollection<global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo> conversions,
         int quantity = 1)
     {
@@ -515,41 +492,18 @@ internal static class PublicMenuAvailability
             if (article is null || article.IsDeleted || !article.IsActive) return false;
             var quantities = group.Select(i => ConvertQuantity(i.Quantity * quantity, i.UnitId, article.BaseUnitId, conversions)).ToList();
             var requiredBase = quantities.Sum();
-            if (quantities.Any(q => q <= 0) || stockByArticle.GetValueOrDefault(group.Key) < requiredBase) return false;
+            if (quantities.Any(q => q <= 0) || !stockByArticle.CanFulfill(group.Key, requiredBase)) return false;
         }
         return true;
     }
 
-    public static async Task<(Dictionary<Guid, decimal> StockByArticle, List<global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo> Conversions)> LoadStockInputsAsync(
+    public static async Task<(InventoryAvailabilitySnapshot StockByArticle, List<global::Grimorio.Infrastructure.Features.Menu.UnitConversionInfo> Conversions)> LoadStockInputsAsync(
         GrimorioDbContext context,
         Guid branchId,
         IReadOnlyCollection<Guid> articleIds,
         CancellationToken cancellationToken)
     {
-        var stockByArticle = articleIds.Count == 0
-            ? new Dictionary<Guid, decimal>()
-            : await context.WarehouseStock
-                .AsNoTracking()
-                .Where(x => x.BranchId == branchId && !x.IsDeleted && articleIds.Contains(x.ArticleId))
-                .GroupBy(x => x.ArticleId)
-                .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.Quantity) })
-                .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, cancellationToken);
-
-        var reservedByArticle = articleIds.Count == 0
-            ? new Dictionary<Guid, decimal>()
-            : await context.StockReservations
-                .AsNoTracking()
-                .Where(x =>
-                    x.BranchId == branchId &&
-                    !x.IsDeleted &&
-                    articleIds.Contains(x.ArticleId) &&
-                    x.Status == StockReservationStatus.Active)
-                .GroupBy(x => x.ArticleId)
-                .Select(g => new { ArticleId = g.Key, Quantity = g.Sum(x => x.BaseQuantity) })
-                .ToDictionaryAsync(x => x.ArticleId, x => x.Quantity, cancellationToken);
-
-        foreach (var (articleId, reservedQuantity) in reservedByArticle)
-            stockByArticle[articleId] = Math.Max(0, stockByArticle.GetValueOrDefault(articleId) - reservedQuantity);
+        var stockByArticle = await InventoryAvailability.LoadAsync(context, branchId, articleIds, cancellationToken);
 
         var conversions = await context.UnitConversions
             .AsNoTracking()

@@ -17,6 +17,25 @@ La unidad base determina cómo se expresan los saldos y costos. No la cambies
 como solución rápida a un error histórico: revisa antes recetas, compras y
 movimientos relacionados.
 
+## Ingredientes de consumo aproximado
+
+En la edición del artículo, **Permitir stock negativo** está apagado por defecto.
+Actívalo solo para ingredientes cuyo consumo por receta sea aproximado, como
+lechuga, tomate o cebolla. No lo actives para gaseosas u otros productos que
+deban agotarse al llegar a cero.
+
+El pedido podrá reservar esos ingredientes y se seguirá descontando el consumo
+al cobrar, aunque quede un saldo negativo. Las carnes y demás ingredientes de
+control estricto del mismo plato siguen limitando la venta. También se aplica
+al menú QR, opciones y componentes de combos. Un artículo inactivo o un plato
+marcado como no disponible no se habilita por esta opción.
+
+Conserva las alertas de stock y revisa los negativos. El
+[conteo del personal](/ayuda/inventario-contar) registra lo encontrado; después
+un responsable investiga la diferencia y registra un
+[ajuste autorizado](/ayuda/inventario-movimientos). El conteo no ajusta existencias
+por sí solo. Para un agotado físico real, marca el plato como no disponible.
+
 ## Consultar
 
 En **Stock actual**, con `Inventory.Stock.View`, usa **Buscar por nombre** y
