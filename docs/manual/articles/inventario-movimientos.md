@@ -11,6 +11,17 @@ origen para distinguir compras, consumos, producción y ajustes. En Conciliació
 abre el artículo y bodega para inspeccionar su detalle. Una pantalla con error
 no demuestra que el saldo sea cero.
 
+Las columnas **Stock anterior** y **Stock resultante** muestran la existencia
+antes y después de cada movimiento, en la unidad base del artículo y por bodega.
+Por ejemplo: `500 g - 200 g = 300 g`. Una compra registrada como `1 kg` puede
+mostrar una entrada de `1000 g` al lado de estos saldos.
+
+Los saldos se reconstruyen con todo el historial vigente, no solo con las filas
+que dejan visibles los filtros o el límite de consulta. No son el disponible
+descontando reservas. Si varios movimientos tienen exactamente la misma fecha
+y hora, se ordenan por identificador para mantener una secuencia estable.
+No son una fotografía guardada: corregir el historial puede recalcularlos.
+
 ## Registrar una corrección autorizada
 
 1. Confirma la diferencia física y revisa que no exista ya un movimiento que

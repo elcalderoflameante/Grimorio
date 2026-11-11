@@ -303,10 +303,22 @@ public class GetStockMovementsHandler : IRequestHandler<GetStockMovementsQuery, 
         if (req.FromUtc.HasValue) query = query.Where(x => x.CreatedAt >= req.FromUtc.Value);
         if (req.ToUtc.HasValue) query = query.Where(x => x.CreatedAt <= req.ToUtc.Value);
 
-        return await query
-            .OrderByDescending(x => x.CreatedAt)
-            .Take(req.PageSize)
-            .Select(x => new StockMovementDto
+        // Calculate the ledger before date/type filters and the display limit.
+        // UUID breaks timestamp ties consistently (bulk saves share CreatedAt).
+        var balances = _db.Database.SqlQuery<MovementBalance>($"""
+            SELECT "Id", SUM("BaseQuantity") OVER (
+                PARTITION BY "ArticleId", "WarehouseId"
+                ORDER BY "CreatedAt", "Id"
+                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+            ) AS "StockAfter"
+            FROM inv."StockMovements"
+            WHERE "BranchId" = {req.BranchId} AND NOT "IsDeleted"
+            """);
+
+        return await (from x in query
+            join balance in balances on x.Id equals balance.Id
+            orderby x.CreatedAt descending, x.Id descending
+            select new StockMovementDto
             {
                 Id = x.Id,
                 ArticleId = x.ArticleId,
@@ -317,6 +329,8 @@ public class GetStockMovementsHandler : IRequestHandler<GetStockMovementsQuery, 
                 Quantity = x.Quantity,
                 UnitSymbol = x.Unit!.Symbol,
                 BaseQuantity = x.BaseQuantity,
+                StockBefore = balance.StockAfter - x.BaseQuantity,
+                StockAfter = balance.StockAfter,
                 BaseUnitSymbol = x.Article.BaseUnit!.Symbol,
                 UnitCost = x.UnitCost,
                 TotalCost = x.TotalCost,
@@ -324,7 +338,14 @@ public class GetStockMovementsHandler : IRequestHandler<GetStockMovementsQuery, 
                 Notes = x.Notes,
                 MovedAt = x.CreatedAt,
             })
+            .Take(req.PageSize)
             .ToListAsync(ct);
+    }
+
+    public sealed class MovementBalance
+    {
+        public Guid Id { get; set; }
+        public decimal StockAfter { get; set; }
     }
 }
 

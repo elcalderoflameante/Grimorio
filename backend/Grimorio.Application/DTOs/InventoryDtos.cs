@@ -163,6 +163,8 @@ public class StockMovementDto
     public decimal Quantity { get; set; }
     public string UnitSymbol { get; set; } = string.Empty;
     public decimal BaseQuantity { get; set; }
+    public decimal? StockBefore { get; set; }
+    public decimal? StockAfter { get; set; }
     public string BaseUnitSymbol { get; set; } = string.Empty;
     public decimal? UnitCost { get; set; }
     public decimal? TotalCost { get; set; }

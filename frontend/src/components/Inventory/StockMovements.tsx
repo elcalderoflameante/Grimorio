@@ -76,6 +76,11 @@ const COST_MOVEMENTS = new Set<MovementType>([
 
 const tipoColor = (tipo: MovementType) => (SALIDAS.has(tipo) ? 'red' : 'green');
 
+const renderStockBalance = (value: number | null | undefined, movement: StockMovementDto) =>
+  value == null ? '-' : <Text type={value < 0 ? 'danger' : undefined} style={{ whiteSpace: 'nowrap' }}>
+    {value.toLocaleString('es-EC', { maximumFractionDigits: 4 })} {movement.baseUnitSymbol}
+  </Text>;
+
 export default function StockMovements() {
   const { message } = AntApp.useApp();
   const { hasPermission } = useAuth();
@@ -229,6 +234,7 @@ export default function StockMovements() {
         rowKey="id"
         loading={loading}
         size="small"
+        scroll={{ x: 1700 }}
         pagination={{ defaultPageSize: 30, showSizeChanger: true, pageSizeOptions: ['10', '30', '50', '100'] }}
         columns={[
           {
@@ -247,6 +253,14 @@ export default function StockMovements() {
             render: (v: MovementType) => <Tag color={tipoColor(v)}>{TIPO_LABELS.get(v) ?? v}</Tag>,
           },
           {
+            title: <Tooltip title="Existencia reconstruida antes del movimiento, en la unidad base del articulo y en esta bodega.">Stock anterior</Tooltip>,
+            dataIndex: 'stockBefore',
+            key: 'stockBefore',
+            align: 'right',
+            width: 145,
+            render: renderStockBalance,
+          },
+          {
             title: 'Cantidad',
             key: 'cantidad',
             render: (_: unknown, m: StockMovementDto) =>
@@ -257,6 +271,14 @@ export default function StockMovements() {
             key: 'cantidadBase',
             render: (_: unknown, m: StockMovementDto) =>
               `${SALIDAS.has(m.type) ? '-' : '+'}${Math.abs(m.baseQuantity)} ${m.baseUnitSymbol}`,
+          },
+          {
+            title: <Tooltip title="Existencia reconstruida despues del movimiento. Incluye todo el historial vigente, aunque la consulta este filtrada. Movimientos con la misma fecha y hora se ordenan por identificador.">Stock resultante</Tooltip>,
+            dataIndex: 'stockAfter',
+            key: 'stockAfter',
+            align: 'right',
+            width: 155,
+            render: renderStockBalance,
           },
           {
             title: 'Costo',

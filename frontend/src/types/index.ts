@@ -1000,6 +1000,8 @@ export interface StockMovementDto {
   quantity: number;
   unitSymbol: string;
   baseQuantity: number;
+  stockBefore?: number | null;
+  stockAfter?: number | null;
   baseUnitSymbol: string;
   unitCost?: number;
   totalCost?: number;
