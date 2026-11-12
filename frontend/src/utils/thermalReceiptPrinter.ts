@@ -157,6 +157,7 @@ const buildHtml = (receipt: ThermalReceiptDto) => `
       </div>
     </div>
     <script>
+      window.addEventListener('afterprint', () => window.close(), { once: true });
       window.addEventListener('load', () => {
         setTimeout(() => {
           window.focus();
@@ -235,7 +236,9 @@ export const printThermalPrebill = (bill: OrderPrebillDto, printWindow: Window) 
       ${bill.paidAmount > 0 ? `<div class="row strong"><span>POR PAGAR</span><strong>${money(bill.pendingAmount)}</strong></div>` : ''}
     </div>
     <div class="section center small">Cuenta provisional. Valores al momento de emision.<br />Gracias por su visita.</div>
-    </div><script>window.addEventListener('load', () => {
+    </div><script>
+    window.addEventListener('afterprint', () => window.close(), { once: true });
+    window.addEventListener('load', () => {
       setTimeout(() => { window.focus(); window.print(); }, 250);
     });</script></body></html>`);
   printWindow.document.close();
