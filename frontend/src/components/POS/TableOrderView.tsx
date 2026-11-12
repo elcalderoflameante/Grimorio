@@ -984,9 +984,6 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
           </div>
         );
       })}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, padding: '6px 8px', background: '#f5f5f5', borderRadius: 6 }}>
-        <Text strong>Subtotal: <Text strong style={{ color: '#1677ff' }}>${splitSubtotal.toFixed(2)}</Text></Text>
-      </div>
     </div>
   );
 
@@ -1496,11 +1493,21 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
 
       {/* Payment modal */}
       <Modal
+        className="order-payment-modal"
         title={
-          <Space>
-            <Text strong>Cobrar Orden #{order.number}</Text>
-            <Tag>{table?.code ?? 'Mostrador'}</Tag>
-          </Space>
+          <div className="order-payment-title">
+            <Space wrap size={6}>
+              <Text strong>Cobrar Orden #{order.number}</Text>
+              <Tag>{table?.code ?? 'Mostrador'}</Tag>
+            </Space>
+            <div className="order-payment-balance">
+              <Text type="secondary" style={{ fontSize: 12 }}>{hasCardLine ? 'Pendiente con tarjeta' : 'Total pendiente'}</Text>
+              <Space size={6}>
+                {hasCardLine && Math.abs(paymentRemaining - remaining) > 0.01 && <Text delete type="secondary">${remaining.toFixed(2)}</Text>}
+                <Text strong style={{ fontSize: 16, color: '#faad14' }} aria-label="Saldo pendiente">${paymentRemaining.toFixed(2)}</Text>
+              </Space>
+            </div>
+          </div>
         }
         open={showPayModal}
         onCancel={() => { if (!paymentInFlight.current) setShowPayModal(false); }}
@@ -1513,16 +1520,6 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         styles={{ body: { maxHeight: 'calc(100dvh - 150px)', overflowY: 'auto', overflowX: 'hidden' } }}
         destroyOnHidden
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, marginTop: 4 }}>
-          <Text type="secondary">{hasCardLine ? 'Pendiente con tarjeta' : 'Total pendiente'}</Text>
-          <Space size={6}>
-            {hasCardLine && Math.abs(paymentRemaining - remaining) > 0.01 && (
-              <Text delete type="secondary">${remaining.toFixed(2)}</Text>
-            )}
-            <Text strong style={{ fontSize: 16, color: '#faad14' }}>${paymentRemaining.toFixed(2)}</Text>
-          </Space>
-        </div>
-
         <Space wrap style={{ marginBottom: 12 }}>
           <Text type="secondary">Cobrado: ${alreadyPaid.toFixed(2)}</Text>
           <Text type="secondary">{payments.length} cobro(s)</Text>
@@ -1552,7 +1549,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
               key: 'split',
               label: <Space><SplitCellsOutlined />Cuenta dividida</Space>,
               children: (
-                <ClientPaymentTabs accounts={clientAccounts} activeId={activeClientId} disabled={paying || refreshingPayments}
+                <ClientPaymentTabs accounts={clientAccounts} activeId={activeClientId} subtotal={splitSubtotal} disabled={paying || refreshingPayments}
                   canAdd={!isFullyPaid && !order.paidAt}
                   onChange={setActiveClientId}
                   onAdd={() => {

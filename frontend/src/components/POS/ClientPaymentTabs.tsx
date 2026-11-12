@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react';
-import { Button, Empty, Popconfirm, Space, Tabs, Tag, Tooltip, Typography } from 'antd';
+import { Button, Empty, Popconfirm, Space, Tabs, Tag, theme, Tooltip, Typography } from 'antd';
 import { CheckCircleOutlined, DeleteOutlined, PlusOutlined, PrinterOutlined } from '@ant-design/icons';
 import type { ClientPaymentAccount } from '../../utils/clientPaymentAccounts';
+import './OrderPaymentModal.css';
 
 interface Props {
   accounts: ClientPaymentAccount[];
   activeId: number;
+  subtotal: number;
   disabled: boolean;
   canAdd: boolean;
   onChange: (id: number) => void;
@@ -15,16 +17,29 @@ interface Props {
   children: ReactNode;
 }
 
-export default function ClientPaymentTabs({ accounts, activeId, disabled, canAdd, onChange, onAdd, onRemove, onPrint, children }: Props) {
+export default function ClientPaymentTabs({ accounts, activeId, subtotal, disabled, canAdd, onChange, onAdd, onRemove, onPrint, children }: Props) {
+  const { token } = theme.useToken();
   const active = accounts.find(a => a.id === activeId);
   const payment = active?.payment;
   return <>
+    <div className="client-payment-context" style={{ background: token.colorBgElevated, borderColor: token.colorBorderSecondary }}>
     <Tabs size="small" activeKey={String(activeId)} onChange={key => !disabled && onChange(Number(key))}
       tabBarExtraContent={<Tooltip title="Agregar cliente"><Button size="small" icon={<PlusOutlined />} aria-label="Agregar cliente"
         disabled={disabled || !canAdd} onClick={onAdd} /></Tooltip>}
       items={accounts.map(account => ({ key: String(account.id), disabled,
         label: <Space size={4}><span>Cliente {account.id}</span>{account.payment && <CheckCircleOutlined style={{ color: '#389e0d' }} />}</Space>,
       }))} />
+    {active && <div className="client-payment-summary">
+      <Typography.Text strong>Cliente {activeId}</Typography.Text>
+      <Space size={12}>
+        <Typography.Text strong>Subtotal: <output aria-label={`Subtotal de Cliente ${activeId}`} aria-live="polite" style={{ color: token.colorPrimary }}>${(payment?.orderAmount ?? subtotal).toFixed(2)}</output></Typography.Text>
+        {!payment && <Popconfirm title={`Eliminar Cliente ${activeId}?`} description="Sus platos quedaran disponibles para los otros clientes."
+          onConfirm={() => onRemove(activeId)} okText="Eliminar" cancelText="Volver" disabled={disabled}>
+          <Tooltip title="Eliminar cliente"><Button size="small" danger icon={<DeleteOutlined />} aria-label="Eliminar cliente" disabled={disabled} /></Tooltip>
+        </Popconfirm>}
+      </Space>
+    </div>}
+    </div>
     {payment ? (
       <div aria-label={`Cobro de Cliente ${activeId}`}>
         <Space wrap style={{ marginBottom: 12 }}><Tag color="success">Pagado</Tag>
@@ -44,15 +59,6 @@ export default function ClientPaymentTabs({ accounts, activeId, disabled, canAdd
         </Tag>)}</Space>
         <Button block icon={<PrinterOutlined />} disabled={disabled} onClick={() => onPrint(payment.id)}>Imprimir comprobante</Button>
       </div>
-    ) : active ? <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <Typography.Text strong>Cliente {activeId}</Typography.Text>
-        <Popconfirm title={`Eliminar Cliente ${activeId}?`} description="Sus platos quedaran disponibles para los otros clientes."
-          onConfirm={() => onRemove(activeId)} okText="Eliminar" cancelText="Volver" disabled={disabled}>
-          <Tooltip title="Eliminar cliente"><Button size="small" danger icon={<DeleteOutlined />} aria-label="Eliminar cliente" disabled={disabled} /></Tooltip>
-        </Popconfirm>
-      </div>
-      {children}
-    </> : <Empty description="Sin clientes pendientes" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+    ) : active ? children : <Empty description="Sin clientes pendientes" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
   </>;
 }
