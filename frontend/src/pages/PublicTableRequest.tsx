@@ -15,6 +15,7 @@ import RusticButton from '../components/Public/RusticButton';
 import PublicLoyaltyLink from '../components/Marketing/PublicLoyaltyLink';
 import { resolveMediaUrl, tableServiceApi } from '../services/api';
 import { getGroupedPromotionDiscounts } from '../utils/orderPaymentPricing';
+import { createIdempotencyKey } from '../utils/idempotencyKey';
 import type {
   CreateModifierSelectionDto,
   OrderDto,
@@ -608,7 +609,7 @@ export default function PublicTableRequest() {
     try {
       setIsSubmitting(true);
       setOrderMessage(null);
-      const idempotencyKey = orderSubmissionIdRef.current ?? crypto.randomUUID();
+      const idempotencyKey = orderSubmissionIdRef.current ?? createIdempotencyKey();
       orderSubmissionIdRef.current = idempotencyKey;
       const response = await tableServiceApi.createPublicDraftOrder({
         tableToken: token,

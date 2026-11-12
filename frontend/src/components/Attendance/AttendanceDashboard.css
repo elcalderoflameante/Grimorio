@@ -1,0 +1,44 @@
+.attendance-dashboard {
+  min-width: 0;
+}
+
+.attendance-table .ant-table-cell {
+  vertical-align: middle;
+}
+
+.attendance-table .attendance-nowrap,
+.attendance-time-stack {
+  white-space: nowrap;
+}
+
+.attendance-table .attendance-employee {
+  overflow-wrap: anywhere;
+}
+
+.attendance-table .ant-tag {
+  margin-inline-end: 0;
+}
+
+.attendance-time-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.attendance-time-stack .ant-typography {
+  font-size: 12px;
+}
+
+@media (max-width: 575px) {
+  .attendance-dashboard > .ant-card-body {
+    padding: 12px;
+  }
+
+  .attendance-filters,
+  .attendance-filters > .ant-space-item,
+  .attendance-filters .ant-picker,
+  .attendance-filters .ant-select {
+    width: 100% !important;
+    min-width: 0;
+  }
+}

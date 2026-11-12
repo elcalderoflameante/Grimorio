@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { App, Badge, Button, Card, Col, DatePicker, Form, Input, Modal, Row, Select, Space, Statistic, Table, Tag, Typography } from 'antd';
+import { App, Badge, Button, Card, Col, DatePicker, Descriptions, Form, Grid, Input, Modal, Row, Select, Space, Statistic, Table, Tag, Tooltip, Typography } from 'antd';
 import { ClockCircleOutlined, EditOutlined, HistoryOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { attendanceApi, type AttendanceAdminRowDto, type AttendanceCorrectionDto } from '../../services/attendanceApi';
@@ -9,6 +9,7 @@ import { formatError } from '../../utils/errorHandler';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
 import { branchDateTimeUtcIso, formatBranchDateTime, formatBranchTime, toBranchDayjs } from '../../utils/branchTimeZone';
+import './AttendanceDashboard.css';
 
 interface CorrectionValues {
   clockIn: Dayjs;
@@ -36,6 +37,7 @@ const time = (value?: string) => formatBranchTime(value, '—');
 const duration = (minutes: number) => `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 
 export const AttendanceDashboard = () => {
+  const screens = Grid.useBreakpoint();
   const { message } = App.useApp();
   const { hasPermission } = useAuth();
   const [form] = Form.useForm<CorrectionValues>();
@@ -148,8 +150,8 @@ export const AttendanceDashboard = () => {
   const exceededBreaks = rows.filter((row) => row.breakMinutes > 30).length;
 
   return <>
-    <Card title={<Space><ClockCircleOutlined />Control de asistencia</Space>}>
-      <Space wrap style={{ marginBottom: 20 }}>
+    <Card className="attendance-dashboard" title={<Space><ClockCircleOutlined />Control de asistencia</Space>}>
+      <Space wrap className="attendance-filters" style={{ marginBottom: 20 }}>
         <DatePicker.RangePicker value={dateRange} allowClear={false} format="DD/MM/YYYY"
           onChange={(value) => value && setDateRange([value[0]!, value[1]!])} />
         <Select allowClear showSearch optionFilterProp="label" placeholder="Todos los empleados" style={{ width: 280 }}
@@ -167,28 +169,44 @@ export const AttendanceDashboard = () => {
         <Col xs={12} md={6}><Card size="small"><Statistic title="Alertas" value={lateCount + exceededBreaks} /></Card></Col>
       </Row>
 
-      <Table rowKey="id" loading={loading} dataSource={rows} scroll={{ x: 1250 }} columns={[
-        { title: 'Fecha', dataIndex: 'workDate', render: (value: string) => dayjs(value).format('DD/MM/YYYY') },
-        { title: 'Empleado', dataIndex: 'employeeName', fixed: 'left' },
-        { title: 'Estado', dataIndex: 'status', render: statusTag },
-        { title: 'Origen', dataIndex: 'clockInMethod', render: (value: number) =>
-          value === 3 ? <Tag color="purple">Manual</Tag> : <Tag color="blue">Biométrico</Tag> },
-        { title: 'Entrada', dataIndex: 'clockInTimeUtc', render: time },
-        { title: 'Inicio descanso', dataIndex: 'breakStartedAtUtc', render: time },
-        { title: 'Fin descanso', dataIndex: 'breakEndedAtUtc', render: time },
-        { title: 'Salida', dataIndex: 'clockOutTimeUtc', render: time },
-        { title: 'Descanso', dataIndex: 'breakMinutes', render: (value: number) =>
-          <Badge status={value > 30 ? 'error' : 'default'} text={`${value} min`} /> },
-        { title: 'Atraso', dataIndex: 'lateMinutes', render: (value: number) =>
+      <Table<AttendanceAdminRowDto> className="attendance-table" size="small" tableLayout="fixed" rowKey="id" loading={loading} dataSource={rows}
+        expandable={screens.xl ? undefined : {
+          expandedRowRender: (row) => <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }} items={[
+            { key: 'date', label: 'Fecha', children: dayjs(row.workDate).format('DD/MM/YYYY') },
+            { key: 'origin', label: 'Origen', children: row.clockInMethod === 3 ? 'Manual' : 'Biométrico' },
+            { key: 'in', label: 'Entrada', children: time(row.clockInTimeUtc) },
+            { key: 'break-start', label: 'Inicio descanso', children: time(row.breakStartedAtUtc) },
+            { key: 'break-end', label: 'Fin descanso', children: time(row.breakEndedAtUtc) },
+            { key: 'break', label: 'Descanso', children: `${row.breakMinutes} min` },
+            { key: 'out', label: 'Salida', children: time(row.clockOutTimeUtc) },
+            { key: 'late', label: 'Atraso', children: `${row.lateMinutes} min` },
+            { key: 'worked', label: 'Trabajado', children: duration(row.workedMinutes) },
+            { key: 'extra', label: 'Horas extra', children: duration(row.overtimeMinutes) },
+          ]} />,
+          columnWidth: 28,
+        }} columns={[
+        { title: 'Fecha', dataIndex: 'workDate', width: 96, responsive: ['md'], className: 'attendance-nowrap', render: (value: string) => dayjs(value).format('DD/MM/YYYY') },
+        { title: 'Empleado', dataIndex: 'employeeName', className: 'attendance-employee' },
+        { title: 'Estado', key: 'status', width: 108, render: (_, row) => <div className="attendance-time-stack">
+          <span>{statusTag(row.status)}</span>
+          {screens.xl && <Typography.Text type="secondary">{row.clockInMethod === 3 ? 'Manual' : 'Biométrico'}</Typography.Text>}
+        </div> },
+        { title: 'Entrada', dataIndex: 'clockInTimeUtc', width: 64, responsive: ['lg'], className: 'attendance-nowrap', render: time },
+        { title: 'Descanso', key: 'break', width: 112, responsive: ['xl'], render: (_, row) => <div className="attendance-time-stack">
+          <span>{time(row.breakStartedAtUtc)} / {time(row.breakEndedAtUtc)}</span>
+          <Badge status={row.breakMinutes > 30 ? 'error' : 'default'} text={`${row.breakMinutes} min`} />
+        </div> },
+        { title: 'Salida', dataIndex: 'clockOutTimeUtc', width: 64, responsive: ['lg'], className: 'attendance-nowrap', render: time },
+        { title: 'Atraso', dataIndex: 'lateMinutes', width: 64, responsive: ['xl'], render: (value: number) =>
           value > 0 ? <Tag color="red">{value} min</Tag> : '—' },
-        { title: 'Trabajado', dataIndex: 'workedMinutes', render: duration },
-        { title: 'Extra', dataIndex: 'overtimeMinutes', render: duration },
-        { title: 'Acciones', fixed: 'right', render: (_: unknown, row: AttendanceAdminRowDto) => <Space>
+        { title: 'Jornada', key: 'duration', width: 96, responsive: ['xl'], render: (_, row) => <div className="attendance-time-stack">
+          <span>{duration(row.workedMinutes)}</span>
+          <Typography.Text type="secondary">Extra: {duration(row.overtimeMinutes)}</Typography.Text>
+        </div> },
+        { title: 'Acciones', width: 80, render: (_: unknown, row: AttendanceAdminRowDto) => <Space size={4}>
           {hasPermission(PERMISSIONS.rrhh.attendanceManage) &&
-            <Button icon={<EditOutlined />} onClick={() => openCorrection(row)}>Corregir</Button>}
-          <Button icon={<HistoryOutlined />} disabled={row.correctionCount === 0} onClick={() => void showHistory(row)}>
-            Historial ({row.correctionCount})
-          </Button>
+            <Tooltip title="Corregir marcación"><Button size="small" aria-label="Corregir marcación" icon={<EditOutlined />} onClick={() => openCorrection(row)} /></Tooltip>}
+          <Tooltip title={`Historial (${row.correctionCount})`}><Button size="small" aria-label={`Historial (${row.correctionCount})`} icon={<HistoryOutlined />} disabled={row.correctionCount === 0} onClick={() => void showHistory(row)} /></Tooltip>
         </Space> },
       ]} />
     </Card>

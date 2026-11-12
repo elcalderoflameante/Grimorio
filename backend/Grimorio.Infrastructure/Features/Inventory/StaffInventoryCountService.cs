@@ -58,12 +58,22 @@ public class StaffInventoryCountService(GrimorioDbContext db, ICurrentUserContex
         area.Name = dto.Name.Trim(); area.IsActive = dto.IsActive;
         foreach (var member in area.Members.Where(x => !dto.UserIds.Contains(x.UserId)).ToList()) db.Remove(member);
         foreach (var id in dto.UserIds.Where(id => !area.Members.Any(x => x.UserId == id)))
-            area.Members.Add(new() { BranchId = branch, UserId = id });
+        {
+            var member = new InventoryCountMember { BranchId = branch, AreaId = area.Id, UserId = id };
+            area.Members.Add(member);
+            // Keys are assigned before tracking; explicitly insert new children of an existing area.
+            db.InventoryCountMembers.Add(member);
+        }
         foreach (var rule in area.Rules.Where(x => !dto.Rules.Any(r => r.ArticleId == x.ArticleId && r.WarehouseId == x.WarehouseId)).ToList()) db.Remove(rule);
         foreach (var rule in dto.Rules)
         {
             var entity = area.Rules.SingleOrDefault(x => x.ArticleId == rule.ArticleId && x.WarehouseId == rule.WarehouseId);
-            if (entity == null) { entity = new() { BranchId = branch, ArticleId = rule.ArticleId, WarehouseId = rule.WarehouseId }; area.Rules.Add(entity); }
+            if (entity == null)
+            {
+                entity = new() { BranchId = branch, AreaId = area.Id, ArticleId = rule.ArticleId, WarehouseId = rule.WarehouseId };
+                area.Rules.Add(entity);
+                db.InventoryCountRules.Add(entity);
+            }
             entity.Frequency = rule.Frequency; entity.WeekDay = rule.WeekDay;
         }
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); dto.Id = area.Id; return dto;

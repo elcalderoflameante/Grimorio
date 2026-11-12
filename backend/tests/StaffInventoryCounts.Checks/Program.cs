@@ -7,6 +7,8 @@ using Grimorio.Infrastructure.Features.Inventory;
 using Grimorio.Infrastructure.Persistence;
 using Grimorio.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
+using Npgsql;
 
 var checks = 0;
 void Check(bool condition, string label) { if (!condition) throw new Exception(label); checks++; }
@@ -22,8 +24,23 @@ Check(StaffInventoryCountService.IsDue("Weekly", 0, monday.AddDays(6), [monday.A
 Check(StaffInventoryCountService.IsDue("Weekly", 1, monday.AddDays(7), [monday]), "Next week due");
 if (!args.Contains("--database")) { Console.WriteLine($"{checks} scheduling checks passed. Use --database for the isolated persistence checks."); return; }
 
-// Fixed connection to a disposable test container. Never reads application configuration.
-var options = new DbContextOptionsBuilder<GrimorioDbContext>().UseNpgsql("Host=127.0.0.1;Port=15440;Database=inventory_counts_checks;Username=checks;Password=checks").Options;
+// Only disposable test databases are accepted. Never reads application configuration.
+var connection = "Host=127.0.0.1;Port=15440;Database=inventory_counts_checks;Username=checks;Password=checks";
+var connectionIndex = Array.IndexOf(args, "--checks-connection");
+if (connectionIndex >= 0)
+{
+    using var connectionConfig = JsonDocument.Parse(await File.ReadAllTextAsync(args[connectionIndex + 1]));
+    var c = connectionConfig.RootElement;
+    var target = new NpgsqlConnectionStringBuilder {
+        Host = c.GetProperty("host").GetString(), Port = c.GetProperty("port").GetInt32(),
+        Database = c.GetProperty("database").GetString(), Username = c.GetProperty("username").GetString(),
+        Password = c.GetProperty("password").GetString(),
+    };
+    if (target.Host != "127.0.0.1" || target.Port != 5432 || target.Database != "grimorio_checks" || target.Username != "grimorio_checks")
+        throw new Exception("Only the isolated localhost grimorio_checks database and checks user are allowed.");
+    connection = target.ConnectionString;
+}
+var options = new DbContextOptionsBuilder<GrimorioDbContext>().UseNpgsql(connection).Options;
 var actor = new CheckUser { UserId = Guid.NewGuid() };
 await using var db = new GrimorioDbContext(options, actor);
 await db.Database.MigrateAsync();
@@ -35,10 +52,45 @@ var unit = new MeasurementUnit { BranchId = branchId, Name = "Unit", Symbol = "u
 var category = new InventoryCategory { BranchId = branchId, Name = "Beverages" };
 var warehouse = new Warehouse { BranchId = branchId, Name = "Bar" };
 var article = new InventoryArticle { BranchId = branchId, Name = "Beer", BaseUnitId = unit.Id, CategoryId = category.Id, Type = ArticleType.FinishedProduct };
+var extraArticle = new InventoryArticle { BranchId = branchId, Name = "Water", BaseUnitId = unit.Id, CategoryId = category.Id, Type = ArticleType.FinishedProduct };
 var stock = new WarehouseStock { BranchId = branchId, ArticleId = article.Id, WarehouseId = warehouse.Id, Quantity = 12 };
-db.AddRange(branch, first, second, outsider, unit, category, warehouse, article, stock); await db.SaveChangesAsync();
+db.AddRange(branch, first, second, outsider, unit, category, warehouse, article, extraArticle, stock); await db.SaveChangesAsync();
 var service = new StaffInventoryCountService(db, actor);
 var config = await service.SaveArea(branchId, new() { Name = "Bar", UserIds = [first.Id, second.Id], Rules = [new(article.Id, warehouse.Id, "Daily")] }, default);
+db.ChangeTracker.Clear();
+config.UserIds.Add(outsider.Id);
+config.Rules = [new(article.Id, warehouse.Id, "Weekly", 3)];
+await service.SaveArea(branchId, config, default);
+db.ChangeTracker.Clear();
+var edited = (await service.Catalog(branchId, default)).Areas.Single();
+Check(edited.UserIds.Count == 3 && edited.Rules.Single().Frequency == "Weekly", "Existing area accepts a new member and frequency change");
+edited.Rules.Add(new(extraArticle.Id, warehouse.Id, "Daily"));
+await service.SaveArea(branchId, edited, default);
+db.ChangeTracker.Clear();
+edited = (await service.Catalog(branchId, default)).Areas.Single();
+Check(edited.Rules.Count == 2, "Existing area accepts an additional article");
+await service.SaveArea(branchId, edited, default);
+db.ChangeTracker.Clear();
+Check(await db.InventoryCountMembers.CountAsync(x => x.AreaId == config.Id) == 3
+    && await db.InventoryCountRules.CountAsync(x => x.AreaId == config.Id) == 2, "Saving unchanged area does not duplicate assignments");
+edited.UserIds = [first.Id, second.Id];
+edited.Rules = [];
+await service.SaveArea(branchId, edited, default);
+db.ChangeTracker.Clear();
+edited.Rules = [new(article.Id, warehouse.Id, "Daily")];
+await service.SaveArea(branchId, edited, default);
+db.ChangeTracker.Clear();
+var restored = (await service.Catalog(branchId, default)).Areas.Single();
+Check(restored.UserIds.Count == 2 && restored.Rules.Single().Frequency == "Daily", "Removed article rule can be added again to an existing area");
+restored.UserIds.Add(outsider.Id);
+restored.Name = "Bar edited"; restored.IsActive = false;
+await service.SaveArea(branchId, restored, default);
+db.ChangeTracker.Clear();
+var inactive = (await service.Catalog(branchId, default)).Areas.Single();
+Check(inactive.Name == "Bar edited" && !inactive.IsActive && inactive.UserIds.Count == 3, "Rename, deactivate and restore a removed member");
+inactive.Name = "Bar"; inactive.IsActive = true; inactive.UserIds = [first.Id, second.Id];
+await service.SaveArea(branchId, inactive, default);
+db.ChangeTracker.Clear();
 await Reject(() => service.SaveArea(Guid.NewGuid(), new() { Name = "Cross branch", UserIds = [first.Id], Rules = [] }, default), "Cross branch assignment");
 await Reject(() => service.SaveArea(branchId, new() { Name = "Duplicate ownership", UserIds = [first.Id], Rules = config.Rules }, default), "Duplicate area ownership");
 var count = await service.Start(branchId, config.Id, default);
@@ -56,7 +108,8 @@ count = await service.SaveLine(branchId, id, lineId, new(0, "No bottles"), defau
 Check(count.Lines.Single().Quantity == 0 && count.Lines.Single().ExpectedQuantity == null && count.Lines.Single().Difference == null, "Zero saved, staff cannot see expected stock");
 var capturedAt = count.Lines.Single().CountedAt;
 // A real stock movement after counting must not change the historical comparison.
-stock.Quantity = 10; await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+(await db.WarehouseStock.SingleAsync(x => x.Id == stock.Id)).Quantity = 10;
+await db.SaveChangesAsync(); db.ChangeTracker.Clear();
 await Reject(() => service.SaveLine(branchId, id, lineId, new(2, "Stale edit"), default), "Stale shared edits rejected");
 count = await service.SaveLine(branchId, id, lineId, new(0, "Confirmed empty", capturedAt), default);
 var supervisor = await service.Detail(branchId, id, false, default);
@@ -78,6 +131,11 @@ Check(await db.WarehouseStock.Where(x => x.Id == stock.Id).Select(x => x.Quantit
 Check(!await db.StockMovements.AnyAsync(x => x.BranchId == branchId) && !await db.StockReservations.AnyAsync(x => x.BranchId == branchId), "Counts never create movements or reservations");
 var original = await service.Detail(branchId, id, false, default);
 Check(original.Status == "Recounted" && original.Lines.Single().Quantity == 0 && original.ReviewNotes == "Verify bottles", "Recount preserves original observation and reviewer decision");
+await service.SaveArea(branchId, new() { Id = config.Id, Name = "Bar after counts", UserIds = [first.Id], Rules = [new(extraArticle.Id, warehouse.Id, "Weekly", 3)] }, default);
+db.ChangeTracker.Clear();
+var historical = await service.Detail(branchId, id, false, default);
+Check(historical.AreaName == "Bar" && historical.Lines.Single().ArticleId == article.Id
+    && historical.Lines.Single().Quantity == 0, "Area edits preserve historical count names, articles and quantities");
 var today = BranchTimeZone.DateFromUtc(DateTime.UtcNow, branch.TimeZoneId);
 Check((await service.List(branchId, today, today, null, default)).Count == 2, "History includes original and recount");
 Console.WriteLine($"{checks} staff inventory count checks passed, including isolated PostgreSQL persistence.");
