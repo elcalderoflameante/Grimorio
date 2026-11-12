@@ -25,6 +25,11 @@
   gap: 4px;
 }
 
+.attendance-status-stack {
+  align-items: center;
+  text-align: center;
+}
+
 .attendance-time-stack .ant-typography {
   font-size: 12px;
 }

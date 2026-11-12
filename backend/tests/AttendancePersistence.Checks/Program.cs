@@ -3,6 +3,7 @@ using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Attendance.Commands;
 using Grimorio.Application.Features.Attendance.Queries;
 using Grimorio.Domain.Entities.Organization;
+using Grimorio.Domain.Entities.Scheduling;
 using Grimorio.Domain.Enums;
 using Grimorio.Infrastructure.Features.Attendance;
 using Grimorio.Infrastructure.Security;
@@ -56,6 +57,33 @@ CreateManualAttendanceCommand Manual(DateTime start, DateTime? end = null) => ne
     EmployeeId = employee.Id, BranchId = branch.Id, CreatedByUserId = Guid.NewGuid(),
     ClockInTimeUtc = start, ClockOutTimeUtc = end, Reason = "Isolated database check" };
 var day = DateTime.SpecifyKind(new DateTime(2026, 10, 20, 15, 0, 0), DateTimeKind.Utc);
+var scheduledEmployee = new Employee { BranchId = branch.Id, PositionId = position.Id, FirstName = "Scheduled", LastName = "Attendance",
+    Email = Guid.NewGuid() + "@example.invalid", IdentificationNumber = Guid.NewGuid().ToString("N")[..10] };
+var workArea = new WorkArea { BranchId = branch.Id, Name = "Attendance area" };
+var workRole = new WorkRole { BranchId = branch.Id, WorkAreaId = workArea.Id, Name = "Attendance role" };
+var scheduledWorkDate = new DateOnly(2026, 10, 20);
+var scheduledShift = new ShiftAssignment { BranchId = branch.Id, EmployeeId = scheduledEmployee.Id,
+    Date = scheduledWorkDate.ToDateTime(TimeOnly.MinValue), StartTime = new TimeSpan(14, 0, 0),
+    EndTime = new TimeSpan(22, 30, 0), WorkAreaId = workArea.Id, WorkRoleId = workRole.Id };
+db.AddRange(scheduledEmployee, workArea, workRole, scheduledShift); await db.SaveChangesAsync();
+var scheduledResult = await Handler(db).Handle(new CreateManualAttendanceCommand {
+    EmployeeId = scheduledEmployee.Id, BranchId = branch.Id, CreatedByUserId = Guid.NewGuid(),
+    ClockInTimeUtc = BranchTimeZone.ToUtc(scheduledWorkDate.ToDateTime(new TimeOnly(13, 55)), branch.TimeZoneId),
+    BreakStartedAtUtc = BranchTimeZone.ToUtc(scheduledWorkDate.ToDateTime(new TimeOnly(17, 0)), branch.TimeZoneId),
+    BreakEndedAtUtc = BranchTimeZone.ToUtc(scheduledWorkDate.ToDateTime(new TimeOnly(17, 30)), branch.TimeZoneId),
+    ClockOutTimeUtc = BranchTimeZone.ToUtc(scheduledWorkDate.ToDateTime(new TimeOnly(22, 30)), branch.TimeZoneId),
+    Reason = "Early arrival calculation check"
+}, default);
+Check(scheduledResult.EarlyArrivalMinutes == 5 && scheduledResult.WorkedMinutes == 480 && scheduledResult.OvertimeMinutes == 0,
+    "Early arrival is recorded but does not count as worked time or overtime");
+var scheduledStored = await db.EmployeeClockings.SingleAsync(x => x.Id == scheduledResult.Id);
+scheduledStored.WorkedMinutes = 485; scheduledStored.OvertimeMinutes = 5; await db.SaveChangesAsync();
+var normalizedHistorical = await Handler(db).Handle(new GetAttendanceAdminRowsQuery {
+    BranchId = branch.Id, FromDate = scheduledWorkDate, ToDate = scheduledWorkDate
+}, default);
+var normalizedScheduled = normalizedHistorical.Single(x => x.Id == scheduledResult.Id);
+Check(normalizedScheduled.WorkedMinutes == 480 && normalizedScheduled.OvertimeMinutes == 0,
+    "Historical attendance rows are normalized when queried");
 var first = await Handler(db).Handle(Manual(day), default);
 await Reject(() => Handler(db).Handle(Manual(day.AddDays(1)), default), "Two open shifts");
 await Reject(() => Handler(db).Handle(Manual(day.AddHours(-2), day.AddHours(2)), default), "Duplicate day");

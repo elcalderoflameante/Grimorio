@@ -33,6 +33,9 @@ const statusTag = (status: AttendanceAdminRowDto['status']) => {
   return <Tag color="success">Finalizada</Tag>;
 };
 
+const originTag = (method: AttendanceAdminRowDto['clockInMethod']) =>
+  method === 3 ? <Tag color="orange">Manual</Tag> : <Tag color="cyan">Biométrico</Tag>;
+
 const time = (value?: string) => formatBranchTime(value, '—');
 const duration = (minutes: number) => `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 
@@ -173,7 +176,7 @@ export const AttendanceDashboard = () => {
         expandable={screens.xl ? undefined : {
           expandedRowRender: (row) => <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }} items={[
             { key: 'date', label: 'Fecha', children: dayjs(row.workDate).format('DD/MM/YYYY') },
-            { key: 'origin', label: 'Origen', children: row.clockInMethod === 3 ? 'Manual' : 'Biométrico' },
+            { key: 'origin', label: 'Origen', children: originTag(row.clockInMethod) },
             { key: 'in', label: 'Entrada', children: time(row.clockInTimeUtc) },
             { key: 'break-start', label: 'Inicio descanso', children: time(row.breakStartedAtUtc) },
             { key: 'break-end', label: 'Fin descanso', children: time(row.breakEndedAtUtc) },
@@ -187,9 +190,9 @@ export const AttendanceDashboard = () => {
         }} columns={[
         { title: 'Fecha', dataIndex: 'workDate', width: 96, responsive: ['md'], className: 'attendance-nowrap', render: (value: string) => dayjs(value).format('DD/MM/YYYY') },
         { title: 'Empleado', dataIndex: 'employeeName', className: 'attendance-employee' },
-        { title: 'Estado', key: 'status', width: 108, render: (_, row) => <div className="attendance-time-stack">
+        { title: 'Estado', key: 'status', width: 108, align: 'center', render: (_, row) => <div className="attendance-time-stack attendance-status-stack">
           <span>{statusTag(row.status)}</span>
-          {screens.xl && <Typography.Text type="secondary">{row.clockInMethod === 3 ? 'Manual' : 'Biométrico'}</Typography.Text>}
+          {screens.xl && <span>{originTag(row.clockInMethod)}</span>}
         </div> },
         { title: 'Entrada', dataIndex: 'clockInTimeUtc', width: 64, responsive: ['lg'], className: 'attendance-nowrap', render: time },
         { title: 'Descanso', key: 'break', width: 112, responsive: ['xl'], render: (_, row) => <div className="attendance-time-stack">

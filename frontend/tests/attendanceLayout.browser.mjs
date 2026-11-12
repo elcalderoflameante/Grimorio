@@ -54,6 +54,10 @@ try {
     } else {
       assert.equal(await page.locator('.attendance-table .ant-table-row-expand-icon').count(), 0);
       assert.equal(await page.locator('.attendance-table .attendance-nowrap').first().evaluate(cell => cell.scrollWidth > cell.clientWidth), false);
+      assert.equal(await page.locator('.attendance-table .ant-tag-orange', { hasText: 'Manual' }).count(), 1);
+      assert.equal(await page.locator('.attendance-table .ant-tag-cyan', { hasText: 'Biométrico' }).count(), 1);
+      assert.equal(await page.locator('.attendance-status-stack').first().evaluate(element =>
+        getComputedStyle(element).alignItems), 'center');
     }
     await page.screenshot({ path: resolve(output, `attendance-${width}.png`), fullPage: true });
     await page.getByRole('button', { name: 'Corregir marcaci\u00f3n', exact: true }).first().click();

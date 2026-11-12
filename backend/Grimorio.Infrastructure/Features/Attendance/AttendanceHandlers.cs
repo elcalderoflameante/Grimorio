@@ -163,8 +163,8 @@ public sealed class AttendanceHandlers :
         clocking.ClockOutKioskDeviceId = kiosk.Id;
         clocking.ClockOutEvidencePath = NormalizePath(request.EvidencePath);
         clocking.Status = AttendanceStatus.Completed;
-        clocking.WorkedMinutes = Math.Max(0,
-            (int)Math.Floor((nowUtc - clocking.ClockInTimeUtc).TotalMinutes) - clocking.BreakMinutes);
+        var timeZoneId = await GetBranchTimeZoneId(kiosk.BranchId, cancellationToken);
+        clocking.WorkedMinutes = CalculateWorkedMinutes(clocking, timeZoneId);
         clocking.OvertimeMinutes = CalculateOvertime(clocking);
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -387,29 +387,26 @@ public sealed class AttendanceHandlers :
                         x.WorkDate <= request.ToDate && !x.IsDeleted);
         if (request.EmployeeId.HasValue) query = query.Where(x => x.EmployeeId == request.EmployeeId.Value);
 
-        return await query.OrderByDescending(x => x.WorkDate).ThenBy(x => x.Employee!.LastName)
-            .Select(x => new AttendanceAdminRowDto
-            {
-                Id = x.Id,
-                EmployeeId = x.EmployeeId,
-                EmployeeName = (x.Employee!.FirstName + " " + x.Employee.LastName).Trim(),
-                WorkDate = x.WorkDate,
-                Status = x.Status,
-                ClockInTimeUtc = x.ClockInTimeUtc,
-                ClockOutTimeUtc = x.ClockOutTimeUtc,
-                BreakStartedAtUtc = x.Break != null ? x.Break.StartedAtUtc : null,
-                BreakEndedAtUtc = x.Break != null ? x.Break.EndedAtUtc : null,
-                ClockInMethod = x.ClockInMethod,
-                ClockOutMethod = x.ClockOutMethod,
-                BreakMinutes = x.BreakMinutes,
-                LateMinutes = x.LateMinutes,
-                EarlyArrivalMinutes = x.EarlyArrivalMinutes,
-                WorkedMinutes = x.WorkedMinutes,
-                OvertimeMinutes = x.OvertimeMinutes,
-                AdministrativeNotes = x.AdministrativeNotes,
-                CorrectionCount = _context.AttendanceCorrections.Count(c =>
-                    c.EmployeeClockingId == x.Id && !c.IsDeleted)
-            }).ToListAsync(cancellationToken);
+        var clockings = await query
+            .Include(x => x.Employee)
+            .Include(x => x.Break)
+            .OrderByDescending(x => x.WorkDate)
+            .ThenBy(x => x.Employee!.LastName)
+            .ToListAsync(cancellationToken);
+        var clockingIds = clockings.Select(x => x.Id).ToList();
+        var correctionCounts = await _context.AttendanceCorrections
+            .Where(x => clockingIds.Contains(x.EmployeeClockingId) && !x.IsDeleted)
+            .GroupBy(x => x.EmployeeClockingId)
+            .Select(group => new { ClockingId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(x => x.ClockingId, x => x.Count, cancellationToken);
+        var timeZoneId = await GetBranchTimeZoneId(request.BranchId, cancellationToken);
+
+        return clockings.Select(clocking =>
+        {
+            var workedMinutes = CalculateWorkedMinutes(clocking, timeZoneId);
+            return MapAdmin(clocking, clocking.Employee!, correctionCounts.GetValueOrDefault(clocking.Id),
+                workedMinutes, CalculateOvertime(clocking, workedMinutes));
+        }).ToList();
     }
 
     public async Task<List<AttendanceCorrectionDto>> Handle(GetAttendanceCorrectionsQuery request,
@@ -672,13 +669,45 @@ public sealed class AttendanceHandlers :
         clocking.Status = AttendanceStatus.Working;
     }
 
-    private static int CalculateOvertime(EmployeeClocking clocking)
+    private static int CalculateWorkedMinutes(EmployeeClocking clocking, string? timeZoneId)
+    {
+        if (!clocking.ClockOutTimeUtc.HasValue) return 0;
+
+        var effectiveStartUtc = clocking.ClockInTimeUtc;
+        if (clocking.ScheduledStartTime.HasValue)
+        {
+            var scheduledLocal = clocking.WorkDate.ToDateTime(
+                TimeOnly.FromTimeSpan(clocking.ScheduledStartTime.Value));
+            var scheduledStartUtc = BranchTimeZone.ToUtc(scheduledLocal, timeZoneId);
+            if (scheduledStartUtc > effectiveStartUtc) effectiveStartUtc = scheduledStartUtc;
+        }
+
+        var clockOutUtc = clocking.ClockOutTimeUtc.Value;
+        if (clockOutUtc <= effectiveStartUtc) return 0;
+
+        var breakMinutes = clocking.BreakMinutes;
+        if (clocking.Break?.EndedAtUtc is DateTime breakEndUtc)
+        {
+            var overlapStart = clocking.Break.StartedAtUtc > effectiveStartUtc
+                ? clocking.Break.StartedAtUtc
+                : effectiveStartUtc;
+            var overlapEnd = breakEndUtc < clockOutUtc ? breakEndUtc : clockOutUtc;
+            breakMinutes = overlapEnd > overlapStart
+                ? (int)Math.Ceiling((overlapEnd - overlapStart).TotalMinutes)
+                : 0;
+        }
+
+        return Math.Max(0,
+            (int)Math.Floor((clockOutUtc - effectiveStartUtc).TotalMinutes) - breakMinutes);
+    }
+
+    private static int CalculateOvertime(EmployeeClocking clocking, int? workedMinutes = null)
     {
         if (!clocking.ScheduledStartTime.HasValue || !clocking.ScheduledEndTime.HasValue) return 0;
         var scheduled = clocking.ScheduledEndTime.Value - clocking.ScheduledStartTime.Value;
         if (scheduled < TimeSpan.Zero) scheduled += TimeSpan.FromDays(1);
         var scheduledNetMinutes = Math.Max(0, (int)scheduled.TotalMinutes - BreakLimitMinutes);
-        return Math.Max(0, clocking.WorkedMinutes - scheduledNetMinutes);
+        return Math.Max(0, (workedMinutes ?? clocking.WorkedMinutes) - scheduledNetMinutes);
     }
 
     private static AttendanceStatusDto Map(Employee employee, EmployeeClocking clocking) => new()
@@ -750,8 +779,7 @@ public sealed class AttendanceHandlers :
         clocking.EarlyArrivalMinutes = Math.Max(0, -delta);
         clocking.BreakMinutes = clocking.Break?.DurationMinutes ?? 0;
         clocking.WorkedMinutes = clocking.ClockOutTimeUtc.HasValue
-            ? Math.Max(0, (int)Math.Floor((clocking.ClockOutTimeUtc.Value - clocking.ClockInTimeUtc).TotalMinutes) -
-                          clocking.BreakMinutes) : 0;
+            ? CalculateWorkedMinutes(clocking, timeZoneId) : 0;
         clocking.OvertimeMinutes = clocking.ClockOutTimeUtc.HasValue ? CalculateOvertime(clocking) : 0;
         clocking.Status = clocking.ClockOutTimeUtc.HasValue
             ? AttendanceStatus.Completed
@@ -795,7 +823,8 @@ public sealed class AttendanceHandlers :
         _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
     };
 
-    private static AttendanceAdminRowDto MapAdmin(EmployeeClocking item, Employee employee, int correctionCount) => new()
+    private static AttendanceAdminRowDto MapAdmin(EmployeeClocking item, Employee employee, int correctionCount,
+        int? workedMinutes = null, int? overtimeMinutes = null) => new()
     {
         Id = item.Id,
         EmployeeId = item.EmployeeId,
@@ -811,8 +840,8 @@ public sealed class AttendanceHandlers :
         BreakMinutes = item.BreakMinutes,
         LateMinutes = item.LateMinutes,
         EarlyArrivalMinutes = item.EarlyArrivalMinutes,
-        WorkedMinutes = item.WorkedMinutes,
-        OvertimeMinutes = item.OvertimeMinutes,
+        WorkedMinutes = workedMinutes ?? item.WorkedMinutes,
+        OvertimeMinutes = overtimeMinutes ?? item.OvertimeMinutes,
         AdministrativeNotes = item.AdministrativeNotes,
         CorrectionCount = correctionCount
     };
