@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { App as AntApp, Badge, Button, Card, Empty, Spin, Tag, Tooltip } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Badge, Button, Card, Empty, Spin, Tag, Tooltip } from 'antd';
 import { PlusOutlined, ReloadOutlined, UserOutlined } from '@ant-design/icons';
 import { tableServiceApi } from '../../services/api';
 import type { RestaurantTableDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 import { compareTablesByNumber } from '../../utils/tableOrdering';
+import { useAuth } from '../../context/useAuth';
+import { subscribeTableMap } from '../../services/tableMapRealtime';
 
 interface Props {
   branchId: string;
@@ -20,25 +22,73 @@ interface AreaGroup {
 const getAreaLabel = (area?: string | null) => area?.trim() || 'General';
 
 export default function TablesMap({ branchId, onSelectTable, refreshKey }: Props) {
-  const { message } = AntApp.useApp();
-
-  const [tables, setTables] = useState<RestaurantTableDto[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { token } = useAuth();
+  const [snapshot, setSnapshot] = useState<{ branchId: string; tables: RestaurantTableDto[] }>();
+  const tables = useMemo(() => snapshot?.branchId === branchId ? snapshot.tables : [], [snapshot, branchId]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [now, setNow] = useState(() => new Date());
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await tableServiceApi.getTables(branchId);
-      setTables(res.data.filter(m => m.isActive).sort(compareTablesByNumber));
-    } catch (e) { message.error(formatError(e)); }
-    finally { setLoading(false); }
-  }, [branchId]);
-
-  useEffect(() => { load(); }, [load, refreshKey]);
+  useEffect(() => {
+    let active = true;
+    let inFlight = false;
+    let refreshPending = false;
+    let eventTimer: ReturnType<typeof setTimeout> | undefined;
+    setError(null);
+    const load = async (silent = false) => {
+      if (inFlight) { refreshPending = true; return; }
+      inFlight = true;
+      if (!silent) setLoading(true);
+      try {
+        const { data } = await tableServiceApi.getTables(branchId);
+        if (active) {
+          setSnapshot({ branchId, tables: data.filter(m => m.isActive).sort(compareTablesByNumber) });
+          setNow(new Date());
+          setError(null);
+        }
+      } catch (e) {
+        if (active) setError(formatError(e));
+      } finally {
+        inFlight = false;
+        if (active) setLoading(false);
+        if (active && refreshPending) {
+          refreshPending = false;
+          if (document.visibilityState === 'visible') void load(true);
+        }
+      }
+    };
+    const resume = () => {
+      setNow(new Date());
+      if (document.visibilityState === 'visible') void load(true);
+    };
+    const changed = () => {
+      if (!active || document.visibilityState !== 'visible' || eventTimer !== undefined) return;
+      eventTimer = setTimeout(() => { eventTimer = undefined; if (active) void load(true); }, 200);
+    };
+    void load();
+    const unsubscribe = token ? subscribeTableMap({
+      apiUrl: import.meta.env.VITE_API_URL, token, branchId, onChange: changed,
+    }) : undefined;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void load(true);
+    }, 120_000);
+    window.addEventListener('focus', resume);
+    window.addEventListener('online', resume);
+    document.addEventListener('visibilitychange', resume);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      clearTimeout(eventTimer);
+      unsubscribe?.();
+      window.removeEventListener('focus', resume);
+      window.removeEventListener('online', resume);
+      document.removeEventListener('visibilitychange', resume);
+    };
+  }, [branchId, token, refreshKey, reloadKey]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    const timer = window.setInterval(() => setNow(new Date()), 15_000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -65,24 +115,17 @@ export default function TablesMap({ branchId, onSelectTable, refreshKey }: Props
       .sort((a, b) => compareTablesByNumber(a.tables[0], b.tables[0]));
   }, [tables]);
 
-  if (loading) return <Spin style={{ display: 'block', margin: '40px auto' }} />;
-
-  if (tables.length === 0) {
-    return (
-      <Empty
-        description="No hay mesas configuradas"
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
-      >
-        <Button type="primary" icon={<PlusOutlined />}>Ir a configurar mesas</Button>
-      </Empty>
-    );
-  }
-
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        <Button icon={<ReloadOutlined />} onClick={load} size="small">Actualizar</Button>
+        <Button icon={<ReloadOutlined />} loading={loading} onClick={() => setReloadKey(key => key + 1)} size="small">Actualizar</Button>
       </div>
+      {error && <Alert type="warning" showIcon title="No se pudo actualizar el mapa de mesas"
+        description={error} style={{ marginBottom: 12 }} />}
+      {loading && tables.length === 0 ? <Spin style={{ display: 'block', margin: '40px auto' }} /> :
+        tables.length === 0 && !error ? <Empty description="No hay mesas configuradas" image={Empty.PRESENTED_IMAGE_SIMPLE}>
+          <Button type="primary" icon={<PlusOutlined />}>Ir a configurar mesas</Button>
+        </Empty> : null}
 
       {areaGroups.map(group => (
         <div key={group.area} style={{ marginBottom: 24 }}>

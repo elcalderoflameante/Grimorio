@@ -303,6 +303,7 @@ builder.Services.AddMediatR(config =>
 {
     config.RegisterServicesFromAssembly(typeof(Grimorio.Application.DTOs.LoginRequest).Assembly);
     config.RegisterServicesFromAssembly(typeof(Grimorio.Infrastructure.Persistence.GrimorioDbContext).Assembly);
+    config.AddOpenBehavior(typeof(TablesMapRefreshBehavior<,>));
 });
 
 var app = builder.Build();

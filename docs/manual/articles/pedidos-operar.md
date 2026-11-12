@@ -21,6 +21,18 @@ permitidas y coordina con cocina. Una corrección de platos requiere
 `POS.Orders.CorrectItems`; cancelar no es equivalente a borrar un borrador.
 Las restricciones del estado y del servidor siguen aplicando.
 
+## Seguimiento del mapa
+
+Con la conexión activa, el mapa recibe avisos de nuevos pedidos, confirmaciones,
+cambios de mesa, cancelaciones y cobros, y consulta el estado actualizado de la
+sucursal. Los minutos transcurridos avanzan en el equipo sin consultar al servidor.
+
+Al recuperar la conexión o volver a la pestaña se vuelve a consultar el mapa.
+Como respaldo, también se actualiza cada dos minutos mientras la pestaña esté
+visible. **Actualizar** permite solicitar una consulta manual. Si aparece un aviso
+de error, las mesas anteriores siguen visibles: no presupongas que esos saldos
+siguen vigentes hasta recuperar la conexión.
+
 ## Entrega y cobro
 
 Confirma que el pedido esté asociado a la mesa correcta antes de imprimir la
