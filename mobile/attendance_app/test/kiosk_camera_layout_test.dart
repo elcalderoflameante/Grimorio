@@ -24,6 +24,7 @@ void main() {
     bool marking = false,
     bool canStartBreak = true,
     bool recovering = false,
+    KioskFeedbackType feedbackType = KioskFeedbackType.neutral,
     double? aspectRatio,
     VoidCallback? onStartBreak,
     VoidCallback? onClockOut,
@@ -56,7 +57,7 @@ void main() {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 16),
                 ),
-                Text('Versión 1.0.7 (8)', style: TextStyle(fontSize: 11)),
+                Text('Versión 1.0.8 (9)', style: TextStyle(fontSize: 11)),
               ],
             ),
             actions: [
@@ -76,6 +77,7 @@ void main() {
                 ? 'No se pudo confirmar la última marcación. Reintenta la conexión.'
                 : 'María Fernanda, selecciona la marcación',
             statusColor: Colors.blue,
+            feedbackType: feedbackType,
             showMarkActions: pending,
             marking: marking,
             canStartBreak: canStartBreak,
@@ -216,6 +218,34 @@ void main() {
       isTrue,
     );
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('muestra confirmación y error inequívocos', (tester) async {
+    await showLayout(
+      tester,
+      const Size(640, 360),
+      pending: false,
+      feedbackType: KioskFeedbackType.success,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('feedback-success')), findsOneWidget);
+    expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+    expect(find.bySemanticsLabel('Marcación confirmada'), findsOneWidget);
+
+    await showLayout(
+      tester,
+      const Size(640, 360),
+      pending: false,
+      feedbackType: KioskFeedbackType.error,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('feedback-error')), findsOneWidget);
+    expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+    expect(
+      find.bySemanticsLabel('No se pudo registrar la marcación'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('reorganiza al girar de vertical a horizontal y regresar', (

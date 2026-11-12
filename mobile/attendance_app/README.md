@@ -16,7 +16,7 @@ Los cambios de sonidos requieren generar e instalar una nueva APK:
 - Un tono diferente indica rechazo, error o una marcacion aun sin confirmar.
   No se repite por cada cuadro sin rostro o fuera del ovalo.
 - El boton de altavoz permite probar el audio sin registrar asistencia. Usa el
-  volumen multimedia de Android; no modifica el volumen ni evita el silencio.
+  volumen de alarma de Android; no modifica automáticamente el volumen configurado.
 - Un fallo del audio no impide registrar ni recuperar una marcacion. Los tonos
   usan Android nativo, sin archivos descargados ni dependencias adicionales.
 

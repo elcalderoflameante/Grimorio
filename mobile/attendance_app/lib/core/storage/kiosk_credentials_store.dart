@@ -12,7 +12,10 @@ class KioskCredentialsStore {
     : _storage =
           storage ??
           const FlutterSecureStorage(
-            aOptions: AndroidOptions(resetOnError: false),
+            // A reinstall or signing-key change can leave Android with an
+            // encrypted preference that can no longer be decrypted. Resetting
+            // it is safe here: the kiosk simply has to be linked again.
+            aOptions: AndroidOptions(resetOnError: true),
           );
 
   static const _kioskIdKey = 'attendance_kiosk_id';

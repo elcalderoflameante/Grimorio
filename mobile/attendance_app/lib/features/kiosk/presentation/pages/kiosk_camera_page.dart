@@ -54,6 +54,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
   String _message = 'Acércate a la cámara';
   String _appVersion = 'Cargando versión...';
   Color _statusColor = const Color(0xFF1890FF);
+  KioskFeedbackType _feedbackType = KioskFeedbackType.neutral;
 
   @override
   void initState() {
@@ -121,6 +122,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
         setState(() {
           if (_camera == initializingController) _camera = null;
           _statusColor = Colors.redAccent;
+          _feedbackType = KioskFeedbackType.error;
           _message = 'No se pudo iniciar la cámara frontal';
         });
       }
@@ -242,6 +244,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       if (_liveness.isCompleted) {
         setState(() {
           _statusColor = const Color(0xFF52C41A);
+          _feedbackType = KioskFeedbackType.processing;
           _message = 'Identificando...';
         });
         _scanTimer?.cancel();
@@ -252,11 +255,13 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       } else if (_liveness.step != LivenessStep.center || result.isAcceptable) {
         setState(() {
           _statusColor = const Color(0xFF1890FF);
+          _feedbackType = KioskFeedbackType.neutral;
           _message = _liveness.instruction;
         });
       } else {
         setState(() {
           _statusColor = Colors.orange;
+          _feedbackType = KioskFeedbackType.warning;
           _message = _messageFor(result.issues.first);
         });
       }
@@ -271,6 +276,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
         if (resumeAfterCaptureFailure) unawaited(_feedback.error());
         setState(() {
           _statusColor = Colors.redAccent;
+          _feedbackType = KioskFeedbackType.error;
           _message = 'No se pudo analizar la imagen. Reintentando...';
         });
       }
@@ -306,6 +312,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
           _pendingEmployee = employee;
           _canStartBreak = status.breakStartedAtUtc == null;
           _statusColor = const Color(0xFF1890FF);
+          _feedbackType = KioskFeedbackType.neutral;
           _message = '${employee.name}, selecciona la marcación';
         });
         _selectionTimer?.cancel();
@@ -318,6 +325,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       } else {
         setState(() {
           _statusColor = Colors.orange;
+          _feedbackType = KioskFeedbackType.warning;
           _message = '${employee.name}, tu jornada ya fue finalizada';
         });
         unawaited(_feedback.error());
@@ -333,6 +341,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       final serverMessage = data is Map ? data['message']?.toString() : null;
       setState(() {
         _statusColor = Colors.redAccent;
+        _feedbackType = KioskFeedbackType.error;
         _unconfirmedMark = _attendanceApi.hasUnconfirmedMark;
         _message = _unconfirmedMark
             ? 'Marcación pendiente de confirmación. Pulsa Reintentar conexión.'
@@ -343,6 +352,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       unawaited(_feedback.error());
       setState(() {
         _statusColor = Colors.redAccent;
+        _feedbackType = KioskFeedbackType.error;
         _unconfirmedMark = _attendanceApi.hasUnconfirmedMark;
         _message = _unconfirmedMark
             ? 'Marcación pendiente de confirmación. Pulsa Reintentar conexión.'
@@ -360,13 +370,19 @@ class _KioskCameraPageState extends State<KioskCameraPage>
     String successMessage,
   ) async {
     final session = _session;
-    setState(() => _marking = true);
+    setState(() {
+      _marking = true;
+      _statusColor = const Color(0xFF1890FF);
+      _feedbackType = KioskFeedbackType.processing;
+      _message = '${employee.name}, registrando marcación...';
+    });
     try {
       await _attendanceApi.mark(employee.id, action, employee.recognitionToken);
       if (!mounted || !_active || session != _session) return;
       setState(() {
         _pendingEmployee = null;
         _statusColor = const Color(0xFF52C41A);
+        _feedbackType = KioskFeedbackType.success;
         _message = '${employee.name}: $successMessage';
       });
       unawaited(_feedback.confirmed());
@@ -381,7 +397,12 @@ class _KioskCameraPageState extends State<KioskCameraPage>
     _selectionTimer?.cancel();
     final session = _session;
     XFile? confirmation;
-    setState(() => _marking = true);
+    setState(() {
+      _marking = true;
+      _statusColor = const Color(0xFF1890FF);
+      _feedbackType = KioskFeedbackType.processing;
+      _message = '${employee.name}, confirmando identidad...';
+    });
     try {
       final camera = _camera;
       if (camera == null || !_active) return;
@@ -392,6 +413,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
         unawaited(_feedback.error());
         setState(() {
           _statusColor = Colors.orange;
+          _feedbackType = KioskFeedbackType.warning;
           _message = 'La persona cambió. Identifícate nuevamente.';
         });
         return;
@@ -407,6 +429,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       final data = error.response?.data;
       setState(() {
         _statusColor = Colors.redAccent;
+        _feedbackType = KioskFeedbackType.error;
         _unconfirmedMark = _attendanceApi.hasUnconfirmedMark;
         _message = _unconfirmedMark
             ? 'Marcación pendiente de confirmación. Pulsa Reintentar conexión.'
@@ -419,6 +442,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
         unawaited(_feedback.error());
         setState(() {
           _statusColor = Colors.redAccent;
+          _feedbackType = KioskFeedbackType.error;
           _unconfirmedMark = _attendanceApi.hasUnconfirmedMark;
           _message = _unconfirmedMark
               ? 'Marcación pendiente de confirmación. Pulsa Reintentar conexión.'
@@ -456,6 +480,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
     setState(() {
       _liveness = ActiveLivenessChallenge();
       _statusColor = const Color(0xFF1890FF);
+      _feedbackType = KioskFeedbackType.neutral;
       _awaitingDeparture = true;
       _absentSince = null;
       _message = 'Retírate de la cámara para la siguiente marcación';
@@ -476,6 +501,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
         _unconfirmedMark = false;
         if (result != null) {
           _statusColor = const Color(0xFF52C41A);
+          _feedbackType = KioskFeedbackType.success;
           _message = '${result.employeeName}: marcación confirmada';
         }
       });
@@ -489,6 +515,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       setState(() {
         _unconfirmedMark = _attendanceApi.hasUnconfirmedMark;
         _statusColor = Colors.orange;
+        _feedbackType = KioskFeedbackType.warning;
         _message = _unconfirmedMark
             ? 'No se pudo confirmar la última marcación. Reintenta la conexión.'
             : 'Identifícate nuevamente para marcar.';
@@ -573,14 +600,14 @@ class _KioskCameraPageState extends State<KioskCameraPage>
         actions: [
           const EcuadorClock(),
           IconButton(
-            tooltip: 'Probar sonido (volumen multimedia)',
+            tooltip: 'Probar sonido (volumen de alarma)',
             icon: const Icon(Icons.volume_up_outlined),
             onPressed: () async {
               await _feedback.testSound();
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Si no se oye, sube el volumen multimedia.'),
+                    content: Text('Si no se oye, sube el volumen de alarma.'),
                   ),
                 );
               }
@@ -643,6 +670,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
                       : 1 / value.aspectRatio,
                   message: _message,
                   statusColor: _statusColor,
+                  feedbackType: _feedbackType,
                   showMarkActions: _pendingEmployee != null,
                   marking: _marking,
                   canStartBreak: _canStartBreak,

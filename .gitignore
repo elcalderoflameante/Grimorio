@@ -41,6 +41,10 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
+# Flutter attendance debug manifest is source configuration, not build output.
+!mobile/attendance_app/android/app/src/debug/
+!mobile/attendance_app/android/app/src/debug/AndroidManifest.xml
+
 # Visual Studio 2015/2017 cache/options directory
 .vs/
 # Uncomment if you have tasks that create the project's static files in wwwroot

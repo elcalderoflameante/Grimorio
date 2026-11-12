@@ -2,6 +2,8 @@ package com.grimorio.grimorio_attendance
 
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.os.Handler
+import android.os.Looper
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -10,6 +12,17 @@ class MainActivity : FlutterActivity() {
     private var feedbackChannel: MethodChannel? = null
     private var toneGenerator: ToneGenerator? = null
     private var foreground = false
+    private val feedbackHandler = Handler(Looper.getMainLooper())
+    private val repeatConfirmation = Runnable {
+        if (foreground) {
+            toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 300)
+        }
+    }
+    private val repeatError = Runnable {
+        if (foreground) {
+            toneGenerator?.startTone(ToneGenerator.TONE_PROP_NACK, 550)
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -29,15 +42,24 @@ class MainActivity : FlutterActivity() {
                     } else {
                         try {
                             val generator = toneGenerator ?: ToneGenerator(
-                                AudioManager.STREAM_MUSIC, 80
+                                AudioManager.STREAM_ALARM,
+                                100
                             ).also { toneGenerator = it }
                             generator.stopTone()
+                            feedbackHandler.removeCallbacks(repeatConfirmation)
+                            feedbackHandler.removeCallbacks(repeatError)
+
                             val error = type == "error"
-                            result.success(generator.startTone(
+                            val played = generator.startTone(
                                 if (error) ToneGenerator.TONE_PROP_NACK
                                 else ToneGenerator.TONE_PROP_ACK,
-                                if (error) 450 else 250
-                            ))
+                                if (error) 550 else 300
+                            )
+                            feedbackHandler.postDelayed(
+                                if (error) repeatError else repeatConfirmation,
+                                if (error) 650L else 380L
+                            )
+                            result.success(played)
                         } catch (_: RuntimeException) {
                             releaseAudio()
                             result.success(false)
@@ -51,7 +73,7 @@ class MainActivity : FlutterActivity() {
     override fun onResume() {
         super.onResume()
         foreground = true
-        volumeControlStream = AudioManager.STREAM_MUSIC
+        volumeControlStream = AudioManager.STREAM_ALARM
     }
 
     override fun onPause() {
@@ -68,6 +90,8 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun releaseAudio() {
+        feedbackHandler.removeCallbacks(repeatConfirmation)
+        feedbackHandler.removeCallbacks(repeatError)
         toneGenerator?.release()
         toneGenerator = null
     }

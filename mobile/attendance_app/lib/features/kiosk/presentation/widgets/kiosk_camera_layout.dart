@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+enum KioskFeedbackType { neutral, processing, success, warning, error }
+
 /// Keeps controls outside the full, uncropped camera image in either orientation.
 class KioskCameraLayout extends StatelessWidget {
   const KioskCameraLayout({
@@ -10,6 +12,7 @@ class KioskCameraLayout extends StatelessWidget {
     required this.previewAspectRatio,
     required this.message,
     required this.statusColor,
+    this.feedbackType = KioskFeedbackType.neutral,
     this.showMarkActions = false,
     this.marking = false,
     this.canStartBreak = true,
@@ -24,6 +27,7 @@ class KioskCameraLayout extends StatelessWidget {
   final double previewAspectRatio;
   final String message;
   final Color statusColor;
+  final KioskFeedbackType feedbackType;
   final bool showMarkActions;
   final bool marking;
   final bool canStartBreak;
@@ -129,6 +133,16 @@ class KioskCameraLayout extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            transitionBuilder: (child, animation) => ScaleTransition(
+              scale: animation,
+              child: FadeTransition(opacity: animation, child: child),
+            ),
+            child: _buildFeedbackIndicator(),
+          ),
+          if (feedbackType != KioskFeedbackType.neutral)
+            const SizedBox(height: 10),
           Semantics(
             liveRegion: true,
             child: Text(
@@ -181,4 +195,51 @@ class KioskCameraLayout extends StatelessWidget {
       ),
     ),
   );
+
+  Widget _buildFeedbackIndicator() {
+    if (feedbackType == KioskFeedbackType.neutral) {
+      return const SizedBox.shrink(key: ValueKey('feedback-neutral'));
+    }
+    if (feedbackType == KioskFeedbackType.processing) {
+      return const Center(
+        key: ValueKey('feedback-processing'),
+        child: SizedBox.square(
+          dimension: 58,
+          child: CircularProgressIndicator(strokeWidth: 6),
+        ),
+      );
+    }
+
+    final (icon, label) = switch (feedbackType) {
+      KioskFeedbackType.success => (
+        Icons.check_rounded,
+        'Marcación confirmada',
+      ),
+      KioskFeedbackType.warning => (
+        Icons.priority_high_rounded,
+        'Marcación requiere atención',
+      ),
+      KioskFeedbackType.error => (
+        Icons.close_rounded,
+        'No se pudo registrar la marcación',
+      ),
+      _ => (Icons.info_outline, 'Estado de la marcación'),
+    };
+    return Semantics(
+      key: ValueKey('feedback-${feedbackType.name}'),
+      label: label,
+      child: Center(
+        child: Container(
+          width: 76,
+          height: 76,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: statusColor.withValues(alpha: 0.16),
+            border: Border.all(color: statusColor, width: 4),
+          ),
+          child: Icon(icon, size: 54, color: statusColor),
+        ),
+      ),
+    );
+  }
 }
