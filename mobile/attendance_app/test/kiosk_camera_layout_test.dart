@@ -46,10 +46,18 @@ void main() {
         ),
         home: Scaffold(
           appBar: AppBar(
-            title: const Text(
-              'Kiosco de asistencia de El Caldero Flameante',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            title: const Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Kiosco de asistencia de El Caldero Flameante',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 16),
+                ),
+                Text('Versión 1.0.7 (8)', style: TextStyle(fontSize: 11)),
+              ],
             ),
             actions: [
               const EcuadorClock(),

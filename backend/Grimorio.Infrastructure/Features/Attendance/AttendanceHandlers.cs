@@ -59,10 +59,14 @@ public sealed class AttendanceHandlers :
         var (employee, kiosk) = await LoadEmployeeAndKiosk(request, cancellationToken);
         var nowUtc = DateTime.UtcNow;
         var timeZoneId = await GetBranchTimeZoneId(kiosk.BranchId, cancellationToken);
-        var workDate = BranchTimeZone.DateFromUtc(nowUtc, timeZoneId);
+        var workDateWindow = AttendanceWorkDatePolicy.GetWindow(nowUtc, timeZoneId);
+        var workDate = workDateWindow.Today;
+        var carryoverDate = workDateWindow.CarryoverDate;
 
         if (await _context.EmployeeClockings.AnyAsync(
-                x => x.EmployeeId == employee.Id && (x.WorkDate == workDate || x.ClockOutTimeUtc == null) && !x.IsDeleted,
+                x => x.EmployeeId == employee.Id &&
+                    (x.WorkDate == workDate || carryoverDate.HasValue && x.WorkDate == carryoverDate.Value &&
+                        x.ClockOutTimeUtc == null) && !x.IsDeleted,
                 cancellationToken))
             throw new InvalidOperationException("El empleado ya tiene una jornada registrada para hoy.");
 
@@ -173,11 +177,14 @@ public sealed class AttendanceHandlers :
             x => x.Id == request.EmployeeId && x.BranchId == request.BranchId && x.IsActive && !x.IsDeleted,
             cancellationToken) ?? throw new KeyNotFoundException("Empleado no encontrado en la sucursal del kiosco.");
         var timeZoneId = await GetBranchTimeZoneId(request.BranchId, cancellationToken);
-        var workDate = BranchTimeZone.DateFromUtc(DateTime.UtcNow, timeZoneId);
+        var workDateWindow = AttendanceWorkDatePolicy.GetWindow(DateTime.UtcNow, timeZoneId);
+        var workDate = workDateWindow.Today;
+        var carryoverDate = workDateWindow.CarryoverDate;
         var clocking = await _context.EmployeeClockings.Include(x => x.Break)
             .Where(x => x.EmployeeId == employee.Id && x.BranchId == request.BranchId &&
-                (x.WorkDate == workDate || x.ClockOutTimeUtc == null) && !x.IsDeleted)
-            .OrderBy(x => x.ClockOutTimeUtc != null).ThenByDescending(x => x.WorkDate)
+                (x.WorkDate == workDate || carryoverDate.HasValue && x.WorkDate == carryoverDate.Value &&
+                    x.ClockOutTimeUtc == null) && !x.IsDeleted)
+            .OrderByDescending(x => x.WorkDate)
             .FirstOrDefaultAsync(cancellationToken);
         return clocking is null
             ? new AttendanceStatusDto { EmployeeId = employee.Id, EmployeeName = FullName(employee), WorkDate = workDate }
@@ -631,10 +638,13 @@ public sealed class AttendanceHandlers :
         var query = _context.EmployeeClockings.AsQueryable();
         if (includeBreak) query = query.Include(x => x.Break);
         var timeZoneId = await GetBranchTimeZoneId(branchId, cancellationToken);
-        var workDate = BranchTimeZone.DateFromUtc(DateTime.UtcNow, timeZoneId);
+        var workDateWindow = AttendanceWorkDatePolicy.GetWindow(DateTime.UtcNow, timeZoneId);
+        var workDate = workDateWindow.Today;
+        var carryoverDate = workDateWindow.CarryoverDate;
         return await query.Where(x => x.EmployeeId == employeeId && x.BranchId == branchId &&
-                (x.WorkDate == workDate || x.ClockOutTimeUtc == null) && !x.IsDeleted)
-            .OrderBy(x => x.ClockOutTimeUtc != null).ThenByDescending(x => x.WorkDate)
+                (x.WorkDate == workDate || carryoverDate.HasValue && x.WorkDate == carryoverDate.Value &&
+                    x.ClockOutTimeUtc == null) && !x.IsDeleted)
+            .OrderByDescending(x => x.WorkDate)
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException("El empleado no tiene una jornada registrada para hoy.");
     }

@@ -1,10 +1,12 @@
 using Grimorio.API.Services;
 using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Attendance.Commands;
+using Grimorio.Application.Features.Attendance.Queries;
 using Grimorio.Domain.Entities.Organization;
 using Grimorio.Domain.Enums;
 using Grimorio.Infrastructure.Features.Attendance;
 using Grimorio.Infrastructure.Security;
+using Grimorio.Infrastructure.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,6 +29,19 @@ foreach (var invalid in new float[][] { [], [1], [0, 0], [float.NaN, 0], [float.
     catch (ArgumentException) { count++; continue; }
     throw new Exception("Invalid biometric embedding must fail closed");
 }
+var beforeMidnight = AttendanceWorkDatePolicy.GetWindow(
+    new DateTime(2026, 11, 11, 4, 59, 0, DateTimeKind.Utc), "America/Guayaquil");
+Check(beforeMidnight.Today == new DateOnly(2026, 11, 10) && beforeMidnight.CarryoverDate is null,
+    "Previous work date is not carried before local midnight");
+var atGraceLimit = AttendanceWorkDatePolicy.GetWindow(
+    new DateTime(2026, 11, 11, 5, 30, 0, DateTimeKind.Utc), "America/Guayaquil");
+Check(atGraceLimit.Today == new DateOnly(2026, 11, 11) &&
+    atGraceLimit.CarryoverDate == new DateOnly(2026, 11, 10),
+    "Previous open shift remains active through 00:30 local time");
+var afterGraceLimit = AttendanceWorkDatePolicy.GetWindow(
+    new DateTime(2026, 11, 11, 5, 30, 1, DateTimeKind.Utc), "America/Guayaquil");
+Check(afterGraceLimit.Today == new DateOnly(2026, 11, 11) && afterGraceLimit.CarryoverDate is null,
+    "Previous open shift becomes administrative after 00:30 local time");
 await using var db = ChecksDbContextFactory.Create();
 await db.Database.MigrateAsync();
 var branch = new Branch { Name = "Attendance checks", Code = Guid.NewGuid().ToString("N")[..8] };
@@ -115,6 +130,22 @@ async Task<AttendanceStatusDto> Mark(KioskAttendanceCommand command, Guid? emplo
             ClockOutCommand c => Handler(context).Handle(c, ct),
             _ => throw new Exception("Unsupported check command") }, default);
 }
+var staleEmployee = new Employee { BranchId = branch.Id, PositionId = position.Id, FirstName = "Stale", LastName = "Checks",
+    Email = Guid.NewGuid() + "@example.invalid", IdentificationNumber = Guid.NewGuid().ToString("N")[..10] };
+var currentWindow = AttendanceWorkDatePolicy.GetWindow(DateTime.UtcNow, branch.TimeZoneId);
+var staleDate = currentWindow.Today.AddDays(-2);
+var staleClocking = new EmployeeClocking { BranchId = branch.Id, EmployeeId = staleEmployee.Id, WorkDate = staleDate,
+    ClockInTimeUtc = BranchTimeZone.ToUtc(staleDate.ToDateTime(new TimeOnly(14, 0)), branch.TimeZoneId),
+    Status = AttendanceStatus.Working, ClockInMethod = AttendanceMethod.Face, ClockInKioskDeviceId = device.Id };
+db.AddRange(staleEmployee, staleClocking); await db.SaveChangesAsync();
+var staleToday = await Handler(db).Handle(new GetTodayAttendanceStatusQuery {
+    EmployeeId = staleEmployee.Id, BranchId = branch.Id }, default);
+Check(staleToday.Status is null && staleToday.WorkDate == currentWindow.Today,
+    "Stale open shift is not returned as today's state");
+var entryAfterStale = await Mark(new ClockInCommand(), staleEmployee.Id);
+Check(entryAfterStale.WorkDate == currentWindow.Today && entryAfterStale.Status == AttendanceStatus.Working &&
+    staleClocking.ClockOutTimeUtc is null,
+    "Stale open shift remains for correction and does not block today's entry");
 Check((await Mark(new ClockInCommand())).Status == AttendanceStatus.Working, "Biometric entry with durable receipt");
 Check((await Mark(new StartBreakCommand())).Status == AttendanceStatus.OnBreak, "Break starts with durable receipt");
 await Reject(() => Mark(new StartBreakCommand()), "Second break is rejected");

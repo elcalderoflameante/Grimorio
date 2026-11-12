@@ -4,6 +4,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../../../core/feedback/attendance_feedback.dart';
 import '../../../biometrics/data/face_detection_service.dart';
 import '../../../biometrics/domain/active_liveness_challenge.dart';
@@ -51,13 +52,29 @@ class _KioskCameraPageState extends State<KioskCameraPage>
   DeviceOrientation? _scanOrientation;
   Future<void>? _cameraDisposal;
   String _message = 'Acércate a la cámara';
+  String _appVersion = 'Cargando versión...';
   Color _statusColor = const Color(0xFF1890FF);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _loadAppVersion();
     _initializeCamera();
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final package = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(
+          () => _appVersion =
+              'Versión ${package.version} (${package.buildNumber})',
+        );
+      }
+    } catch (_) {
+      if (mounted) setState(() => _appVersion = 'Versión no disponible');
+    }
   }
 
   Future<void> _initializeCamera() async {
@@ -531,10 +548,26 @@ class _KioskCameraPageState extends State<KioskCameraPage>
     final camera = _camera;
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.kioskName,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.kioskName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            Text(
+              _appVersion,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ),
         automaticallyImplyLeading: false,
         actions: [
