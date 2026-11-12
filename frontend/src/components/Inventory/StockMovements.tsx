@@ -81,6 +81,15 @@ const renderStockBalance = (value: number | null | undefined, movement: StockMov
     {value.toLocaleString('es-EC', { maximumFractionDigits: 4 })} {movement.baseUnitSymbol}
   </Text>;
 
+const renderEllipsis = (value: string | null | undefined) => value ? (
+  <Tooltip title={value}>
+    <Text ellipsis style={{ display: 'block' }}>{value}</Text>
+  </Tooltip>
+) : '-';
+
+const formatMovementQuantity = (value: number, unit: string, type: MovementType) =>
+  `${SALIDAS.has(type) ? '-' : '+'}${Math.abs(value).toLocaleString('es-EC', { maximumFractionDigits: 4 })} ${unit}`;
+
 export default function StockMovements() {
   const { message } = AntApp.useApp();
   const { hasPermission } = useAuth();
@@ -234,7 +243,8 @@ export default function StockMovements() {
         rowKey="id"
         loading={loading}
         size="small"
-        scroll={{ x: 1700 }}
+        tableLayout="fixed"
+        scroll={{ x: 1200 }}
         pagination={{ defaultPageSize: 30, showSizeChanger: true, pageSizeOptions: ['10', '30', '50', '100'] }}
         columns={[
           {
@@ -242,60 +252,92 @@ export default function StockMovements() {
             dataIndex: 'movedAt',
             key: 'fecha',
             render: (v: string) => formatBranchDateTime(v),
-            width: 140,
+            width: 112,
           },
-          { title: 'Articulo', dataIndex: 'articleName', key: 'articulo' },
-          { title: 'Bodega', dataIndex: 'warehouseName', key: 'bodega' },
+          {
+            title: 'Articulo',
+            dataIndex: 'articleName',
+            key: 'articulo',
+            width: 170,
+            render: renderEllipsis,
+          },
+          {
+            title: 'Bodega',
+            dataIndex: 'warehouseName',
+            key: 'bodega',
+            width: 105,
+            render: renderEllipsis,
+          },
           {
             title: 'Tipo',
             dataIndex: 'type',
             key: 'tipo',
             render: (v: MovementType) => <Tag color={tipoColor(v)}>{TIPO_LABELS.get(v) ?? v}</Tag>,
+            width: 132,
           },
           {
-            title: <Tooltip title="Existencia reconstruida antes del movimiento, en la unidad base del articulo y en esta bodega.">Stock anterior</Tooltip>,
-            dataIndex: 'stockBefore',
-            key: 'stockBefore',
+            title: <Tooltip title="Existencia anterior y resultante en la unidad base del articulo y en esta bodega.">Stock</Tooltip>,
+            key: 'stock',
+            align: 'right',
+            width: 165,
+            render: (_: unknown, m: StockMovementDto) => (
+              <Space size={4} style={{ whiteSpace: 'nowrap' }}>
+                {renderStockBalance(m.stockBefore, m)}
+                <Text type="secondary">→</Text>
+                {renderStockBalance(m.stockAfter, m)}
+              </Space>
+            ),
+          },
+          {
+            title: <Tooltip title="Cantidad registrada y su equivalencia en la unidad base.">Movimiento</Tooltip>,
+            key: 'cantidad',
             align: 'right',
             width: 145,
-            render: renderStockBalance,
-          },
-          {
-            title: 'Cantidad',
-            key: 'cantidad',
-            render: (_: unknown, m: StockMovementDto) =>
-              `${SALIDAS.has(m.type) ? '-' : '+'}${Math.abs(m.quantity)} ${m.unitSymbol}`,
-          },
-          {
-            title: 'En unidad base',
-            key: 'cantidadBase',
-            render: (_: unknown, m: StockMovementDto) =>
-              `${SALIDAS.has(m.type) ? '-' : '+'}${Math.abs(m.baseQuantity)} ${m.baseUnitSymbol}`,
-          },
-          {
-            title: <Tooltip title="Existencia reconstruida despues del movimiento. Incluye todo el historial vigente, aunque la consulta este filtrada. Movimientos con la misma fecha y hora se ordenan por identificador.">Stock resultante</Tooltip>,
-            dataIndex: 'stockAfter',
-            key: 'stockAfter',
-            align: 'right',
-            width: 155,
-            render: renderStockBalance,
+            render: (_: unknown, m: StockMovementDto) => {
+              const quantity = formatMovementQuantity(m.quantity, m.unitSymbol, m.type);
+              const baseQuantity = formatMovementQuantity(m.baseQuantity, m.baseUnitSymbol, m.type);
+              const sameQuantity = m.unitSymbol === m.baseUnitSymbol && Math.abs(m.quantity) === Math.abs(m.baseQuantity);
+              return (
+                <div style={{ whiteSpace: 'nowrap' }}>
+                  <Text>{quantity}</Text>
+                  {!sameQuantity && <Text type="secondary" style={{ display: 'block', fontSize: 11 }}>Base: {baseQuantity}</Text>}
+                </div>
+              );
+            },
           },
           {
             title: 'Costo',
             key: 'costo',
-            render: (_: unknown, m: StockMovementDto) =>
-              m.unitCost === undefined || m.unitCost === null
-                ? '-'
-                : `$${m.unitCost.toFixed(4)} / ${m.baseUnitSymbol}`,
+            align: 'right',
+            width: 125,
+            render: (_: unknown, m: StockMovementDto) => {
+              const hasUnitCost = m.unitCost !== undefined && m.unitCost !== null;
+              const hasTotalCost = m.totalCost !== undefined && m.totalCost !== null;
+              if (!hasUnitCost && !hasTotalCost) return '-';
+              return (
+                <div style={{ whiteSpace: 'nowrap' }}>
+                  {hasUnitCost && <Text>${m.unitCost!.toFixed(4)} / {m.baseUnitSymbol}</Text>}
+                  {hasTotalCost && (
+                    <Text type="secondary" style={{ display: 'block', fontSize: 11 }}>Total: ${m.totalCost!.toFixed(2)}</Text>
+                  )}
+                </div>
+              );
+            },
           },
           {
-            title: 'Costo total',
-            key: 'costoTotal',
-            render: (_: unknown, m: StockMovementDto) =>
-              m.totalCost === undefined || m.totalCost === null ? '-' : `$${m.totalCost.toFixed(2)}`,
+            title: 'Referencia',
+            dataIndex: 'reference',
+            key: 'referencia',
+            width: 135,
+            render: renderEllipsis,
           },
-          { title: 'Referencia', dataIndex: 'reference', key: 'referencia' },
-          { title: 'Observacion', dataIndex: 'notes', key: 'observacion' },
+          {
+            title: 'Observacion',
+            dataIndex: 'notes',
+            key: 'observacion',
+            width: 145,
+            render: renderEllipsis,
+          },
         ]}
       />
 

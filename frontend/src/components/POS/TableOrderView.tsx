@@ -921,6 +921,13 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
       <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
         Selecciona los ítems de este cobro:
       </Text>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px 4px', color: '#8c8c8c', fontSize: 11 }}>
+        <span style={{ width: 16 }} />
+        <span style={{ flex: 1, minWidth: 0 }}>Plato</span>
+        <span style={{ width: 68, textAlign: 'right' }}>P. unit.</span>
+        <span style={{ width: 60, textAlign: 'right' }}>Cant.</span>
+        <span style={{ width: 64, textAlign: 'right' }}>Total</span>
+      </div>
       {order.items.filter(i => i.status !== 'Cancelled' && getPendingItemQty(i.id, i.quantity) > 0).map(item => {
         const pendingQty = getClientItemQty(item.id, item.quantity);
         const reservedQty = getPendingItemQty(item.id, item.quantity) - pendingQty;
@@ -929,6 +936,10 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
         const selected = row.checked && pendingQty > 0;
         const fullyAssignedElsewhere = reservedQty > 0 && pendingQty === 0;
         const paymentUnitTotal = getPaymentUnitTotal(item, hasCardLine);
+        const optionNames = item.modifierSelections
+          ?.map(selection => `${selection.optionName}${selection.quantity > 1 ? ` x${selection.quantity}` : ''}`)
+          .join(', ');
+        const itemLabel = optionNames ? `${item.itemName} (${optionNames})` : item.itemName;
         return (
           <div key={item.id} style={{
             display: 'flex', alignItems: 'center', gap: 8,
@@ -949,16 +960,14 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                 },
               }))}
             />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ display: 'block', fontSize: 13, overflowWrap: 'anywhere' }}>{item.itemName}</Text>
-              <Text type="secondary" style={{ fontSize: 11 }}>${paymentUnitTotal.toFixed(2)} c/u</Text>
-              {item.modifierSelections?.length > 0 && (
-                <div style={{ fontSize: 11, color: '#595959', overflowWrap: 'anywhere' }}>
-                  {item.modifierSelections.map(s => `${s.optionName}${s.quantity > 1 ? ` x${s.quantity}` : ''}`).join(', ')}
-                </div>
-              )}
-              {reservedQty > 0 && <div style={{ fontSize: 11, color: '#873800', fontWeight: 600 }}>{reservedQty} en otros clientes</div>}
-            </div>
+            <Tooltip title={reservedQty > 0 ? `${itemLabel} · ${reservedQty} en otros clientes` : itemLabel}>
+              <Text ellipsis style={{ flex: 1, minWidth: 0, fontSize: 13, color: reservedQty > 0 ? '#873800' : undefined }}>
+                {itemLabel}
+              </Text>
+            </Tooltip>
+            <Text type="secondary" style={{ width: 68, textAlign: 'right', fontSize: 12, whiteSpace: 'nowrap' }}>
+              ${paymentUnitTotal.toFixed(2)}
+            </Text>
             {row.checked && pendingQty > 0 ? (
               <InputNumber
                 aria-label={`Cantidad de ${item.itemName}`}
@@ -967,9 +976,9 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
                 onChange={v => setSplitRows(prev => ({ ...prev, [item.id]: { ...prev[item.id], qty: Math.max(1, Math.min(Math.floor(v ?? 1), pendingQty)) } }))}
               />
             ) : (
-              <Text type="secondary" style={{ fontSize: 12 }}>×{pendingQty}</Text>
+              <Text type="secondary" style={{ width: 60, textAlign: 'right', fontSize: 12 }}>×{pendingQty}</Text>
             )}
-            <Text strong style={{ width: 60, textAlign: 'right', fontSize: 13 }}>
+            <Text strong style={{ width: 64, textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap' }}>
               ${getSelectedPaymentTotal(item, row.checked ? selectedQty : pendingQty).toFixed(2)}
             </Text>
           </div>

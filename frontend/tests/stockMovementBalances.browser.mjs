@@ -59,8 +59,8 @@ try {
       await page.screenshot({ path: resolve(output, `failure-${width}.png`), fullPage: true });
       throw error;
     });
-    await page.getByRole('columnheader', { name: 'Stock anterior', exact: true }).waitFor();
-    await page.getByRole('columnheader', { name: 'Stock resultante', exact: true }).waitFor();
+    await page.getByRole('columnheader', { name: 'Stock', exact: true }).waitFor();
+    await page.getByRole('columnheader', { name: 'Movimiento', exact: true }).waitFor();
     const exit = page.getByRole('row').filter({ hasText: 'Salida de prueba' });
     assert.match(await exit.innerText(), /500 g/); assert.match(await exit.innerText(), /300 g/);
     const entry = page.getByRole('row').filter({ hasText: 'Compra de prueba' });
@@ -69,7 +69,7 @@ try {
     const negative = page.getByRole('row').filter({ hasText: 'Negativo de prueba' });
     assert.match(await negative.locator('.ant-typography-danger').innerText(), /-3,25 g/);
     const legacy = page.getByRole('row').filter({ hasText: 'Saldo no informado' });
-    assert.equal(await legacy.getByRole('cell').filter({ hasText: /^-$/ }).count(), 4);
+    assert.match(await legacy.innerText(), /-\s*→\s*-/);
     await page.screenshot({ path: resolve(output, `movements-${width}.png`), fullPage: true });
     await page.locator('.ant-select').nth(2).click();
     await page.getByText('Salida manual', { exact: true }).last().click();
