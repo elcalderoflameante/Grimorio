@@ -24,20 +24,38 @@ class AttendanceStatus {
     required this.employeeId,
     required this.employeeName,
     required this.status,
+    required this.clockInTimeUtc,
+    required this.clockOutTimeUtc,
     required this.breakStartedAtUtc,
+    required this.breakEndedAtUtc,
+    required this.breakMinutes,
+    required this.breakLimitMinutes,
   });
 
   final String employeeId;
   final String employeeName;
   final int? status;
-  final String? breakStartedAtUtc;
+  final DateTime? clockInTimeUtc;
+  final DateTime? clockOutTimeUtc;
+  final DateTime? breakStartedAtUtc;
+  final DateTime? breakEndedAtUtc;
+  final int breakMinutes;
+  final int breakLimitMinutes;
+
+  static DateTime? _dateTime(Object? value) =>
+      value == null ? null : DateTime.tryParse(value.toString())?.toUtc();
 
   factory AttendanceStatus.fromJson(Map<String, dynamic> data) =>
       AttendanceStatus(
         employeeId: data['employeeId'].toString(),
         employeeName: data['employeeName'].toString(),
         status: data['status'] as int?,
-        breakStartedAtUtc: data['breakStartedAtUtc']?.toString(),
+        clockInTimeUtc: _dateTime(data['clockInTimeUtc']),
+        clockOutTimeUtc: _dateTime(data['clockOutTimeUtc']),
+        breakStartedAtUtc: _dateTime(data['breakStartedAtUtc']),
+        breakEndedAtUtc: _dateTime(data['breakEndedAtUtc']),
+        breakMinutes: (data['breakMinutes'] as num?)?.toInt() ?? 0,
+        breakLimitMinutes: (data['breakLimitMinutes'] as num?)?.toInt() ?? 30,
       );
 }
 

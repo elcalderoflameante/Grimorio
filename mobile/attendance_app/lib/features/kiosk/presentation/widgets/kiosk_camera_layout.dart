@@ -4,6 +4,24 @@ import 'package:flutter/material.dart';
 
 enum KioskFeedbackType { neutral, processing, success, warning, error }
 
+class KioskDaySummary {
+  const KioskDaySummary({
+    required this.employeeName,
+    required this.statusLabel,
+    required this.clockIn,
+    required this.breakPeriod,
+    required this.clockOut,
+    this.breakUsage,
+  });
+
+  final String employeeName;
+  final String statusLabel;
+  final String clockIn;
+  final String breakPeriod;
+  final String clockOut;
+  final String? breakUsage;
+}
+
 /// Keeps controls outside the full, uncropped camera image in either orientation.
 class KioskCameraLayout extends StatelessWidget {
   const KioskCameraLayout({
@@ -13,12 +31,15 @@ class KioskCameraLayout extends StatelessWidget {
     required this.message,
     required this.statusColor,
     this.feedbackType = KioskFeedbackType.neutral,
+    this.daySummary,
     this.showMarkActions = false,
     this.marking = false,
     this.canStartBreak = true,
+    this.onBreak = false,
     this.unconfirmedMark = false,
     this.recoveringMark = false,
     required this.onStartBreak,
+    required this.onEndBreak,
     required this.onClockOut,
     required this.onRetry,
   });
@@ -28,12 +49,15 @@ class KioskCameraLayout extends StatelessWidget {
   final String message;
   final Color statusColor;
   final KioskFeedbackType feedbackType;
+  final KioskDaySummary? daySummary;
   final bool showMarkActions;
   final bool marking;
   final bool canStartBreak;
+  final bool onBreak;
   final bool unconfirmedMark;
   final bool recoveringMark;
   final VoidCallback onStartBreak;
+  final VoidCallback onEndBreak;
   final VoidCallback onClockOut;
   final VoidCallback onRetry;
 
@@ -151,6 +175,10 @@ class KioskCameraLayout extends StatelessWidget {
               style: TextStyle(fontSize: 20, color: statusColor),
             ),
           ),
+          if (daySummary case final summary?) ...[
+            const SizedBox(height: 14),
+            _buildDaySummary(summary),
+          ],
           if (unconfirmedMark || recoveringMark) ...[
             const SizedBox(height: 12),
             FilledButton.icon(
@@ -173,9 +201,15 @@ class KioskCameraLayout extends StatelessWidget {
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),
               ),
-              onPressed: marking || !canStartBreak ? null : onStartBreak,
-              child: const Text(
-                'Iniciar descanso',
+              onPressed: marking
+                  ? null
+                  : onBreak
+                  ? onEndBreak
+                  : canStartBreak
+                  ? onStartBreak
+                  : null,
+              child: Text(
+                onBreak ? 'Finalizar descanso' : 'Iniciar descanso',
                 textAlign: TextAlign.center,
               ),
             ),
@@ -194,6 +228,90 @@ class KioskCameraLayout extends StatelessWidget {
         ],
       ),
     ),
+  );
+
+  Widget _buildDaySummary(KioskDaySummary summary) => DecoratedBox(
+    key: const ValueKey('kiosk-day-summary'),
+    decoration: BoxDecoration(
+      color: statusColor.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: statusColor.withValues(alpha: 0.30)),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  summary.employeeName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  summary.statusLabel,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _summaryRow(Icons.login_rounded, 'Entrada', summary.clockIn),
+          const SizedBox(height: 8),
+          _summaryRow(
+            Icons.coffee_outlined,
+            'Descanso',
+            summary.breakPeriod,
+            detail: summary.breakUsage,
+          ),
+          const SizedBox(height: 8),
+          _summaryRow(Icons.logout_rounded, 'Salida', summary.clockOut),
+        ],
+      ),
+    ),
+  );
+
+  Widget _summaryRow(
+    IconData icon,
+    String label,
+    String value, {
+    String? detail,
+  }) => Row(
+    children: [
+      Icon(icon, size: 20, color: statusColor),
+      const SizedBox(width: 9),
+      SizedBox(
+        width: 72,
+        child: Text(label, style: const TextStyle(color: Colors.white70)),
+      ),
+      Expanded(
+        child: Text(
+          detail == null ? value : '$value  ·  $detail',
+          textAlign: TextAlign.end,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+    ],
   );
 
   Widget _buildFeedbackIndicator() {

@@ -40,6 +40,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
   bool _awaitingDeparture = false;
   DateTime? _absentSince;
   bool _canStartBreak = true;
+  bool _onBreak = false;
   bool _processing = false;
   bool _initializingCamera = false;
   bool _coolingDown = false;
@@ -55,6 +56,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
   String _appVersion = 'Cargando versión...';
   Color _statusColor = const Color(0xFF1890FF);
   KioskFeedbackType _feedbackType = KioskFeedbackType.neutral;
+  KioskDaySummary? _daySummary;
 
   @override
   void initState() {
@@ -304,16 +306,18 @@ class _KioskCameraPageState extends State<KioskCameraPage>
 
       if (status.status == null) {
         await _performMark(employee, 'clock-in', 'Entrada registrada');
-      } else if (status.status == 2) {
-        await _performMark(employee, 'break/end', 'Fin de descanso registrado');
-      } else if (status.status == 1) {
+      } else if (status.status == 1 || status.status == 2) {
         shouldCooldown = false;
         setState(() {
           _pendingEmployee = employee;
           _canStartBreak = status.breakStartedAtUtc == null;
+          _onBreak = status.status == 2;
+          _daySummary = _summaryFor(status);
           _statusColor = const Color(0xFF1890FF);
           _feedbackType = KioskFeedbackType.neutral;
-          _message = '${employee.name}, selecciona la marcación';
+          _message = _onBreak
+              ? '${employee.name}, tu descanso está activo'
+              : '${employee.name}, selecciona la marcación';
         });
         _selectionTimer?.cancel();
         _selectionTimer = Timer(const Duration(seconds: 10), () {
@@ -324,6 +328,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
         });
       } else {
         setState(() {
+          _daySummary = _summaryFor(status);
           _statusColor = Colors.orange;
           _feedbackType = KioskFeedbackType.warning;
           _message = '${employee.name}, tu jornada ya fue finalizada';
@@ -377,10 +382,16 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       _message = '${employee.name}, registrando marcación...';
     });
     try {
-      await _attendanceApi.mark(employee.id, action, employee.recognitionToken);
+      final status = await _attendanceApi.mark(
+        employee.id,
+        action,
+        employee.recognitionToken,
+      );
       if (!mounted || !_active || session != _session) return;
       setState(() {
         _pendingEmployee = null;
+        _onBreak = status.status == 2;
+        _daySummary = _summaryFor(status);
         _statusColor = const Color(0xFF52C41A);
         _feedbackType = KioskFeedbackType.success;
         _message = '${employee.name}: $successMessage';
@@ -471,7 +482,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
     _selectionTimer?.cancel();
     _coolingDown = true;
     final session = _session;
-    await Future<void>.delayed(const Duration(seconds: 3));
+    await Future<void>.delayed(const Duration(seconds: 6));
     if (!mounted || !_active || session != _session) {
       _coolingDown = false;
       return;
@@ -485,6 +496,8 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       _absentSince = null;
       _message = 'Retírate de la cámara para la siguiente marcación';
       _pendingEmployee = null;
+      _onBreak = false;
+      _daySummary = null;
       _coolingDown = false;
     });
     await _startScanning();
@@ -500,6 +513,7 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       setState(() {
         _unconfirmedMark = false;
         if (result != null) {
+          _daySummary = _summaryFor(result);
           _statusColor = const Color(0xFF52C41A);
           _feedbackType = KioskFeedbackType.success;
           _message = '${result.employeeName}: marcación confirmada';
@@ -536,6 +550,40 @@ class _KioskCameraPageState extends State<KioskCameraPage>
     FaceQualityIssue.eyesClosed => 'Mantén los ojos abiertos',
   };
 
+  KioskDaySummary _summaryFor(AttendanceStatus status) {
+    final breakStarted = status.breakStartedAtUtc;
+    final breakEnded = status.breakEndedAtUtc;
+    final breakPeriod = breakStarted == null
+        ? 'No registrado'
+        : breakEnded == null
+        ? '${_ecuadorTime(breakStarted)} – En curso'
+        : '${_ecuadorTime(breakStarted)} – ${_ecuadorTime(breakEnded)}';
+    return KioskDaySummary(
+      employeeName: status.employeeName,
+      statusLabel: switch (status.status) {
+        1 => 'Trabajando',
+        2 => 'En descanso',
+        3 => 'Finalizada',
+        _ => 'Sin entrada',
+      },
+      clockIn: _ecuadorTime(status.clockInTimeUtc),
+      breakPeriod: breakPeriod,
+      breakUsage: breakStarted == null
+          ? null
+          : '${status.breakMinutes}/${status.breakLimitMinutes} min',
+      clockOut: status.clockOutTimeUtc == null
+          ? 'Pendiente'
+          : _ecuadorTime(status.clockOutTimeUtc),
+    );
+  }
+
+  String _ecuadorTime(DateTime? utc) {
+    if (utc == null) return 'No registrada';
+    final local = utc.toUtc().subtract(const Duration(hours: 5));
+    return '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.inactive ||
@@ -545,6 +593,8 @@ class _KioskCameraPageState extends State<KioskCameraPage>
       _session++;
       _selectionTimer?.cancel();
       _pendingEmployee = null;
+      _onBreak = false;
+      _daySummary = null;
       _liveness.reset();
       final camera = _camera;
       if (camera != null) {
@@ -671,15 +721,19 @@ class _KioskCameraPageState extends State<KioskCameraPage>
                   message: _message,
                   statusColor: _statusColor,
                   feedbackType: _feedbackType,
+                  daySummary: _daySummary,
                   showMarkActions: _pendingEmployee != null,
                   marking: _marking,
                   canStartBreak: _canStartBreak,
+                  onBreak: _onBreak,
                   unconfirmedMark: _unconfirmedMark,
                   recoveringMark: _recoveringMark,
                   onStartBreak: () => _chooseMark(
                     'break/start',
                     'Inicio de descanso registrado',
                   ),
+                  onEndBreak: () =>
+                      _chooseMark('break/end', 'Fin de descanso registrado'),
                   onClockOut: () =>
                       _chooseMark('clock-out', 'Salida registrada'),
                   onRetry: _recoverPendingMark,

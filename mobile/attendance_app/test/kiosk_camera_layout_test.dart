@@ -23,10 +23,13 @@ void main() {
     bool unconfirmed = false,
     bool marking = false,
     bool canStartBreak = true,
+    bool onBreak = false,
     bool recovering = false,
     KioskFeedbackType feedbackType = KioskFeedbackType.neutral,
+    KioskDaySummary? daySummary,
     double? aspectRatio,
     VoidCallback? onStartBreak,
+    VoidCallback? onEndBreak,
     VoidCallback? onClockOut,
     VoidCallback? onRetry,
   }) async {
@@ -78,12 +81,15 @@ void main() {
                 : 'María Fernanda, selecciona la marcación',
             statusColor: Colors.blue,
             feedbackType: feedbackType,
+            daySummary: daySummary,
             showMarkActions: pending,
             marking: marking,
             canStartBreak: canStartBreak,
+            onBreak: onBreak,
             unconfirmedMark: unconfirmed,
             recoveringMark: recovering,
             onStartBreak: onStartBreak ?? () {},
+            onEndBreak: onEndBreak ?? () {},
             onClockOut: onClockOut ?? () {},
             onRetry: onRetry ?? () {},
           ),
@@ -151,6 +157,50 @@ void main() {
     expect(exits, 1);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('muestra el resumen operativo del día en tablet horizontal', (
+    tester,
+  ) async {
+    await showLayout(
+      tester,
+      const Size(1280, 800),
+      pending: false,
+      feedbackType: KioskFeedbackType.success,
+      daySummary: const KioskDaySummary(
+        employeeName: 'María Fernanda',
+        statusLabel: 'Trabajando',
+        clockIn: '13:55',
+        breakPeriod: '17:07 – 17:37',
+        breakUsage: '30/30 min',
+        clockOut: 'Pendiente',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('kiosk-day-summary')), findsOneWidget);
+    expect(find.text('María Fernanda'), findsOneWidget);
+    expect(find.text('Trabajando'), findsOneWidget);
+    expect(find.text('13:55'), findsOneWidget);
+    expect(find.text('17:07 – 17:37  ·  30/30 min'), findsOneWidget);
+    expect(find.text('Pendiente'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('el descanso activo requiere confirmación para finalizar', (
+    tester,
+  ) async {
+    var ended = 0;
+    await showLayout(
+      tester,
+      const Size(1024, 600),
+      onBreak: true,
+      canStartBreak: false,
+      onEndBreak: () => ended++,
+    );
+    expect(find.text('Finalizar descanso'), findsOneWidget);
+    await tester.tap(find.text('Finalizar descanso'));
+    expect(ended, 1);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('conserva una guía suficiente para cámaras panorámicas 16:9', (
