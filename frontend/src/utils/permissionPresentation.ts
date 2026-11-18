@@ -38,6 +38,7 @@ const screens: Record<string, string> = {
   Sri: 'Documentos electrónicos y SRI', Expenses: 'Gastos',
 };
 const details: Record<string, string> = {
+  'Billing.Cash.Separate': 'Cierra una jornada por fecha y hora y traslada los movimientos posteriores a una nueva sesion del mismo cajero. Exige vista previa, motivo y auditoria; no vuelve a cobrar ni modifica inventario.',
   'Billing.Cash.View': 'Acceso compartido a Caja, Ventas, Propinas y Rentabilidad. Las acciones de cobro y corrección requieren sus propios permisos.',
   'Menu.Items.View': 'Acceso compartido a Ítems y recetas, Subrecetas y Rentabilidad del menú.',
   'POS.Orders.Update': 'Permite editar, confirmar y entregar pedidos; también habilita la pantalla de Promociones.',
@@ -56,7 +57,7 @@ export function permissionPresentation(permission: PermissionDto) {
     module: modules[moduleKey] ?? moduleKey ?? 'Otros',
     screen: moduleKey === 'Purchases' && screenKey === 'Orders' ? 'Compras' : screens[screenKey] ?? screenKey ?? 'Otros',
     label: permission.description || permission.code,
-    sensitive: /\.(Delete|Cancel|CorrectItems|CorrectMethod|Manage|Enroll)$|\.Restricted\./.test(permission.code) || permission.code === 'Admin.Roles.Update',
+    sensitive: /\.(Delete|Cancel|CorrectItems|CorrectMethod|Separate|Manage|Enroll)$|\.Restricted\./.test(permission.code) || permission.code === 'Admin.Roles.Update',
     detail: details[permission.code] ?? permission.description ?? permission.code,
   };
 }

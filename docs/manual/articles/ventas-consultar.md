@@ -19,6 +19,34 @@ La paginación de la tabla distribuye las filas cargadas, no solicita todo el hi
 En una cuenta dividida, una orden puede aparecer en varios cobros. Por eso
 **Transacciones** cuenta cobros y no necesariamente mesas u órdenes distintas.
 
+## Cantidades y rentabilidad por plato o promocion
+
+En **Facturacion → Rentabilidad**, selecciona fechas y, si corresponde, caja.
+Las fechas corresponden al cobro, en la zona horaria de la sucursal.
+
+- **Detalle** separa el mismo plato por promocion registrada.
+  Un descuento sin identificacion promocional aparece separado, no se atribuye
+  a una oferta por su precio o por el dia de la semana.
+- **Promociones** consolida las unidades o combos cobrados de cada oferta,
+  descuento, venta neta sin IVA, costos, utilidad y margen.
+- **Por plato** conserva el consolidado original, sin separar promociones.
+
+El buscador encuentra platos y promociones; los filtros de detalle no cambian
+los indicadores generales del periodo. Estas vistas son alternativas del mismo
+reporte: no sumes sus totales entre si.
+
+Un combo completo cuenta como una unidad, no como sus componentes. Sus costos
+incluyen las recetas guardadas de todos los componentes cuando existen.
+En segunda unidad con descuento, **Pares equiv.** distribuye las parejas del grupo
+entre las unidades cobradas; puede mostrar fracciones si se cobra parcialmente
+o en distintas fechas. Una unidad sobrante no crea otra pareja. Sin grupo
+historico no se inventa una cantidad de pares.
+
+Los cobros antiguos sin detalle por plato aparecen como **Estimado** porque se
+distribuyen proporcionalmente. Sin promocion registrada no es posible reconstruir
+con certeza una oferta antigua. Los costos usan el promedio de compras del reporte,
+no una valorizacion contable historica; revisa las alertas de costos o unidades.
+
 ## Acciones disponibles
 
 - **Imprimir comprobante 80mm**: obtiene el comprobante de ese cobro.

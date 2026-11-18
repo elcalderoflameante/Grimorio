@@ -189,6 +189,7 @@ public class CreateExpenseHandler : IRequestHandler<CreateExpenseCommand, Expens
                 .FirstOrDefaultAsync(ct)
                 ?? throw new KeyNotFoundException("Sesion de caja no encontrada.");
 
+            await _db.Entry(cashSession).ReloadAsync(ct);
             if (cashSession.Status != CashSessionStatus.Open)
                 throw new InvalidOperationException("Solo se pueden registrar gastos en una caja abierta.");
             if (cashSession.OpenedBy != req.UserId)
@@ -259,6 +260,7 @@ public class CancelExpenseHandler : IRequestHandler<CancelExpenseCommand, Expens
                 .FirstOrDefaultAsync(ct)
                 ?? throw new KeyNotFoundException("Sesion de caja no encontrada.");
 
+            await _db.Entry(session).ReloadAsync(ct);
             if (session.Status != CashSessionStatus.Open)
                 throw new InvalidOperationException("No se puede anular un gasto de una caja ya cerrada.");
             if (session.OpenedBy != req.UserId)

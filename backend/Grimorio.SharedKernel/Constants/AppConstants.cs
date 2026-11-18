@@ -124,6 +124,7 @@ public static class AppConstants
         public const string BillingCashView = "Billing.Cash.View";
         public const string BillingCashOpen = "Billing.Cash.Open";
         public const string BillingCashClose = "Billing.Cash.Close";
+        public const string BillingCashSeparate = "Billing.Cash.Separate";
         public const string BillingCashCharge = "Billing.Cash.Charge";
         public const string BillingPaymentsCorrectMethod = "Billing.Payments.CorrectMethod";
         public const string BillingCashRegistersView = "Billing.CashRegisters.View";
@@ -235,6 +236,7 @@ public static class AppConstants
             new(BillingCashView, "Ver caja, sesiones, ventas y pagos", "Billing"),
             new(BillingCashOpen, "Abrir caja", "Billing"),
             new(BillingCashClose, "Cerrar caja", "Billing"),
+            new(BillingCashSeparate, "Separar jornadas de una caja abierta", "Billing"),
             new(BillingCashCharge, "Cobrar ordenes", "Billing"),
             new(BillingPaymentsCorrectMethod, "Corregir medios de pago de notas de venta", "Billing"),
             new(BillingCashRegistersView, "Ver cajas y estaciones de cobro", "Billing"),

@@ -66,6 +66,7 @@ public class CorrectPaymentMethodCommandHandler(GrimorioDbContext db) : IRequest
             SELECT * FROM billing."CashSessions" WHERE "Id" = {payment.CashSessionId.Value}
             AND "BranchId" = {request.BranchId} AND NOT "IsDeleted" FOR UPDATE
             """).SingleOrDefaultAsync(ct);
+        if (session != null) await db.Entry(session).ReloadAsync(ct);
         if (session == null || session.Status != CashSessionStatus.Open)
             throw new InvalidOperationException("La caja ya esta cerrada. Esta correccion solo admite cajas abiertas.");
         if (payment.Lines.Any(l => l.EmployeeConsumption != null || l.Config == null || l.Config.Purpose != PaymentMethodPurpose.Standard))

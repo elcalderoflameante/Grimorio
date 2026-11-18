@@ -140,6 +140,7 @@ import type {
 import { getDetailedError } from '../utils/errorHandler';
 import type { CorrectPaymentMethodDto, PaymentMethodCorrectionDto } from '../types/paymentMethodCorrection';
 import type { OrderPrebillDto } from '../types';
+import type { SeparateCashSessionDto, CashSessionSeparationPreviewDto, CashSessionSeparationResultDto, CashSessionSeparationRecordDto } from '../types/cashSessionSeparation';
 
 const defaultApiBaseUrl = '/api';
 const API_BASE_URL = import.meta.env.VITE_API_URL || defaultApiBaseUrl;
@@ -892,6 +893,12 @@ export const cashApi = {
     apiClient.post<CashSessionDto>('/cash/abrir', dto),
   closeSession: (id: string, dto: CloseCashSessionDto): Promise<AxiosResponse<CashSessionDto>> =>
     apiClient.post<CashSessionDto>(`/cash/sesiones/${id}/cerrar`, dto),
+  previewSeparation: (id: string, dto: SeparateCashSessionDto): Promise<AxiosResponse<CashSessionSeparationPreviewDto>> =>
+    apiClient.post(`/cash/sesiones/${id}/separar/vista-previa`, dto),
+  separateSession: (id: string, dto: SeparateCashSessionDto): Promise<AxiosResponse<CashSessionSeparationResultDto>> =>
+    apiClient.post(`/cash/sesiones/${id}/separar`, dto),
+  getSessionSeparations: (id: string): Promise<AxiosResponse<CashSessionSeparationRecordDto[]>> =>
+    apiClient.get(`/cash/sesiones/${id}/separaciones`),
   getOrderPayments: (orderId: string): Promise<AxiosResponse<OrderPaymentDto[]>> =>
     apiClient.get<OrderPaymentDto[]>(`/cash/ordenes/${orderId}/pagos`),
   getThermalReceipt: (paymentId: string): Promise<AxiosResponse<ThermalReceiptDto>> =>

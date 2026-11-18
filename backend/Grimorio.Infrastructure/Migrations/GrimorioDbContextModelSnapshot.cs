@@ -766,6 +766,95 @@ namespace Grimorio.Infrastructure.Migrations
                     b.ToTable("CashSessions", "billing");
                 });
 
+            modelBuilder.Entity("Grimorio.Domain.Entities.Billing.CashSessionSeparation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasMaxLength(201)
+                        .HasColumnType("character varying(201)");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CutoffUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("NewSessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PreviewJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<Guid>("PreviousSessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("IsDeleted");
+
+                    b.HasIndex("NewSessionId")
+                        .IsUnique();
+
+                    b.HasIndex("PreviousSessionId")
+                        .IsUnique();
+
+                    b.HasIndex("BranchId", "IsDeleted");
+
+                    b.HasIndex("BranchId", "RequestId")
+                        .IsUnique();
+
+                    b.ToTable("CashSessionSeparations", "billing");
+                });
+
             modelBuilder.Entity("Grimorio.Domain.Entities.Billing.Customer", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8738,6 +8827,21 @@ namespace Grimorio.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("CashRegister");
+                });
+
+            modelBuilder.Entity("Grimorio.Domain.Entities.Billing.CashSessionSeparation", b =>
+                {
+                    b.HasOne("Grimorio.Domain.Entities.Billing.CashSession", null)
+                        .WithMany()
+                        .HasForeignKey("NewSessionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Grimorio.Domain.Entities.Billing.CashSession", null)
+                        .WithMany()
+                        .HasForeignKey("PreviousSessionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Grimorio.Domain.Entities.Billing.ElectronicDocument", b =>

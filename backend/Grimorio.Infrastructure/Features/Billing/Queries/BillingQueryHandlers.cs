@@ -538,7 +538,8 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
                         recipeCost,
                         totalCost,
                         missingCosts,
-                        conversionWarnings));
+                        conversionWarnings,
+                        paidItem));
                 }
 
                 continue;
@@ -582,7 +583,8 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
         decimal recipeCost,
         decimal totalCost,
         bool missingCosts,
-        bool conversionWarnings) => new(
+        bool conversionWarnings,
+        OrderPaymentItem? paidItem = null) => new(
             item.MenuItemId,
             item.MenuItem?.Name ?? item.MenuItemId.ToString(),
             item.MenuItem?.InternalCode,
@@ -599,7 +601,24 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
             conversionWarnings,
             payment.OrderId,
             payment.CashSession?.CashRegisterId,
-            payment.CashSession?.CashRegister?.Name ?? "Sin caja");
+            payment.CashSession?.CashRegister?.Name ?? "Sin caja",
+            item.PromotionId,
+            paidItem?.PromotionName ?? item.PromotionName,
+            Math.Max(0, paidItem?.OriginalTotal is { } originalTotal ? originalTotal - gross
+                : paidItem?.Discount ?? (item.UnitPrice * quantity - gross)),
+            PaidPairEquivalents(item, quantity),
+            paidItem is null);
+
+    private static decimal? PaidPairEquivalents(Domain.Entities.POS.OrderItem item, decimal paidQuantity)
+    {
+        if (!item.PromotionGroupId.HasValue || item.Order is null) return null;
+        // A group may contain several preparation lines, odd units and partial payments.
+        var groupQuantity = item.Order.Items.Where(i => !i.IsDeleted
+            && i.Status != Domain.Entities.POS.OrderItemStatus.Cancelled
+            && i.PromotionGroupId == item.PromotionGroupId && i.PromotionId == item.PromotionId
+            && i.MenuItemId == item.MenuItemId).Sum(i => i.Quantity);
+        return groupQuantity > 0 ? Math.Floor(groupQuantity / 2m) * paidQuantity / groupQuantity : null;
+    }
 
     private static SalesProfitabilityReportDto BuildReport(
         GetSalesProfitabilityQuery req,
@@ -680,7 +699,54 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
             .OrderByDescending(c => c.NetSales)
             .ToList();
 
+        report.SalesBreakdown = rows
+            .GroupBy(r => new { r.MenuItemId, Kind = SaleKind(r), Promotion = PromotionKey(r) })
+            .Select(g => BuildSalesBreakdown(g, $"{g.Key.MenuItemId}:{g.Key.Kind}:{g.Key.Promotion}", false))
+            .OrderByDescending(r => r.NetSales).ToList();
+        report.Promotions = rows.Where(r => SaleKind(r) == "Promotion")
+            .GroupBy(PromotionKey)
+            .Select(g => BuildSalesBreakdown(g, g.Key, true))
+            .OrderByDescending(r => r.NetSales).ToList();
+
         return report;
+    }
+
+    private static string SaleKind(SalesProfitabilityLine row) =>
+        row.PromotionId.HasValue || !string.IsNullOrWhiteSpace(row.PromotionName) ? "Promotion"
+        : row.DiscountAmount > 0 ? "Unclassified" : "Regular";
+
+    private static string PromotionKey(SalesProfitabilityLine row) =>
+        row.PromotionId?.ToString() ?? row.PromotionName?.Trim() ?? string.Empty;
+
+    private static SalesProfitabilityBreakdownDto BuildSalesBreakdown(IEnumerable<SalesProfitabilityLine> source, string key, bool summary)
+    {
+        var lines = source.ToList();
+        var last = lines[^1];
+        var quantity = lines.Sum(r => r.Quantity);
+        var net = lines.Sum(r => r.NetSales);
+        var cost = lines.Sum(r => r.TotalFoodCost);
+        return new SalesProfitabilityBreakdownDto
+        {
+            RowKey = key, SaleKind = SaleKind(last), PromotionId = last.PromotionId,
+            PromotionName = lines.LastOrDefault(r => !string.IsNullOrWhiteSpace(r.PromotionName))?.PromotionName,
+            MenuItemId = summary ? Guid.Empty : last.MenuItemId,
+            MenuItemName = summary ? string.Empty : last.MenuItemName,
+            CategoryName = summary ? string.Empty : last.CategoryName,
+            InternalCode = summary ? null : last.InternalCode,
+            CostCenterId = summary ? null : last.CostCenterId,
+            CostCenterName = summary ? null : last.CostCenterName,
+            Quantity = Round2(quantity), GrossSales = Round2(lines.Sum(r => r.GrossSales)),
+            NetSales = Round2(net), TaxAmount = Round2(lines.Sum(r => r.TaxAmount)),
+            TotalFoodCost = Round2(cost), UnitRecipeCost = quantity > 0 ? Round2(cost / quantity) : 0,
+            GrossProfit = Round2(net - cost), FoodCostPercentage = net > 0 ? Round2(cost / net * 100) : 0,
+            GrossMarginPercentage = net > 0 ? Round2((net - cost) / net * 100) : 0,
+            DiscountAmount = Round2(lines.Sum(r => r.DiscountAmount)),
+            PairEquivalents = lines.All(r => r.PairEquivalents.HasValue) ? Round2(lines.Sum(r => r.PairEquivalents!.Value)) : null,
+            TotalOrders = lines.Select(r => r.OrderId).Distinct().Count(),
+            HasEstimatedQuantities = lines.Any(r => r.HasEstimatedQuantities),
+            HasMissingCosts = lines.Any(r => r.HasMissingCosts),
+            HasConversionWarnings = lines.Any(r => r.HasConversionWarnings),
+        };
     }
 
     private async Task<Dictionary<Guid, SalesArticleUnitCost>> LoadUnitCosts(
@@ -744,9 +810,11 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
         conversionWarnings = false;
         var total = 0m;
 
-        if (item.MenuItem is null) return total;
+        if (item.MenuItem is null) { missingCosts = true; return total; }
+        var requirements = MenuRecipeExpansion.ExpandOrderItem(item, 1, conversions);
+        if (requirements.Count == 0) missingCosts = true;
 
-        foreach (var ingredient in MenuRecipeExpansion.ExpandOrderItem(item, 1, conversions))
+        foreach (var ingredient in requirements)
         {
             var articleId = ingredient.ArticleId;
             var baseUnitId = baseUnitByArticle.GetValueOrDefault(articleId, ingredient.BaseUnitId);
@@ -809,7 +877,12 @@ public class GetSalesProfitabilityHandler : IRequestHandler<GetSalesProfitabilit
         bool HasConversionWarnings,
         Guid OrderId,
         Guid? CashRegisterId,
-        string CashRegisterName);
+        string CashRegisterName,
+        Guid? PromotionId,
+        string? PromotionName,
+        decimal DiscountAmount,
+        decimal? PairEquivalents,
+        bool HasEstimatedQuantities);
 }
 
 public class GetSriCertificateStatusHandler : IRequestHandler<GetSriCertificateStatusQuery, SriCertificateStatusDto>

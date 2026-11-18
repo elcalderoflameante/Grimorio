@@ -209,6 +209,44 @@ public class CashController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
+    [Authorize(Policy = AppConstants.Permissions.BillingCashSeparate)]
+    [HttpPost("sesiones/{id:guid}/separar/vista-previa")]
+    public async Task<IActionResult> PreviewSeparation(Guid id, [FromBody] SeparateCashSessionDto dto)
+    {
+        if (!TryGetBranchId(out var branchId) || !TryGetUserId(out var userId)) return Unauthorized();
+        try {
+            return Ok(await _mediator.Send(new PreviewCashSessionSeparationQuery {
+                BranchId = branchId, ActorUserId = userId, SessionId = id, Data = dto,
+            }, HttpContext.RequestAborted));
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+    }
+
+    [Authorize(Policy = AppConstants.Permissions.BillingCashSeparate)]
+    [HttpPost("sesiones/{id:guid}/separar")]
+    public async Task<IActionResult> SeparateSession(Guid id, [FromBody] SeparateCashSessionDto dto)
+    {
+        if (!TryGetBranchId(out var branchId) || !TryGetUserId(out var userId)) return Unauthorized();
+        try {
+            return Ok(await _mediator.Send(new SeparateCashSessionCommand {
+                BranchId = branchId, ActorUserId = userId, SessionId = id, Data = dto,
+            }, HttpContext.RequestAborted));
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+    }
+
+    [Authorize(Policy = AppConstants.Permissions.BillingCashView)]
+    [HttpGet("sesiones/{id:guid}/separaciones")]
+    public async Task<IActionResult> GetSeparations(Guid id)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        return Ok(await _mediator.Send(new GetCashSessionSeparationsQuery {
+            BranchId = branchId, SessionId = id,
+        }, HttpContext.RequestAborted));
+    }
+
     // ── Abrir / Cerrar ────────────────────────────────────────────────────────
 
     [Authorize(Policy = "Billing.Cash.Open")]

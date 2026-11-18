@@ -2304,6 +2304,17 @@ export interface SalesProfitabilityItemDto {
   hasConversionWarnings: boolean;
 }
 
+export interface SalesProfitabilityBreakdownDto extends SalesProfitabilityItemDto {
+  rowKey: string;
+  saleKind: 'Regular' | 'Promotion' | 'Unclassified';
+  promotionId?: string;
+  promotionName?: string;
+  pairEquivalents?: number | null;
+  discountAmount: number;
+  totalOrders: number;
+  hasEstimatedQuantities: boolean;
+}
+
 export interface SalesProfitabilityCashRegisterDto {
   cashRegisterId?: string;
   cashRegisterName: string;
@@ -2332,6 +2343,8 @@ export interface SalesProfitabilityReportDto {
   missingCostLines: number;
   conversionWarningLines: number;
   items: SalesProfitabilityItemDto[];
+  salesBreakdown?: SalesProfitabilityBreakdownDto[];
+  promotions?: SalesProfitabilityBreakdownDto[];
   cashRegisters: SalesProfitabilityCashRegisterDto[];
 }
 

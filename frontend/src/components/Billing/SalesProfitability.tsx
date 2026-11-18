@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { App as AntApp, Alert, Card, Col, DatePicker, Progress, Row, Select, Space, Statistic, Table, Tag, Tooltip, Typography } from 'antd';
+import { App as AntApp, Alert, Card, Col, DatePicker, Input, Progress, Row, Segmented, Select, Space, Statistic, Table, Tag, Tooltip, Typography } from 'antd';
 import { BarChartOutlined, WarningOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { cashApi } from '../../services/api';
-import type { CashRegisterDto, SalesProfitabilityItemDto, SalesProfitabilityReportDto } from '../../types';
+import type { CashRegisterDto, SalesProfitabilityBreakdownDto, SalesProfitabilityItemDto, SalesProfitabilityReportDto } from '../../types';
 import { formatError } from '../../utils/errorHandler';
 import { branchDateTimeUtcIso } from '../../utils/branchTimeZone';
 
@@ -12,6 +12,8 @@ const { Text, Title } = Typography;
 
 const money = (value?: number) => `$${(value ?? 0).toFixed(2)}`;
 const pct = (value?: number) => `${(value ?? 0).toFixed(2)}%`;
+type ReportRow = SalesProfitabilityItemDto & Partial<SalesProfitabilityBreakdownDto>;
+const searchable = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 const gaugeColor = (value: number) => {
   if (value <= 0) return '#8c8c8c';
@@ -28,6 +30,10 @@ export default function SalesProfitability() {
   const [range, setRange] = useState<[Dayjs, Dayjs]>([dayjs().startOf('day'), dayjs().endOf('day')]);
   const [cashRegisterId, setCashRegisterId] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
+  const [view, setView] = useState('breakdown');
+  const [search, setSearch] = useState('');
+  const [saleKind, setSaleKind] = useState<string | undefined>();
+  const [promotionId, setPromotionId] = useState<string | undefined>();
 
   const load = async () => {
     setLoading(true);
@@ -57,7 +63,16 @@ export default function SalesProfitability() {
   );
 
   const cashRegisterRows = report?.cashRegisters ?? [];
-  const itemRows = report?.items ?? [];
+  const itemRows: ReportRow[] = (view === 'items' ? report?.items ?? []
+    : view === 'promotions' ? report?.promotions ?? [] : report?.salesBreakdown ?? [])
+    .filter(row => {
+      const sale = row as ReportRow;
+      return (!search || searchable(`${sale.menuItemName} ${sale.promotionName ?? ''} ${sale.categoryName} ${sale.internalCode ?? ''}`).includes(searchable(search.trim())))
+        && (view !== 'breakdown' || !saleKind || sale.saleKind === saleKind)
+        && (view === 'items' || !promotionId || sale.promotionId === promotionId);
+    });
+  const promotionOptions = (report?.promotions ?? []).filter(p => p.promotionId)
+    .map(p => ({ value: p.promotionId!, label: p.promotionName || 'Promocion sin nombre' }));
 
   return (
     <div>
@@ -155,29 +170,54 @@ export default function SalesProfitability() {
         />
       ) : null}
 
-      <Table
+      <Space wrap style={{ marginBottom: 16, width: '100%' }}>
+        <Segmented value={view} onChange={setView} options={[
+          { value: 'breakdown', label: 'Detalle' },
+          { value: 'promotions', label: 'Promociones' },
+          { value: 'items', label: 'Por plato' },
+        ]} />
+        <Input.Search allowClear placeholder="Buscar plato o promocion" value={search}
+          onChange={e => setSearch(e.target.value)} style={{ width: 250, maxWidth: '100%' }} />
+        {view === 'breakdown' && <Select aria-label="Tipo de venta" allowClear placeholder="Tipo de venta" value={saleKind}
+          onChange={setSaleKind} style={{ width: 210 }} options={[
+            { value: 'Regular', label: 'Sin promocion registrada' },
+            { value: 'Promotion', label: 'Con promocion' },
+            { value: 'Unclassified', label: 'Descuento sin promocion' },
+          ]} />}
+        {view !== 'items' && <Select aria-label="Promocion" allowClear showSearch optionFilterProp="label" placeholder="Todas las promociones"
+          value={promotionId} onChange={setPromotionId} options={promotionOptions} style={{ width: 250, maxWidth: '100%' }} />}
+      </Space>
+      {view !== 'items' && report && !report.salesBreakdown && <Alert type="warning" showIcon
+        title="Actualiza el backend para consultar el detalle por promociones." style={{ marginBottom: 16 }} />}
+      <Table<ReportRow>
         dataSource={itemRows}
-        rowKey="menuItemId"
+        rowKey={row => row.rowKey ?? row.menuItemId}
         loading={loading}
         size="small"
         tableLayout="fixed"
-        scroll={{ x: 1180 }}
+        scroll={{ x: view === 'items' ? 1180 : 1510 }}
         pagination={{ defaultPageSize: 15, showSizeChanger: true, pageSizeOptions: ['15', '30', '50', '100'] }}
         columns={[
           {
-            title: 'Plato',
+            title: view === 'promotions' ? 'Promocion' : 'Plato',
             width: 260,
-            render: (_: unknown, item: SalesProfitabilityItemDto) => (
+            render: (_: unknown, item: ReportRow) => (
               <Space orientation="vertical" size={0} style={{ maxWidth: 240 }}>
-                <Text strong ellipsis={{ tooltip: item.menuItemName }}>{item.menuItemName}</Text>
-                <Text type="secondary" style={{ fontSize: 12 }} ellipsis={{ tooltip: item.categoryName }}>{item.categoryName}</Text>
+                <Text strong style={{ overflowWrap: 'anywhere' }}>{view === 'promotions' ? item.promotionName || 'Promocion sin nombre' : item.menuItemName}</Text>
+                {view === 'breakdown' ? <Text type={item.saleKind === 'Unclassified' ? 'warning' : 'secondary'} style={{ fontSize: 12, overflowWrap: 'anywhere' }}>
+                  {item.saleKind === 'Promotion' ? item.promotionName || 'Promocion sin nombre'
+                    : item.saleKind === 'Unclassified' ? 'Descuento sin promocion registrada' : 'Sin promocion registrada'}
+                </Text> : view === 'items' && <Text type="secondary" style={{ fontSize: 12 }}>{item.categoryName}</Text>}
               </Space>
             ),
           },
-          { title: 'Cant.', dataIndex: 'quantity', width: 80, align: 'right', render: (v: number) => v.toFixed(2) },
+          { title: 'Unidades / combos', dataIndex: 'quantity', width: 100, align: 'right', render: (v: number) => v.toFixed(2), sorter: (a, b) => a.quantity - b.quantity },
+          ...(view === 'items' ? [] : [{ title: <Tooltip title="Parejas promocionales prorrateadas segun las unidades cobradas. Puede haber fracciones en cobros parciales. Sin dato cuando no existe grupo historico.">Pares equiv.</Tooltip>,
+            key: 'pairs', width: 95, align: 'right' as const, render: (_: unknown, row: ReportRow) => row.pairEquivalents?.toFixed(2) ?? '-' },
+          { title: 'Descuento', dataIndex: 'discountAmount', width: 105, align: 'right' as const, render: money }]),
           { title: 'Venta neta', dataIndex: 'netSales', width: 120, align: 'right', render: money },
           { title: 'IVA', dataIndex: 'taxAmount', width: 90, align: 'right', render: money },
-          { title: 'Costo unit.', dataIndex: 'unitRecipeCost', width: 110, align: 'right', render: money },
+          ...(view === 'promotions' ? [] : [{ title: 'Costo unit.', dataIndex: 'unitRecipeCost', width: 110, align: 'right' as const, render: money }]),
           { title: 'Costo total', dataIndex: 'totalFoodCost', width: 120, align: 'right', render: money },
           { title: 'Utilidad', dataIndex: 'grossProfit', width: 120, align: 'right', render: (v: number) => <Text type={v < 0 ? 'danger' : undefined}>{money(v)}</Text> },
           { title: 'Food cost', dataIndex: 'foodCostPercentage', width: 110, align: 'right', render: pct },
@@ -185,11 +225,12 @@ export default function SalesProfitability() {
           {
             title: 'Alertas',
             width: 130,
-            render: (_: unknown, item: SalesProfitabilityItemDto) => (
+            render: (_: unknown, item: ReportRow) => (
               <Space size={4} wrap>
+                {item.hasEstimatedQuantities && <Tooltip title="Cobro antiguo sin detalle por plato; cantidades e importes distribuidos proporcionalmente."><Tag color="gold">Estimado</Tag></Tooltip>}
                 {item.hasMissingCosts && <Tooltip title="Hay ingredientes sin compras registradas"><Tag color="gold" icon={<WarningOutlined />}>Costos</Tag></Tooltip>}
                 {item.hasConversionWarnings && <Tooltip title="Hay unidades sin conversion"><Tag color="orange" icon={<WarningOutlined />}>Unidades</Tag></Tooltip>}
-                {!item.hasMissingCosts && !item.hasConversionWarnings && <Tag color="green" icon={<BarChartOutlined />}>OK</Tag>}
+                {!item.hasMissingCosts && !item.hasConversionWarnings && !item.hasEstimatedQuantities && <Tag color="green" icon={<BarChartOutlined />}>OK</Tag>}
               </Space>
             ),
           },

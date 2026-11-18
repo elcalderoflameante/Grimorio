@@ -6,6 +6,7 @@ import { UnlockOutlined, LockOutlined, ReloadOutlined,
   ShoppingCartOutlined, CheckCircleOutlined, DollarOutlined,
   BankOutlined, ClockCircleOutlined, SyncOutlined, FireOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { helpEnabled } from '../../services/help';
+import { CashSessionSeparation, CashSessionSeparationHistory } from './CashSessionSeparation';
 import type { CashRegisterDto, CashSessionDto, OpenCashSessionDto, CloseCashSessionDto, ActiveOrderSummaryDto } from '../../types';
 import { cashApi, posApi } from '../../services/api';
 import dayjs from 'dayjs';
@@ -39,7 +40,8 @@ export default function CashRegister() {
   const { message } = AntApp.useApp();
 
   const { hasPermission, userRoles } = useAuth();
-  const canReviewCashiers = userRoles.includes('Administrador');
+  const canSeparateCash = hasPermission(PERMISSIONS.billing.cashSeparate);
+  const canReviewCashiers = userRoles.includes('Administrador') || canSeparateCash;
   const [activeSession, setActiveSession] = useState<CashSessionDto | null | undefined>(undefined);
   const [openSessions, setOpenSessions] = useState<CashSessionDto[]>([]);
   const [reviewSessionId, setReviewSessionId] = useState<string | null>(null);
@@ -55,6 +57,7 @@ export default function CashRegister() {
   const [closeForm] = Form.useForm();
   const [showOpenModal, setShowOpenModal] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [separatingSession, setSeparatingSession] = useState<CashSessionDto | null>(null);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [editingRegister, setEditingRegister] = useState<CashRegisterDto | null>(null);
   const [saving, setSaving] = useState(false);
@@ -227,6 +230,8 @@ export default function CashRegister() {
               Configurar cajas
             </Button>
           )}
+          {canSeparateCash && dashboardSession?.status === 'Open' && <Button aria-label="Separar jornada" icon={<SyncOutlined />}
+            onClick={() => setSeparatingSession(dashboardSession)}>Separar jornada</Button>}
           {!isReviewing && (activeSession
             ? canCloseCash && <Button danger icon={<LockOutlined />} onClick={() => setShowCloseModal(true)}>
                 Cerrar caja
@@ -710,6 +715,9 @@ export default function CashRegister() {
         />
       </Modal>
 
+      {separatingSession && <CashSessionSeparation session={separatingSession}
+        onCancel={() => { setSeparatingSession(null); void load(true); }}
+        onDone={result => { setSeparatingSession(null); setReviewSessionId(isReviewing ? result.newSessionId : null); void load(); }} />}
       <Modal
         title="Cerrar caja"
         open={showCloseModal}
@@ -774,7 +782,7 @@ export default function CashRegister() {
 function SessionDetail({ session }: { session: CashSessionDto }) {
   const fmt = (v: number) => `$${v.toFixed(2)}`;
   return (
-    <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }} style={{ padding: '8px 16px' }}>
+    <><Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }} style={{ padding: '8px 16px' }}>
       <Descriptions.Item label="Caja">
         {session.cashRegisterCode
           ? `${session.cashRegisterName} (${session.cashRegisterCode})`
@@ -796,6 +804,7 @@ function SessionDetail({ session }: { session: CashSessionDto }) {
       {session.actualCash != null && (
         <Descriptions.Item label="Contado al cierre">{fmt(session.actualCash)}</Descriptions.Item>
       )}
+      {session.status === 'Closed' && session.actualCash == null && <Descriptions.Item label="Arqueo"><Tag color="warning">Pendiente de verificar</Tag></Descriptions.Item>}
       {session.cashDifference != null && (
         <Descriptions.Item label="Diferencia">
           <Typography.Text type={session.cashDifference >= 0 ? 'success' : 'danger'}>
@@ -811,6 +820,6 @@ function SessionDetail({ session }: { session: CashSessionDto }) {
       {session.closeNotes && (
         <Descriptions.Item label="Notas">{session.closeNotes}</Descriptions.Item>
       )}
-    </Descriptions>
+    </Descriptions><CashSessionSeparationHistory sessionId={session.id} /></>
   );
 }

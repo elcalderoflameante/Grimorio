@@ -10,6 +10,8 @@ async function load(path) {
 const { groupPermissions, permissionPresentation, missingPermissionDependencies, permissionActionSection, permissionActionSections } = await load('../src/utils/permissionPresentation.ts');
 const { resolveRolePermissionIds } = await load('../src/utils/rolePermissions.ts');
 const p = (code, isActive = true) => ({ id: `id-${code}`, code, description: `Label ${code}`, isActive });
+assert.equal(permissionPresentation(p('Billing.Cash.Separate')).sensitive, true);
+assert.match(permissionPresentation(p('Billing.Cash.Separate')).detail, /auditoria/);
 const catalog = [p('POS.Orders.View'), p('POS.Orders.CorrectItems'), p('Finance.Expenses.Create'),
   p('Finance.Expenses.View'), p('Finance.Config.View'), p('Billing.PaymentMethods.View'),
   p('Billing.Payments.CorrectMethod'), p('Billing.Cash.View'), p('Custom.Special.Access'), p('Purchases.Orders.View', false)];

@@ -43,6 +43,39 @@ permite cerrarla en nombre de su cajero. El cierre no cobra ni cancela los
 pedidos pendientes y no corrige automáticamente diferencias. Revisa esos pedidos
 antes de confirmar; no supongas que el sistema impedirá cerrar por ellos.
 
+## Separar jornadas cuando se olvido el cierre
+
+Si ya hubo cobros del nuevo turno en la sesion anterior, usa **Separar jornada**.
+Requiere el permiso especial `Billing.Cash.Separate`; no basta con poder cerrar.
+Administracion puede seleccionar otra sesion abierta en **Consultar caja**.
+
+1. Indica desde que fecha y hora empieza la nueva jornada, en la zona horaria
+   mostrada de la sucursal. No tiene que ser medianoche.
+2. Ingresa el fondo inicial de la nueva jornada **antes de sus cobros**, no el
+   efectivo que hay actualmente. No se copia automaticamente el esperado anterior.
+3. Si se conoce el efectivo realmente contado al terminar el turno anterior,
+   activa esa opcion e ingresalo. Si no se conto, queda **Pendiente de verificar**,
+   sin registrar un contado cero ni una diferencia inventada.
+4. Escribe el motivo y pulsa **Revisar corte**. Revisa ambas jornadas, sus medios,
+   gastos, fondos y efectivo esperado, y el destino de cada movimiento.
+5. Pulsa **Confirmar separacion**. Si entro un cobro, un gasto o una correccion
+   despues de revisar, vuelve a revisar antes de confirmar.
+
+Los cobros anteriores al corte permanecen en la sesion anterior; los de la hora
+exacta del corte en adelante pasan a la nueva. Los gastos se separan por su hora
+de **registro**, no por la fecha del documento. Los gastos anulados conservan su
+historia y no suman al efectivo esperado.
+
+La sesion anterior se cierra al corte y la nueva queda abierta en la misma caja,
+para el **mismo cajero**. La persona autorizada que hizo la correccion queda en
+la auditoria, junto con el motivo, los movimientos revisados y la hora real de
+la operacion. Puedes ver esos datos al expandir el historial de sesiones.
+
+No se recrean cobros, no cambian sus importes o fechas, no se regeneran facturas
+del SRI y no se repiten descuentos de inventario. Los pedidos pendientes siguen
+su curso. Si se pierde la respuesta al confirmar, usa **Reintentar confirmacion**
+o actualiza Caja para comprobar el resultado; no vuelvas a registrar las ventas.
+
 ## Si algo no coincide
 
 No reemplaces el contado real por el esperado para ocultar una diferencia.

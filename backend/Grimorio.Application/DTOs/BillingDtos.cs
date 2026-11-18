@@ -449,6 +449,8 @@ public class SalesProfitabilityReportDto
     public int MissingCostLines { get; set; }
     public int ConversionWarningLines { get; set; }
     public List<SalesProfitabilityItemDto> Items { get; set; } = [];
+    public List<SalesProfitabilityBreakdownDto> SalesBreakdown { get; set; } = [];
+    public List<SalesProfitabilityBreakdownDto> Promotions { get; set; } = [];
     public List<SalesProfitabilityCashRegisterDto> CashRegisters { get; set; } = [];
 }
 
@@ -471,6 +473,18 @@ public class SalesProfitabilityItemDto
     public decimal GrossMarginPercentage { get; set; }
     public bool HasMissingCosts { get; set; }
     public bool HasConversionWarnings { get; set; }
+}
+
+public class SalesProfitabilityBreakdownDto : SalesProfitabilityItemDto
+{
+    public string RowKey { get; set; } = string.Empty;
+    public string SaleKind { get; set; } = "Regular";
+    public Guid? PromotionId { get; set; }
+    public string? PromotionName { get; set; }
+    public decimal? PairEquivalents { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public int TotalOrders { get; set; }
+    public bool HasEstimatedQuantities { get; set; }
 }
 
 public class SalesProfitabilityCashRegisterDto
