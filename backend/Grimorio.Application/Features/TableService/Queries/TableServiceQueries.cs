@@ -16,6 +16,7 @@ public class GetRestaurantTableByTokenQuery : IRequest<PublicTableInfoDto?>
 
 public class GetTableServiceRequestsQuery : IRequest<List<TableServiceRequestDto>>
 {
+    public bool ActiveOnly { get; set; }
     public Guid BranchId { get; set; }
     public TableServiceRequestStatus? Status { get; set; }
     public DateTime? FromUtc { get; set; }

@@ -326,6 +326,10 @@ public class GetTableServiceRequestsQueryHandler : IRequestHandler<GetTableServi
             .Include(x => x.RestaurantTable)
             .AsQueryable();
 
+        if (request.ActiveOnly)
+            query = query.Where(x => x.Status == TableServiceRequestStatus.Pending
+                || x.Status == TableServiceRequestStatus.Taken || x.Status == TableServiceRequestStatus.InProgress);
+
         if (request.Status.HasValue)
         {
             query = query.Where(x => x.Status == request.Status.Value);

@@ -52,6 +52,7 @@ public class PublicCreateDraftOrderCommand : IRequest<PublicDraftOrderResultDto>
 
 public class TakeTableServiceRequestCommand : IRequest<TableServiceRequestDto>
 {
+    public Guid BranchId { get; set; }
     public Guid RequestId { get; set; }
     public Guid UserId { get; set; }
     public string UserName { get; set; } = string.Empty;
@@ -59,6 +60,7 @@ public class TakeTableServiceRequestCommand : IRequest<TableServiceRequestDto>
 
 public class SetTableServiceRequestStatusCommand : IRequest<TableServiceRequestDto>
 {
+    public Guid BranchId { get; set; }
     public Guid RequestId { get; set; }
     public TableServiceRequestStatus Status { get; set; }
 }

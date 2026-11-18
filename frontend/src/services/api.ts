@@ -496,6 +496,8 @@ export const tableServiceApi = {
     apiClient.post<RestaurantTableDto>(`/tableservice/tables/${id}/regenerate-token`),
   getRequests: (status?: TableServiceRequestStatus): Promise<AxiosResponse<TableServiceRequestDto[]>> =>
     apiClient.get<TableServiceRequestDto[]>('/tableservice/requests', { params: { status } }),
+  getActiveRequests: (): Promise<AxiosResponse<TableServiceRequestDto[]>> =>
+    apiClient.get('/tableservice/requests', { params: { activeOnly: true } }),
   takeRequest: (id: string): Promise<AxiosResponse<TableServiceRequestDto>> =>
     apiClient.post<TableServiceRequestDto>(`/tableservice/requests/${id}/take`),
   setRequestStatus: (id: string, data: SetTableServiceRequestStatusDto): Promise<AxiosResponse<TableServiceRequestDto>> =>

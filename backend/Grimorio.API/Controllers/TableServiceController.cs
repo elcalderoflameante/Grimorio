@@ -84,7 +84,7 @@ public class TableServiceController : ControllerBase
 
     [Authorize(Policy = "POS.TableRequests.View")]
     [HttpGet("requests")]
-    public async Task<IActionResult> GetRequests([FromQuery] TableServiceRequestStatus? status = null)
+    public async Task<IActionResult> GetRequests([FromQuery] TableServiceRequestStatus? status = null, [FromQuery] bool activeOnly = false)
     {
         if (!TryGetBranchId(out var branchId))
             return Unauthorized("BranchId no válido en el token.");
@@ -93,7 +93,8 @@ public class TableServiceController : ControllerBase
         {
             BranchId = branchId,
             Status = status,
-            FromUtc = DateTime.UtcNow.AddHours(-24),
+            ActiveOnly = activeOnly,
+            FromUtc = activeOnly ? null : DateTime.UtcNow.AddHours(-24),
         });
 
         return Ok(result);
@@ -103,17 +104,24 @@ public class TableServiceController : ControllerBase
     [HttpPost("requests/{id:guid}/take")]
     public async Task<IActionResult> TakeRequest(Guid id)
     {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
         if (!TryGetUserId(out var userId))
             return Unauthorized("UserId no válido en el token.");
 
         var userName = GetUserDisplayName();
 
-        var result = await _mediator.Send(new TakeTableServiceRequestCommand
+        TableServiceRequestDto result;
+        try
         {
-            RequestId = id,
-            UserId = userId,
-            UserName = userName,
-        });
+            result = await _mediator.Send(new TakeTableServiceRequestCommand
+            {
+                BranchId = branchId,
+                RequestId = id,
+                UserId = userId,
+                UserName = userName,
+            });
+        }
+        catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
 
         await _hubContext.Clients
             .Group(TableServiceHub.GetBranchGroup(result.BranchId))
@@ -130,11 +138,18 @@ public class TableServiceController : ControllerBase
     [HttpPost("requests/{id:guid}/status")]
     public async Task<IActionResult> SetRequestStatus(Guid id, [FromBody] SetStatusBody body)
     {
-        var result = await _mediator.Send(new SetTableServiceRequestStatusCommand
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        TableServiceRequestDto result;
+        try
         {
-            RequestId = id,
-            Status = body.Status,
-        });
+            result = await _mediator.Send(new SetTableServiceRequestStatusCommand
+            {
+                BranchId = branchId,
+                RequestId = id,
+                Status = body.Status,
+            });
+        }
+        catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
 
         await _hubContext.Clients
             .Group(TableServiceHub.GetBranchGroup(result.BranchId))

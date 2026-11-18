@@ -485,10 +485,16 @@ public class TakeTableServiceRequestCommandHandler : IRequestHandler<TakeTableSe
 
     public async Task<TableServiceRequestDto> Handle(TakeTableServiceRequestCommand request, CancellationToken cancellationToken)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
         var entity = await _context.TableServiceRequests
-            .Include(x => x.RestaurantTable)
-            .FirstOrDefaultAsync(x => x.Id == request.RequestId && !x.IsDeleted, cancellationToken)
+            .FromSqlInterpolated($"""
+                SELECT * FROM pos."TableServiceRequests" WHERE "Id" = {request.RequestId}
+                AND "BranchId" = {request.BranchId} AND NOT "IsDeleted" FOR UPDATE
+                """)
+            .FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException("Solicitud no encontrada.");
+        await _context.Entry(entity).ReloadAsync(cancellationToken);
+        await _context.Entry(entity).Reference(x => x.RestaurantTable).LoadAsync(cancellationToken);
 
         if (entity.Status != TableServiceRequestStatus.Pending)
             throw new InvalidOperationException("La solicitud ya no está pendiente.");
@@ -499,6 +505,7 @@ public class TakeTableServiceRequestCommandHandler : IRequestHandler<TakeTableSe
         entity.TakenAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         var table = entity.RestaurantTable!;
         return new TableServiceRequestDto
@@ -528,18 +535,35 @@ public class SetTableServiceRequestStatusCommandHandler : IRequestHandler<SetTab
 
     public async Task<TableServiceRequestDto> Handle(SetTableServiceRequestStatusCommand request, CancellationToken cancellationToken)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
         var entity = await _context.TableServiceRequests
-            .Include(x => x.RestaurantTable)
-            .FirstOrDefaultAsync(x => x.Id == request.RequestId && !x.IsDeleted, cancellationToken)
+            .FromSqlInterpolated($"""
+                SELECT * FROM pos."TableServiceRequests" WHERE "Id" = {request.RequestId}
+                AND "BranchId" = {request.BranchId} AND NOT "IsDeleted" FOR UPDATE
+                """)
+            .FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException("Solicitud no encontrada.");
+        await _context.Entry(entity).ReloadAsync(cancellationToken);
+        await _context.Entry(entity).Reference(x => x.RestaurantTable).LoadAsync(cancellationToken);
+
+        var allowed = entity.Status switch {
+            TableServiceRequestStatus.Pending => request.Status == TableServiceRequestStatus.Cancelled,
+            TableServiceRequestStatus.Taken => request.Status is TableServiceRequestStatus.InProgress or TableServiceRequestStatus.Completed or TableServiceRequestStatus.Cancelled,
+            TableServiceRequestStatus.InProgress => request.Status is TableServiceRequestStatus.Completed or TableServiceRequestStatus.Cancelled,
+            _ => false,
+        };
+        if (entity.Status != request.Status && !allowed)
+            throw new InvalidOperationException("La solicitud cambio de estado. Actualiza antes de atenderla.");
 
         entity.Status = request.Status;
-        if (request.Status == TableServiceRequestStatus.Completed || request.Status == TableServiceRequestStatus.Cancelled)
+        if ((request.Status == TableServiceRequestStatus.Completed || request.Status == TableServiceRequestStatus.Cancelled)
+            && !entity.CompletedAt.HasValue)
         {
             entity.CompletedAt = DateTime.UtcNow;
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         var table = entity.RestaurantTable!;
         return new TableServiceRequestDto

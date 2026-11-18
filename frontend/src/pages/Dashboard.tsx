@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { App as AntApp, Layout, Menu, Dropdown, Avatar, Space, Drawer, Button, Breadcrumb, Grid, Badge, Alert, Tooltip } from 'antd';
 import WalkieTalkie from '../components/Voice/WalkieTalkie';
+import TableRequestAlerts from '../components/POS/TableRequestAlerts';
 import { UserOutlined,
   LogoutOutlined,
   HomeOutlined,
@@ -686,6 +687,7 @@ case 'pos-estaciones':
             </Space>
             )}
             <WalkieTalkie />
+            <TableRequestAlerts />
             {helpEnabled && !isMobile && <Tooltip title={helpTopic ? 'Ayuda de esta pantalla' : 'Ayuda y manuales'}><Button type="text" icon={<QuestionCircleOutlined />} aria-label={helpTopic ? 'Ayuda de esta pantalla' : 'Ayuda y manuales'} href={`/ayuda/${helpTopic ?? 'inicio'}`} target="_blank" rel="noopener noreferrer" /></Tooltip>}
             <Dropdown menu={{ items: userMenu }} placement="bottomRight">
               <Space style={{ cursor: 'pointer' }}>

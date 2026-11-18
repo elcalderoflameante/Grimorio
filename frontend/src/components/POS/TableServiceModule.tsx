@@ -17,7 +17,7 @@ import { App as AntApp, Button,
   Tag,
   Typography } from 'antd';
 import { DownloadOutlined, EditOutlined, PlusOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
-import * as signalR from '@microsoft/signalr';
+import { subscribeTableRequests } from '../../services/tableRequestRealtime';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
 import { tableServiceApi } from '../../services/api';
@@ -32,7 +32,6 @@ import {
   REQUEST_STATUS_LABELS,
   REQUEST_TYPE_LABELS,
   REQUESTS_POLLING_INTERVAL_MS,
-  TABLE_SERVICE_HUB_PATH,
 } from '../../constants/tableService';
 import type {
   CreateRestaurantTableDto,
@@ -128,7 +127,7 @@ const loadImageAsDataUrl = async (src: string) => {
 };
 
 export default function TableServiceModule() {
-  const { message, notification } = AntApp.useApp();
+  const { message } = AntApp.useApp();
 
   const { branchId, token, hasPermission } = useAuth();
   const screens = useBreakpoint();
@@ -397,59 +396,10 @@ export default function TableServiceModule() {
 
   useEffect(() => {
     if (!token || !branchId) return;
-    let disposed = false;
-
-    const apiUrlFromEnv = import.meta.env.VITE_API_URL as string | undefined;
-    const hubUrl = apiUrlFromEnv
-      ? `${apiUrlFromEnv.replace(/\/api\/?$/, '')}${TABLE_SERVICE_HUB_PATH}`
-      : TABLE_SERVICE_HUB_PATH;
-    const connection = new signalR.HubConnectionBuilder()
-      .withUrl(hubUrl, {
-        accessTokenFactory: () => token,
-      })
-      .withAutomaticReconnect()
-      .build();
-
-    const onNewRequest = (payload: TableServiceRequestDto) => {
-      const typeText = REQUEST_TYPE_LABELS[payload.type] ?? String(payload.type);
-      notification.info({
-        message: `Nueva solicitud: ${formatTableLabel(payload.tableCode, payload.tableArea)}`,
-        description: payload.customMessage?.trim()
-          ? `${typeText} · ${payload.customMessage}`
-          : typeText,
-        placement: 'topRight',
-      });
-      loadRequestsRef.current().catch(() => {});
-    };
-
-    const onRequestUpdated = (payload: TableServiceRequestDto) => {
-      notification.open({
-        message: `Solicitud actualizada: ${formatTableLabel(payload.tableCode, payload.tableArea)}`,
-        description: `Estado: ${REQUEST_STATUS_LABELS[payload.status] ?? payload.status}`,
-        placement: 'topRight',
-      });
-      loadRequestsRef.current().catch(() => {});
-    };
-
-    connection.on('tableService:new-request', onNewRequest);
-    connection.on('tableService:request-updated', onRequestUpdated);
-
-    connection.start().catch((error) => {
-      if (disposed) return;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes('stopped during negotiation')) return;
-      console.error('SignalR connection error', error);
-    });
-
-    return () => {
-      disposed = true;
-      connection.off('tableService:new-request', onNewRequest);
-      connection.off('tableService:request-updated', onRequestUpdated);
-      if (connection.state !== signalR.HubConnectionState.Disconnected) {
-        connection.stop().catch(() => {});
-      }
-    };
-  }, [token, branchId, notification]);
+    const refresh = () => { loadRequestsRef.current().catch(() => {}); };
+    return subscribeTableRequests({ apiUrl: import.meta.env.VITE_API_URL, token, branchId,
+      onChange: refresh, onSync: refresh });
+  }, [token, branchId]);
 
   const handleOpenCreate = () => {
     setEditingTable(null);
