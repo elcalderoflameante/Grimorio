@@ -45,6 +45,13 @@ try {
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     await page.addInitScript(() => {
       window.__tones = 0; window.__closes = 0; window.__spoken = [];
+      window.__notices = []; window.__permission = 'default'; window.__permissionDecision = 'granted'; window.__permissionPrompts = 0;
+      window.Notification = class {
+        static get permission() { return window.__permission; }
+        static async requestPermission() { window.__permissionPrompts++; window.__permission = window.__permissionDecision; return window.__permission; }
+        constructor(title, options) { this.title = title; this.options = options; window.__notices.push(this); }
+        close() { this.closed = true; }
+      };
       window.AudioContext = class {
         state = 'suspended'; currentTime = 0; destination = {};
         async resume() { this.state = 'running'; } async close() { this.state = 'closed'; window.__closes++; }
@@ -77,11 +84,28 @@ try {
     const section = id => page.getByRole('region', { name: `Solicitud ${id}`, exact: true });
     await section('backlog').waitFor(); await connected(A); await delay(400);
     assert.equal(await page.evaluate(() => window.__tones), 0);
+    assert.equal(await page.evaluate(() => window.__permissionPrompts), 0, 'No unsolicited permission prompt');
+    await page.getByRole('switch', { name: 'Notificaciones de escritorio' }).click();
+    assert.equal(await page.evaluate(() => window.__notices.length), 1, 'Activation includes a desktop test');
+    await page.evaluate(() => Object.defineProperty(document, 'hasFocus', { configurable: true, value: () => false }));
     await page.getByRole('switch', { name: 'Sonido de solicitudes' }).click();
     await waitUntil(() => page.evaluate(() => window.__tones === 2));
     rows.push(row('new')); await notify(); await section('new').waitFor();
     await waitUntil(() => page.evaluate(() => window.__tones === 4));
+    assert.equal(await page.evaluate(() => window.__notices.length), 2);
+    assert.equal(await page.evaluate(() => window.__notices.at(-1).options.body), 'Servilletas');
+    assert.equal(await page.evaluate(() => window.__notices.at(-1).options.silent), true);
     await notify(); await delay(400); assert.equal(await page.evaluate(() => window.__tones), 4);
+    assert.equal(await page.evaluate(() => window.__notices.length), 2, 'Duplicate events do not duplicate OS notifications');
+    await page.evaluate(async () => {
+      const priority = await import('/src/utils/walkieAudioPriority.ts');
+      window.__walkieSource = {}; priority.setWalkieAudioBusy(window.__walkieSource, true);
+    });
+    rows.push(row('waiting-walkie')); await notify(); await section('waiting-walkie').waitFor();
+    assert.equal(await page.evaluate(() => window.__tones), 4, 'Request remains visible while its audio waits for the walkie');
+    assert.equal(await page.evaluate(() => window.__notices.length), 3, 'Silent desktop notification does not wait for the walkie');
+    await page.evaluate(async () => (await import('/src/utils/walkieAudioPriority.ts')).setWalkieAudioBusy(window.__walkieSource, false));
+    await waitUntil(() => page.evaluate(() => window.__tones === 6));
     const before = loads; await notify(row('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', B)); await delay(350);
     assert.equal(loads, before);
     await section('new').getByRole('button', { name: /Tomar/ }).click();
@@ -92,7 +116,7 @@ try {
     const speeches = await page.evaluate(() => window.__spoken.length);
     rows.push(row('muted-voice')); await notify(); await section('muted-voice').waitFor();
     assert.equal(await page.evaluate(() => window.__spoken.length), speeches);
-    assert.equal(await page.evaluate(() => window.__tones), 6);
+    assert.equal(await page.evaluate(() => window.__tones), 8);
     failed = true; await notify(); await page.locator('.ant-alert').waitFor();
     assert.equal(await section('backlog').count(), 1); failed = false;
     await page.evaluate(() => window.dispatchEvent(new Event('focus'))); await page.locator('.ant-alert').waitFor({ state: 'hidden' });
@@ -101,6 +125,17 @@ try {
     await page.getByText('Sin conexion en tiempo real', { exact: true }).waitFor({ state: 'hidden' });
     await connected(A); await delay(300);
     rows.push(row('after-reconnect')); await notify(); await section('after-reconnect').waitFor();
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => window.__notices.at(-1).onclick());
+    await page.getByRole('switch', { name: 'Notificaciones de escritorio' }).waitFor();
+    await page.getByRole('switch', { name: 'Notificaciones de escritorio' }).click();
+    assert.ok(await page.evaluate(() => window.__notices.at(-1).closed));
+    await page.evaluate(() => { window.__permission = 'denied'; });
+    await page.getByRole('switch', { name: 'Notificaciones de escritorio' }).click();
+    await page.getByText(/Las notificaciones estan bloqueadas/).waitFor();
+    assert.equal(await page.getByRole('switch', { name: 'Notificaciones de escritorio' }).getAttribute('aria-checked'), 'false');
+    await page.evaluate(() => { window.__permission = 'granted'; });
+    await page.getByRole('switch', { name: 'Notificaciones de escritorio' }).click();
     await page.screenshot({ path: resolve(`.tmp/table-request-alerts/alerts-${width}.png`), fullPage: true });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
     // A delayed response from the old branch must never repopulate the new branch.
@@ -112,6 +147,7 @@ try {
     await page.getByRole('button', { name: 'Cambiar sucursal', exact: true }).click();
     await page.getByRole('button', { name: 'Solicitudes de mesas', exact: true }).click();
     await section('branch-b').waitFor(); release(); await delay(300);
+    assert.ok(await page.evaluate(() => window.__notices.at(-1).closed), 'Switching branches closes old desktop notifications');
     assert.equal(await section('backlog').count(), 0); assert.ok(await page.evaluate(() => window.__closes > 0));
     await page.keyboard.press('Escape'); await page.getByRole('button', { name: 'Solo consulta', exact: true }).click();
     await page.getByRole('button', { name: 'Solicitudes de mesas', exact: true }).click();
@@ -121,7 +157,7 @@ try {
     await delay(300); const finalLoads = loads;
     await page.evaluate(() => window.dispatchEvent(new Event('focus'))); await delay(300);
     assert.equal(loads, finalLoads); assert.deepEqual(errors, []);
-    console.log(`Alerts ${width}px: initial silence, opt-in audio, deduplication, voice mute, workflow, failure recovery, reconnect, branch cleanup and permissions passed.`);
+    console.log(`Alerts ${width}px: initial silence, opt-in audio, walkie priority, deduplication, voice mute, workflow, failure recovery, reconnect, branch cleanup and permissions passed.`);
     await page.close();
   }
 } finally { await browser.close(); }

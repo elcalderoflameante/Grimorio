@@ -1,5 +1,6 @@
 import type { TableServiceRequestDto } from '../types';
 import { REQUEST_TYPE_LABELS } from '../constants/tableService';
+import { isWalkieAudioBusy, subscribeWalkieAudioPriority } from './walkieAudioPriority';
 
 export const requestTableLabel = (request: TableServiceRequestDto) => {
   const code = request.tableCode?.trim() || 'sin numero';
@@ -21,10 +22,21 @@ export class TableRequestAudio {
   private disposed = false;
   private queue: string[] = [];
   private current: SpeechSynthesisUtterance | null = null;
+  private tones = new Set<OscillatorNode>();
+  private pendingChime = false;
+  private resumeTimer: ReturnType<typeof setTimeout> | undefined;
+  private unsubscribePriority: () => void;
   voiceEnabled = true;
 
   private onBlocked: () => void;
-  constructor(onBlocked: () => void = () => {}) { this.onBlocked = onBlocked; }
+  constructor(onBlocked: () => void = () => {}) {
+    this.onBlocked = onBlocked;
+    this.unsubscribePriority = subscribeWalkieAudioPriority(busy => {
+      clearTimeout(this.resumeTimer);
+      if (busy) this.interrupt();
+      else this.resumeTimer = setTimeout(() => { this.resumeTimer = undefined; this.drain(); }, 300);
+    });
+  }
 
   async enable() {
     if (this.disposed || !window.AudioContext) throw new Error('El navegador no admite audio de avisos.');
@@ -44,12 +56,12 @@ export class TableRequestAudio {
 
   test() {
     if (!this.ready()) return;
-    this.chime(); this.say('Avisos de mesas activados.');
+    this.enqueue('Avisos de mesas activados.');
   }
 
   announce(requests: TableServiceRequestDto[]) {
     if (!requests.length || !this.ready()) return;
-    this.chime(); this.say(requestAnnouncement(requests));
+    this.enqueue(requestAnnouncement(requests));
   }
 
   setVoice(enabled: boolean) {
@@ -59,11 +71,33 @@ export class TableRequestAudio {
 
   disable() {
     this.enabled = false; this.clearSpeech();
+    this.pendingChime = false; clearTimeout(this.resumeTimer); this.resumeTimer = undefined;
+    this.stopTones();
     if (this.context) void this.context.close().catch(() => {});
     this.context = null;
   }
 
-  dispose() { this.disposed = true; this.disable(); }
+  dispose() { this.disposed = true; this.unsubscribePriority(); this.disable(); }
+
+  private interrupt() {
+    if (this.current) {
+      const text = this.current.text;
+      this.current = null;
+      window.speechSynthesis?.cancel();
+      this.queue.unshift(text);
+      if (this.queue.length > 5) this.queue = [text, 'Hay varias solicitudes nuevas de mesas.'];
+      this.pendingChime = true;
+    }
+    if (this.tones.size) this.pendingChime = true;
+    this.stopTones();
+  }
+
+  private stopTones() {
+    for (const oscillator of this.tones) {
+      try { oscillator.stop(); } catch { /* A finished tone may already be stopped. */ }
+    }
+    this.tones.clear();
+  }
 
   private ready() {
     if (!this.enabled || this.disposed) return false;
@@ -82,20 +116,29 @@ export class TableRequestAudio {
       gain.gain.linearRampToValueAtTime(0.12, time + offset + 0.015);
       gain.gain.exponentialRampToValueAtTime(0.001, time + offset + 0.18);
       oscillator.connect(gain); gain.connect(context.destination);
-      oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
+      this.tones.add(oscillator);
+      oscillator.onended = () => { this.tones.delete(oscillator); oscillator.disconnect(); gain.disconnect(); };
       oscillator.start(time + offset); oscillator.stop(time + offset + 0.2);
     }
   }
 
-  private say(text: string) {
-    if (!this.voiceEnabled || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
-    if (this.queue.length >= 5) this.queue = ['Hay varias solicitudes nuevas de mesas.'];
-    else this.queue.push(text);
+  private enqueue(text: string) {
+    this.pendingChime = true;
+    if (this.voiceEnabled && window.speechSynthesis && window.SpeechSynthesisUtterance) {
+      if (this.queue.length >= 5) this.queue = ['Hay varias solicitudes nuevas de mesas.'];
+      else this.queue.push(text);
+    }
+    this.drain();
+  }
+
+  private drain() {
+    if (isWalkieAudioBusy() || this.resumeTimer !== undefined || !this.ready()) return;
+    if (this.pendingChime) { this.pendingChime = false; this.chime(); }
     this.pump();
   }
 
   private pump() {
-    if (this.current || !this.enabled || this.disposed || !this.voiceEnabled) return;
+    if (this.current || !this.enabled || this.disposed || !this.voiceEnabled || isWalkieAudioBusy() || this.resumeTimer !== undefined) return;
     const text = this.queue.shift(); if (!text) return;
     const utterance = new window.SpeechSynthesisUtterance(text);
     const voices = window.speechSynthesis.getVoices();

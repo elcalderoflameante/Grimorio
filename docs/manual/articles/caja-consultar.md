@@ -48,6 +48,31 @@ parlante** reproduce un timbre y, si **Voz** esta activa, una frase de prueba.
 Puedes dejar solo el timbre. La voz usa las voces disponibles del navegador o
 Windows, priorizando espanol latinoamericano; no usa OpenAI ni pide microfono.
 
+El walkie-talkie tiene prioridad de audio en esta pestana. Mientras hablas o
+escuchas una transmision, los avisos de mesas esperan, pero la lista sigue
+actualizandose. Si una transmision interrumpe un aviso, este vuelve a reproducirse
+al quedar libre el canal. Desactivar Sonido descarta los avisos de audio en espera.
+
+Activa **Escritorio** en la campana y acepta el permiso del navegador para ver
+notificaciones del sistema cuando el ERP no tenga el foco o estes en otra
+aplicacion. La activacion muestra una notificacion de prueba; tambien puedes
+usar **Probar notificacion de escritorio**. Si rechazas el permiso, habilitalo
+en la configuracion del sitio. Se requiere un navegador compatible y HTTPS;
+para pruebas en la misma computadora sirve localhost, no una IP local por HTTP.
+
+Los avisos de escritorio son silenciosos para respetar la prioridad del walkie.
+El timbre y la voz se controlan por separado. Solo muestran mesa y tipo de
+solicitud, nunca el texto personalizado. Al pulsar el aviso se intenta traer el
+ERP al frente y se abre el panel de solicitudes; no se toma ni completa nada.
+Los avisos ya atendidos se retiran al actualizar, y se cierran al desactivar
+Escritorio, cambiar de sucursal o salir. Activa Escritorio en una sola pestana;
+debes activarlo nuevamente al recargar o volver a entrar.
+
+Windows y el navegador deben permitir los avisos; el modo No molestar puede
+ocultarlos. Esto no es Web Push: no funciona con el ERP cerrado, la computadora
+suspendida o la sesion vencida. No se reproducen avisos de solicitudes antiguas
+al entrar y los cambios de estado no generan nuevas notificaciones de escritorio.
+
 Cada solicitud nueva pendiente se anuncia una sola vez durante esa sesion de
 la pagina. Las que ya estaban al entrar se muestran sin reproducir una cola de
 avisos antiguos. El texto personalizado del cliente se muestra en pantalla, pero
@@ -70,3 +95,17 @@ Manten el ERP abierto, el parlante conectado y Windows sin suspender. El
 navegador puede limitar el audio o conexiones en segundo plano: si el sonido
 se bloquea, activalo nuevamente y usa la prueba. La computadora apagada, dormida
 o el navegador cerrado no reciben estos avisos.
+
+## Duracion de la sesion web
+
+La configuracion del proyecto establece 480 minutos (8 horas) desde el inicio de
+sesion. El VPS puede sobrescribirla con `JWT_ACCESS_TOKEN_EXPIRATION_MINUTES`.
+No es un plazo desde el ultimo clic: usar el ERP o recibir avisos no lo renueva.
+Tampoco existe un cierre por inactividad ni renovacion automatica implementada.
+Por ejemplo, al entrar a las 08:00, con esa configuracion el acceso vence a las
+16:00, aunque no se haya usado durante parte de la manana.
+
+Al vencer el acceso, la siguiente peticion protegida lleva al inicio de sesion.
+Que la pantalla siga abierta no garantiza que siga autenticada. Para recibir
+avisos durante un turno, comprueba la sesion y manten el equipo sin suspender;
+si vuelves a iniciar sesion, activa nuevamente Sonido y el walkie-talkie.

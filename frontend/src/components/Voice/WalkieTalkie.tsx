@@ -4,6 +4,7 @@ import { AudioOutlined } from '@ant-design/icons';
 import { HubConnection, HubConnectionBuilder } from '@microsoft/signalr';
 import { Room, RoomEvent, Track } from 'livekit-client';
 import { useAuth } from '../../context/useAuth';
+import { setWalkieAudioBusy } from '../../utils/walkieAudioPriority';
 
 type Channel = { revision: number; participants: { identity: string; name: string }[]; speaker: { identity: string; name: string } | null; leaseId: string | null };
 type Session = { url: string; token: string; identity: string; state: Channel };
@@ -31,7 +32,14 @@ class VoiceConnection {
   private token: string;
   private changed: (view: View) => void;
   constructor(token: string, changed: (view: View) => void) { this.token = token; this.changed = changed; }
-  private update(patch: Partial<View>) { this.view = { ...this.view, ...patch }; this.changed(this.view); }
+  private update(patch: Partial<View>) {
+    this.view = { ...this.view, ...patch };
+    this.updateAudioPriority();
+    this.changed(this.view);
+  }
+  private updateAudioPriority() {
+    setWalkieAudioBusy(this, this.view.enabled && (this.held || this.acquiring || this.view.speaking || this.view.speaker !== null));
+  }
   async start() {
     if (this.view.enabled || this.starting || this.stopping) return;
     this.starting = true;
@@ -56,6 +64,10 @@ class VoiceConnection {
       const session = await hub.invoke<Session>('Join');
       if (generation !== this.generation) { await hub.stop(); return; }
       this.identity = session.identity;
+      if (session.state.revision >= this.revision) {
+        this.revision = session.state.revision;
+        this.update({ count: session.state.participants.length, speaker: session.state.speaker?.name ?? null });
+      }
       const room = new Room({ audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       this.room = room;
       room.on(RoomEvent.TrackSubscribed, track => {
@@ -82,6 +94,7 @@ class VoiceConnection {
   async talk() {
     if (!this.view.enabled || !this.view.connected || this.acquiring || this.lease) return;
     this.held = true; this.acquiring = true;
+    this.updateAudioPriority();
     const hub = this.hub!, room = this.room!, generation = this.generation;
     try {
       const lease = await hub.invoke<string | null>('Acquire');
@@ -97,7 +110,7 @@ class VoiceConnection {
       this.heartbeat = setInterval(() => void this.renew(), 2500);
       this.maximum = setTimeout(() => void this.stopTalking(), 28000);
     } catch { await this.stopTalking(); this.update({ status: 'No se pudo transmitir. Revisa el micrófono y la conexión.' }); }
-    finally { this.acquiring = false; }
+    finally { this.acquiring = false; this.updateAudioPriority(); }
   }
   private async renew() {
     if (this.renewing || !this.lease) return;

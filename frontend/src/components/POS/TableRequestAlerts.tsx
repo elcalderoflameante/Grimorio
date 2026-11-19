@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, App, Badge, Button, Drawer, Empty, Space, Switch, Tag, Tooltip, Typography } from 'antd';
-import { BellOutlined, CheckOutlined, PlayCircleOutlined, ReloadOutlined, SoundOutlined, UserAddOutlined } from '@ant-design/icons';
+import { BellOutlined, CheckOutlined, DesktopOutlined, PlayCircleOutlined, ReloadOutlined, SoundOutlined, UserAddOutlined } from '@ant-design/icons';
 import { useAuth } from '../../context/useAuth';
 import { PERMISSIONS } from '../../constants/permissions';
 import { REQUEST_STATUS_LABELS, REQUEST_STATUS_COLORS, REQUEST_TYPE_LABELS } from '../../constants/tableService';
@@ -10,6 +10,7 @@ import type { TableServiceRequestDto, TableServiceRequestStatus } from '../../ty
 import { formatError } from '../../utils/errorHandler';
 import { formatBranchTime } from '../../utils/branchTimeZone';
 import { requestTableLabel, TableRequestAudio } from '../../utils/tableRequestAudio';
+import { supportsTableRequestDesktop, TableRequestDesktop } from '../../utils/tableRequestDesktop';
 
 export default function TableRequestAlerts() {
   const { token, branchId, hasPermission } = useAuth();
@@ -30,10 +31,14 @@ function ActiveAlerts({ branchId, token, canUpdate }: { branchId: string; token:
   const [sound, setSound] = useState(false);
   const [voice, setVoice] = useState(true);
   const [enabling, setEnabling] = useState(false);
+  const [desktopEnabled, setDesktopEnabled] = useState(false);
+  const [desktopEnabling, setDesktopEnabling] = useState(false);
+  const [desktopError, setDesktopError] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const reload = useRef<() => void>(() => {});
   const audio = useRef<TableRequestAudio | null>(null);
+  const desktop = useRef<TableRequestDesktop | null>(null);
 
   useEffect(() => {
     let active = true, inFlight = false, pending = false, initialized = false;
@@ -43,6 +48,10 @@ function ActiveAlerts({ branchId, token, canUpdate }: { branchId: string; token:
       if (active) { setSound(false); setError('El navegador detuvo el audio. Activa el sonido nuevamente.'); }
     });
     audio.current = player;
+    const desktopAlerts = new TableRequestDesktop(() => {
+      if (active) { setOpen(true); reload.current(); }
+    }, reason => { if (active) { setDesktopEnabled(false); setDesktopError(reason); } });
+    desktop.current = desktopAlerts;
     const load = async () => {
       if (!active) return;
       if (inFlight) { pending = true; return; }
@@ -56,8 +65,10 @@ function ActiveAlerts({ branchId, token, canUpdate }: { branchId: string; token:
         for (const row of rows) seen.add(row.id);
         initialized = true;
         setRequests(rows); setError(''); setNow(Date.now());
+        desktopAlerts.retain(rows);
         if (fresh.length) {
           player.announce(fresh);
+          desktopAlerts.announce(fresh);
           if (!openRef.current) notification.info({ key: 'table-requests-new', title: fresh.length === 1 ? requestTableLabel(fresh[0]) : `${fresh.length} nuevas solicitudes de mesas`,
             description: fresh.length === 1 ? fresh[0].customMessage || REQUEST_TYPE_LABELS[fresh[0].type] : undefined,
             duration: 8, onClick: () => setOpen(true), placement: 'topRight' });
@@ -86,6 +97,7 @@ function ActiveAlerts({ branchId, token, canUpdate }: { branchId: string; token:
     document.addEventListener('visibilitychange', resume);
     return () => {
       active = false; reload.current = () => {}; audio.current = null; player.dispose(); unsubscribe();
+      desktop.current = null; desktopAlerts.dispose();
       notification.destroy('table-requests-new');
       clearInterval(backup); clearInterval(clock); clearTimeout(eventTimer);
       window.removeEventListener('focus', resume); window.removeEventListener('online', resume);
@@ -109,6 +121,16 @@ function ActiveAlerts({ branchId, token, canUpdate }: { branchId: string; token:
     } catch (e) { message.error(formatError(e)); }
     finally { setBusy(null); reload.current(); }
   };
+  const toggleDesktop = async (enabled: boolean) => {
+    const alerts = desktop.current; if (!alerts) return;
+    if (!enabled) { alerts.disable(); setDesktopEnabled(false); setDesktopError(''); return; }
+    setDesktopEnabling(true); setDesktopError('');
+    try {
+      const activated = await alerts.enable();
+      if (desktop.current === alerts) setDesktopEnabled(activated);
+    } catch (e) { if (desktop.current === alerts) { setDesktopEnabled(false); setDesktopError(formatError(e)); } }
+    finally { if (desktop.current === alerts) setDesktopEnabling(false); }
+  };
 
   return <>
     <Tooltip title={`Solicitudes de mesas · sonido ${sound ? 'activado' : 'desactivado'}`}>
@@ -123,9 +145,15 @@ function ActiveAlerts({ branchId, token, canUpdate }: { branchId: string; token:
         <Space><Typography.Text>Voz</Typography.Text><Switch aria-label="Voz de solicitudes" checked={voice} disabled={!window.speechSynthesis}
           onChange={enabled => { setVoice(enabled); audio.current?.setVoice(enabled); }} /></Space>
         <Tooltip title="Probar parlante"><Button aria-label="Probar parlante" icon={<SoundOutlined />} disabled={!sound} onClick={() => audio.current?.test()} /></Tooltip>
+        <Space><Typography.Text>Escritorio</Typography.Text><Switch aria-label="Notificaciones de escritorio" checked={desktopEnabled}
+          disabled={!supportsTableRequestDesktop()} loading={desktopEnabling} onChange={enabled => void toggleDesktop(enabled)} /></Space>
+        <Tooltip title="Probar notificacion de escritorio"><Button aria-label="Probar notificacion de escritorio" icon={<DesktopOutlined />}
+          disabled={!desktopEnabled} onClick={() => desktop.current?.test()} /></Tooltip>
         {!connected && <Tag color="warning">Sin conexion en tiempo real</Tag>}
       </Space>
       {error && <Alert type="warning" showIcon title={error} style={{ marginBottom: 16 }} />}
+      {!supportsTableRequestDesktop() && <Alert type="info" showIcon title="Notificaciones de escritorio no disponibles en este navegador o conexion. Usa HTTPS o localhost." style={{ marginBottom: 16 }} />}
+      {desktopError && <Alert type="warning" showIcon title={desktopError} style={{ marginBottom: 16 }} />}
       {!requests.length && !loading && !error && <Empty description="Sin solicitudes pendientes" />}
       <div aria-live="polite">{requests.map(row => <section key={row.id} aria-label={`Solicitud ${row.id}`}
         style={{ borderBottom: '1px solid #e5e5e5', padding: '16px 0', overflowWrap: 'anywhere' }}>
