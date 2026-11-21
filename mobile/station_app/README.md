@@ -21,6 +21,11 @@ La interfaz usa un modo compacto para pantallas de cocina: tarjetas de 170 px,
 barra lateral reducida y controles densos, sin truncar nombres de componentes
 de combos, modificadores ni observaciones.
 
+Los modificadores usan fondo celeste y texto oscuro. Las observaciones usan
+fondo amarillo y texto oscuro en negrita: la nota general aparece arriba y
+las notas de cada plato se alinean con sus modificadores. La barra superior
+muestra la version instalada a la izquierda de la columna de completados.
+
 En el menú de la pantalla KDS, `Tamaño de presentación` permite elegir
 Automático, Compacto, Normal o Grande. La preferencia se guarda únicamente en
 el dispositivo; el modo Automático selecciona el perfil según el espacio útil

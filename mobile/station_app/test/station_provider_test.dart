@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:signalr_netcore/signalr_client.dart';
 import 'package:station_app/models/station_item.dart';
@@ -107,6 +108,13 @@ StationItem item(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  PackageInfo.setMockInitialValues(
+    appName: 'Grimorio KDS',
+    packageName: 'com.grimorio.station_app',
+    version: '9.8.7',
+    buildNumber: '654',
+    buildSignature: '',
+  );
   late FakeHub hub;
   late FakeTts tts;
   late FakeApi api;
@@ -295,6 +303,7 @@ void main() {
       expect(scrollbars, isNotEmpty);
       expect(scrollbars.every((bar) => bar.padding == EdgeInsets.zero), isTrue);
       await tester.pump(const Duration(minutes: 1));
+      expect(find.text('v9.8.7 (654)'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });

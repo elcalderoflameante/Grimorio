@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:signalr_netcore/signalr_client.dart';
 import '../models/display_size_mode.dart';
@@ -17,10 +18,12 @@ class KdsScreen extends StatefulWidget {
 
 class _KdsScreenState extends State<KdsScreen> {
   late final Timer _clock;
+  late final Future<PackageInfo> _packageInfo;
 
   @override
   void initState() {
     super.initState();
+    _packageInfo = PackageInfo.fromPlatform();
     _clock = Timer.periodic(const Duration(minutes: 1), (_) => setState(() {}));
   }
 
@@ -110,95 +113,142 @@ class _KdsScreenState extends State<KdsScreen> {
                     ),
                   ),
                 ),
-              IconButton(
-                tooltip: provider.ttsEnabled ? 'Silenciar voz' : 'Activar voz',
-                icon: Icon(
-                  provider.ttsEnabled
-                      ? Icons.volume_up_rounded
-                      : Icons.volume_off_rounded,
-                  color: provider.ttsEnabled
-                      ? const Color(0xFF4EE87A)
-                      : Colors.white30,
-                  size: 15 * scale,
-                ),
-                onPressed: () => context.read<StationProvider>().setTtsEnabled(
-                  !provider.ttsEnabled,
-                ),
-                padding: EdgeInsets.zero,
-                constraints: BoxConstraints.tightFor(
-                  width: 30 * scale,
-                  height: 30 * scale,
+              SizedBox(
+                width: 96 * scale,
+                child: Center(
+                  child: FutureBuilder<PackageInfo>(
+                    future: _packageInfo,
+                    builder: (context, snapshot) {
+                      final info = snapshot.data;
+                      if (info == null) return const SizedBox.shrink();
+                      return Tooltip(
+                        message: 'Version instalada',
+                        child: Text(
+                          'v${info.version} (${info.buildNumber})',
+                          maxLines: 1,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 9,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
-              PopupMenuButton<String>(
-                icon: Icon(
-                  Icons.more_vert,
-                  color: Colors.white54,
-                  size: 15 * scale,
-                ),
-                padding: EdgeInsets.zero,
-                color: const Color(0xFF1C1C3A),
-                onSelected: (value) {
-                  if (value == 'change') {
-                    context.read<StationProvider>().changeStation();
-                  }
-                  if (value == 'display') {
-                    _showDisplaySizeDialog(context, provider);
-                  }
-                  if (value == 'logout') {
-                    context.read<StationProvider>().logout();
-                  }
-                },
-                itemBuilder: (_) => [
-                  const PopupMenuItem(
-                    value: 'change',
-                    child: Row(
-                      children: [
-                        Icon(Icons.swap_horiz, color: Colors.white70, size: 13),
-                        SizedBox(width: 4),
-                        Text(
-                          'Cambiar estación',
-                          style: TextStyle(color: Colors.white, fontSize: 10),
-                        ),
-                      ],
+              SizedBox(
+                width: 140 * scale,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    IconButton(
+                      tooltip: provider.ttsEnabled
+                          ? 'Silenciar voz'
+                          : 'Activar voz',
+                      icon: Icon(
+                        provider.ttsEnabled
+                            ? Icons.volume_up_rounded
+                            : Icons.volume_off_rounded,
+                        color: provider.ttsEnabled
+                            ? const Color(0xFF4EE87A)
+                            : Colors.white30,
+                        size: 15 * scale,
+                      ),
+                      onPressed: () => context
+                          .read<StationProvider>()
+                          .setTtsEnabled(!provider.ttsEnabled),
+                      padding: EdgeInsets.zero,
+                      constraints: BoxConstraints.tightFor(
+                        width: 30 * scale,
+                        height: 30 * scale,
+                      ),
                     ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'display',
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.aspect_ratio,
-                          color: Colors.white70,
-                          size: 13,
+                    PopupMenuButton<String>(
+                      icon: Icon(
+                        Icons.more_vert,
+                        color: Colors.white54,
+                        size: 15 * scale,
+                      ),
+                      padding: EdgeInsets.zero,
+                      color: const Color(0xFF1C1C3A),
+                      onSelected: (value) {
+                        if (value == 'change') {
+                          context.read<StationProvider>().changeStation();
+                        }
+                        if (value == 'display') {
+                          _showDisplaySizeDialog(context, provider);
+                        }
+                        if (value == 'logout') {
+                          context.read<StationProvider>().logout();
+                        }
+                      },
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: 'change',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.swap_horiz,
+                                color: Colors.white70,
+                                size: 13,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Cambiar estación',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        SizedBox(width: 4),
-                        Text(
-                          'Tamaño de presentación',
-                          style: TextStyle(color: Colors.white, fontSize: 10),
+                        const PopupMenuItem(
+                          value: 'display',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.aspect_ratio,
+                                color: Colors.white70,
+                                size: 13,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Tamaño de presentación',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'logout',
-                    child: Row(
-                      children: [
-                        Icon(Icons.logout, color: Colors.redAccent, size: 13),
-                        SizedBox(width: 4),
-                        Text(
-                          'Cerrar sesión',
-                          style: TextStyle(
-                            color: Colors.redAccent,
-                            fontSize: 10,
+                        const PopupMenuItem(
+                          value: 'logout',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.logout,
+                                color: Colors.redAccent,
+                                size: 13,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Cerrar sesión',
+                                style: TextStyle(
+                                  color: Colors.redAccent,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 2),
+                  ],
+                ),
               ),
-              const SizedBox(width: 2),
             ],
           ),
           body: Column(

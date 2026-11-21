@@ -1,8 +1,8 @@
 {
-  "versionCode": 17,
-  "versionName": "1.0.16",
+  "versionCode": 18,
+  "versionName": "1.0.17",
   "required": true,
   "apkUrl": "/downloads/grimorio-estaciones.apk",
-  "sha256": "c219c071252758cc18bd34562877920e20782eda1d628c6cd2f7b0609a5f5b8c",
-  "message": "Mejora el tiempo de espera de pedidos con platos adicionales."
+  "sha256": "ee4616e28b597efb303b43803d5590dc5e410d0b13d3c937e4da01189cb89037",
+  "message": "Mejora la visibilidad de modificadores y comentarios y muestra la version instalada."
 }

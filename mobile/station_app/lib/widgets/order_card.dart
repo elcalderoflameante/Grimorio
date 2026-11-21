@@ -234,27 +234,7 @@ class _OrderDetailsState extends State<_OrderDetails> {
           if (widget.orderNotes != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(3, 1, 5, 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.info_outline_rounded,
-                    color: Colors.amberAccent,
-                    size: 9,
-                  ),
-                  const SizedBox(width: 3),
-                  Expanded(
-                    child: Text(
-                      widget.orderNotes!,
-                      style: const TextStyle(
-                        color: Colors.amberAccent,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              child: _KitchenNote(text: widget.orderNotes!),
             ),
           ...widget.items.map((item) => _ItemRow(item: item)),
         ],
@@ -390,22 +370,18 @@ class _ItemRow extends StatelessWidget {
                                 vertical: 1,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(
-                                  0xFF7C3AED,
-                                ).withValues(alpha: 0.25),
+                                color: const Color(0xFFB9F3FF),
                                 borderRadius: BorderRadius.circular(2),
                                 border: Border.all(
-                                  color: const Color(
-                                    0xFF7C3AED,
-                                  ).withValues(alpha: 0.5),
+                                  color: const Color(0xFF53CFE8),
                                 ),
                               ),
                               child: Text(
                                 label,
                                 style: const TextStyle(
-                                  color: Color(0xFFBB86FC),
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF082F38),
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),
@@ -443,32 +419,51 @@ class _ItemRow extends StatelessWidget {
                 // Notas libres del mesero
                 if (item.notes != null && item.notes!.isNotEmpty) ...[
                   const SizedBox(height: 3),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(width: 13),
-                      const Icon(
-                        Icons.notes_rounded,
-                        color: Colors.amber,
-                        size: 8,
-                      ),
-                      const SizedBox(width: 2),
-                      Expanded(
-                        child: Text(
-                          item.notes!,
-                          style: const TextStyle(
-                            color: Colors.amber,
-                            fontSize: 9,
-                          ),
-                        ),
-                      ),
-                    ],
+                  Padding(
+                    padding: const EdgeInsets.only(left: 13),
+                    child: _KitchenNote(text: item.notes!),
                   ),
                 ],
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _KitchenNote extends StatelessWidget {
+  final String text;
+
+  const _KitchenNote({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFFE89A),
+        border: Border(left: BorderSide(color: Color(0xFFFFB300), width: 3)),
+        borderRadius: BorderRadius.all(Radius.circular(2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.notes_rounded, color: Color(0xFF332500), size: 11),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Color(0xFF332500),
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
