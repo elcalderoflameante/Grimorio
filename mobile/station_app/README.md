@@ -59,6 +59,12 @@ no quitar espacio ni provocar desbordes en televisores y TV Box.
 
 ## Build de produccion Android
 
+El icono de Android usa `assets/branding/kds-cocina.png` como original de
+1024x1024. Para regenerar los PNG por densidad desde PowerShell, ejecutar
+`./tool/generate_launcher_icons.ps1`. El generador conserva la transparencia
+PNG. Se usan iconos convencionales transparentes para que Fire OS conserve
+el contorno de la ilustracion sin agregar un recuadro de fondo.
+
 La APK no se publica en Play Store. Se genera firmada y se sirve desde el frontend del ERP en:
 
 ```text

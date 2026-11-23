@@ -1,8 +1,8 @@
 {
-  "versionCode": 18,
-  "versionName": "1.0.17",
+  "versionCode": 20,
+  "versionName": "1.0.19",
   "required": true,
   "apkUrl": "/downloads/grimorio-estaciones.apk",
-  "sha256": "ee4616e28b597efb303b43803d5590dc5e410d0b13d3c937e4da01189cb89037",
-  "message": "Mejora la visibilidad de modificadores y comentarios y muestra la version instalada."
+  "sha256": "22877cfb480b4f70f7020f5b5c866043088e847cdef07481eda2ba967528e9ff",
+  "message": "Nuevo icono de KDS Cocina con transparencia."
 }
