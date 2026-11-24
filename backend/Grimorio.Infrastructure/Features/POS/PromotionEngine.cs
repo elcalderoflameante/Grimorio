@@ -56,7 +56,8 @@ internal static class PromotionEngine
         return appliesToItem || appliesToCategory;
     }
 
-    public static PromotionCalculation Calculate(Promotion promotion, decimal unitPrice, int quantity, bool useCardPrice = false)
+    public static PromotionCalculation Calculate(Promotion promotion, decimal unitPrice, int quantity, bool useCardPrice = false,
+        decimal modifierUnitPriceDelta = 0m)
     {
         if (quantity <= 0)
             throw new InvalidOperationException("La cantidad debe ser mayor a cero.");
@@ -68,12 +69,12 @@ internal static class PromotionEngine
         var discount = useCardPrice && promotion.PaymentPolicy == PromotionPaymentPolicy.CashTransferOnly
             ? 0m
             : useCardPrice && promotion.PaymentPolicy == PromotionPaymentPolicy.CardAlternativePrice && promotion.CardPrice.HasValue
-                ? gross - (promotion.CardPrice.Value * quantity)
+                ? gross - ((promotion.CardPrice.Value + modifierUnitPriceDelta) * quantity)
                 : promotion.Type switch
         {
             PromotionType.Percentage => gross * (percentage / 100m),
             PromotionType.FixedAmount => promotion.DiscountAmount ?? 0m,
-            PromotionType.FixedPrice => gross - ((promotion.FixedPrice ?? unitPrice) * quantity),
+            PromotionType.FixedPrice => gross - ((promotion.FixedPrice.HasValue ? promotion.FixedPrice.Value + modifierUnitPriceDelta : unitPrice) * quantity),
             PromotionType.BuyXPayY => CalculateBuyXPayY(promotion, unitPrice, quantity),
             PromotionType.SecondUnitPercentage => (quantity / 2) * unitPrice * (percentage / 100m),
             _ => 0m,

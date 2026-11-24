@@ -2,6 +2,13 @@
 
 Aplicacion Flutter para que el personal de meseros vea y atienda solicitudes de mesas en tiempo real.
 
+## Version 1.0.28+29
+
+Los adicionales elegidos por el cliente se suman al precio fijo de la promocion.
+Por ejemplo, $6.99 de combo mas $1.50 de carne adicional son $8.49. Publicar esta
+APK junto con la correccion correspondiente de backend y frontend; las opciones
+fijadas en la definicion del combo siguen incluidas en su precio base.
+
 ## Build de produccion Android
 
 La APK no se publica en Play Store. Se genera firmada y se sirve desde el frontend del ERP en:
@@ -115,8 +122,8 @@ misma version para binarios diferentes.
 
 ```json
 {
-  "versionCode": 28,
-  "versionName": "1.0.27",
+  "versionCode": 29,
+  "versionName": "1.0.28",
   "required": false,
   "apkUrl": "/downloads/grimorio-meseros.apk",
   "sha256": "REEMPLAZAR_POR_EL_SHA256_REAL_DEL_APK",

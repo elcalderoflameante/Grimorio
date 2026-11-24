@@ -9,6 +9,16 @@ static void Equal(decimal expected, decimal actual)
     if (expected != actual) throw new Exception($"Expected {expected}, got {actual}.");
 }
 
+var extraPromotion = new Promotion { Type = PromotionType.FixedPrice, FixedPrice = 6.99m, CardPrice = 7.99m,
+    PaymentPolicy = PromotionPaymentPolicy.CardAlternativePrice };
+var extraItem = new OrderItem { UnitPrice = 11.5m, Quantity = 2, Promotion = extraPromotion,
+    ModifierSelections = [new() { UnitPriceDelta = 1.5m, Quantity = 1 }] };
+Equal(16.98m, OrderPaymentPricing.GetLineTotal(extraItem, false));
+Equal(18.98m, OrderPaymentPricing.GetLineTotal(extraItem, true));
+Equal(8.49m, OrderPaymentPricing.AllocateTotal(OrderPaymentPricing.GetLineTotal(extraItem, false), 2, 0, 1));
+Equal(9.49m, OrderPaymentPricing.AllocateTotal(OrderPaymentPricing.GetLineTotal(extraItem, true), 2, 1, 1));
+Console.WriteLine("Fixed-price promotion preserves additional modifier charges.");
+
 var promotion = new Promotion
 {
     Id = Guid.NewGuid(), Type = PromotionType.FixedPrice,

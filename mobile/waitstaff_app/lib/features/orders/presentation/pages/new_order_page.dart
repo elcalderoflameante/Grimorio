@@ -336,7 +336,15 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
   }
 
   double _discountForItem(CartItem item) =>
-      _promotionForItem(item)?.calculateDiscount(item.price, item.quantity) ??
+      _promotionForItem(item)?.calculateDiscount(
+        item.price,
+        item.quantity,
+        modifierUnitPriceDelta: item.modifierSelections.fold<double>(
+          0,
+          (sum, selection) =>
+              sum + selection.unitPriceDelta * selection.quantity,
+        ),
+      ) ??
       0;
 
   // ── Carrito ───────────────────────────────────────────────────────────────

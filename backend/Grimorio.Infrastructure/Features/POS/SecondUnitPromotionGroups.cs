@@ -63,7 +63,8 @@ internal static class SecondUnitPromotionGroups
                 line.PromotionGroupId = groupId;
                 line.PromotionCashDiscountAmount = nextCash - previousCash;
                 line.PromotionCardDiscountAmount = promotion.PaymentPolicy == PromotionPaymentPolicy.CardAlternativePrice
-                    ? PromotionEngine.Calculate(promotion, line.UnitPrice, line.Quantity, true).DiscountAmount
+                    ? PromotionEngine.Calculate(promotion, line.UnitPrice, line.Quantity, true,
+                        line.ModifierSelections.Where(s => !s.IsDeleted).Sum(s => s.UnitPriceDelta * s.Quantity)).DiscountAmount
                     : nextCard - previousCard;
                 previousCash = nextCash; previousCard = nextCard;
                 var pricing = PosMapper.CalcItemFromDiscountAmount(line.UnitPrice, line.Quantity,

@@ -292,7 +292,8 @@ public class CreateOrderCommandHandler : IRequestHandler<CreateOrderCommand, Ord
             var modifierSelections = PosMapper.BuildModifierSelections(req.BranchId, itemDto, menuItem);
             var unitPrice = menuItem.Price + modifierSelections.Sum(s => s.UnitPriceDelta * s.Quantity);
             var promotion = PosMapper.ResolvePromotion(itemDto.PromotionId, menuItem, activePromotions);
-            var pricing = PosMapper.CalcItemWithPromotion(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage, promotion);
+            var pricing = PosMapper.CalcItemWithPromotion(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage, promotion,
+                modifierUnitPriceDelta: modifierSelections.Sum(s => s.UnitPriceDelta * s.Quantity));
             subtotal += unitPrice * itemDto.Quantity;
             discountTotal += pricing.DiscountAmount;
             PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, pricing.TaxableBase, pricing.TaxAmount, ref base15, ref base0, ref baseExempt, ref iva15, ref ice);
@@ -408,7 +409,8 @@ public class CreateDirectSaleCommandHandler : IRequestHandler<CreateDirectSaleCo
             var modifierSelections = PosMapper.BuildModifierSelections(req.BranchId, itemDto, menuItem);
             var unitPrice = menuItem.Price + modifierSelections.Sum(s => s.UnitPriceDelta * s.Quantity);
             var promotion = PosMapper.ResolvePromotion(itemDto.PromotionId, menuItem, activePromotions);
-            var pricing = PosMapper.CalcItemWithPromotion(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage, promotion);
+            var pricing = PosMapper.CalcItemWithPromotion(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage, promotion,
+                modifierUnitPriceDelta: modifierSelections.Sum(s => s.UnitPriceDelta * s.Quantity));
             subtotal += unitPrice * itemDto.Quantity;
             discountTotal += pricing.DiscountAmount;
             PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, pricing.TaxableBase, pricing.TaxAmount, ref base15, ref base0, ref baseExempt, ref iva15, ref ice);
@@ -539,7 +541,8 @@ public class UpdateOrderItemsCommandHandler : IRequestHandler<UpdateOrderItemsCo
             var modifierSelections = PosMapper.BuildModifierSelections(req.BranchId, itemDto, menuItem);
             var unitPrice = menuItem.Price + modifierSelections.Sum(s => s.UnitPriceDelta * s.Quantity);
             var promotion = PosMapper.ResolvePromotion(itemDto.PromotionId, menuItem, activePromotions);
-            var pricing = PosMapper.CalcItemWithPromotion(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage, promotion);
+            var pricing = PosMapper.CalcItemWithPromotion(unitPrice, itemDto.Quantity, itemDto.DiscountPct, menuItem.TaxRate?.Percentage, promotion,
+                modifierUnitPriceDelta: modifierSelections.Sum(s => s.UnitPriceDelta * s.Quantity));
             addedSubtotal += unitPrice * itemDto.Quantity;
             addedDiscount += pricing.DiscountAmount;
             PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, pricing.TaxableBase, pricing.TaxAmount, ref addedBase15, ref addedBase0, ref addedBaseExempt, ref addedIva15, ref addedIce);
@@ -1489,11 +1492,12 @@ internal static class PosMapper
         decimal discountPct,
         decimal? taxPct,
         Promotion? promotion,
-        bool useCardPrice = false)
+        bool useCardPrice = false,
+        decimal modifierUnitPriceDelta = 0m)
     {
         var promoCalculation = promotion == null
             ? null
-            : PromotionEngine.Calculate(promotion, unitPrice, quantity, useCardPrice);
+            : PromotionEngine.Calculate(promotion, unitPrice, quantity, useCardPrice, modifierUnitPriceDelta);
         var effectiveDiscountPct = promoCalculation?.DiscountPct ?? discountPct;
         var discountAmount = promoCalculation?.DiscountAmount ?? Math.Round(unitPrice * quantity * (discountPct / 100m), 2);
         var (_, taxableBase, taxAmount, totalPrice) = CalcItemFromDiscountAmount(unitPrice, quantity, discountAmount, taxPct);

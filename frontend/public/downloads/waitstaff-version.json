@@ -1,8 +1,8 @@
 {
-  "versionCode": 28,
-  "versionName": "1.0.27",
+  "versionCode": 29,
+  "versionName": "1.0.28",
   "required": false,
   "apkUrl": "/downloads/grimorio-meseros.apk",
-  "sha256": "fad6ede95b8d4fd6f9f902559da99605f6792864cc72476ef2317cf9916bd615",
-  "message": "Nueva sección Mi jornada: tareas asignadas, controles, novedades y evidencias fotográficas desde la cámara."
+  "sha256": "15b437b18c751c1d2c6c334e042294cf07d6ec6474a9adf288b082179de2918a",
+  "message": "Corrige el precio de adicionales en combos y promociones: la carne extra se suma al total del pedido."
 }

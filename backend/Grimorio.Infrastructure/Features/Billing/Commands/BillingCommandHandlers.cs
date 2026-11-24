@@ -706,6 +706,8 @@ public class PayOrderHandler : IRequestHandler<PayOrderCommand, OrderPaymentDto>
         var order = await _db.Orders
             .Include(o => o.Payments)
             .Include(o => o.Items.Where(i => !i.IsDeleted))
+                .ThenInclude(i => i.ModifierSelections.Where(s => !s.IsDeleted))
+            .Include(o => o.Items.Where(i => !i.IsDeleted))
                 .ThenInclude(i => i.MenuItem)
             .Include(o => o.Items.Where(i => !i.IsDeleted))
                 .ThenInclude(i => i.Promotion)

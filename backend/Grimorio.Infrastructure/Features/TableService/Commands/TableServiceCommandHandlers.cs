@@ -382,7 +382,8 @@ public class PublicCreateDraftOrderCommandHandler : IRequestHandler<PublicCreate
                 throw new InvalidOperationException("Los precios del menu cambiaron. Revisa el carrito antes de enviarlo nuevamente.");
 
             var promotion = PosMapper.ResolvePromotion(itemDto.PromotionId, menuItem, activePromotions);
-            var pricing = PosMapper.CalcItemWithPromotion(unitPrice, itemDto.Quantity, 0m, menuItem.TaxRate?.Percentage, promotion);
+            var pricing = PosMapper.CalcItemWithPromotion(unitPrice, itemDto.Quantity, 0m, menuItem.TaxRate?.Percentage, promotion,
+                modifierUnitPriceDelta: modifierSelections.Sum(s => s.UnitPriceDelta * s.Quantity));
             subtotal += unitPrice * itemDto.Quantity;
             discountTotal += pricing.DiscountAmount;
             PosMapper.ClassifyTax(menuItem.TaxRate?.SriCode, pricing.TaxableBase, pricing.TaxAmount, ref base15, ref base0, ref baseExempt, ref iva15, ref ice);

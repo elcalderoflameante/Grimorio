@@ -5,6 +5,21 @@ import { allocatePaymentTotal, getPaymentLineTotal, getPromotionDiscount, getGro
 const promotion = { type: 'FixedPrice', fixedPrice: 7.99, cardPrice: 8.99, paymentPolicy: 'CardAlternativePrice' };
 const item = { unitPrice: 11, quantity: 2, totalPrice: 15.98 };
 
+test('fixed-price combo charges selected extras on top of the offer in cart and checkout', () => {
+  const promo = { ...promotion, id: 'combo-promo', fixedPrice: 6.99, cardPrice: 7.99 };
+  const line = { menuItemId: 'combo', promotionId: promo.id, unitPrice: 11.5, quantity: 1,
+    modifierUnitPriceDelta: 1.5, totalPrice: 8.49 };
+  assert.equal(getPaymentLineTotal(line, promo, false), 8.49);
+  assert.equal(getPaymentLineTotal(line, promo, true), 9.49);
+  assert.deepEqual(getGroupedPromotionDiscounts([line], [promo]), [3.01]);
+  assert.equal(getPaymentLineTotal({ ...line, modifierUnitPriceDelta: undefined,
+    modifierSelections: [{ unitPriceDelta: 1.5, quantity: 1 }] }, promo, false), 8.49);
+  const two = { ...line, quantity: 2 };
+  assert.equal(allocatePaymentTotal(getPaymentLineTotal(two, promo, false), 2, 0, 1), 8.49);
+  assert.equal(allocatePaymentTotal(getPaymentLineTotal(two, promo, true), 2, 1, 1), 9.49);
+  assert.equal(getPaymentLineTotal({ ...line, unitPrice: 10, modifierUnitPriceDelta: 0 }, promo, false), 6.99);
+});
+
 test('cash then card preserves the first payment and prices only the remaining unit', () => {
   const cash = allocatePaymentTotal(getPaymentLineTotal(item, promotion, false), 2, 0, 1);
   const card = allocatePaymentTotal(getPaymentLineTotal(item, promotion, true), 2, 1, 1);

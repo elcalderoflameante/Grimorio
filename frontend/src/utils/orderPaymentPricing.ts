@@ -11,7 +11,10 @@ function roundDiscount(value: number) {
 
 export function getPaymentLineTotal(
   item: Pick<OrderDto['items'][number], 'unitPrice' | 'quantity' | 'totalPrice'> &
-    Partial<Pick<OrderDto['items'][number], 'promotionCashDiscountAmount' | 'promotionCardDiscountAmount'>>,
+    Partial<Pick<OrderDto['items'][number], 'promotionCashDiscountAmount' | 'promotionCardDiscountAmount'>> & {
+      modifierUnitPriceDelta?: number;
+      modifierSelections?: { unitPriceDelta?: number; quantity: number }[];
+    },
   promotion: PromotionDto | undefined,
   useCardPrice: boolean,
 ) {
@@ -19,18 +22,20 @@ export function getPaymentLineTotal(
   if (snapshot != null) return item.unitPrice * item.quantity - snapshot;
   if (!promotion) return item.totalPrice;
   const gross = item.unitPrice * item.quantity;
+  const extras = item.modifierUnitPriceDelta ?? item.modifierSelections?.reduce((sum, selection) =>
+    sum + (selection.unitPriceDelta ?? 0) * selection.quantity, 0) ?? 0;
   const percentage = useCardPrice && promotion.paymentPolicy === 'CardAlternativePercentage'
     ? promotion.cardDiscountPercent ?? 0
     : promotion.discountPercent ?? 0;
   let discount = 0;
   if (useCardPrice && promotion.paymentPolicy === 'CashTransferOnly') discount = 0;
   else if (useCardPrice && promotion.paymentPolicy === 'CardAlternativePrice' && promotion.cardPrice != null)
-    discount = gross - promotion.cardPrice * item.quantity;
+    discount = gross - (promotion.cardPrice + extras) * item.quantity;
   else if (promotion.type === 'Percentage') discount = gross * percentage / 100;
   else if (promotion.type === 'SecondUnitPercentage')
     discount = Math.floor(item.quantity / 2) * item.unitPrice * percentage / 100;
   else if (promotion.type === 'FixedAmount') discount = promotion.discountAmount ?? 0;
-  else if (promotion.type === 'FixedPrice') discount = gross - (promotion.fixedPrice ?? item.unitPrice) * item.quantity;
+  else if (promotion.type === 'FixedPrice') discount = gross - (promotion.fixedPrice != null ? promotion.fixedPrice + extras : item.unitPrice) * item.quantity;
   else if (promotion.type === 'BuyXPayY') {
     const buy = promotion.buyQuantity ?? 0;
     const pay = promotion.payQuantity ?? 0;
@@ -54,7 +59,7 @@ export function getPromotionDiscount(unitPrice: number, quantity: number, promot
 }
 
 export function getGroupedPromotionDiscounts(
-  lines: { menuItemId: string; promotionId?: string; unitPrice: number; quantity: number }[],
+  lines: { menuItemId: string; promotionId?: string; unitPrice: number; quantity: number; modifierUnitPriceDelta?: number }[],
   promotions: PromotionDto[],
   useCardPrice = false,
 ) {

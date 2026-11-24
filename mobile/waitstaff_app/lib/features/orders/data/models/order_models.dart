@@ -318,12 +318,21 @@ class PromotionDto {
       menuItemIds.contains(item.id) ||
       menuCategoryIds.contains(item.menuCategoryId);
 
-  double calculateDiscount(double unitPrice, int quantity) {
+  double calculateDiscount(
+    double unitPrice,
+    int quantity, {
+    double modifierUnitPriceDelta = 0,
+  }) {
     final gross = unitPrice * quantity;
     final discount = switch (type) {
       'Percentage' => gross * ((discountPercent ?? 0) / 100),
       'FixedAmount' => discountAmount ?? 0,
-      'FixedPrice' => gross - ((fixedPrice ?? unitPrice) * quantity),
+      'FixedPrice' =>
+        gross -
+            ((fixedPrice != null
+                    ? fixedPrice! + modifierUnitPriceDelta
+                    : unitPrice) *
+                quantity),
       _ =>
         (buyQuantity ?? 0) > 0
             ? (quantity ~/ buyQuantity!) *

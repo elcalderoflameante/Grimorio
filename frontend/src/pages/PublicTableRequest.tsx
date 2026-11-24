@@ -62,6 +62,7 @@ interface PendingRequest {
 }
 
 interface CartLine {
+  modifierUnitPriceDelta?: number;
   localId: string;
   menuItemId: string;
   itemName: string;
@@ -578,6 +579,7 @@ export default function PublicTableRequest() {
         itemName: item.name,
         quantity: itemDraft.quantity,
         unitPrice: item.price + modifierTotal,
+        modifierUnitPriceDelta: modifierTotal,
         notes: itemDraft.notes.trim() || undefined,
         promotionId: applicablePromotion?.id,
         promotionName: applicablePromotion?.name,

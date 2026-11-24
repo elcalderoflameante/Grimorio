@@ -87,7 +87,8 @@ public class CorrectOrderItemCommandHandler(GrimorioDbContext db) : IRequestHand
             {
                 var promotion = item.PromotionId.HasValue ? await db.Promotions.SingleOrDefaultAsync(p => p.Id == item.PromotionId && p.BranchId == req.BranchId && !p.IsDeleted, ct) : null;
                 if (item.PromotionId.HasValue && promotion == null) throw new InvalidOperationException("No se puede recalcular una promocion eliminada.");
-                discount = PosMapper.CalcItemWithPromotion(newPrice, item.Quantity, item.DiscountPct, item.TaxRate?.Percentage, promotion).DiscountAmount;
+                discount = PosMapper.CalcItemWithPromotion(newPrice, item.Quantity, item.DiscountPct, item.TaxRate?.Percentage, promotion,
+                    modifierUnitPriceDelta: selections.Sum(s => s.UnitPriceDelta * s.Quantity)).DiscountAmount;
             }
             var pricing = PosMapper.CalcItemFromDiscountAmount(newPrice, item.Quantity, discount, item.TaxRate?.Percentage);
             replacement = new OrderItem { BranchId = req.BranchId, OrderId = order.Id, MenuItemId = item.MenuItemId,

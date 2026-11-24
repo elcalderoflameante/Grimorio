@@ -33,3 +33,17 @@ es una corrección retroactiva de ventas ya cobradas. No cambies fechas o días 
 producción solo para probar: usa un pedido y entorno de pruebas.
 
 Consulta [Pedidos](/ayuda/pedidos-operar) y [Cobro](/ayuda/ventas-cobrar).
+
+## Adicionales en combos
+
+Las opciones fijadas al definir un combo forman parte de su precio base. Las
+opciones que el cliente puede elegir conservan el recargo configurado en el
+plato componente. Por ejemplo, un combo de $6.99 con carne adicional de $1.50
+debe sumar $8.49. Si el combo contiene dos hamburguesas y la opcion se aplica
+a ambas, el recargo por combo sera $3.00.
+
+Una promocion de precio fijo o precio alternativo con tarjeta establece el
+precio base; los adicionales seleccionados se suman sobre ese precio. Los otros
+tipos de descuento conservan sus reglas. Comprueba el importe al guardar,
+reabrir y cobrar. Las ventas y selecciones historicas no se reescriben
+automaticamente al cambiar precios del catalogo.

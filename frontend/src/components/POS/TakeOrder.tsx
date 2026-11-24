@@ -47,6 +47,7 @@ interface OrderLine {
   notes?: string;
   promotionId?: string;
   modifierSelections?: CreateModifierSelectionDto[];
+  modifierUnitPriceDelta?: number;
 }
 
 function modifiersLabel(selections: CreateModifierSelectionDto[] | undefined, items: MenuItemDto[], menuItemId: string): string | null {
@@ -124,6 +125,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
             quantity: i.quantity,
             notes: i.notes,
             promotionId: i.promotionId,
+            modifierUnitPriceDelta: i.modifierSelections?.reduce((sum, s) => sum + s.unitPriceDelta * s.quantity, 0) ?? 0,
             modifierSelections: i.modifierSelections?.map(s => ({
               modifierOptionId: s.modifierOptionId,
               quantity: s.quantity,
@@ -309,6 +311,7 @@ export default function TakeOrder({ table, orderType, existingOrder, directSale 
     setLines(prev => [...prev, {
       ...modifierBaseLine,
       price: modifierBaseLine.price + modifierPrice,
+      modifierUnitPriceDelta: modifierPrice,
       modifierSelections,
     }]);
     setModifierTarget(null);

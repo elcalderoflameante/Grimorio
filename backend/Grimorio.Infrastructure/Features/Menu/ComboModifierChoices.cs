@@ -31,7 +31,8 @@ internal static class ComboModifierChoices
                 {
                     Id = option.Id, ModifierGroupId = group.Id, BranchId = option.BranchId, Name = option.Name,
                     ArticleId = option.ArticleId, Article = option.Article, UnitId = option.UnitId, Unit = option.Unit,
-                    Quantity = EffectiveQuantity(group, option, component) * component.Quantity, PriceDelta = 0, DisplayOrder = option.DisplayOrder,
+                    Quantity = EffectiveQuantity(group, option, component) * component.Quantity,
+                    PriceDelta = option.PriceDelta * component.Quantity, DisplayOrder = option.DisplayOrder,
                     AdditionalIngredients = option.AdditionalIngredients.Select(i => i with { Quantity = i.Quantity * component.Quantity }).ToList(),
                     ConsumptionArticles = option.ConsumptionArticles,
                 }).ToList(),
@@ -68,12 +69,16 @@ internal static class ComboModifierChoices
         var visibleIds = Groups(item).SelectMany(g => g.Options).Select(o => o.Id).ToHashSet();
         if (requested.Any(s => !visibleIds.Contains(s.ModifierOptionId)))
             throw new InvalidOperationException("La opcion no corresponde a una eleccion del cliente en este combo.");
-        var resolved = definition.ComboComponents.Where(c => !c.IsDeleted).SelectMany(c => Resolve(c, requested)).ToList();
         var requestedIds = requested.Select(s => s.ModifierOptionId).ToHashSet();
+        var resolved = definition.ComboComponents.Where(c => !c.IsDeleted).SelectMany(component =>
+        {
+            var selections = Resolve(component, requested);
+            foreach (var selection in selections) selection.UnitPriceDelta *= component.Quantity;
+            return selections;
+        }).ToList();
         foreach (var selection in resolved.Where(s => requestedIds.Contains(s.ModifierOptionId)))
         {
             // Consumption belongs to the component snapshot, not to the priced parent line.
-            selection.UnitPriceDelta = 0;
             selection.ArticleId = null;
             selection.UnitId = null;
             selection.InventoryQuantity = 0;

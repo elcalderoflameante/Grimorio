@@ -98,6 +98,7 @@ interface PayLine {
 }
 interface CartLine {
   menuItemId: string; name: string; price: number; quantity: number;
+  modifierUnitPriceDelta?: number;
   promotionId?: string; notes?: string; modifierSelections?: CreateModifierSelectionDto[];
 }
 
@@ -469,6 +470,7 @@ export default function TableOrderView({ orderId, table, branchId, onClose, onTa
     setCart(prev => [...prev, {
       ...modifierBaseLine,
       price: modifierBaseLine.price + modifierPrice,
+      modifierUnitPriceDelta: modifierPrice,
       modifierSelections,
     }]);
     setModifierTarget(null);

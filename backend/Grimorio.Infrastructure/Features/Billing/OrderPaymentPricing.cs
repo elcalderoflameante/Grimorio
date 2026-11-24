@@ -11,7 +11,8 @@ public static class OrderPaymentPricing
         if (snapshotDiscount.HasValue) return item.UnitPrice * item.Quantity - snapshotDiscount.Value;
         if (item.Promotion == null) return item.TotalPrice;
         return PosMapper.CalcItemWithPromotion(item.UnitPrice, item.Quantity,
-            item.DiscountPct, item.TaxRate?.Percentage, item.Promotion, useCardPrice).TotalPrice;
+            item.DiscountPct, item.TaxRate?.Percentage, item.Promotion, useCardPrice,
+            item.ModifierSelections.Where(s => !s.IsDeleted).Sum(s => s.UnitPriceDelta * s.Quantity)).TotalPrice;
     }
 
     public static decimal AllocateTotal(decimal total, decimal quantity, decimal paidQuantity, decimal selectedQuantity)
