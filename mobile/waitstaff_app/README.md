@@ -2,6 +2,18 @@
 
 Aplicacion Flutter para que el personal de meseros vea y atienda solicitudes de mesas en tiempo real.
 
+## Version 1.0.29+30
+
+Icono PEDIDOS con la imagen del restaurante y fondo transparente, igual que
+Estaciones e Inventario. Los iconos Android se generan en cinco densidades con:
+
+```powershell
+./tool/generate_launcher_icons.ps1 -SourceImage "C:\ruta\pedidos.png"
+```
+
+Sin `-SourceImage`, el generador usa `assets/images/waitstaff_app_icon.png`.
+No se usa el icono adaptativo anterior con fondo blanco.
+
 ## Version 1.0.28+29
 
 Los adicionales elegidos por el cliente se suman al precio fijo de la promocion.
@@ -122,8 +134,8 @@ misma version para binarios diferentes.
 
 ```json
 {
-  "versionCode": 29,
-  "versionName": "1.0.28",
+  "versionCode": 30,
+  "versionName": "1.0.29",
   "required": false,
   "apkUrl": "/downloads/grimorio-meseros.apk",
   "sha256": "REEMPLAZAR_POR_EL_SHA256_REAL_DEL_APK",

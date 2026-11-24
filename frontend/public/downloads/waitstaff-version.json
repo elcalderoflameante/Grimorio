@@ -1,8 +1,8 @@
 {
-  "versionCode": 29,
-  "versionName": "1.0.28",
+  "versionCode": 30,
+  "versionName": "1.0.29",
   "required": false,
   "apkUrl": "/downloads/grimorio-meseros.apk",
-  "sha256": "15b437b18c751c1d2c6c334e042294cf07d6ec6474a9adf288b082179de2918a",
-  "message": "Corrige el precio de adicionales en combos y promociones: la carne extra se suma al total del pedido."
+  "sha256": "efe64182093affc045be8488ac1a57e2d837999f72d4ce7cecbfaff11f98dc86",
+  "message": "Nuevo icono PEDIDOS del restaurante con fondo transparente."
 }
