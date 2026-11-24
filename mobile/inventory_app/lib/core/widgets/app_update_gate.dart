@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../services/app_update_service.dart';
+import '../theme/app_theme.dart';
 
 class AppUpdateGate extends StatefulWidget {
   final Widget child;
@@ -194,7 +195,7 @@ class _AppUpdateGateState extends State<AppUpdateGate>
                 if (!didPop) _dismiss();
               },
               child: ColoredBox(
-                color: const Color(0xF20A0A14),
+                color: kBgDeep.withAlpha(245),
                 child: SafeArea(
                   child: Center(
                     child: ConstrainedBox(
@@ -202,8 +203,11 @@ class _AppUpdateGateState extends State<AppUpdateGate>
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Material(
-                          color: const Color(0xFF1C1C3A),
-                          borderRadius: BorderRadius.circular(8),
+                          color: kBgCard,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: const BorderSide(color: kGoldDark),
+                          ),
                           child: SingleChildScrollView(
                             padding: const EdgeInsets.all(18),
                             child: Column(
@@ -211,14 +215,15 @@ class _AppUpdateGateState extends State<AppUpdateGate>
                               children: [
                                 const Icon(
                                   Icons.system_update_alt_rounded,
-                                  color: Color(0xFFE94560),
+                                  color: kGold,
                                   size: 30,
                                 ),
                                 const SizedBox(height: 10),
                                 const Text(
                                   'Actualizacion disponible',
                                   style: TextStyle(
-                                    color: Colors.white,
+                                    fontFamily: 'Cinzel',
+                                    color: kGold,
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -227,7 +232,7 @@ class _AppUpdateGateState extends State<AppUpdateGate>
                                 Text(
                                   'Grimorio Inventario ${update.versionName}',
                                   style: const TextStyle(
-                                    color: Colors.white70,
+                                    color: kParchment,
                                     fontSize: 16,
                                   ),
                                 ),
@@ -237,7 +242,7 @@ class _AppUpdateGateState extends State<AppUpdateGate>
                                     update.message,
                                     textAlign: TextAlign.center,
                                     style: const TextStyle(
-                                      color: Colors.white60,
+                                      color: kParchmentDim,
                                       fontSize: 14,
                                     ),
                                   ),
@@ -246,7 +251,7 @@ class _AppUpdateGateState extends State<AppUpdateGate>
                                   const SizedBox(height: 14),
                                   LinearProgressIndicator(
                                     value: _progress > 0 ? _progress : null,
-                                    color: const Color(0xFFE94560),
+                                    color: kGold,
                                     backgroundColor: Colors.white12,
                                   ),
                                   const SizedBox(height: 5),
@@ -255,7 +260,7 @@ class _AppUpdateGateState extends State<AppUpdateGate>
                                         ? 'Descargando ${(_progress * 100).round()}%'
                                         : 'Preparando actualizacion...',
                                     style: const TextStyle(
-                                      color: Colors.white54,
+                                      color: kParchmentDim,
                                       fontSize: 14,
                                     ),
                                   ),

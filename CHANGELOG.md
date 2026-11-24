@@ -6,6 +6,10 @@ El formato se basa en Keep a Changelog y Versionado Semantico.
 
 ## [Sin versionar]
 
+### Cambiado
+
+- Inventario Android 1.0.3+4 adopta el diseño de Meseros: morado oscuro, dorado, logo del restaurante y fuentes Cinzel/Lato incluidas en la APK. Pantallas de PIN, áreas, conteos, cantidades y actualizaciones unificadas, con adaptación a pantallas estrechas y texto ampliado.
+
 ### Agregado
 
 - Primera base operativa de los grupos restantes del ERP: 21 guías adicionales (33 en total), portada central, ayuda contextual por pantalla, navegación con desplazamiento y controles de cobertura y permisos. Aceptación por responsables y dispositivos pendiente; producción sigue deshabilitada.

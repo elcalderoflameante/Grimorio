@@ -1,7 +1,7 @@
 name: inventory_app
 description: Conteos de inventario del personal de Grimorio.
 publish_to: none
-version: 1.0.2+3
+version: 1.0.3+4
 environment:
   sdk: ^3.11.5
 dependencies:
@@ -17,3 +17,16 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/ecf_logo.png
+    - assets/fonts/OFL-Cinzel.txt
+    - assets/fonts/OFL-Lato.txt
+  fonts:
+    - family: Cinzel
+      fonts:
+        - asset: assets/fonts/Cinzel-Variable.ttf
+    - family: Lato
+      fonts:
+        - asset: assets/fonts/Lato-Regular.ttf
+        - asset: assets/fonts/Lato-Bold.ttf
+          weight: 700

@@ -11,6 +11,6 @@ New-Item -ItemType Directory -Force -Path $downloads | Out-Null
 $destination = Join-Path $downloads 'grimorio-inventario.apk'
 Copy-Item -LiteralPath $apkPath -Destination $destination -Force
 $hash = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
-$manifest = [ordered]@{ versionCode = $versionCode; versionName = $versionName; required = $false; apkUrl = '/downloads/grimorio-inventario.apk'; sha256 = $hash; message = 'Mejoras de inventario y actualizaciones desde la app.' }
+$manifest = [ordered]@{ versionCode = $versionCode; versionName = $versionName; required = $false; apkUrl = '/downloads/grimorio-inventario.apk'; sha256 = $hash; message = 'Nueva apariencia de Inventario con la identidad visual de El Caldero Flameante.' }
 [IO.File]::WriteAllText((Join-Path $downloads 'inventory-version.json'), ($manifest | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
 Write-Output "APK de inventario $versionName+$versionCode preparada en frontend/public/downloads. SHA-256: $hash"

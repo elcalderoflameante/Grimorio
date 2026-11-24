@@ -2,6 +2,19 @@
 
 App Flutter Android para registrar conteos del personal sin ajustar existencias.
 
+## Diseño
+
+La interfaz sigue la identidad de Meseros: fondo morado oscuro, dorado y texto
+pergamino, con títulos Cinzel y lectura Lato. Logo y fuentes se incluyen en la
+APK; no requieren descargarse al iniciar. Se conserva el ícono propio de Inventario.
+
+Las comprobaciones de diseño cubren teléfonos estrechos y texto ampliado.
+Para generar capturas de revisión en `build/design-preview`:
+
+```powershell
+flutter test --no-pub test/inventory_layout_test.dart --dart-define=GENERATE_INVENTORY_PREVIEWS=true
+```
+
 ## Documentación central
 
 - [Instalación y actualización](../../docs/manual/articles/inventario-instalar.md).

@@ -1,9 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'api.dart';
 import 'core/widgets/app_update_gate.dart';
+import 'core/theme/app_theme.dart';
+import 'core/widgets/inventory_notice.dart';
 
-void main() => runApp(const InventoryApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks([
+      'Cinzel',
+    ], await rootBundle.loadString('assets/fonts/OFL-Cinzel.txt'));
+    yield LicenseEntryWithLineBreaks([
+      'Lato',
+    ], await rootBundle.loadString('assets/fonts/OFL-Lato.txt'));
+  });
+  runApp(const InventoryApp());
+}
 
 class InventoryApp extends StatefulWidget {
   const InventoryApp({super.key});
@@ -39,13 +53,8 @@ class _InventoryAppState extends State<InventoryApp> {
     title: 'Grimorio Inventario',
     debugShowCheckedModeBanner: false,
     builder: (context, child) => AppUpdateGate(child: child!),
-    theme: ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF8B4513)),
-      useMaterial3: true,
-      inputDecorationTheme: const InputDecorationTheme(
-        border: OutlineInputBorder(),
-      ),
-    ),
+    theme: AppTheme.magicTheme(),
+    themeMode: ThemeMode.dark,
     home: session == null
         ? LoginPage(
             api: api,
@@ -149,112 +158,157 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    body: Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Icon(Icons.inventory_2_outlined, size: 64),
-              const SizedBox(height: 16),
-              Text(
-                'Grimorio Inventario',
-                style: Theme.of(context).textTheme.headlineSmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Cuenta tu área antes del cierre.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 28),
-              DropdownButtonFormField<String>(
-                key: ValueKey(branch),
-                initialValue: branch,
-                decoration: const InputDecoration(labelText: 'Sucursal'),
-                isExpanded: true,
-                items: branches
-                    .map(
-                      (b) => DropdownMenuItem(
-                        value: b['id'] as String,
-                        child: Text(b['name'] as String),
-                      ),
-                    )
-                    .toList(),
-                onChanged: busy
-                    ? null
-                    : (id) {
-                        if (id != null) loadUsers(id);
-                      },
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                key: ValueKey('$branch:$user'),
-                initialValue: user,
-                decoration: const InputDecoration(labelText: 'Tu nombre'),
-                isExpanded: true,
-                items: users
-                    .map(
-                      (u) => DropdownMenuItem(
-                        value: u['id'] as String,
-                        enabled: u['hasKdsPin'] == true,
-                        child: Text(
-                          '${u['firstName']} ${u['lastName']}${u['hasKdsPin'] == true ? '' : ' · Sin PIN'}',
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: busy
-                    ? null
-                    : (id) => setState(() {
-                        user = id;
-                        pin.clear();
-                      }),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: pin,
-                enabled: !busy,
-                obscureText: true,
-                maxLength: 4,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(
-                  labelText: 'PIN de 4 dígitos',
+    body: InventoryContent(
+      topSafeArea: true,
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Image.asset(
+                  'assets/images/ecf_logo.png',
+                  width: 120,
+                  height: 120,
                 ),
-                onChanged: (_) => setState(() {}),
-                onSubmitted: (_) => login(),
-              ),
-              if (error != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+                const SizedBox(height: 16),
+                Text(
+                  'GRIMORIO INVENTARIO',
+                  style: const TextStyle(
+                    fontFamily: 'Cinzel',
+                    color: kGold,
+                    fontSize: 23,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Acceso rápido con PIN',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: kParchmentDim, fontSize: 14),
+                ),
+                const SizedBox(height: 28),
+                DropdownButtonFormField<String>(
+                  key: ValueKey(branch),
+                  initialValue: branch,
+                  dropdownColor: kBgMid,
+                  decoration: const InputDecoration(
+                    labelText: 'Sucursal',
+                    prefixIcon: Icon(Icons.storefront_outlined),
+                  ),
+                  isExpanded: true,
+                  items: branches
+                      .map(
+                        (b) => DropdownMenuItem(
+                          value: b['id'] as String,
+                          child: Text(
+                            b['name'] as String,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: busy
+                      ? null
+                      : (id) {
+                          if (id != null) loadUsers(id);
+                        },
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  key: ValueKey('$branch:$user'),
+                  initialValue: user,
+                  dropdownColor: kBgMid,
+                  decoration: const InputDecoration(
+                    labelText: 'Tu nombre',
+                    prefixIcon: Icon(Icons.person_outline_rounded),
+                  ),
+                  isExpanded: true,
+                  items: users
+                      .map(
+                        (u) => DropdownMenuItem(
+                          value: u['id'] as String,
+                          enabled: u['hasKdsPin'] == true,
+                          child: Text(
+                            '${u['firstName']} ${u['lastName']}${u['hasKdsPin'] == true ? '' : ' · Sin PIN'}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: busy
+                      ? null
+                      : (id) => setState(() {
+                          user = id;
+                          pin.clear();
+                        }),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: pin,
+                  enabled: !busy,
+                  obscureText: true,
+                  maxLength: 4,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'Cinzel',
+                    color: kParchment,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 10,
+                  ),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(
+                    labelText: 'PIN de 4 dígitos',
+                    counterText: '',
+                    prefixIcon: Icon(Icons.pin_outlined),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                  onSubmitted: (_) => login(),
+                ),
+                if (error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                   ),
-                ),
-              if (branch != null && users.isEmpty && !busy)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    'No hay usuarios autorizados. Solicita al administrador el permiso de conteos y la asignación de tu área.',
+                if (branch != null && users.isEmpty && !busy)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      'No hay usuarios autorizados. Solicita al administrador el permiso de conteos y la asignación de tu área.',
+                    ),
                   ),
+                FilledButton.icon(
+                  onPressed: !busy && user != null && pin.text.length == 4
+                      ? login
+                      : null,
+                  icon: busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.login_rounded),
+                  label: Text(busy ? 'Cargando…' : 'Ingresar'),
                 ),
-              FilledButton(
-                onPressed: !busy && user != null && pin.text.length == 4
-                    ? login
-                    : null,
-                child: Text(busy ? 'Cargando…' : 'Ingresar'),
-              ),
-              TextButton(
-                onPressed: busy ? null : loadBranches,
-                child: const Text('Actualizar sucursales y usuarios'),
-              ),
-            ],
+                TextButton(
+                  onPressed: busy ? null : loadBranches,
+                  child: const Text('Actualizar sucursales y usuarios'),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -341,87 +395,169 @@ class _AreasPageState extends State<AreasPage> {
         ),
       ],
     ),
-    body: RefreshIndicator(
-      onRefresh: load,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(widget.name, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          const Text(
-            'Tus conteos se guardan para revisión. No modifican el inventario.',
-          ),
-          const SizedBox(height: 16),
-          if (busy) const LinearProgressIndicator(),
-          if (error != null)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Text(error!),
-                    TextButton(
-                      onPressed: busy ? null : load,
-                      child: const Text('Reintentar'),
-                    ),
-                  ],
+    body: InventoryContent(
+      child: RefreshIndicator(
+        onRefresh: load,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Row(
+              children: [
+                Image.asset(
+                  'assets/images/ecf_logo.png',
+                  width: 52,
+                  height: 52,
                 ),
-              ),
-            ),
-          if (!busy && areas.isEmpty && error == null)
-            const Text(
-              'No tienes áreas asignadas. Solicita la asignación al administrador.',
-            ),
-          ...areas.map((area) {
-            final pending = area['pendingArticles'] as int;
-            final draft = area['draftId'] != null;
-            final recount = area['recount'] == true;
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      area['areaName'] as String,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    Text(
-                      recount
-                          ? 'Nuevo conteo solicitado por administración'
-                          : '$pending artículos pendientes',
-                    ),
-                    if (draft)
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'CONTEO DE CIERRE',
+                        style: TextStyle(
+                          fontFamily: 'Cinzel',
+                          fontSize: 12,
+                          color: kGold,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
                       Text(
-                        'Conteo iniciado por ${area['counterName']}. Puedes continuarlo.',
+                        widget.name,
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                    const SizedBox(height: 12),
-                    FilledButton(
-                      onPressed: busy || (!draft && !recount && pending == 0)
-                          ? null
-                          : () => start(area),
-                      child: Text(
-                        draft
-                            ? 'Continuar conteo'
-                            : recount
-                            ? 'Realizar reconteo'
-                            : pending == 0
-                            ? 'Al día'
-                            : 'Comenzar conteo',
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const InventoryNotice(
+              icon: Icons.verified_user_outlined,
+              text:
+                  'Tus conteos se guardan para revisión. No modifican el inventario.',
+            ),
+            const SizedBox(height: 16),
+            if (busy) const LinearProgressIndicator(),
+            if (error != null)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Text(error!),
+                      TextButton(
+                        onPressed: busy ? null : load,
+                        child: const Text('Reintentar'),
                       ),
+                    ],
+                  ),
+                ),
+              ),
+            if (!busy && areas.isEmpty && error == null)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.inventory_2_outlined,
+                      size: 48,
+                      color: kGoldDark,
+                    ),
+                    SizedBox(height: 12),
+                    Text(
+                      'No tienes áreas asignadas. Solicita la asignación al administrador.',
+                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),
               ),
-            );
-          }),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: busy ? null : load,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Actualizar pendientes'),
-          ),
-        ],
+            ...areas.map((area) {
+              final pending = area['pendingArticles'] as int;
+              final draft = area['draftId'] != null;
+              final recount = area['recount'] == true;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: kGold.withAlpha(20),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.inventory_2_outlined,
+                              color: kGold,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              area['areaName'] as String,
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                          ),
+                          if (!draft && !recount && pending == 0)
+                            const Icon(
+                              Icons.check_circle_outline_rounded,
+                              color: kGold,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        recount
+                            ? 'Nuevo conteo solicitado por administración'
+                            : '$pending artículos pendientes',
+                        style: TextStyle(
+                          color: recount ? kGoldLight : kParchmentDim,
+                          fontSize: 14,
+                        ),
+                      ),
+                      if (draft)
+                        Text(
+                          'Conteo iniciado por ${area['counterName']}. Puedes continuarlo.',
+                          style: const TextStyle(
+                            color: kParchmentDim,
+                            height: 1.5,
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      FilledButton(
+                        onPressed: busy || (!draft && !recount && pending == 0)
+                            ? null
+                            : () => start(area),
+                        child: Text(
+                          draft
+                              ? 'Continuar conteo'
+                              : recount
+                              ? 'Realizar reconteo'
+                              : pending == 0
+                              ? 'Al día'
+                              : 'Comenzar conteo',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: busy ? null : load,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Actualizar pendientes'),
+            ),
+          ],
+        ),
       ),
     ),
   );
@@ -550,7 +686,11 @@ class _CountPageState extends State<CountPage> {
         .toList();
     return Scaffold(
       appBar: AppBar(
-        title: Text(count['areaName'] as String),
+        title: Text(
+          count['areaName'] as String,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
         actions: [
           IconButton(
             onPressed: busy ? null : refresh,
@@ -559,83 +699,114 @@ class _CountPageState extends State<CountPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  '${count['businessDate']} · $done de ${lines.length} contados',
-                ),
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: lines.isEmpty ? 0 : done / lines.length,
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Cada artículo se guarda al confirmar su cantidad. Ingresa 0 cuando no haya existencias.',
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  decoration: const InputDecoration(
-                    hintText: 'Buscar artículo o bodega',
-                    prefixIcon: Icon(Icons.search),
-                  ),
-                  onChanged: (value) => setState(() => search = value),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: visible.length,
-              itemBuilder: (_, i) {
-                final l = visible[i];
-                return ListTile(
-                  leading: Icon(
-                    l['quantity'] == null
-                        ? Icons.radio_button_unchecked
-                        : Icons.check_circle,
-                    color: l['quantity'] == null ? null : Colors.green,
-                  ),
-                  title: Text(l['articleName'] as String),
-                  subtitle: Text(
-                    '${l['warehouseName']} · ${l['unitSymbol']}${l['notes'] == null || l['notes'] == '' ? '' : '\n${l['notes']}'}',
-                  ),
-                  trailing: Text(
-                    l['quantity'] == null
-                        ? 'Contar'
-                        : '${l['quantity']} ${l['unitSymbol']}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  onTap: busy ? null : () => edit(l),
-                );
-              },
-            ),
-          ),
-          SafeArea(
-            top: false,
-            child: Padding(
+      body: InventoryContent(
+        child: Column(
+          children: [
+            Padding(
               padding: const EdgeInsets.all(16),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: !busy && done == lines.length && done > 0
-                      ? submit
-                      : null,
-                  icon: const Icon(Icons.send),
-                  label: Text(
-                    busy
-                        ? 'Enviando…'
-                        : 'Enviar conteo ($done/${lines.length})',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    '${count['businessDate']} · $done de ${lines.length} contados',
+                  ),
+                  const SizedBox(height: 8),
+                  LinearProgressIndicator(
+                    value: lines.isEmpty ? 0 : done / lines.length,
+                    minHeight: 6,
+                    borderRadius: BorderRadius.circular(6),
+                    backgroundColor: kGoldDark.withAlpha(45),
+                  ),
+                  const SizedBox(height: 12),
+                  const InventoryNotice(
+                    text:
+                        'Cada artículo se guarda al confirmar su cantidad. Ingresa 0 cuando no haya existencias.',
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    decoration: const InputDecoration(
+                      hintText: 'Buscar artículo',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    onChanged: (value) => setState(() => search = value),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                itemCount: visible.length,
+                itemBuilder: (_, i) {
+                  final l = visible[i];
+                  return Card(
+                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      leading: Icon(
+                        l['quantity'] == null
+                            ? Icons.radio_button_unchecked
+                            : Icons.check_circle,
+                        color: l['quantity'] == null ? kGoldDark : kGold,
+                      ),
+                      title: Text(
+                        l['articleName'] as String,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${l['warehouseName']} · ${l['unitSymbol']}${l['notes'] == null || l['notes'] == '' ? '' : '\n${l['notes']}'}',
+                      ),
+                      trailing: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 105),
+                        child: Text(
+                          l['quantity'] == null
+                              ? 'Contar'
+                              : '${l['quantity']} ${l['unitSymbol']}',
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: l['quantity'] == null
+                                ? kParchmentDim
+                                : kGoldLight,
+                          ),
+                        ),
+                      ),
+                      onTap: busy ? null : () => edit(l),
+                    ),
+                  );
+                },
+              ),
+            ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: !busy && done == lines.length && done > 0
+                        ? submit
+                        : null,
+                    icon: const Icon(Icons.send),
+                    label: Text(
+                      busy
+                          ? 'Enviando…'
+                          : 'Enviar conteo ($done/${lines.length})',
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -716,7 +887,16 @@ class _LineDialogState extends State<LineDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: !busy,
     child: AlertDialog(
-      title: Text(widget.line['articleName'] as String),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      title: Text(
+        widget.line['articleName'] as String,
+        style: const TextStyle(
+          fontFamily: 'Lato',
+          fontSize: 18,
+          color: kGold,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -727,6 +907,12 @@ class _LineDialogState extends State<LineDialog> {
             const SizedBox(height: 16),
             TextField(
               controller: quantity,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 28,
+                color: kGoldLight,
+                fontWeight: FontWeight.w700,
+              ),
               autofocus: true,
               enabled: !busy,
               keyboardType: const TextInputType.numberWithOptions(
@@ -735,6 +921,7 @@ class _LineDialogState extends State<LineDialog> {
               decoration: InputDecoration(
                 labelText: 'Cantidad (${widget.line['unitSymbol']})',
                 helperText: '0 significa que no hay existencias',
+                helperMaxLines: 2,
               ),
             ),
             const SizedBox(height: 16),
@@ -745,7 +932,7 @@ class _LineDialogState extends State<LineDialog> {
               minLines: 2,
               maxLines: 4,
               decoration: const InputDecoration(
-                labelText: 'Novedad u observación (opcional)',
+                labelText: 'Observación (opcional)',
               ),
             ),
             if (error != null)

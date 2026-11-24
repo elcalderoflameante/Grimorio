@@ -1,8 +1,8 @@
 {
-    "versionCode":  3,
-    "versionName":  "1.0.2",
+    "versionCode":  4,
+    "versionName":  "1.0.3",
     "required":  false,
     "apkUrl":  "/downloads/grimorio-inventario.apk",
-    "sha256":  "acd3cb1f0cad09a0d0a231a5343d2792ce4c33752a760b77e709051b933f376d",
-    "message":  "Nuevo icono de Grimorio Inventario con transparencia."
+    "sha256":  "14b4dd2bd5c2d49ff40183f10419c08b7a985ce2355c4331fda14cffb5b69d29",
+    "message":  "Nueva apariencia de Inventario con la identidad visual de El Caldero Flameante."
 }
