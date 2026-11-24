@@ -56,6 +56,25 @@ En produccion:
 https://erp.elcalderoflameante.com/downloads/grimorio-asistencia.apk
 ```
 
+### Icono Android
+
+El icono usa `assets/branding/attendance-app-icon.png` como original de
+1024x1024. Para regenerar los PNG por densidad desde PowerShell, ejecutar:
+
+```powershell
+.\tool\generate_launcher_icons.ps1
+```
+
+Para reemplazar el original y regenerar todos los tamaños en un solo paso:
+
+```powershell
+.\tool\generate_launcher_icons.ps1 -SourceImage "C:\ruta\asistencia.png"
+```
+
+El generador conserva la transparencia PNG. Se usan iconos convencionales
+transparentes para que Fire OS mantenga el contorno de la ilustracion y no
+agregue un recuadro de fondo.
+
 ## Firma release
 
 La app busca primero `android/key.properties`. Si no existe, reutiliza
