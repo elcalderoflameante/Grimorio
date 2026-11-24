@@ -1,7 +1,7 @@
 name: inventory_app
 description: Conteos de inventario del personal de Grimorio.
 publish_to: none
-version: 1.0.1+2
+version: 1.0.2+3
 environment:
   sdk: ^3.11.5
 dependencies:

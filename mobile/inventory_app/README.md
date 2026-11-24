@@ -29,3 +29,15 @@ Paquete: `com.grimorio.inventory_app`. Mantener firma y aumentar versión para
 actualizar. El script publica APK y manifiesto con SHA-256 en
 `frontend/public/downloads`. No publicar claves ni firmar con otra identidad.
 Consultar los requisitos privados de firma en la referencia técnica central.
+
+## Icono Android
+
+Original PNG: `assets/branding/inventario.png` (1024x1024, con transparencia).
+Para regenerar los recursos por densidad en PowerShell:
+
+```powershell
+./tool/generate_launcher_icons.ps1
+```
+
+Se conserva la transparencia y se usa el icono convencional para evitar
+recuadros de fondo en Fire OS.
