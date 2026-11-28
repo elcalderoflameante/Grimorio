@@ -74,6 +74,13 @@ class GrimorioVoicePlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Acti
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
+            "initializeDefaults" -> {
+                if (!preferences.contains("volume")) {
+                    preferences.edit()
+                        .putBoolean("volume", call.argument<Boolean>("volume") == true).apply()
+                }
+                result.success(null)
+            }
             "settings" -> result.success(mapOf(
                 "volume" to preferences.getBoolean("volume", false),
                 "sounds" to preferences.getBoolean("sounds", true),

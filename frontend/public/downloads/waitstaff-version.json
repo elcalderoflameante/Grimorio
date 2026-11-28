@@ -1,8 +1,8 @@
 {
-  "versionCode": 31,
-  "versionName": "1.0.30",
+  "versionCode": 33,
+  "versionName": "1.0.32",
   "required": false,
   "apkUrl": "/downloads/grimorio-meseros.apk",
-  "sha256": "a4c5c52c3492edb3a2df11138bf57b9ed2a68f9d42d2670f9773f4e6a42d1464",
-  "message": "Permite combinar productos distintos de la misma promocion de segunda unidad con descuento."
+  "sha256": "02c5c613b75643cba18719295b4cb66e78899c9fda3f24ef6d922f2abb263739",
+  "message": "Walkie automático, cabecera compacta y protección contra doble toque al elegir opciones de un plato."
 }

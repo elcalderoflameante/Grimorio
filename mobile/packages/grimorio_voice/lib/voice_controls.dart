@@ -35,6 +35,12 @@ class VoiceControls {
     accessibility = settings?['accessibility'] == true;
   }
 
+  /// Defaults apply only before the user has saved their button preference.
+  Future<void> initializeDefaults({required bool volumeEnabled}) async {
+    await _invoke<void>('initializeDefaults', {'volume': volumeEnabled});
+    await refresh();
+  }
+
   Future<void> save(bool volumeEnabled, bool soundsEnabled) async {
     await _invoke<void>('saveSettings', {
       'volume': volumeEnabled,

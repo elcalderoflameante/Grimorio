@@ -46,6 +46,9 @@ class MyApp extends ConsumerWidget {
                 apiBaseUrl: ApiConfig.baseUrl,
                 readToken: ref.read(authStorageServiceProvider).readAccessToken,
                 onChannelBusy: ref.read(alertServiceProvider).setVoiceBusy,
+                autoActivate: true,
+                defaultVolumeButtonEnabled: true,
+                compact: true,
                 child: child!,
               )
             : child!,

@@ -16,6 +16,7 @@ class VoiceShell extends StatefulWidget {
     this.onChannelBusy,
     this.canTransmit = true,
     this.autoActivate = false,
+    this.defaultVolumeButtonEnabled = false,
     this.compact = false,
     this.showStatusBar = true,
   });
@@ -25,6 +26,7 @@ class VoiceShell extends StatefulWidget {
   final ValueChanged<bool>? onChannelBusy;
   final bool canTransmit;
   final bool autoActivate;
+  final bool defaultVolumeButtonEnabled;
   final bool compact;
   final bool showStatusBar;
   @override
@@ -32,11 +34,15 @@ class VoiceShell extends StatefulWidget {
 }
 
 class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
+  // An old authenticated shell can still be cleaning up when its replacement
+  // starts. It must not stop the replacement's shared Android service.
+  static _VoiceShellState? _backgroundOwner;
   HubConnection? _hub;
   Room? _room;
   EventsListener<RoomEvent>? _events;
   Timer? _retry, _heartbeat, _maximum;
   final _controls = VoiceControls();
+  late final Future<void> _controlsReady;
   int? _hardwareId;
   int _pressSequence = 0;
   Future<void>? _stopping;
@@ -77,6 +83,11 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _controlsReady = widget.canTransmit
+        ? _controls.initializeDefaults(
+            volumeEnabled: widget.defaultVolumeButtonEnabled,
+          )
+        : Future<void>.value();
     if (widget.canTransmit) {
       _controls.listen((down, id) {
         if (down) {
@@ -90,7 +101,6 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
           unawaited(_stopTalking());
         }
       });
-      unawaited(_controls.refresh());
     }
     if (widget.autoActivate) {
       WidgetsBinding.instance.addPostFrameCallback(
@@ -133,6 +143,8 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
       _status = 'Preparando audio…';
     });
     try {
+      await _controlsReady;
+      if (_closing || !_enabled) return;
       if (widget.canTransmit &&
           !await Permission.microphone.request().isGranted) {
         throw StateError('Permite el micrófono para usar el walkie-talkie.');
@@ -140,6 +152,8 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
       if (_closing || !_enabled) return;
       if (Theme.of(context).platform == TargetPlatform.android) {
         await Permission.notification.request();
+        if (_closing || !_enabled) return;
+        _backgroundOwner = this;
         final initialized = await FlutterBackground.initialize(
           androidConfig: FlutterBackgroundAndroidConfig(
             notificationTitle: 'Walkie-talkie · Grimorio',
@@ -240,7 +254,7 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
       }
     } catch (_) {
       if (generation != _generation) return;
-      if (recovering && _enabled && !_closing) {
+      if ((recovering || widget.autoActivate) && _enabled && !_closing) {
         await _recover();
         return;
       }
@@ -441,11 +455,14 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
     try {
       await hub?.stop().timeout(const Duration(seconds: 2));
     } catch (_) {}
-    if (disableBackground && FlutterBackground.isBackgroundExecutionEnabled) {
+    if (disableBackground && identical(_backgroundOwner, this)) {
+      _backgroundOwner = null;
       try {
-        await FlutterBackground.disableBackgroundExecution().timeout(
-          const Duration(seconds: 2),
-        );
+        if (FlutterBackground.isBackgroundExecutionEnabled) {
+          await FlutterBackground.disableBackgroundExecution().timeout(
+            const Duration(seconds: 2),
+          );
+        }
       } catch (_) {}
     }
     widget.onChannelBusy?.call(false);
@@ -586,90 +603,98 @@ class _VoiceShellState extends State<VoiceShell> with WidgetsBindingObserver {
     children: [
       if (widget.showStatusBar)
         Material(
-        color: const Color(0xff18232d),
-        child: SafeArea(
-          bottom: false,
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: widget.compact ? 4 : 8,
-              vertical: widget.compact ? 1 : 4,
-            ),
-            child: Row(
-              children: [
-                IconButton(
-                  tooltip: _enabled
-                      ? 'Salir del canal'
-                      : widget.canTransmit
-                      ? 'Activar walkie-talkie'
-                      : 'Activar recepción de voz',
-                  onPressed: () =>
-                      unawaited(_enabled ? _deactivate() : _activate()),
-                  iconSize: widget.compact ? 16 : 24,
-                  padding: EdgeInsets.zero,
-                  constraints: BoxConstraints.tightFor(
-                    width: widget.compact ? 28 : 48,
-                    height: widget.compact ? 28 : 48,
-                  ),
-                  icon: Icon(
-                    _enabled ? Icons.volume_up : Icons.volume_off,
-                    color: _connected ? Colors.greenAccent : Colors.white70,
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    _speaker == null
-                        ? _status
-                        : 'Habla $_speaker · $_count conectados',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: widget.compact ? 9 : 12,
+          color: const Color(0xff18232d),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: widget.compact ? 4 : 8,
+                vertical: widget.compact ? 0 : 4,
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: _enabled
+                        ? 'Salir del canal'
+                        : widget.canTransmit
+                        ? 'Activar walkie-talkie'
+                        : 'Activar recepción de voz',
+                    onPressed: () =>
+                        unawaited(_enabled ? _deactivate() : _activate()),
+                    iconSize: widget.compact ? 22 : 24,
+                    padding: EdgeInsets.zero,
+                    constraints: BoxConstraints.tightFor(width: 48, height: 48),
+                    icon: Icon(
+                      _enabled ? Icons.volume_up : Icons.volume_off,
+                      color: _connected ? Colors.greenAccent : Colors.white70,
                     ),
                   ),
-                ),
-                if (widget.canTransmit && _controls.supported)
-                  IconButton(
-                    tooltip: 'Botón y sonidos del walkie',
-                    onPressed: () => unawaited(_showControls()),
-                    icon: const Icon(Icons.tune, color: Colors.white70),
+                  Expanded(
+                    child: Text(
+                      _speaker == null
+                          ? _status
+                          : 'Habla $_speaker · $_count conectados',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: widget.compact ? 11 : 12,
+                      ),
+                    ),
                   ),
-                if (widget.canTransmit && _connected)
-                  Semantics(
-                    label: 'Mantener presionado para hablar',
-                    button: true,
-                    child: Listener(
-                      onPointerDown: (_) => unawaited(_talk()),
-                      onPointerUp: (_) => unawaited(_stopTalking()),
-                      onPointerCancel: (_) => unawaited(_stopTalking()),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _speaking
-                              ? Colors.red.shade700
-                              : Colors.teal.shade700,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          _speaking ? 'Hablando…' : 'Mantén para hablar',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
+                  if (widget.canTransmit && _controls.supported)
+                    IconButton(
+                      tooltip: 'Botón y sonidos del walkie',
+                      onPressed: () => unawaited(_showControls()),
+                      icon: const Icon(Icons.tune, color: Colors.white70),
+                    ),
+                  if (widget.canTransmit && _connected)
+                    Semantics(
+                      label: 'Mantener presionado para hablar',
+                      button: true,
+                      child: Listener(
+                        onPointerDown: (_) => unawaited(_talk()),
+                        onPointerUp: (_) => unawaited(_stopTalking()),
+                        onPointerCancel: (_) => unawaited(_stopTalking()),
+                        child: Container(
+                          constraints: BoxConstraints(
+                            minHeight: 48,
+                            maxWidth: widget.compact ? 120 : 160,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _speaking
+                                ? Colors.red.shade700
+                                : Colors.teal.shade700,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _speaking ? 'Hablando…' : 'Mantén para hablar',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
-      ),
       if (_controlsOpen) _controlsPanel(),
-      Expanded(child: widget.child),
+      Expanded(
+        child: MediaQuery.removePadding(
+          context: context,
+          removeTop: widget.showStatusBar,
+          child: widget.child,
+        ),
+      ),
     ],
   );
 }

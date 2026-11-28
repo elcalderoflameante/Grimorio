@@ -18,6 +18,44 @@ void main() {
   });
 
   test(
+    'waitstaff requests the volume-button default before reading settings',
+    () async {
+      final methods = <String>[];
+      messenger.setMockMethodCallHandler(VoiceControls.channel, (call) async {
+        methods.add(call.method);
+        if (call.method == 'initializeDefaults') {
+          expect(call.arguments, {'volume': true});
+        }
+        if (call.method == 'settings') {
+          return {'volume': true, 'sounds': true, 'accessibility': false};
+        }
+        return null;
+      });
+      final controls = VoiceControls();
+      await controls.initializeDefaults(volumeEnabled: true);
+      expect(methods, ['initializeDefaults', 'settings']);
+      expect(controls.volume, isTrue);
+      expect(controls.sounds, isTrue);
+    },
+  );
+
+  test(
+    'initialization respects an explicitly disabled physical button',
+    () async {
+      messenger.setMockMethodCallHandler(VoiceControls.channel, (call) async {
+        expect(call.method, isNot('saveSettings'));
+        if (call.method == 'settings') {
+          return {'volume': false, 'sounds': true, 'accessibility': false};
+        }
+        return null;
+      });
+      final controls = VoiceControls();
+      await controls.initializeDefaults(volumeEnabled: true);
+      expect(controls.volume, isFalse);
+    },
+  );
+
+  test(
     'native release prevents a late press check from allowing capture',
     () async {
       var held = true;

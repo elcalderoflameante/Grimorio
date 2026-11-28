@@ -10,6 +10,7 @@ import '../../../../core/network/api_error.dart';
 import '../../../auth/presentation/providers/auth_controller.dart';
 import '../../data/models/order_models.dart';
 import '../../data/services/order_api_service.dart';
+import '../widgets/restaurant_tables_grid.dart';
 import 'new_order_page.dart';
 import 'table_account_page.dart';
 
@@ -120,6 +121,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: 48,
         title: const Text('Mesas'),
         actions: [
           IconButton(
@@ -177,11 +179,11 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     return RefreshIndicator(
       onRefresh: _loadTables,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 30),
+        padding: const EdgeInsets.fromLTRB(14, 4, 14, 24),
         children: tablesByArea.entries.expand((entry) {
           return [
             Padding(
-              padding: const EdgeInsets.fromLTRB(2, 10, 2, 10),
+              padding: const EdgeInsets.fromLTRB(2, 8, 2, 8),
               child: Text(
                 'ÁREA: ${entry.key.toUpperCase()}',
                 style: GoogleFonts.cinzel(
@@ -191,24 +193,10 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                 ),
               ),
             ),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 1.25,
-              ),
-              itemCount: entry.value.length,
-              itemBuilder: (_, index) {
-                final table = entry.value[index];
-                return _TableCard(
-                  table: table,
-                  now: _now,
-                  onTap: () => _openTable(table),
-                );
-              },
+            RestaurantTablesGrid(
+              tables: entry.value,
+              now: _now,
+              onTap: _openTable,
             ),
             const SizedBox(height: 16),
           ];
@@ -216,97 +204,6 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
       ),
     );
   }
-}
-
-class _TableCard extends StatelessWidget {
-  const _TableCard({
-    required this.table,
-    required this.now,
-    required this.onTap,
-  });
-
-  final TableDto table;
-  final DateTime now;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDraft = table.currentStatus == 'Draft';
-    final isOccupied = table.currentStatus == 'Occupied';
-    final color = isOccupied
-        ? const Color(0xFFFF6B6B)
-        : isDraft
-        ? const Color(0xFFFFAB00)
-        : const Color(0xFF69F0AE);
-    final statusLabel = isOccupied
-        ? 'Ocupada'
-        : isDraft
-        ? 'Borrador'
-        : 'Libre';
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Ink(
-        decoration: BoxDecoration(
-          color: color.withAlpha(18),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withAlpha(180), width: 1.5),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.table_restaurant_rounded, color: color, size: 28),
-              const SizedBox(height: 6),
-              Text(
-                'Mesa ${table.code}',
-                style: GoogleFonts.cinzel(
-                  color: kParchment,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              if (!table.isFree && table.currentOrderStartedAt != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'Tiempo: ${_formatElapsed(table.currentOrderStartedAt!, now)}',
-                  style: GoogleFonts.lato(color: kParchmentDim, fontSize: 11),
-                ),
-              ],
-              const SizedBox(height: 5),
-              Text(
-                statusLabel,
-                style: GoogleFonts.lato(
-                  color: color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                table.isFree
-                    ? '${table.capacity} personas'
-                    : 'Pendiente: \$${table.pendingPaymentTotal.toStringAsFixed(2)}',
-                style: GoogleFonts.lato(color: kParchmentDim, fontSize: 11),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-String _formatElapsed(DateTime startedAt, DateTime now) {
-  final elapsed = now.toUtc().difference(startedAt.toUtc());
-  final minutes = elapsed.isNegative ? 0 : elapsed.inMinutes;
-  final hours = minutes ~/ 60;
-  final remainder = minutes % 60;
-  return hours == 0
-      ? '$remainder min'
-      : '${hours}h ${remainder.toString().padLeft(2, '0')}m';
 }
 
 int _tableNumber(String code) => int.tryParse(code.trim()) ?? 0x3fffffff;

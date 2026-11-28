@@ -59,6 +59,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
   VoidCallback? _releaseUpdateDeferral;
   Future<bool>? _catalogRefresh;
   bool _selectingModifiers = false;
+  bool _loadingModifiers = false;
   String? _catalogNotice;
   // ── Catálogo ──────────────────────────────────────────────────────────────
   List<MenuCategoryDto> _categories = [];
@@ -341,6 +342,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
   // ── Carrito ───────────────────────────────────────────────────────────────
 
   Future<void> _addItem(MenuItemDto item) async {
+    if (_selectingModifiers) return;
     if (!_canEditCart()) return;
     final promotion = _selectedPromotion;
     final availability = _availabilityByItemId[item.id];
@@ -359,17 +361,18 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
     }
     if (!_canIncreaseItemQuantity(item.id, item.name)) return;
     if (item.hasModifiers || item.modifierGroups.isNotEmpty) {
+      // Lock synchronously, before the request yields to a second tap.
+      setState(() {
+        _selectingModifiers = true;
+        _loadingModifiers = true;
+      });
       try {
         final detail = await ref
             .read(orderApiServiceProvider)
             .getMenuItem(item.id);
         if (!mounted || !_canEditCart()) return;
-        _selectingModifiers = true;
-        try {
-          await _showModifierDialog(detail, promotion: promotion);
-        } finally {
-          _selectingModifiers = false;
-        }
+        setState(() => _loadingModifiers = false);
+        await _showModifierDialog(detail, promotion: promotion);
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -382,6 +385,13 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
             ),
           ),
         );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _selectingModifiers = false;
+            _loadingModifiers = false;
+          });
+        }
       }
       return;
     }
@@ -415,6 +425,16 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
   }) async {
     final selected = <String, int>{};
     var showValidationError = false;
+    var closing = false;
+    void closeDialog(BuildContext dialogContext, bool confirmed) {
+      if (closing ||
+          !dialogContext.mounted ||
+          ModalRoute.of(dialogContext)?.isCurrent != true) {
+        return;
+      }
+      closing = true;
+      Navigator.of(dialogContext).pop(confirmed);
+    }
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -606,11 +626,12 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
+              onPressed: () => closeDialog(dialogContext, false),
               child: const Text('Cancelar'),
             ),
             FilledButton(
               onPressed: () {
+                if (closing) return;
                 final invalid = item.modifierGroups.any((group) {
                   final total = group.options.fold<int>(
                     0,
@@ -623,7 +644,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
                   setDialogState(() => showValidationError = true);
                   return;
                 }
-                Navigator.of(dialogContext).pop(true);
+                closeDialog(dialogContext, true);
               },
               child: const Text('Agregar'),
             ),
@@ -1019,7 +1040,8 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(title),
+          toolbarHeight: 48,
+          title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_rounded),
             onPressed: () {
@@ -1029,7 +1051,8 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
           actions: [
             IconButton(
               tooltip: 'Actualizar menú e inventario',
-              onPressed: _cartLocked || _catalogRefresh != null
+              onPressed:
+                  _cartLocked || _catalogRefresh != null || _selectingModifiers
                   ? null
                   : () => unawaited(_loadCatalog()),
               icon: const Icon(Icons.refresh_rounded),
@@ -1093,6 +1116,35 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
               bottom: 0,
               child: SafeArea(top: false, child: _buildCartPanel()),
             ),
+            if (_loadingModifiers)
+              Positioned.fill(
+                child: Stack(
+                  children: [
+                    const ModalBarrier(
+                      dismissible: false,
+                      color: Colors.black38,
+                    ),
+                    Center(
+                      child: Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const CircularProgressIndicator(),
+                              const SizedBox(height: 12),
+                              Semantics(
+                                liveRegion: true,
+                                child: const Text('Cargando opciones…'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ),

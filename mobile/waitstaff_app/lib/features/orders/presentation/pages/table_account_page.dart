@@ -133,7 +133,12 @@ class _TableAccountPageState extends ConsumerState<TableAccountPage> {
         order.acceptsAdditionalItems;
     return Scaffold(
       appBar: AppBar(
-        title: Text('Cuenta · Mesa ${widget.table.code}'),
+        toolbarHeight: 48,
+        title: Text(
+          'Cuenta · Mesa ${widget.table.code}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         actions: [
           IconButton(
             tooltip: 'Actualizar',
