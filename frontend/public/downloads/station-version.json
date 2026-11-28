@@ -1,8 +1,8 @@
 {
-  "versionCode": 21,
-  "versionName": "1.0.20",
+  "versionCode": 22,
+  "versionName": "1.0.21",
   "required": true,
   "apkUrl": "/downloads/grimorio-estaciones.apk",
-  "sha256": "856a26b4a85b6eaf88348b2163539fdd6cf914298aec5475df3724959f491cc4",
-  "message": "Consulta ingredientes y preparacion de cada plato desde el icono de receta, con sus opciones y observaciones."
+  "sha256": "e98b261e85e579763692f085f1980ca51124a0b398b3bcc87bed2e5b9bc9a814",
+  "message": "El historial identifica pedidos a domicilio y para llevar, con titulos completos y un boton de detalle mas grande."
 }

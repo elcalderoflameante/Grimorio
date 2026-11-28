@@ -163,6 +163,11 @@ Las comprobaciones de datos, componentes y aislamiento de sucursal estan en
 
 ## Actualizaciones
 
+Grimorio KDS `1.0.21+22` identifica los pedidos completados como `A domicilio`
+o `Para llevar` junto al numero y conserva la mesa o el cliente cuando existen.
+El titulo permite varias lineas; el boton de detalle tiene un icono de 22 px y
+un area de clic de 36 x 36 px. Este ajuste no requiere cambios de backend.
+
 Para actualizar la app instalada en tablets o pantallas de estacion:
 
 1. Mantener la misma llave `.jks`.

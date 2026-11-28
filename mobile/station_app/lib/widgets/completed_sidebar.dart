@@ -116,10 +116,19 @@ class _CompletedTileState extends State<_CompletedTile> {
   }
 
   String _orderTitle() {
-    if (widget.order.orderLabel == '#${widget.order.orderNumber}') {
-      return 'Pedido #${widget.order.orderNumber}';
+    final order = widget.order;
+    final parts = ['Pedido #${order.orderNumber}'];
+    final typeLabel = switch (order.orderType.trim().toLowerCase()) {
+      'delivery' => 'A domicilio',
+      'takeout' => 'Para llevar',
+      _ => null,
+    };
+    if (typeLabel != null) parts.add(typeLabel);
+    final label = order.orderLabel.trim();
+    if (label.isNotEmpty && label != '#${order.orderNumber}') {
+      parts.add(label);
     }
-    return 'Pedido #${widget.order.orderNumber} - ${widget.order.orderLabel}';
+    return parts.join(' - ');
   }
 
   String? _orderNotes() {
@@ -169,7 +178,7 @@ class _CompletedTileState extends State<_CompletedTile> {
                           fontWeight: FontWeight.bold,
                           fontSize: 9,
                         ),
-                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
                       ),
                       if (_orderNotes() != null) ...[
                         const SizedBox(height: 2),
@@ -198,7 +207,10 @@ class _CompletedTileState extends State<_CompletedTile> {
                         ),
                       ],
                       const SizedBox(height: 1),
-                      Row(
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 2,
+                        alignment: WrapAlignment.spaceBetween,
                         children: [
                           Text(
                             '${widget.order.itemCount} ítem${widget.order.itemCount == 1 ? '' : 's'}',
@@ -207,7 +219,6 @@ class _CompletedTileState extends State<_CompletedTile> {
                               fontSize: 8,
                             ),
                           ),
-                          const Spacer(),
                           Text(
                             _elapsed(),
                             style: const TextStyle(
@@ -222,25 +233,28 @@ class _CompletedTileState extends State<_CompletedTile> {
                 ),
                 const SizedBox(width: 3),
                 // Ícono ojo para expandir/colapsar
-                GestureDetector(
-                  onTap: () => setState(() => _expanded = !_expanded),
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: _expanded
-                          ? const Color(0xFF4EE87A).withValues(alpha: 0.15)
-                          : Colors.transparent,
+                IconButton(
+                  tooltip: _expanded ? 'Ocultar pedido' : 'Ver pedido',
+                  onPressed: () => setState(() => _expanded = !_expanded),
+                  padding: const EdgeInsets.all(6),
+                  constraints: const BoxConstraints.tightFor(
+                    width: 36,
+                    height: 36,
+                  ),
+                  style: IconButton.styleFrom(
+                    backgroundColor: _expanded
+                        ? const Color(0xFF4EE87A).withValues(alpha: 0.15)
+                        : Colors.transparent,
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(3),
                     ),
-                    child: Icon(
-                      _expanded
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                      color: _expanded
-                          ? const Color(0xFF4EE87A)
-                          : Colors.white30,
-                      size: 11,
-                    ),
+                  ),
+                  icon: Icon(
+                    _expanded
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: _expanded ? const Color(0xFF4EE87A) : Colors.white70,
+                    size: 22,
                   ),
                 ),
               ],
