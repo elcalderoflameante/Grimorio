@@ -72,7 +72,7 @@ export function getGroupedPromotionDiscounts(
   lines.forEach((line,index) => {
     const p = promotions.find(p => p.id === line.promotionId);
     if (p?.type !== 'SecondUnitPercentage' || (useCardPrice && p.paymentPolicy === 'CardAlternativePrice')) return;
-    const key = JSON.stringify([line.menuItemId,line.promotionId]);
+    const key = line.promotionId!;
     groups.set(key,[...(groups.get(key) ?? []),index]);
   });
   for (const indexes of groups.values()) {

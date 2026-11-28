@@ -11,6 +11,7 @@ import '../../../../core/network/api_error.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/app_update_gate.dart';
 import '../../data/models/order_models.dart';
+import '../../data/models/cart_promotion_pricing.dart';
 import '../../data/models/cart_catalog_validation.dart';
 import '../../data/models/pending_order_items_update.dart';
 import '../../data/services/order_api_service.dart';
@@ -98,8 +99,10 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
   }
 
   double get _subtotal => _cart.fold(0, (s, i) => s + i.subtotal);
-  double get _discountTotal =>
-      _cart.fold(0, (sum, item) => sum + _discountForItem(item));
+  double get _discountTotal => cartPromotionDiscounts(
+    _cart,
+    _promotionForItem,
+  ).values.fold(0, (sum, discount) => sum + discount);
   double get _total =>
       (_subtotal - _discountTotal).clamp(0, double.infinity).toDouble();
   int get _totalItems => _cart.fold(0, (s, i) => s + i.quantity);
@@ -334,18 +337,6 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
     }
     return null;
   }
-
-  double _discountForItem(CartItem item) =>
-      _promotionForItem(item)?.calculateDiscount(
-        item.price,
-        item.quantity,
-        modifierUnitPriceDelta: item.modifierSelections.fold<double>(
-          0,
-          (sum, selection) =>
-              sum + selection.unitPriceDelta * selection.quantity,
-        ),
-      ) ??
-      0;
 
   // ── Carrito ───────────────────────────────────────────────────────────────
 
@@ -1179,6 +1170,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
 
   Widget _buildCartPanel() {
     if (_totalItems == 0) return const SizedBox.shrink();
+    final discounts = cartPromotionDiscounts(_cart, _promotionForItem);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -1252,7 +1244,7 @@ class _NewOrderPageState extends ConsumerState<NewOrderPage>
                 itemCount: _cart.length,
                 itemBuilder: (_, i) => _CartRow(
                   item: _cart[i],
-                  discount: _discountForItem(_cart[i]),
+                  discount: discounts[_cart[i]] ?? 0,
                   onIncrease: () => _changeQuantity(i, 1),
                   onDecrease: () => _changeQuantity(i, -1),
                   onNote: () => _editNote(i),

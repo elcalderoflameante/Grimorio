@@ -1,5 +1,6 @@
 using Grimorio.Application.DTOs;
 using Grimorio.Application.Features.Billing.Commands;
+using Grimorio.Application.Features.Menu.Commands;
 using Grimorio.Application.Features.POS.Commands;
 using Grimorio.Domain.Entities.Inventory;
 using Grimorio.Domain.Entities.Billing;
@@ -174,8 +175,101 @@ internal static class SecondUnitPromotionChecks
         check(screenshotCase.Total == 34.50m && screenshotCase.DiscountTotal == 11.50m
             && screenshotCase.Items.Sum(i => i.PromotionCardDiscountAmount) == 6.90m,
             "Four separate 11.50 ribeyes conserve cash and card cents exactly");
+        await MixedProducts(services, branch, actor, dish, cash, session, card.Id, bank.Id, check);
         var expired = Data(); expired.StartsOn = new DateOnly(2000, 1, 1); expired.EndsOn = new DateOnly(2000, 1, 1);
         var inactive = await Send(new UpdatePromotionCommand { Id = promotion.Id, BranchId = branch, Data = expired });
         check(!inactive.IsCurrentlyActive, "Promotion outside its date range is not active");
+    }
+
+    private static async Task MixedProducts(IServiceProvider services, Guid branch, Guid actor, Guid templateId,
+        Guid cash, Guid session, Guid card, Guid bank, Action<bool, string> check)
+    {
+        async Task<T> Send<T>(IRequest<T> request) {
+            await using var scope = services.CreateAsyncScope();
+            return await scope.ServiceProvider.GetRequiredService<IMediator>().Send(request);
+        }
+        await using var read = services.CreateAsyncScope();
+        var db = read.ServiceProvider.GetRequiredService<GrimorioDbContext>();
+        var template = await db.MenuItems.AsNoTracking().SingleAsync(i => i.Id == templateId);
+        async Task<MenuItemDto> Burger(string name, decimal price) => await Send(new CreateMenuItemCommand {
+            BranchId = branch, Name = name, GeneralName = name, MenuCategoryId = template.MenuCategoryId,
+            StationId = template.StationId, Price = price,
+        });
+        var cheap = await Burger("Classic burger", 4.25m);
+        var expensive = await Burger("Special burger", 5.25m);
+        var promotion = await Send(new CreatePromotionCommand { BranchId = branch, Data = new UpsertPromotionDto {
+            Name = "Mixed burgers", Type = "SecondUnitPercentage", DiscountPercent = 50,
+            PaymentPolicy = "CardAlternativePercentage", CardDiscountPercent = 30, MenuItemIds = [cheap.Id, expensive.Id],
+        } });
+        CreateOrderItemDto Line(Guid id, int quantity = 1, Guid? promo = null) => new() {
+            MenuItemId = id, Quantity = quantity, PromotionId = promo,
+        };
+        async Task<OrderDto> Order(params CreateOrderItemDto[] lines) => await Send(new CreateOrderCommand {
+            BranchId = branch, Type = "Takeout", Items = lines.ToList(),
+        });
+        foreach (var reverse in new[] { false, true }) {
+            var lines = new[] { Line(cheap.Id, promo: promotion.Id), Line(expensive.Id, promo: promotion.Id) };
+            if (reverse) Array.Reverse(lines);
+            var order = await Order(lines);
+            check(order.Total == 7.38m && order.DiscountTotal == 2.12m
+                && order.Items.Sum(i => i.PromotionCardDiscountAmount) == 1.28m,
+                "Different burgers pair by promotion, discount the cheaper one and preserve existing midpoint rounding");
+            check(order.Items.Select(i => i.PromotionGroupId).Distinct().Count() == 1,
+                "Mixed products share one promotional group regardless of input order");
+            var reopened = (await Send(new Grimorio.Application.Features.POS.Queries.GetOrderDetailQuery {
+                BranchId = branch, OrderId = order.Id }))!;
+            check(reopened.Total == 7.38m, "Mixed promotion total survives save and reopen");
+            check((await Send(new RecalculateOrderPromotionsCommand(branch, order.Id))).Total == 7.38m,
+                "Recalculating mixed products is idempotent");
+        }
+        check((await Order(Line(cheap.Id, promo: promotion.Id), Line(expensive.Id, 2, promotion.Id))).Total == 12.13m,
+            "Odd mixed quantities discount only the cheaper unit in each complete descending-price pair");
+        check((await Order(Line(cheap.Id, 2, promotion.Id), Line(expensive.Id, 2, promotion.Id))).Total == 14.25m,
+            "Multiple mixed pairs conserve group rounding exactly");
+        check((await Order(Line(cheap.Id, promo: promotion.Id), Line(expensive.Id))).Total == 9.50m,
+            "An ordinary menu item cannot complete the promotional pair");
+        var otherPromotion = await Send(new CreatePromotionCommand { BranchId = branch, Data = new UpsertPromotionDto {
+            Name = "Other burger offer", Type = "SecondUnitPercentage", DiscountPercent = 50, MenuItemIds = [cheap.Id, expensive.Id],
+        } });
+        check((await Order(Line(cheap.Id, promo: promotion.Id), Line(expensive.Id, promo: otherPromotion.Id))).Total == 9.50m,
+            "Different promotions never form a mixed pair");
+        var legacy = await Order(Line(cheap.Id, promo: promotion.Id), Line(cheap.Id));
+        await Send(new ConfirmOrderCommand { BranchId = branch, OrderId = legacy.Id });
+        var legacyLine = legacy.Items.Single(i => i.PromotionId.HasValue);
+        await Send(new PayOrderCommand { BranchId = branch, UserId = actor, OrderId = legacy.Id, CashSessionId = session,
+            IdempotencyKey = Guid.NewGuid(), OrderAmount = 4.25m,
+            Items = [new() { OrderItemId = legacyLine.Id, Quantity = 1 }],
+            Lines = [new() { MethodId = cash, AmountTendered = 4.25m }] });
+        await using (var scope = services.CreateAsyncScope()) {
+            var legacyDb = scope.ServiceProvider.GetRequiredService<GrimorioDbContext>();
+            var saved = await legacyDb.Orders.Include(o => o.Items).SingleAsync(o => o.Id == legacy.Id);
+            saved.Items.Single(i => i.Id == legacyLine.Id).PromotionGroupId = null;
+            await legacyDb.SaveChangesAsync();
+        }
+        var legacyUpdated = await Send(new UpdateOrderItemsCommand { BranchId = branch, OrderId = legacy.Id,
+            ExpectedIsDraft = false, IdempotencyKey = Guid.NewGuid(), Items = [Line(expensive.Id, promo: promotion.Id)] });
+        check(legacyUpdated.Total == 13.75m && legacyUpdated.DiscountTotal == 0,
+            "Legacy paid products without group metadata cannot be paired retroactively with a different product");
+        var split = await Order(Line(cheap.Id, promo: promotion.Id), Line(expensive.Id, promo: promotion.Id));
+        await Send(new ConfirmOrderCommand { BranchId = branch, OrderId = split.Id });
+        var first = split.Items.Single(i => i.MenuItemId == cheap.Id);
+        await Send(new PayOrderCommand { BranchId = branch, UserId = actor, OrderId = split.Id, CashSessionId = session,
+            IdempotencyKey = Guid.NewGuid(), OrderAmount = first.TotalPrice,
+            Items = [new() { OrderItemId = first.Id, Quantity = 1 }],
+            Lines = [new() { MethodId = cash, AmountTendered = first.TotalPrice }] });
+        var appended = await Send(new UpdateOrderItemsCommand { BranchId = branch, OrderId = split.Id, ExpectedIsDraft = false,
+            IdempotencyKey = Guid.NewGuid(), Items = [Line(cheap.Id, promo: promotion.Id), Line(expensive.Id, promo: promotion.Id)] });
+        check(appended.Total == 14.76m && split.Items.All(original => appended.Items.Any(i => i.Id == original.Id
+            && i.PromotionGroupId == original.PromotionGroupId && i.PromotionCashDiscountAmount == original.PromotionCashDiscountAmount)),
+            "Appending mixed products preserves groups with existing payments and pairs only the new units");
+        var remaining = split.Items.Single(i => i.MenuItemId == expensive.Id);
+        var cardAmount = remaining.UnitPrice - remaining.PromotionCardDiscountAmount!.Value;
+        var paid = await Send(new PayOrderCommand { BranchId = branch, UserId = actor, OrderId = split.Id, CashSessionId = session,
+            IdempotencyKey = Guid.NewGuid(), OrderAmount = cardAmount,
+            Items = [new() { OrderItemId = remaining.Id, Quantity = 1 }],
+            Lines = [new() { MethodId = card, AmountTendered = cardAmount, CardBankId = bank,
+                CardPaymentType = "Credit", CardBrand = "Visa", AuthorizationNumber = "MIXED123" }] });
+        check(first.TotalPrice + paid.OrderAmount == 7.84m,
+            "Cash and card partial payments preserve their mixed-product discount snapshots");
     }
 }

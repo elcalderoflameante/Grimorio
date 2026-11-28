@@ -2,6 +2,14 @@
 
 Aplicacion Flutter para que el personal de meseros vea y atienda solicitudes de mesas en tiempo real.
 
+## Version 1.0.30+31
+
+La segunda unidad con descuento permite combinar distintos platos elegibles
+de la misma promocion. Las unidades se emparejan de mayor a menor precio y
+se descuenta la mas economica de cada pareja; el carrito conserva el mismo
+redondeo y reparto de centavos que el backend. Los platos agregados sin
+promocion no completan parejas. Publicar junto con el backend y frontend.
+
 ## Version 1.0.29+30
 
 Icono PEDIDOS con la imagen del restaurante y fondo transparente, igual que
@@ -134,8 +142,8 @@ misma version para binarios diferentes.
 
 ```json
 {
-  "versionCode": 30,
-  "versionName": "1.0.29",
+  "versionCode": 31,
+  "versionName": "1.0.30",
   "required": false,
   "apkUrl": "/downloads/grimorio-meseros.apk",
   "sha256": "REEMPLAZAR_POR_EL_SHA256_REAL_DEL_APK",

@@ -29,15 +29,15 @@ internal static class SecondUnitPromotionGroups
             && i.Status == OrderItemStatus.Cancelled))
             throw new InvalidOperationException("No se puede cambiar una pareja promocional con cobros registrados. Revisa sus pagos primero.");
         var legacyPaid = items.Where(i => paidIds.Contains(i.Id) && !i.PromotionGroupId.HasValue)
-            .Select(i => (i.MenuItemId, i.PromotionId)).ToHashSet();
+            .Select(i => i.PromotionId).ToHashSet();
         var candidates = items.Where(i => i.Status != OrderItemStatus.Cancelled && i.PromotionId.HasValue
             && promotions.TryGetValue(i.PromotionId.Value, out var p) && p.Type == PromotionType.SecondUnitPercentage
             && (!i.PromotionGroupId.HasValue || !frozenGroups.Contains(i.PromotionGroupId.Value))
-            && !legacyPaid.Contains((i.MenuItemId, i.PromotionId)));
-        foreach (var group in candidates.GroupBy(i => (i.MenuItemId, i.PromotionId)))
+            && !legacyPaid.Contains(i.PromotionId));
+        foreach (var group in candidates.GroupBy(i => i.PromotionId!.Value))
         {
             var lines = group.OrderByDescending(i => i.UnitPrice).ThenBy(i => i.CreatedAt).ThenBy(i => i.Id).ToList();
-            var promotion = promotions[group.Key.PromotionId!.Value];
+            var promotion = promotions[group.Key];
             var groupId = lines.Select(i => i.PromotionGroupId).FirstOrDefault(id => id.HasValue) ?? Guid.NewGuid();
             decimal discountedBase = 0;
             long position = 0;

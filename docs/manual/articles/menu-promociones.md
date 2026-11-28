@@ -21,6 +21,18 @@ Agrega los platos desde **Promociones**. Agregarlos desde el menú normal no
 los transforma por sí solo en líneas de esa promoción. Revisa que las líneas
 pertenezcan a la misma oferta y cumplan su cantidad y vigencia.
 
+Los productos distintos incluidos en la misma oferta pueden formar pareja.
+Se ordenan por precio de mayor a menor y el descuento se calcula sobre la unidad
+mas economica de cada pareja completa, sin importar cual se agrego primero.
+Por ejemplo, una hamburguesa de $4.25 y otra de $5.25 con 50% en la segunda
+unidad suman $7.38, con el redondeo del ERP. Si hay tres unidades, solo se
+descuenta una; con cuatro, se forman dos parejas. Las promociones diferentes
+y los productos agregados sin promocion no se mezclan.
+
+El ahorro se reparte entre las lineas de la pareja para conservar los centavos
+en cobros divididos. Una pareja con cobros registrados conserva su calculo:
+los nuevos productos forman otro grupo, sin modificar los pagos anteriores.
+
 ## Verificación antes de cobrar
 
 Revisa el detalle guardado y vuelve a abrirlo. Al seleccionar tarjeta compara

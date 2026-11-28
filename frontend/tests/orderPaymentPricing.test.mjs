@@ -72,13 +72,31 @@ test('separate modifier lines form pairs and distribute cash/card savings withou
     assert.equal(getGroupedPromotionDiscounts(lines,[promo],true).reduce((s,d)=>s+Math.round(d*100),0),Math.round(totalCard*100));
   }
 });
-test('different products/promotions never form a pair, cheaper unit is discounted and snapshots remain authoritative', () => {
+test('different products in the same promotion pair, other promotions stay separate and snapshots remain authoritative', () => {
   const promo={...differentCard,id:'p'};
   const lines=[{menuItemId:'ribeye',promotionId:'p',unitPrice:25,quantity:1},{menuItemId:'ribeye',promotionId:'p',unitPrice:20,quantity:1}];
   assert.deepEqual(getGroupedPromotionDiscounts(lines,[promo]),[5.56,4.44]);
-  assert.deepEqual(getGroupedPromotionDiscounts([lines[0],{...lines[1],menuItemId:'other'}],[promo]),[0,0]);
+  assert.deepEqual(getGroupedPromotionDiscounts([lines[0],{...lines[1],menuItemId:'other'}],[promo]),[5.56,4.44]);
+  assert.deepEqual(getGroupedPromotionDiscounts([lines[0],{...lines[1],promotionId:'other'}],[promo,{...promo,id:'other'}]),[0,0]);
   assert.deepEqual(getGroupedPromotionDiscounts([lines[0],{...lines[1],promotionId:undefined}],[promo]),[0,0]);
   assert.equal(getPaymentLineTotal({unitPrice:11.5,quantity:1,totalPrice:8.62,promotionCashDiscountAmount:2.88,promotionCardDiscountAmount:1.72},promo,true),9.78);
+});
+
+test('mixed hamburgers use the cheaper unit, preserve midpoint rounding and ignore entry order', () => {
+  const promo = {...differentCard, id:'burgers'};
+  const lines = [
+    {menuItemId:'classic', promotionId:promo.id, unitPrice:4.25, quantity:1},
+    {menuItemId:'special', promotionId:promo.id, unitPrice:5.25, quantity:1},
+  ];
+  const cents = values => values.reduce((sum, value) => sum + Math.round(value * 100), 0);
+  for (const ordered of [lines, [...lines].reverse()]) {
+    assert.equal(cents(getGroupedPromotionDiscounts(ordered,[promo])),212);
+    assert.equal(cents(getGroupedPromotionDiscounts(ordered,[promo],true)),128);
+    assert.equal(cents(getGroupedPromotionDiscounts(ordered,[{...promo,paymentPolicy:'CashTransferOnly'}],true)),0);
+  }
+  assert.equal(cents(getGroupedPromotionDiscounts(lines.map(line=>({...line,quantity:2})),[promo])),475);
+  assert.equal(cents(getGroupedPromotionDiscounts([lines[0],{...lines[1],quantity:2}],[promo])),262);
+  assert.equal(cents(getGroupedPromotionDiscounts([...lines,{...lines[0],promotionId:undefined}],[promo])),212);
 });
 test('different card percentage applies to the same second units as cash and transfer', () => {
   for (const [quantity, cash, card] of [[1,20,20],[2,30,34],[3,50,54],[4,60,68],[5,80,88],[6,90,102]]) {

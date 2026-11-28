@@ -308,6 +308,7 @@ class PromotionDto {
   );
 
   String get valueLabel => switch (type) {
+    'SecondUnitPercentage' => '2da unidad: ${discountPercent ?? 0}% desc.',
     'Percentage' => '${discountPercent ?? 0}%',
     'FixedAmount' => '\$${(discountAmount ?? 0).toStringAsFixed(2)} desc.',
     'FixedPrice' => '\$${(fixedPrice ?? 0).toStringAsFixed(2)}',
@@ -325,6 +326,8 @@ class PromotionDto {
   }) {
     final gross = unitPrice * quantity;
     final discount = switch (type) {
+      'SecondUnitPercentage' =>
+        (quantity ~/ 2) * unitPrice * ((discountPercent ?? 0) / 100),
       'Percentage' => gross * ((discountPercent ?? 0) / 100),
       'FixedAmount' => discountAmount ?? 0,
       'FixedPrice' =>
