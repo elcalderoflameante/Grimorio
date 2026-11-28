@@ -3,13 +3,15 @@ import 'package:http/http.dart' as http;
 import '../core/api_config.dart';
 import '../models/work_station.dart';
 import '../models/station_item.dart';
+import '../models/kitchen_recipe.dart';
 
 class UnauthorizedException implements Exception {}
 
 class ApiService {
   final String token;
+  final http.Client? _client;
 
-  ApiService({required this.token});
+  ApiService({required this.token, http.Client? client}) : _client = client;
 
   String get _base => ApiConfig.baseUrl;
 
@@ -19,9 +21,11 @@ class ApiService {
   };
 
   Future<T> _get<T>(String path, T Function(dynamic body) parse) async {
-    final response = await http
-        .get(Uri.parse('$_base$path'), headers: _headers)
-        .timeout(const Duration(seconds: 15));
+    final uri = Uri.parse('$_base$path');
+    final response =
+        await (_client?.get(uri, headers: _headers) ??
+                http.get(uri, headers: _headers))
+            .timeout(const Duration(seconds: 15));
 
     if (response.statusCode == 401) throw UnauthorizedException();
     if (response.statusCode != 200) {
@@ -77,4 +81,9 @@ class ApiService {
       throw Exception('Error al actualizar estado (${response.statusCode}).');
     }
   }
+
+  Future<KitchenRecipe> getItemRecipe(String orderItemId) => _get(
+    '/pos/ordenes/items/${Uri.encodeComponent(orderItemId)}/receta',
+    (body) => KitchenRecipe.fromJson(body as Map<String, dynamic>),
+  );
 }

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/station_item.dart';
 import '../providers/station_provider.dart';
 import 'display_size_scope.dart';
+import 'recipe_dialog.dart';
 
 // Formato compacto para mostrar más pedidos sin ocultar nombres de combos.
 const double kCardWidth = 170.0;
@@ -345,13 +346,24 @@ class _ItemRow extends StatelessWidget {
                         softWrap: true,
                       ),
                     ),
-                    // Cursor visual si se puede tocar
-                    if (canAdvance)
-                      Icon(
-                        Icons.touch_app_rounded,
-                        color: fg.withValues(alpha: 0.5),
-                        size: 9,
+                    IconButton(
+                      key: ValueKey('recipe-${item.orderItemId}'),
+                      tooltip: 'Ver receta',
+                      icon: const Icon(
+                        Icons.menu_book_rounded,
+                        color: Colors.white,
+                        size: 15,
                       ),
+                      padding: EdgeInsets.zero,
+                      constraints: BoxConstraints.tightFor(
+                        width: context.displaySize(24),
+                        height: context.displaySize(24),
+                      ),
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (_) => RecipeDialog(item: item),
+                      ),
+                    ),
                   ],
                 ),
                 // Modificadores (ej: salsa bbq, mostaza miel...)

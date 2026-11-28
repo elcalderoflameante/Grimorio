@@ -585,6 +585,15 @@ public class PosController : ControllerBase
     // ── Monitor de estación ─────────────────────────────────────────────────
 
     [Authorize(Policy = "POS.Kitchen.View")]
+    [HttpGet("ordenes/items/{id:guid}/receta")]
+    public async Task<IActionResult> GetKitchenRecipe(Guid id, CancellationToken ct)
+    {
+        if (!TryGetBranchId(out var branchId)) return Unauthorized();
+        var recipe = await _mediator.Send(new GetKitchenRecipeQuery(branchId, id), ct);
+        return recipe is null ? NotFound(new { message = "Receta no disponible para este plato." }) : Ok(recipe);
+    }
+
+    [Authorize(Policy = "POS.Kitchen.View")]
     [HttpGet("estaciones/{id:guid}/items")]
     public async Task<IActionResult> GetStationItems(Guid id)
     {

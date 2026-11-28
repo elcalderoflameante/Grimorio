@@ -128,6 +128,39 @@ Despues de desplegar el frontend, la APK queda disponible en:
 https://erp.elcalderoflameante.com/downloads/grimorio-estaciones.apk
 ```
 
+## Consulta de recetas
+
+Disponible desde Grimorio KDS `1.0.20+21`.
+
+Cada plato tiene un boton de libro con la etiqueta `Ver receta`. Abre una
+ventana de consulta sin cambiar su estado ni interrumpir la recepcion de pedidos.
+En componentes de combos se consulta la receta del componente, no la del combo.
+
+La ventana muestra foto y descripcion cuando existen, ingredientes por porcion,
+subrecetas y pasos de preparacion configurados en el ERP. Las cantidades no se
+multiplican por las unidades de la comanda. Si falta una conversion de unidades,
+los ingredientes de la subreceta se muestran sin inventar cantidades.
+
+Las opciones y observaciones actuales del plato y del pedido aparecen aparte de
+la receta base. No se recalcula la receta segun los modificadores. Una receta ya
+cargada permanece visible si se pierde la conexion mientras la ventana esta
+abierta; volver a abrirla requiere consultar el servidor. Los errores ofrecen
+reintento y las recetas vacias muestran un estado especifico.
+
+El backend expone `GET /api/pos/ordenes/items/{id}/receta` con el permiso
+`POS.Kitchen.View`, limitado a la sucursal del usuario y sin precios ni costos.
+No requiere migraciones ni permisos de administracion del menu. Desplegar este
+endpoint antes de distribuir una APK con la consulta de recetas.
+
+Pruebas de la ventana, reintento, aislamiento de acciones y adaptacion a pantalla:
+
+```powershell
+flutter test --no-pub --dart-define=API_BASE_URL=http://localhost/api
+```
+
+Las comprobaciones de datos, componentes y aislamiento de sucursal estan en
+`backend/tests/KitchenRecipe.Checks`.
+
 ## Actualizaciones
 
 Para actualizar la app instalada en tablets o pantallas de estacion:

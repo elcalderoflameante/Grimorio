@@ -6,6 +6,7 @@ import '../models/completed_order.dart';
 import '../models/display_size_mode.dart';
 import '../models/station_item.dart';
 import '../models/work_station.dart';
+import '../models/kitchen_recipe.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/display_preferences_service.dart';
@@ -194,6 +195,9 @@ class StationProvider extends ChangeNotifier {
     final api = _apiFactory(_token);
     return api.getStations();
   }
+
+  Future<KitchenRecipe> loadItemRecipe(String orderItemId) =>
+      _apiFactory(_token).getItemRecipe(orderItemId);
 
   Future<void> selectStations(List<WorkStation> stations) async {
     final selected = stations.where((s) => s.isActive).toList();
